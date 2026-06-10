@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Gavhah"
+version = "1.0.0"
+id = "artifacts/gavhah"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24268
+
+[services.development]
+run = "pnpm --filter @workspace/gavhah run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/gavhah", "run", "build" ]
+publicDir = "artifacts/gavhah/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24268"
+BASE_PATH = "/"

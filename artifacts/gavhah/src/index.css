@@ -1,0 +1,151 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-border: var(--primary-border);
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary-border: var(--secondary-border);
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted-border: var(--muted-border);
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-border: var(--accent-border);
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-border: var(--destructive-border);
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-primary-border: var(--sidebar-primary-border);
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-accent-border: var(--sidebar-accent-border);
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  :root {
+    --background: 44 33% 97%; /* #fdfbf7 warm off-white */
+    --foreground: 214 70% 13%; /* deep navy text */
+
+    --card: 44 20% 99%;
+    --card-foreground: 214 70% 13%;
+    --card-border: 44 20% 90%;
+
+    --popover: 44 33% 97%;
+    --popover-foreground: 214 70% 13%;
+    --popover-border: 44 20% 90%;
+
+    /* Primary: Deep Navy */
+    --primary: 214 70% 13%;
+    --primary-foreground: 44 33% 97%;
+
+    /* Secondary: Deep Burgundy */
+    --secondary: 345 57% 26%;
+    --secondary-foreground: 44 33% 97%;
+
+    /* Accent: Deep Golden/Amber */
+    --accent: 38 45% 55%;
+    --accent-foreground: 44 33% 97%;
+
+    --muted: 44 20% 90%;
+    --muted-foreground: 214 20% 40%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 44 20% 85%;
+    --input: 44 20% 85%;
+    --ring: 214 70% 13%;
+
+    --radius: 0.3rem;
+
+    --app-font-sans: 'Outfit', sans-serif;
+    --app-font-serif: 'Playfair Display', serif;
+    --app-font-mono: 'Space Mono', monospace;
+  }
+
+  .dark {
+    --background: 214 70% 8%; /* Very dark navy */
+    --foreground: 44 33% 90%; 
+
+    --card: 214 70% 10%;
+    --card-foreground: 44 33% 90%;
+    --card-border: 214 40% 18%;
+
+    --popover: 214 70% 8%;
+    --popover-foreground: 44 33% 90%;
+    --popover-border: 214 40% 18%;
+
+    --primary: 44 33% 90%;
+    --primary-foreground: 214 70% 8%;
+
+    --secondary: 345 57% 40%;
+    --secondary-foreground: 44 33% 97%;
+
+    --accent: 38 45% 45%;
+    --accent-foreground: 44 33% 97%;
+
+    --muted: 214 40% 18%;
+    --muted-foreground: 44 20% 60%;
+
+    --border: 214 40% 18%;
+    --input: 214 40% 18%;
+    --ring: 44 33% 90%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased selection:bg-accent/20;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif tracking-tight;
+  }
+}

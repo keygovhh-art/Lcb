@@ -1,0 +1,93 @@
+import { Router, type IRouter } from "express";
+import { eq, desc, sql } from "drizzle-orm";
+import { db, discussionsTable, commentsTable } from "@workspace/db";
+
+const router: IRouter = Router();
+
+router.get("/discussions/trending", async (_req, res): Promise<void> => {
+  const trending = await db.select().from(discussionsTable)
+    .orderBy(desc(discussionsTable.views), desc(discussionsTable.likes))
+    .limit(5);
+  res.json(trending);
+});
+
+router.get("/discussions", async (req, res): Promise<void> => {
+  const { category, search } = req.query as Record<string, string>;
+  let all = await db.select().from(discussionsTable).orderBy(desc(discussionsTable.createdAt));
+  if (category) all = all.filter(d => d.category === category);
+  if (search) all = all.filter(d => d.title.toLowerCase().includes(search.toLowerCase()) || d.content.toLowerCase().includes(search.toLowerCase()));
+  res.json(all);
+});
+
+router.post("/discussions", async (req, res): Promise<void> => {
+  const { title, content, category } = req.body;
+  if (!title || !content) { res.status(400).json({ error: "title and content required" }); return; }
+  const [disc] = await db.insert(discussionsTable).values({
+    title, content, category: category || "general",
+    authorId: 1, authorName: "Community Member",
+  }).returning();
+  res.status(201).json(disc);
+});
+
+router.get("/discussions/:id", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const [disc] = await db.select().from(discussionsTable).where(eq(discussionsTable.id, id));
+  if (!disc) { res.status(404).json({ error: "Not found" }); return; }
+  await db.update(discussionsTable).set({ views: sql`${discussionsTable.views} + 1` }).where(eq(discussionsTable.id, id));
+  res.json({ ...disc, views: disc.views + 1 });
+});
+
+router.patch("/discussions/:id", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const { title, content, category, isPinned } = req.body;
+  const [disc] = await db.update(discussionsTable).set({ title, content, category, isPinned, updatedAt: new Date() }).where(eq(discussionsTable.id, id)).returning();
+  if (!disc) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(disc);
+});
+
+router.delete("/discussions/:id", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  await db.delete(discussionsTable).where(eq(discussionsTable.id, id));
+  res.sendStatus(204);
+});
+
+router.post("/discussions/:id/like", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const [disc] = await db.update(discussionsTable).set({ likes: sql`${discussionsTable.likes} + 1` }).where(eq(discussionsTable.id, id)).returning();
+  if (!disc) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ likes: disc.likes });
+});
+
+router.post("/discussions/:id/lock", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const [disc] = await db.update(discussionsTable).set({ isLocked: true }).where(eq(discussionsTable.id, id)).returning();
+  if (!disc) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(disc);
+});
+
+router.get("/discussions/:id/comments", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const comments = await db.select().from(commentsTable).where(eq(commentsTable.discussionId, id)).orderBy(commentsTable.createdAt);
+  res.json(comments);
+});
+
+router.post("/discussions/:id/comments", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const discussionId = parseInt(raw, 10);
+  const { content, parentId } = req.body;
+  if (!content) { res.status(400).json({ error: "content required" }); return; }
+  const [comment] = await db.insert(commentsTable).values({
+    content, discussionId, parentId: parentId ?? null,
+    authorId: 1, authorName: "Community Member",
+  }).returning();
+  await db.update(discussionsTable).set({ commentCount: sql`${discussionsTable.commentCount} + 1` }).where(eq(discussionsTable.id, discussionId));
+  res.status(201).json(comment);
+});
+
+export default router;

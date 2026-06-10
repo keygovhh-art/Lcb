@@ -1,22 +1,43 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Gavhah Community Kindness Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: users
+    description: User management
+  - name: discussions
+    description: Askanim Forum discussions
+  - name: news
+    description: Global Chesed News
+  - name: groups
+    description: Community Groups
+  - name: minyans
+    description: Minyan Center
+  - name: volunteers
+    description: Activists Directory
+  - name: charity
+    description: Today's Charity
+  - name: stats
+    description: Community Dashboard statistics
+  - name: announcements
+    description: Platform announcements
+  - name: reports
+    description: Content moderation reports
+  - name: notifications
+    description: User notifications
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +45,1282 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ---- USERS ----
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update a user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete a user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}/ban:
+    post:
+      operationId: banUser
+      tags: [users]
+      summary: Ban a user (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User banned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}/suspend:
+    post:
+      operationId: suspendUser
+      tags: [users]
+      summary: Suspend a user (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User suspended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}/dashboard:
+    get:
+      operationId: getUserDashboard
+      tags: [users]
+      summary: Get personal dashboard for a user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDashboard"
+
+  # ---- DISCUSSIONS (Askanim Forum) ----
+  /discussions:
+    get:
+      operationId: listDiscussions
+      tags: [discussions]
+      summary: List forum discussions
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: trending
+          schema:
+            type: boolean
+        - in: query
+          name: page
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of discussions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Discussion"
+    post:
+      operationId: createDiscussion
+      tags: [discussions]
+      summary: Create a new discussion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiscussionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Discussion"
+
+  /discussions/{id}:
+    get:
+      operationId: getDiscussion
+      tags: [discussions]
+      summary: Get discussion by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Discussion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Discussion"
+    patch:
+      operationId: updateDiscussion
+      tags: [discussions]
+      summary: Update a discussion
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiscussionUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Discussion"
+    delete:
+      operationId: deleteDiscussion
+      tags: [discussions]
+      summary: Delete a discussion
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /discussions/{id}/like:
+    post:
+      operationId: likeDiscussion
+      tags: [discussions]
+      summary: Like a discussion
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Liked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResult"
+
+  /discussions/{id}/lock:
+    post:
+      operationId: lockDiscussion
+      tags: [discussions]
+      summary: Lock a discussion (moderator/admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Discussion"
+
+  /discussions/{id}/comments:
+    get:
+      operationId: listDiscussionComments
+      tags: [discussions]
+      summary: List comments for a discussion
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comment"
+    post:
+      operationId: createDiscussionComment
+      tags: [discussions]
+      summary: Comment on a discussion
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+
+  /discussions/trending:
+    get:
+      operationId: getTrendingDiscussions
+      tags: [discussions]
+      summary: Get trending discussions
+      responses:
+        "200":
+          description: Trending discussions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Discussion"
+
+  # ---- NEWS ----
+  /news:
+    get:
+      operationId: listNews
+      tags: [news]
+      summary: List news articles
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: featured
+          schema:
+            type: boolean
+        - in: query
+          name: page
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of news articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NewsArticle"
+    post:
+      operationId: createNews
+      tags: [news]
+      summary: Create a news article
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewsArticleInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewsArticle"
+
+  /news/{id}:
+    get:
+      operationId: getNews
+      tags: [news]
+      summary: Get news article by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: News article
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewsArticle"
+    patch:
+      operationId: updateNews
+      tags: [news]
+      summary: Update a news article
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewsArticleUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewsArticle"
+    delete:
+      operationId: deleteNews
+      tags: [news]
+      summary: Delete a news article
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /news/featured:
+    get:
+      operationId: getFeaturedNews
+      tags: [news]
+      summary: Get featured news stories
+      responses:
+        "200":
+          description: Featured stories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NewsArticle"
+
+  # ---- GROUPS ----
+  /groups:
+    get:
+      operationId: listGroups
+      tags: [groups]
+      summary: List community groups
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: privacy
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Group"
+    post:
+      operationId: createGroup
+      tags: [groups]
+      summary: Create a new group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+
+  /groups/{id}:
+    get:
+      operationId: getGroup
+      tags: [groups]
+      summary: Get group by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+    patch:
+      operationId: updateGroup
+      tags: [groups]
+      summary: Update a group
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+    delete:
+      operationId: deleteGroup
+      tags: [groups]
+      summary: Delete a group
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /groups/{id}/join:
+    post:
+      operationId: joinGroup
+      tags: [groups]
+      summary: Request to join a group
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Join request submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupMember"
+
+  /groups/{id}/members:
+    get:
+      operationId: listGroupMembers
+      tags: [groups]
+      summary: List group members
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupMember"
+
+  /groups/{id}/posts:
+    get:
+      operationId: listGroupPosts
+      tags: [groups]
+      summary: List posts in a group
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Group posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupPost"
+    post:
+      operationId: createGroupPost
+      tags: [groups]
+      summary: Create a post in a group
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupPostInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupPost"
+
+  # ---- MINYANS ----
+  /minyans:
+    get:
+      operationId: listMinyans
+      tags: [minyans]
+      summary: List minyan listings
+      parameters:
+        - in: query
+          name: city
+          schema:
+            type: string
+        - in: query
+          name: country
+          schema:
+            type: string
+        - in: query
+          name: community
+          schema:
+            type: string
+        - in: query
+          name: synagogue
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of minyans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Minyan"
+    post:
+      operationId: createMinyan
+      tags: [minyans]
+      summary: Submit a new minyan listing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MinyanInput"
+      responses:
+        "201":
+          description: Created (pending approval)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Minyan"
+
+  /minyans/{id}:
+    get:
+      operationId: getMinyan
+      tags: [minyans]
+      summary: Get minyan by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Minyan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Minyan"
+    patch:
+      operationId: updateMinyan
+      tags: [minyans]
+      summary: Update a minyan listing
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MinyanUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Minyan"
+
+  /minyans/{id}/like:
+    post:
+      operationId: likeMinyan
+      tags: [minyans]
+      summary: Like a minyan listing
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Liked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResult"
+
+  # ---- VOLUNTEERS / HELP REQUESTS ----
+  /volunteers:
+    get:
+      operationId: listVolunteers
+      tags: [volunteers]
+      summary: List volunteer profiles
+      parameters:
+        - in: query
+          name: location
+          schema:
+            type: string
+        - in: query
+          name: skill
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of volunteers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VolunteerProfile"
+    post:
+      operationId: createVolunteer
+      tags: [volunteers]
+      summary: Register as a volunteer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VolunteerInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VolunteerProfile"
+
+  /volunteers/{id}:
+    get:
+      operationId: getVolunteer
+      tags: [volunteers]
+      summary: Get volunteer profile by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Volunteer profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VolunteerProfile"
+
+  /help-requests:
+    get:
+      operationId: listHelpRequests
+      tags: [volunteers]
+      summary: List help requests
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+        - in: query
+          name: urgency
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of help requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HelpRequest"
+    post:
+      operationId: createHelpRequest
+      tags: [volunteers]
+      summary: Submit a help request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HelpRequestInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HelpRequest"
+
+  /help-requests/{id}:
+    get:
+      operationId: getHelpRequest
+      tags: [volunteers]
+      summary: Get help request by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Help request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HelpRequest"
+    patch:
+      operationId: updateHelpRequest
+      tags: [volunteers]
+      summary: Update a help request
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HelpRequestUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HelpRequest"
+
+  # ---- CHARITY ----
+  /charity:
+    get:
+      operationId: listCharities
+      tags: [charity]
+      summary: List charity organizations
+      responses:
+        "200":
+          description: List of charities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Charity"
+
+  /charity/today:
+    get:
+      operationId: getTodaysCharity
+      tags: [charity]
+      summary: Get today's featured charity
+      responses:
+        "200":
+          description: Today's featured charity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Charity"
+
+  /charity/{id}:
+    get:
+      operationId: getCharity
+      tags: [charity]
+      summary: Get charity by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Charity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Charity"
+    patch:
+      operationId: updateCharity
+      tags: [charity]
+      summary: Update a charity
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CharityUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Charity"
+
+  /charity/{id}/donate:
+    post:
+      operationId: donateToCharity
+      tags: [charity]
+      summary: Record a donation intent
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DonationInput"
+      responses:
+        "201":
+          description: Donation recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Donation"
+
+  # ---- STATS ----
+  /stats/community:
+    get:
+      operationId: getCommunityStats
+      tags: [stats]
+      summary: Get overall community statistics
+      responses:
+        "200":
+          description: Community statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityStats"
+
+  /stats/activity:
+    get:
+      operationId: getActivityStats
+      tags: [stats]
+      summary: Get weekly and monthly activity graphs
+      parameters:
+        - in: query
+          name: period
+          schema:
+            type: string
+            enum: [weekly, monthly]
+      responses:
+        "200":
+          description: Activity data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityDataPoint"
+
+  /stats/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [stats]
+      summary: Get recent platform activity feed
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  # ---- ANNOUNCEMENTS ----
+  /announcements:
+    get:
+      operationId: listAnnouncements
+      tags: [announcements]
+      summary: List platform announcements
+      responses:
+        "200":
+          description: Announcements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Announcement"
+    post:
+      operationId: createAnnouncement
+      tags: [announcements]
+      summary: Create an announcement (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Announcement"
+
+  /announcements/{id}:
+    delete:
+      operationId: deleteAnnouncement
+      tags: [announcements]
+      summary: Delete an announcement
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ---- REPORTS ----
+  /reports:
+    get:
+      operationId: listReports
+      tags: [reports]
+      summary: List content reports (admin/moderator)
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Report"
+    post:
+      operationId: createReport
+      tags: [reports]
+      summary: Report a piece of content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+
+  /reports/{id}/resolve:
+    post:
+      operationId: resolveReport
+      tags: [reports]
+      summary: Resolve a report (admin/moderator)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+
+  # ---- NOTIFICATIONS ----
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List notifications for current user
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a notification as read
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marked read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: All marked read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationReadResult"
+
+  # ---- FEATURED VOLUNTEERS & REQUESTS (homepage wow) ----
+  /featured/volunteers:
+    get:
+      operationId: getFeaturedVolunteers
+      tags: [volunteers]
+      summary: Get featured volunteers for homepage
+      responses:
+        "200":
+          description: Featured volunteers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VolunteerProfile"
+
+  /featured/requests:
+    get:
+      operationId: getFeaturedRequests
+      tags: [volunteers]
+      summary: Get featured help requests for homepage
+      responses:
+        "200":
+          description: Featured help requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HelpRequest"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +1331,722 @@ components:
       required:
         - status
 
+    # ---- USER ----
+    User:
+      type: object
+      required: [id, name, email, role, status, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, moderator, group_owner, member]
+        status:
+          type: string
+          enum: [active, suspended, banned]
+        location:
+          type: ["string", "null"]
+        bio:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    UserInput:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        location:
+          type: string
+        bio:
+          type: string
+
+    UserUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        bio:
+          type: string
+        location:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+
+    UserDashboard:
+      type: object
+      required: [userId, discussionCount, commentCount, groupCount, helpRequestCount, volunteerActivityCount, notificationCount, savedCount]
+      properties:
+        userId:
+          type: integer
+        discussionCount:
+          type: integer
+        commentCount:
+          type: integer
+        groupCount:
+          type: integer
+        helpRequestCount:
+          type: integer
+        volunteerActivityCount:
+          type: integer
+        notificationCount:
+          type: integer
+        savedCount:
+          type: integer
+        recentDiscussions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Discussion"
+        recentGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/Group"
+
+    # ---- DISCUSSION ----
+    Discussion:
+      type: object
+      required: [id, title, content, category, authorId, authorName, likes, views, commentCount, isLocked, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        category:
+          type: string
+          enum: [medical, shidduchim, livelihood, education, charity, community, general]
+        authorId:
+          type: integer
+        authorName:
+          type: string
+        likes:
+          type: integer
+        views:
+          type: integer
+        commentCount:
+          type: integer
+        isLocked:
+          type: boolean
+        isPinned:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+
+    DiscussionInput:
+      type: object
+      required: [title, content, category]
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        category:
+          type: string
+
+    DiscussionUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        category:
+          type: string
+        isPinned:
+          type: boolean
+
+    Comment:
+      type: object
+      required: [id, content, authorId, authorName, likes, createdAt]
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        authorId:
+          type: integer
+        authorName:
+          type: string
+        parentId:
+          type: ["integer", "null"]
+        likes:
+          type: integer
+        createdAt:
+          type: string
+
+    CommentInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+        parentId:
+          type: ["integer", "null"]
+
+    LikeResult:
+      type: object
+      required: [likes]
+      properties:
+        likes:
+          type: integer
+
+    # ---- NEWS ----
+    NewsArticle:
+      type: object
+      required: [id, title, content, category, authorId, authorName, isFeatured, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        summary:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        category:
+          type: string
+          enum: [medical, wedding, bikur_cholim, community, emergency, volunteer]
+        authorId:
+          type: integer
+        authorName:
+          type: string
+        isFeatured:
+          type: boolean
+        commentCount:
+          type: integer
+        createdAt:
+          type: string
+
+    NewsArticleInput:
+      type: object
+      required: [title, content, category]
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        summary:
+          type: string
+        imageUrl:
+          type: string
+        category:
+          type: string
+        isFeatured:
+          type: boolean
+
+    NewsArticleUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        summary:
+          type: string
+        imageUrl:
+          type: string
+        category:
+          type: string
+        isFeatured:
+          type: boolean
+
+    # ---- GROUP ----
+    Group:
+      type: object
+      required: [id, name, description, privacy, ownerId, ownerName, memberCount, postCount, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        privacy:
+          type: string
+          enum: [public, private, password_protected]
+        ownerId:
+          type: integer
+        ownerName:
+          type: string
+        imageUrl:
+          type: ["string", "null"]
+        memberCount:
+          type: integer
+        postCount:
+          type: integer
+        createdAt:
+          type: string
+
+    GroupInput:
+      type: object
+      required: [name, description, privacy]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        privacy:
+          type: string
+        password:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+
+    GroupUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        privacy:
+          type: string
+        imageUrl:
+          type: ["string", "null"]
+
+    GroupMember:
+      type: object
+      required: [id, userId, userName, groupId, role, status, joinedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        userName:
+          type: string
+        groupId:
+          type: integer
+        role:
+          type: string
+          enum: [owner, moderator, member]
+        status:
+          type: string
+          enum: [approved, pending]
+        joinedAt:
+          type: string
+
+    GroupPost:
+      type: object
+      required: [id, content, groupId, authorId, authorName, likes, views, createdAt]
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        groupId:
+          type: integer
+        authorId:
+          type: integer
+        authorName:
+          type: string
+        likes:
+          type: integer
+        views:
+          type: integer
+        createdAt:
+          type: string
+
+    GroupPostInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+
+    # ---- MINYAN ----
+    Minyan:
+      type: object
+      required: [id, synagogueName, community, city, country, shacharis, mincha, maariv, likes, status, createdAt]
+      properties:
+        id:
+          type: integer
+        synagogueName:
+          type: string
+        community:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        address:
+          type: ["string", "null"]
+        shacharis:
+          type: string
+        mincha:
+          type: string
+        maariv:
+          type: string
+        notes:
+          type: ["string", "null"]
+        likes:
+          type: integer
+        status:
+          type: string
+          enum: [approved, pending, rejected]
+        createdAt:
+          type: string
+
+    MinyanInput:
+      type: object
+      required: [synagogueName, community, city, country, shacharis, mincha, maariv]
+      properties:
+        synagogueName:
+          type: string
+        community:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        address:
+          type: string
+        shacharis:
+          type: string
+        mincha:
+          type: string
+        maariv:
+          type: string
+        notes:
+          type: string
+
+    MinyanUpdate:
+      type: object
+      properties:
+        synagogueName:
+          type: string
+        shacharis:
+          type: string
+        mincha:
+          type: string
+        maariv:
+          type: string
+        notes:
+          type: string
+        status:
+          type: string
+
+    # ---- VOLUNTEER ----
+    VolunteerProfile:
+      type: object
+      required: [id, userId, userName, skills, availability, location, areasOfInterest, isFeatured, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        userName:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        availability:
+          type: string
+        location:
+          type: string
+        areasOfInterest:
+          type: array
+          items:
+            type: string
+        labels:
+          type: array
+          items:
+            type: string
+        isFeatured:
+          type: boolean
+        createdAt:
+          type: string
+
+    VolunteerInput:
+      type: object
+      required: [skills, availability, location, areasOfInterest]
+      properties:
+        skills:
+          type: array
+          items:
+            type: string
+        availability:
+          type: string
+        location:
+          type: string
+        areasOfInterest:
+          type: array
+          items:
+            type: string
+
+    HelpRequest:
+      type: object
+      required: [id, name, contactInfo, needType, description, urgency, isFeatured, status, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        contactInfo:
+          type: string
+        needType:
+          type: string
+          enum: [medical, wedding, housing, food, financial, education, emotional, other]
+        description:
+          type: string
+        urgency:
+          type: string
+          enum: [low, medium, high, critical]
+        isFeatured:
+          type: boolean
+        status:
+          type: string
+          enum: [open, in_progress, fulfilled, closed]
+        createdAt:
+          type: string
+
+    HelpRequestInput:
+      type: object
+      required: [name, contactInfo, needType, description, urgency]
+      properties:
+        name:
+          type: string
+        contactInfo:
+          type: string
+        needType:
+          type: string
+        description:
+          type: string
+        urgency:
+          type: string
+
+    HelpRequestUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+        isFeatured:
+          type: boolean
+
+    # ---- CHARITY ----
+    Charity:
+      type: object
+      required: [id, name, description, goalAmount, raisedAmount, isTodaysFeatured, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        successStories:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        goalAmount:
+          type: integer
+        raisedAmount:
+          type: integer
+        isTodaysFeatured:
+          type: boolean
+        createdAt:
+          type: string
+
+    CharityUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        successStories:
+          type: string
+        imageUrl:
+          type: string
+        goalAmount:
+          type: integer
+        isTodaysFeatured:
+          type: boolean
+
+    DonationInput:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: integer
+        donorName:
+          type: ["string", "null"]
+
+    Donation:
+      type: object
+      required: [id, charityId, amount, createdAt]
+      properties:
+        id:
+          type: integer
+        charityId:
+          type: integer
+        amount:
+          type: integer
+        donorName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    # ---- STATS ----
+    CommunityStats:
+      type: object
+      required: [totalPeopleHelped, volunteerRequests, donationsRaised, callsHandled, activeVolunteers, activeGroups, totalDiscussions, totalMembers]
+      properties:
+        totalPeopleHelped:
+          type: integer
+        volunteerRequests:
+          type: integer
+        donationsRaised:
+          type: integer
+        callsHandled:
+          type: integer
+        activeVolunteers:
+          type: integer
+        activeGroups:
+          type: integer
+        totalDiscussions:
+          type: integer
+        totalMembers:
+          type: integer
+
+    ActivityDataPoint:
+      type: object
+      required: [label, discussions, helpRequests, donations, volunteers]
+      properties:
+        label:
+          type: string
+        discussions:
+          type: integer
+        helpRequests:
+          type: integer
+        donations:
+          type: integer
+        volunteers:
+          type: integer
+
+    ActivityItem:
+      type: object
+      required: [id, type, description, actorName, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [discussion, comment, help_request, volunteer, group, minyan, donation, announcement]
+        description:
+          type: string
+        actorName:
+          type: string
+        createdAt:
+          type: string
+
+    # ---- ANNOUNCEMENTS ----
+    Announcement:
+      type: object
+      required: [id, title, content, authorId, authorName, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        authorId:
+          type: integer
+        authorName:
+          type: string
+        createdAt:
+          type: string
+
+    AnnouncementInput:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+
+    # ---- REPORTS ----
+    Report:
+      type: object
+      required: [id, contentType, contentId, reason, reporterId, status, createdAt]
+      properties:
+        id:
+          type: integer
+        contentType:
+          type: string
+          enum: [discussion, comment, group, news, minyan, help_request]
+        contentId:
+          type: integer
+        reason:
+          type: string
+          enum: [spam, harassment, inappropriate, false_information, other]
+        description:
+          type: ["string", "null"]
+        reporterId:
+          type: integer
+        status:
+          type: string
+          enum: [pending, resolved, dismissed]
+        createdAt:
+          type: string
+
+    ReportInput:
+      type: object
+      required: [contentType, contentId, reason]
+      properties:
+        contentType:
+          type: string
+        contentId:
+          type: integer
+        reason:
+          type: string
+        description:
+          type: ["string", "null"]
+
+    # ---- NOTIFICATIONS ----
+    Notification:
+      type: object
+      required: [id, userId, type, message, isRead, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        type:
+          type: string
+          enum: [reply, group_activity, volunteer_match, announcement, charity_update]
+        message:
+          type: string
+        isRead:
+          type: boolean
+        linkUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    NotificationReadResult:
+      type: object
+      required: [updatedCount]
+      properties:
+        updatedCount:
+          type: integer

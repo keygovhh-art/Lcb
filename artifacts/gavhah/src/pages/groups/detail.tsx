@@ -1,0 +1,195 @@
+import { useState } from "react";
+import { useParams, Link } from "wouter";
+import {
+  useGetGroup, useListGroupMembers, useListGroupPosts, useJoinGroup, useCreateGroupPost,
+  getGetGroupQueryKey, getListGroupMembersQueryKey, getListGroupPostsQueryKey
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Layout } from "@/components/layout/layout";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Users, Lock, Globe, KeyRound, Heart, MessageCircle } from "lucide-react";
+import { format } from "date-fns";
+
+const privacyIcon = (p: string) => {
+  if (p === "private") return <Lock className="h-4 w-4" />;
+  if (p === "password_protected") return <KeyRound className="h-4 w-4" />;
+  return <Globe className="h-4 w-4" />;
+};
+
+export default function GroupDetail() {
+  const { id } = useParams<{ id: string }>();
+  const numId = parseInt(id ?? "0", 10);
+  const qc = useQueryClient();
+  const [newPost, setNewPost] = useState("");
+
+  const { data: group, isLoading } = useGetGroup(numId, {
+    query: { queryKey: getGetGroupQueryKey(numId), enabled: !!numId },
+  });
+  const { data: members } = useListGroupMembers(numId, {
+    query: { queryKey: getListGroupMembersQueryKey(numId), enabled: !!numId },
+  });
+  const { data: posts } = useListGroupPosts(numId, {
+    query: { queryKey: getListGroupPostsQueryKey(numId), enabled: !!numId },
+  });
+
+  const join = useJoinGroup();
+  const createPost = useCreateGroupPost();
+
+  const handleJoin = () => {
+    join.mutate({ id: numId }, {
+      onSuccess: () => qc.invalidateQueries({ queryKey: getGetGroupQueryKey(numId) }),
+    });
+  };
+
+  const handlePost = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPost.trim()) return;
+    createPost.mutate({ id: numId, data: { content: newPost } }, {
+      onSuccess: () => {
+        setNewPost("");
+        qc.invalidateQueries({ queryKey: getListGroupPostsQueryKey(numId) });
+      },
+    });
+  };
+
+  return (
+    <Layout>
+      <div className="bg-muted/30 border-b">
+        <div className="container mx-auto px-4 py-8">
+          <Link href="/groups">
+            <Button variant="ghost" className="gap-2 text-muted-foreground hover:text-primary mb-4">
+              <ArrowLeft className="h-4 w-4" /> Back to Groups
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      <div className="container mx-auto px-4 py-12 max-w-5xl">
+        {isLoading ? (
+          <div className="space-y-6">
+            <Skeleton className="h-10 w-1/2" />
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-48 w-full" />
+          </div>
+        ) : group ? (
+          <>
+            <div className="bg-card border rounded-xl overflow-hidden shadow-sm mb-8">
+              {group.imageUrl && (
+                <div className="aspect-[4/1] bg-muted overflow-hidden">
+                  <img src={group.imageUrl} alt={group.name} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div className="p-8">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm mb-2">
+                      {privacyIcon(group.privacy)}
+                      <span className="capitalize">{group.privacy.replace("_", " ")}</span>
+                    </div>
+                    <h1 className="font-serif text-3xl font-bold text-primary">{group.name}</h1>
+                    <p className="text-muted-foreground mt-2">Created by {group.ownerName}</p>
+                  </div>
+                  <Button
+                    onClick={handleJoin}
+                    className="bg-secondary hover:bg-secondary/90 text-white shrink-0"
+                    disabled={join.isPending}
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    {join.isPending ? "Joining..." : "Join Group"}
+                  </Button>
+                </div>
+                <p className="text-foreground mt-4 leading-relaxed">{group.description}</p>
+                <div className="flex gap-6 mt-6 pt-6 border-t text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1"><Users className="h-4 w-4" /> {group.memberCount} members</span>
+                  <span className="flex items-center gap-1"><MessageCircle className="h-4 w-4" /> {group.postCount} posts</span>
+                  <span>Since {format(new Date(group.createdAt), "MMMM yyyy")}</span>
+                </div>
+              </div>
+            </div>
+
+            <Tabs defaultValue="posts" className="space-y-6">
+              <TabsList className="bg-muted/50">
+                <TabsTrigger value="posts">Posts</TabsTrigger>
+                <TabsTrigger value="members">Members</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="posts" className="space-y-6">
+                <div className="bg-card border rounded-xl p-6">
+                  <h3 className="font-semibold text-foreground mb-4">Share with the group</h3>
+                  <form onSubmit={handlePost} className="space-y-4">
+                    <Textarea
+                      value={newPost}
+                      onChange={e => setNewPost(e.target.value)}
+                      placeholder="Write a post..."
+                      className="min-h-24 resize-none"
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        type="submit"
+                        className="bg-secondary hover:bg-secondary/90 text-white"
+                        disabled={createPost.isPending || !newPost.trim()}
+                      >
+                        Post
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+
+                {posts?.map(post => (
+                  <div key={post.id} className="bg-card border rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-semibold text-foreground">{post.authorName}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(post.createdAt), "MMM d, yyyy")}
+                      </span>
+                    </div>
+                    <p className="text-foreground leading-relaxed whitespace-pre-wrap">{post.content}</p>
+                    <div className="flex items-center gap-4 mt-4 pt-4 border-t text-sm text-muted-foreground">
+                      <button className="flex items-center gap-1 hover:text-secondary transition-colors">
+                        <Heart className="h-4 w-4" /> {post.likes}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {posts?.length === 0 && (
+                  <div className="text-center py-12 text-muted-foreground font-serif italic border rounded-xl bg-muted/20">
+                    No posts yet. Be the first to share.
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="members">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {members?.map(member => (
+                    <div key={member.id} className="bg-card border rounded-xl p-4 flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-serif font-bold text-lg">
+                        {member.userName[0]}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-foreground">{member.userName}</div>
+                        <div className="text-xs text-muted-foreground capitalize">{member.role} · Joined {format(new Date(member.joinedAt), "MMM yyyy")}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {members?.length === 0 && (
+                    <div className="col-span-full text-center py-8 text-muted-foreground font-serif italic">
+                      No members yet.
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </>
+        ) : (
+          <div className="text-center py-24">
+            <p className="font-serif text-xl text-muted-foreground">Group not found.</p>
+            <Link href="/groups"><Button className="mt-4">Back to Groups</Button></Link>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+}
