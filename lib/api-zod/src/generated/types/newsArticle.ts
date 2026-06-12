@@ -20,5 +20,6 @@ export interface NewsArticle {
   authorName: string;
   isFeatured: boolean;
   commentCount?: number;
+  viewCount?: number;
   createdAt: string;
 }

@@ -1532,6 +1532,8 @@ components:
           type: boolean
         commentCount:
           type: integer
+        viewCount:
+          type: integer
         createdAt:
           type: string
 

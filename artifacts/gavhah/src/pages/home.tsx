@@ -164,10 +164,10 @@ export default function Home() {
             {statsLoading ? [...Array(4)].map((_, i) => (
               <div key={i} className="text-center p-5 bg-card border rounded-xl"><Skeleton className="h-10 w-1/2 mx-auto mb-2" /><Skeleton className="h-4 w-2/3 mx-auto" /></div>
             )) : [
-              { label: "Members Worldwide", value: `${(stats?.totalMembers ?? 0) + 1_240}+` },
-              { label: "Acts of Chesed", value: `${(stats?.totalPeopleHelped ?? 0) + 8_400}+` },
-              { label: "Active Volunteers", value: `${(stats?.activeVolunteers ?? 0) + 312}+` },
-              { label: "Donations Facilitated", value: `$${((Number(stats?.donationsRaised ?? 0) + 148_000) / 1000).toFixed(0)}K+` },
+              { label: "Members Worldwide", value: `${(stats?.totalMembers ?? 0).toLocaleString()}` },
+              { label: "Acts of Chesed", value: `${(stats?.totalPeopleHelped ?? 0).toLocaleString()}` },
+              { label: "Active Volunteers", value: `${(stats?.activeVolunteers ?? 0).toLocaleString()}` },
+              { label: "Donations Facilitated", value: `$${Number(stats?.donationsRaised ?? 0).toLocaleString()}` },
             ].map((stat, i) => (
               <div key={i} className="text-center p-5 bg-card border rounded-xl shadow-sm">
                 <div className="text-4xl font-serif font-bold text-secondary mb-1">{stat.value}</div>

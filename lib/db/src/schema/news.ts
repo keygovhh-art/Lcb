@@ -13,6 +13,7 @@ export const newsTable = pgTable("news", {
   authorName: text("author_name").notNull(),
   isFeatured: boolean("is_featured").notNull().default(false),
   commentCount: integer("comment_count").notNull().default(0),
+  viewCount: integer("view_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

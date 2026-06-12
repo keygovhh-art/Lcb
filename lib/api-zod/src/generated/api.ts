@@ -420,6 +420,7 @@ export const ListNewsResponseItem = zod.object({
   "authorName": zod.string(),
   "isFeatured": zod.boolean(),
   "commentCount": zod.number().optional(),
+  "viewCount": zod.number().optional(),
   "createdAt": zod.string()
 })
 export const ListNewsResponse = zod.array(ListNewsResponseItem)
@@ -456,6 +457,7 @@ export const GetNewsResponse = zod.object({
   "authorName": zod.string(),
   "isFeatured": zod.boolean(),
   "commentCount": zod.number().optional(),
+  "viewCount": zod.number().optional(),
   "createdAt": zod.string()
 })
 
@@ -487,6 +489,7 @@ export const UpdateNewsResponse = zod.object({
   "authorName": zod.string(),
   "isFeatured": zod.boolean(),
   "commentCount": zod.number().optional(),
+  "viewCount": zod.number().optional(),
   "createdAt": zod.string()
 })
 
@@ -513,6 +516,7 @@ export const GetFeaturedNewsResponseItem = zod.object({
   "authorName": zod.string(),
   "isFeatured": zod.boolean(),
   "commentCount": zod.number().optional(),
+  "viewCount": zod.number().optional(),
   "createdAt": zod.string()
 })
 export const GetFeaturedNewsResponse = zod.array(GetFeaturedNewsResponseItem)
