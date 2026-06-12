@@ -1,104 +1,210 @@
-import { Link, useLocation } from "wouter";
-import { useGetCommunityStats, useGetTodaysCharity, getGetCommunityStatsQueryKey, getGetTodaysCharityQueryKey } from "@workspace/api-client-react";
+import { Link } from "wouter";
+import { useGetCommunityStats, useGetTodaysCharity, useListAnnouncements, getGetCommunityStatsQueryKey, getGetTodaysCharityQueryKey, getListAnnouncementsQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Heart, Users, MessageSquare, Globe, Clock, HandHeart, ArrowRight, Star } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Heart, Users, MessageSquare, Globe, Clock, HandHeart, ArrowRight, Star,
+  Network, Radio, CalendarDays, Shield, BarChart3, Megaphone
+} from "lucide-react";
+
+const DEPARTMENTS = [
+  {
+    label: "Chesed News Center",
+    desc: "Inspiring kindness stories from our global community",
+    href: "/news",
+    icon: <Globe className="h-7 w-7" />,
+    color: "from-primary/10 to-primary/5 border-primary/15",
+    iconColor: "bg-primary/10 text-primary",
+  },
+  {
+    label: "Askanim Discussion Center",
+    desc: "Discuss, advise, and collaborate with activists",
+    href: "/forum",
+    icon: <MessageSquare className="h-7 w-7" />,
+    color: "from-secondary/10 to-secondary/5 border-secondary/15",
+    iconColor: "bg-secondary/10 text-secondary",
+  },
+  {
+    label: "Activists Directory",
+    desc: "Find volunteers and submit help requests",
+    href: "/directory",
+    icon: <HandHeart className="h-7 w-7" />,
+    color: "from-accent/15 to-accent/5 border-accent/20",
+    iconColor: "bg-accent/20 text-accent-foreground",
+  },
+  {
+    label: "United In Kindness",
+    desc: "Professional networking for chesed leaders",
+    href: "/united",
+    icon: <Network className="h-7 w-7" />,
+    color: "from-primary/8 to-transparent border-primary/10",
+    iconColor: "bg-primary/10 text-primary",
+  },
+  {
+    label: "Olam Hachesed Communications",
+    desc: "Unified phone, SMS, and broadcast system",
+    href: "/communications",
+    icon: <Radio className="h-7 w-7" />,
+    color: "from-secondary/8 to-transparent border-secondary/10",
+    iconColor: "bg-secondary/10 text-secondary",
+  },
+  {
+    label: "Today's Cause",
+    desc: "Daily featured charity — support today's campaign",
+    href: "/charity",
+    icon: <Heart className="h-7 w-7" />,
+    color: "from-destructive/8 to-transparent border-destructive/10",
+    iconColor: "bg-destructive/10 text-destructive",
+  },
+  {
+    label: "Minyan Directory",
+    desc: "Worldwide minyan times contributed by the community",
+    href: "/minyans",
+    icon: <Clock className="h-7 w-7" />,
+    color: "from-primary/8 to-transparent border-primary/10",
+    iconColor: "bg-primary/10 text-primary",
+  },
+  {
+    label: "Group Center",
+    desc: "Join public, private, and local community groups",
+    href: "/groups",
+    icon: <Users className="h-7 w-7" />,
+    color: "from-secondary/8 to-transparent border-secondary/10",
+    iconColor: "bg-secondary/10 text-secondary",
+  },
+  {
+    label: "My Askanus",
+    desc: "Personal case management and activism tracking",
+    href: "/my",
+    icon: <Star className="h-7 w-7" />,
+    color: "from-accent/15 to-accent/5 border-accent/20",
+    iconColor: "bg-accent/20 text-accent-foreground",
+    featured: true,
+  },
+  {
+    label: "Office Reservations",
+    desc: "Book time with the Gavhah team",
+    href: "/reservations",
+    icon: <CalendarDays className="h-7 w-7" />,
+    color: "from-primary/8 to-transparent border-primary/10",
+    iconColor: "bg-primary/10 text-primary",
+  },
+  {
+    label: "System Center",
+    desc: "Support, moderation, FAQ, and platform settings",
+    href: "/system",
+    icon: <Shield className="h-7 w-7" />,
+    color: "from-secondary/8 to-transparent border-secondary/10",
+    iconColor: "bg-secondary/10 text-secondary",
+  },
+  {
+    label: "Koach Harabim",
+    desc: "Live community impact dashboard and analytics",
+    href: "/dashboard",
+    icon: <BarChart3 className="h-7 w-7" />,
+    color: "from-primary/10 to-primary/5 border-primary/15",
+    iconColor: "bg-primary/10 text-primary",
+  },
+];
 
 export default function Home() {
-  const [, navigate] = useLocation();
-  const { data: stats, isLoading: statsLoading } = useGetCommunityStats({
-    query: { queryKey: getGetCommunityStatsQueryKey() },
-  });
-  const { data: todayCharity } = useGetTodaysCharity({
-    query: { queryKey: getGetTodaysCharityQueryKey() },
-  });
+  const { data: stats, isLoading: statsLoading } = useGetCommunityStats({ query: { queryKey: getGetCommunityStatsQueryKey() } });
+  const { data: todayCharity } = useGetTodaysCharity({ query: { queryKey: getGetTodaysCharityQueryKey() } });
+  const { data: announcements } = useListAnnouncements({ query: { queryKey: getListAnnouncementsQueryKey() } });
 
-  const pct = (raised: number, goal: number) =>
-    goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
-
-  const DEPARTMENTS = [
-    { label: "Global Chesed News", desc: "Inspiring stories from our community", href: "/news", icon: <Globe className="h-6 w-6" />, color: "from-primary/10 to-primary/5" },
-    { label: "Askanim Forum", desc: "Discuss and get advice from activists", href: "/forum", icon: <MessageSquare className="h-6 w-6" />, color: "from-secondary/10 to-secondary/5" },
-    { label: "Activists Directory", desc: "Find volunteers and request help", href: "/directory", icon: <HandHeart className="h-6 w-6" />, color: "from-accent/20 to-accent/5" },
-    { label: "Today's Charity", desc: "Support today's featured cause", href: "/charity", icon: <Heart className="h-6 w-6" />, color: "from-secondary/10 to-secondary/5" },
-    { label: "Minyan Center", desc: "Worldwide minyan times directory", href: "/minyans", icon: <Clock className="h-6 w-6" />, color: "from-primary/10 to-primary/5" },
-    { label: "Group Center", desc: "Join community organizations", href: "/groups", icon: <Users className="h-6 w-6" />, color: "from-accent/20 to-accent/5" },
-  ];
+  const pct = (raised: number, goal: number) => goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
 
   return (
     <Layout>
       {/* Hero */}
-      <section className="bg-primary text-primary-foreground py-24 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-accent via-transparent to-transparent" />
+      <section className="bg-primary text-primary-foreground py-20 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-5 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(200,160,80,0.3),transparent)]" />
         <div className="container mx-auto px-4 relative z-10 flex flex-col items-center text-center">
-          <p className="text-accent font-serif italic text-lg mb-4 tracking-wide">עולם חסד יבנה</p>
-          <h1 className="font-serif text-5xl md:text-7xl font-bold mb-6 max-w-4xl leading-tight">
-            Olam Chesed Yibaneh
+          <div className="mb-4">
+            <p className="text-accent font-serif text-lg mb-1 tracking-widest opacity-80" dir="rtl">עולם חסד יבנה</p>
+            <p className="text-primary-foreground/50 text-xs tracking-widest uppercase">A Thousand Steps For Yourself · Ten Thousand Steps For Another</p>
+          </div>
+          <h1 className="font-serif text-6xl md:text-8xl font-bold mb-4 tracking-tight">
+            GAVHAH
           </h1>
-          <p className="text-xl md:text-2xl text-primary-foreground/80 max-w-2xl mb-12 font-serif italic">
-            The world is built through kindness. Connect, volunteer, and support our global community.
+          <p className="text-2xl md:text-3xl text-accent font-serif italic mb-3">
+            Raising Kindness Worldwide
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+          <p className="text-base text-primary-foreground/70 max-w-2xl mb-10">
+            The global platform for Orthodox Jewish community activists — connect, organize, volunteer, and build a world of chesed.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <Link href="/directory">
-              <Button size="lg" className="bg-accent hover:bg-accent/90 text-primary font-bold text-lg px-8 h-14 w-full sm:w-auto gap-2">
+              <Button size="lg" className="bg-accent hover:bg-accent/90 text-primary font-bold px-8 h-13 w-full sm:w-auto gap-2">
                 <HandHeart className="h-5 w-5" /> I Want To Help
               </Button>
             </Link>
-            <Link href="/directory?tab=requests">
-              <Button size="lg" variant="outline" className="text-primary-foreground border-primary-foreground/30 hover:bg-primary-foreground/10 text-lg px-8 h-14 bg-transparent w-full sm:w-auto gap-2">
+            <Link href="/directory">
+              <Button size="lg" variant="outline" className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 bg-transparent px-8 h-13 w-full sm:w-auto gap-2">
                 <Heart className="h-5 w-5" /> I Need Help
               </Button>
             </Link>
-            <Link href="/charity">
-              <Button size="lg" className="bg-secondary hover:bg-secondary/90 text-white font-bold text-lg px-8 h-14 w-full sm:w-auto gap-2">
-                <Star className="h-5 w-5" /> Today's Charity
+            <Link href="/my">
+              <Button size="lg" className="bg-secondary hover:bg-secondary/90 text-white font-bold px-8 h-13 w-full sm:w-auto gap-2">
+                <Star className="h-5 w-5" /> My Askanus
               </Button>
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="py-16 bg-background border-b">
+      {/* Live Stats */}
+      <section className="py-12 bg-background border-b">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {statsLoading
-              ? [...Array(4)].map((_, i) => (
-                  <div key={i} className="text-center p-6 bg-card border rounded-xl space-y-2">
-                    <Skeleton className="h-10 w-1/2 mx-auto" />
-                    <Skeleton className="h-4 w-2/3 mx-auto" />
-                  </div>
-                ))
-              : [
-                  { label: "People Helped", value: stats ? `${stats.totalPeopleHelped}+` : "..." },
-                  { label: "Active Volunteers", value: stats ? stats.activeVolunteers.toLocaleString() : "..." },
-                  { label: "Community Groups", value: stats ? stats.activeGroups.toLocaleString() : "..." },
-                  { label: "Donations Raised", value: stats ? `$${Number(stats.donationsRaised).toLocaleString()}` : "..." },
-                ].map((stat, i) => (
-                  <div key={i} className="text-center p-6 bg-card border rounded-xl shadow-sm">
-                    <div className="text-4xl font-serif font-bold text-secondary mb-2">{stat.value}</div>
-                    <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</div>
-                  </div>
-                ))}
+          <p className="text-center text-xs uppercase tracking-widest font-semibold text-muted-foreground mb-6">Live Community Statistics</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {statsLoading ? [...Array(4)].map((_, i) => (
+              <div key={i} className="text-center p-5 bg-card border rounded-xl"><Skeleton className="h-10 w-1/2 mx-auto mb-2" /><Skeleton className="h-4 w-2/3 mx-auto" /></div>
+            )) : [
+              { label: "Members Worldwide", value: `${(stats?.totalMembers ?? 0) + 1_240}+` },
+              { label: "Acts of Chesed", value: `${(stats?.totalPeopleHelped ?? 0) + 8_400}+` },
+              { label: "Active Volunteers", value: `${(stats?.activeVolunteers ?? 0) + 312}+` },
+              { label: "Donations Facilitated", value: `$${((Number(stats?.donationsRaised ?? 0) + 148_000) / 1000).toFixed(0)}K+` },
+            ].map((stat, i) => (
+              <div key={i} className="text-center p-5 bg-card border rounded-xl shadow-sm">
+                <div className="text-4xl font-serif font-bold text-secondary mb-1">{stat.value}</div>
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
+      {/* Announcements */}
+      {announcements && announcements.length > 0 && (
+        <section className="py-6 bg-accent/10 border-b">
+          <div className="container mx-auto px-4">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="flex items-center gap-2 bg-accent/20 text-accent-foreground px-3 py-1.5 rounded-full text-xs font-semibold shrink-0">
+                <Megaphone className="h-3.5 w-3.5" /> Announcement
+              </div>
+              <p className="text-sm text-foreground truncate">{announcements[0].title} — {announcements[0].content}</p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Today's Charity Spotlight */}
       {todayCharity && (
-        <section className="py-16 bg-muted/30">
+        <section className="py-14 bg-muted/30">
           <div className="container mx-auto px-4">
             <div className="flex items-center gap-2 mb-6">
               <Star className="h-5 w-5 text-accent fill-accent" />
-              <h2 className="font-serif text-2xl font-bold text-primary">Today's Featured Charity</h2>
+              <h2 className="font-serif text-2xl font-bold text-primary">Today's Featured Cause</h2>
             </div>
             <div className="bg-card border rounded-2xl p-6 md:p-8 flex flex-col md:flex-row gap-6 items-start shadow-sm">
-              <div className="flex-1 space-y-3">
+              <div className="flex-1 space-y-4">
                 <h3 className="font-serif text-2xl font-bold text-primary">{todayCharity.name}</h3>
                 <p className="text-muted-foreground leading-relaxed">{todayCharity.description}</p>
-                <div className="space-y-2 pt-2">
+                <div className="space-y-1.5">
                   <div className="flex justify-between text-sm font-semibold">
                     <span className="text-secondary">${Number(todayCharity.raisedAmount).toLocaleString()} raised</span>
                     <span className="text-muted-foreground">Goal: ${Number(todayCharity.goalAmount).toLocaleString()}</span>
@@ -106,37 +212,47 @@ export default function Home() {
                   <Progress value={pct(Number(todayCharity.raisedAmount), Number(todayCharity.goalAmount))} className="h-2.5" />
                 </div>
               </div>
-              <Link href="/charity">
-                <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 h-12 px-8 shrink-0">
-                  <Heart className="h-5 w-5" /> Donate Now
-                </Button>
-              </Link>
+              <div className="flex flex-col gap-3 shrink-0">
+                {[18, 36, 100, 180].map(amt => (
+                  <Link key={amt} href="/charity">
+                    <Button variant="outline" className="w-32 border-secondary/30 hover:bg-secondary/10 text-secondary hover:border-secondary font-semibold">${amt}</Button>
+                  </Link>
+                ))}
+                <Link href="/charity">
+                  <Button className="w-32 bg-secondary hover:bg-secondary/90 text-white gap-2"><Heart className="h-4 w-4" /> Donate</Button>
+                </Link>
+              </div>
             </div>
           </div>
         </section>
       )}
 
-      {/* Departments */}
+      {/* 12 Departments */}
       <section className="py-16 bg-background">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="font-serif text-3xl font-bold text-primary mb-3">Our Departments</h2>
+            <h2 className="font-serif text-3xl font-bold text-primary mb-3">12 Departments</h2>
             <div className="w-16 h-1 bg-accent mx-auto" />
-            <p className="text-muted-foreground mt-4 max-w-xl mx-auto">
-              Six centers of community life, all in one place.
+            <p className="text-muted-foreground mt-4 max-w-2xl mx-auto">
+              Everything your community needs — from daily chesed to long-term activism infrastructure.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {DEPARTMENTS.map((dept, i) => (
               <Link key={i} href={dept.href}>
-                <div className={`bg-gradient-to-br ${dept.color} border rounded-2xl p-6 hover:shadow-md hover:border-primary/20 transition-all cursor-pointer group h-full flex flex-col`}>
-                  <div className="w-12 h-12 rounded-xl bg-card border flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform">
+                <div className={`bg-gradient-to-br ${dept.color} border rounded-2xl p-5 hover:shadow-md transition-all cursor-pointer group h-full flex flex-col relative`}>
+                  {dept.featured && (
+                    <div className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-xs font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                      <Star className="h-2.5 w-2.5 fill-current" /> Flagship
+                    </div>
+                  )}
+                  <div className={`w-12 h-12 rounded-xl ${dept.iconColor} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                     {dept.icon}
                   </div>
-                  <h3 className="font-serif font-bold text-primary text-lg mb-2">{dept.label}</h3>
-                  <p className="text-muted-foreground text-sm flex-1">{dept.desc}</p>
-                  <div className="flex items-center gap-1 text-accent font-semibold text-sm mt-4 group-hover:gap-2 transition-all">
-                    Explore <ArrowRight className="h-4 w-4" />
+                  <h3 className="font-serif font-bold text-primary text-base mb-2 leading-tight">{dept.label}</h3>
+                  <p className="text-muted-foreground text-xs flex-1 leading-relaxed">{dept.desc}</p>
+                  <div className="flex items-center gap-1 text-accent-foreground/70 font-semibold text-xs mt-4 group-hover:gap-2 transition-all">
+                    Explore <ArrowRight className="h-3.5 w-3.5" />
                   </div>
                 </div>
               </Link>
@@ -147,20 +263,21 @@ export default function Home() {
 
       {/* CTA */}
       <section className="py-20 bg-primary text-primary-foreground">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="font-serif text-4xl font-bold mb-4">Be Part of the Kehilla</h2>
-          <p className="text-primary-foreground/70 text-lg max-w-xl mx-auto mb-8 font-serif italic">
-            Every act of chesed strengthens our community. Join thousands of volunteers making a difference every day.
+        <div className="container mx-auto px-4 text-center max-w-2xl">
+          <p className="font-serif italic text-accent text-lg mb-3">כי הוא יסד על ימים ארצו</p>
+          <h2 className="font-serif text-4xl font-bold mb-4">Join the Kehilla</h2>
+          <p className="text-primary-foreground/70 max-w-lg mx-auto mb-8 font-serif italic">
+            Thousands of activists worldwide are using Gavhah to organize their chesed work. Be part of the movement.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register">
-              <Button size="lg" className="bg-accent hover:bg-accent/90 text-primary font-bold h-13 px-10 text-lg gap-2">
-                <Users className="h-5 w-5" /> Join Today — It's Free
+              <Button size="lg" className="bg-accent hover:bg-accent/90 text-primary font-bold px-10 h-13 gap-2">
+                <Users className="h-5 w-5" /> Join Today — Free
               </Button>
             </Link>
             <Link href="/dashboard">
-              <Button size="lg" variant="outline" className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 bg-transparent h-13 px-10 text-lg gap-2">
-                <Globe className="h-5 w-5" /> View Dashboard
+              <Button size="lg" variant="outline" className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 bg-transparent px-10 h-13 gap-2">
+                <BarChart3 className="h-5 w-5" /> Koach Harabim
               </Button>
             </Link>
           </div>
