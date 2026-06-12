@@ -37,6 +37,21 @@ router.get("/news/:id", async (req, res): Promise<void> => {
   res.json(article);
 });
 
+// Toggle like
+router.post("/news/:id/like", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const { liked } = req.body as { liked: boolean };
+  const delta = liked ? 1 : -1;
+  const [updated] = await db
+    .update(newsTable)
+    .set({ likeCount: sql`GREATEST(0, ${newsTable.likeCount} + ${delta})` })
+    .where(eq(newsTable.id, id))
+    .returning({ likeCount: newsTable.likeCount });
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ likeCount: updated.likeCount });
+});
+
 // Increment view count when article is opened
 router.post("/news/:id/view", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;

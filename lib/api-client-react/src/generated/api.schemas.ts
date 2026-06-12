@@ -185,6 +185,7 @@ export interface NewsArticle {
   isFeatured: boolean;
   commentCount?: number;
   viewCount?: number;
+  likeCount?: number;
   createdAt: string;
 }
 
@@ -582,6 +583,10 @@ category?: string;
 search?: string;
 featured?: boolean;
 page?: number;
+};
+
+export type LikeNews200 = {
+  likeCount: number;
 };
 
 export type ListGroupsParams = {

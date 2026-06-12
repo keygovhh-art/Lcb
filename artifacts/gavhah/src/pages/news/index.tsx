@@ -11,12 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Search, ChevronRight, Eye, Plus, Globe, Star } from "lucide-react";
+import { Search, ChevronRight, Eye, Plus, Globe, Star, Heart } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useLikeArticle } from "@/hooks/use-like-article";
 
 const CATEGORIES = [
   { value: "all", label: "All" },
@@ -139,7 +139,6 @@ export default function NewsList() {
             </Dialog>
           </div>
 
-          {/* Search */}
           <div className="relative mt-8 max-w-lg">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
@@ -153,8 +152,7 @@ export default function NewsList() {
       </div>
 
       <div className="container mx-auto px-4 py-10">
-        {/* Category filter */}
-        <div className="flex gap-2 mb-8 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
           {CATEGORIES.map(cat => (
             <Button
               key={cat.value}
@@ -163,11 +161,6 @@ export default function NewsList() {
               onClick={() => setActiveCategory(cat.value)}
             >
               {cat.label}
-              {activeCategory === cat.value && cat.value !== "all" && (
-                <span className="ml-1.5 text-xs opacity-70">
-                  ({filtered.length})
-                </span>
-              )}
             </Button>
           ))}
         </div>
@@ -189,7 +182,6 @@ export default function NewsList() {
           </div>
         ) : (
           <div className="space-y-12">
-            {/* Featured */}
             {featured.length > 0 && !search && activeCategory === "all" && (
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
@@ -204,9 +196,8 @@ export default function NewsList() {
               </div>
             )}
 
-            {/* All articles */}
             <div className="space-y-4">
-              {(search || activeCategory !== "all" || featured.length === 0) ? null : (
+              {(!search && activeCategory === "all" && featured.length > 0) && (
                 <h2 className="font-serif text-xl font-bold text-primary">Latest Stories</h2>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -223,9 +214,11 @@ export default function NewsList() {
 }
 
 function NewsCard({ article, large = false }: { article: any; large?: boolean }) {
+  const { isLiked, likeCount, toggle } = useLikeArticle(article.id, article.likeCount ?? 0);
+
   return (
     <Link href={`/news/${article.id}`}>
-      <article className={`group cursor-pointer flex flex-col h-full bg-card rounded-xl overflow-hidden border border-border/50 hover:border-primary/20 hover:shadow-md transition-all`}>
+      <article className="group cursor-pointer flex flex-col h-full bg-card rounded-xl overflow-hidden border border-border/50 hover:border-primary/20 hover:shadow-md transition-all">
         <div className={`${large ? "aspect-[16/9]" : "aspect-[4/3]"} bg-muted relative overflow-hidden`}>
           {article.imageUrl ? (
             <img src={article.imageUrl} alt={article.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -245,11 +238,12 @@ function NewsCard({ article, large = false }: { article: any; large?: boolean })
             )}
           </div>
         </div>
+
         <div className="p-5 flex flex-col flex-1">
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
             <span>{format(new Date(article.createdAt), "MMM d, yyyy")}</span>
             <div className="flex items-center gap-3">
-              {article.viewCount > 0 && (
+              {(article.viewCount ?? 0) > 0 && (
                 <span className="flex items-center gap-1">
                   <Eye className="h-3.5 w-3.5" /> {article.viewCount.toLocaleString()}
                 </span>
@@ -257,14 +251,31 @@ function NewsCard({ article, large = false }: { article: any; large?: boolean })
               <span>By {article.authorName}</span>
             </div>
           </div>
+
           <h3 className={`font-serif font-bold text-primary mb-2 group-hover:text-secondary transition-colors line-clamp-2 ${large ? "text-xl" : "text-lg"}`}>
             {article.title}
           </h3>
           <p className="text-muted-foreground text-sm line-clamp-3 mb-4 flex-1">
             {article.summary || article.content.substring(0, 150) + "..."}
           </p>
-          <div className="flex items-center text-accent font-semibold text-xs group-hover:gap-2 transition-all">
-            Read Article <ChevronRight className="h-3.5 w-3.5 ml-1" />
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center text-accent font-semibold text-xs group-hover:gap-2 transition-all">
+              Read Article <ChevronRight className="h-3.5 w-3.5 ml-1" />
+            </div>
+            {/* Like button — stops propagation so it doesn't navigate */}
+            <button
+              onClick={toggle}
+              className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full transition-all ${
+                isLiked
+                  ? "bg-rose-50 text-rose-600 border border-rose-200"
+                  : "text-muted-foreground border border-transparent hover:bg-muted hover:text-rose-500"
+              }`}
+              aria-label={isLiked ? "Unlike" : "Like"}
+            >
+              <Heart className={`h-3.5 w-3.5 transition-all ${isLiked ? "fill-rose-500 text-rose-500 scale-110" : ""}`} />
+              {likeCount > 0 && <span>{likeCount.toLocaleString()}</span>}
+            </button>
           </div>
         </div>
       </article>

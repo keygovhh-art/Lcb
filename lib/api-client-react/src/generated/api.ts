@@ -45,6 +45,7 @@ import type {
   HelpRequest,
   HelpRequestInput,
   HelpRequestUpdate,
+  LikeNews200,
   LikeResult,
   ListDiscussionsParams,
   ListGroupsParams,
@@ -1941,6 +1942,76 @@ export const useDeleteNews = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteNewsMutationOptions(options));
+    }
+
+export const getLikeNewsUrl = (id: number,) => {
+
+
+
+
+  return `/api/news/${id}/like`
+}
+
+/**
+ * @summary Toggle like on a news article
+ */
+export const likeNews = async (id: number, options?: RequestInit): Promise<LikeNews200> => {
+
+  return customFetch<LikeNews200>(getLikeNewsUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getLikeNewsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof likeNews>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof likeNews>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['likeNews'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof likeNews>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  likeNews(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LikeNewsMutationResult = NonNullable<Awaited<ReturnType<typeof likeNews>>>
+
+    export type LikeNewsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Toggle like on a news article
+ */
+export const useLikeNews = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof likeNews>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof likeNews>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getLikeNewsMutationOptions(options));
     }
 
 export const getGetFeaturedNewsUrl = () => {

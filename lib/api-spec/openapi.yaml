@@ -524,6 +524,29 @@ paths:
         "204":
           description: Deleted
 
+  /news/{id}/like:
+    post:
+      operationId: likeNews
+      tags: [news]
+      summary: Toggle like on a news article
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated like count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [likeCount]
+                properties:
+                  likeCount:
+                    type: integer
+
   /news/featured:
     get:
       operationId: getFeaturedNews
@@ -1533,6 +1556,8 @@ components:
         commentCount:
           type: integer
         viewCount:
+          type: integer
+        likeCount:
           type: integer
         createdAt:
           type: string

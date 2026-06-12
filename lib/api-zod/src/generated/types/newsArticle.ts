@@ -21,5 +21,6 @@ export interface NewsArticle {
   isFeatured: boolean;
   commentCount?: number;
   viewCount?: number;
+  likeCount?: number;
   createdAt: string;
 }

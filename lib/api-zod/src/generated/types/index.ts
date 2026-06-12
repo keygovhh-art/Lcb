@@ -40,6 +40,7 @@ export * from './helpRequestNeedType';
 export * from './helpRequestStatus';
 export * from './helpRequestUpdate';
 export * from './helpRequestUrgency';
+export * from './likeNews200';
 export * from './likeResult';
 export * from './listDiscussionsParams';
 export * from './listGroupsParams';

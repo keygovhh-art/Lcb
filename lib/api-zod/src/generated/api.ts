@@ -421,6 +421,7 @@ export const ListNewsResponseItem = zod.object({
   "isFeatured": zod.boolean(),
   "commentCount": zod.number().optional(),
   "viewCount": zod.number().optional(),
+  "likeCount": zod.number().optional(),
   "createdAt": zod.string()
 })
 export const ListNewsResponse = zod.array(ListNewsResponseItem)
@@ -458,6 +459,7 @@ export const GetNewsResponse = zod.object({
   "isFeatured": zod.boolean(),
   "commentCount": zod.number().optional(),
   "viewCount": zod.number().optional(),
+  "likeCount": zod.number().optional(),
   "createdAt": zod.string()
 })
 
@@ -490,6 +492,7 @@ export const UpdateNewsResponse = zod.object({
   "isFeatured": zod.boolean(),
   "commentCount": zod.number().optional(),
   "viewCount": zod.number().optional(),
+  "likeCount": zod.number().optional(),
   "createdAt": zod.string()
 })
 
@@ -499,6 +502,18 @@ export const UpdateNewsResponse = zod.object({
  */
 export const DeleteNewsParams = zod.object({
   "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Toggle like on a news article
+ */
+export const LikeNewsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const LikeNewsResponse = zod.object({
+  "likeCount": zod.number()
 })
 
 
@@ -517,6 +532,7 @@ export const GetFeaturedNewsResponseItem = zod.object({
   "isFeatured": zod.boolean(),
   "commentCount": zod.number().optional(),
   "viewCount": zod.number().optional(),
+  "likeCount": zod.number().optional(),
   "createdAt": zod.string()
 })
 export const GetFeaturedNewsResponse = zod.array(GetFeaturedNewsResponseItem)
