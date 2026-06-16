@@ -102,7 +102,7 @@ function NewCaseDialog({ onAdd }: { onAdd: (c: Case) => void }) {
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAdd({ id: Date.now(), ...form, status: "open", createdAt: new Date().toISOString().slice(0, 10), fundsPromised: Number(form.fundsPromised) || 0, fundsReceived: 0, notes: "" });
+    onAdd({ id: Date.now(), ...form, status: "open" as const, urgency: form.urgency as Case["urgency"], createdAt: new Date().toISOString().slice(0, 10), fundsPromised: Number(form.fundsPromised) || 0, fundsReceived: 0, notes: "" });
     setOpen(false);
     setForm({ title: "", description: "", urgency: "medium", category: "General", contactName: "", deadline: "", fundsPromised: "" });
   };
@@ -312,11 +312,11 @@ export default function MyAskanus() {
         <div className="container mx-auto px-4">
           <p className="text-xs uppercase tracking-widest font-semibold text-muted-foreground mb-4">Lifetime Impact</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-            <ImpactStat label="People Helped" value={totalPeopleHelped + 127} icon={<Users className="h-4 w-4" />} color="bg-primary/5 border-primary/10 text-primary" />
-            <ImpactStat label="Funds Raised" value={`$${(totalFundsRaised + 34200).toLocaleString()}`} icon={<DollarSign className="h-4 w-4" />} color="bg-secondary/5 border-secondary/10 text-secondary" />
-            <ImpactStat label="Tasks Done" value={completedTasks + 248} icon={<CheckCircle className="h-4 w-4" />} color="bg-accent/10 border-accent/20 text-accent-foreground" />
-            <ImpactStat label="Calls Made" value={412} icon={<Phone className="h-4 w-4" />} color="bg-primary/5 border-primary/10 text-primary" />
-            <ImpactStat label="Vol. Hours" value="186h" icon={<Clock className="h-4 w-4" />} color="bg-secondary/5 border-secondary/10 text-secondary" />
+            <ImpactStat label="People Helped" value={totalPeopleHelped} icon={<Users className="h-4 w-4" />} color="bg-primary/5 border-primary/10 text-primary" />
+            <ImpactStat label="Funds Raised" value={`$${totalFundsRaised.toLocaleString()}`} icon={<DollarSign className="h-4 w-4" />} color="bg-secondary/5 border-secondary/10 text-secondary" />
+            <ImpactStat label="Tasks Done" value={completedTasks} icon={<CheckCircle className="h-4 w-4" />} color="bg-accent/10 border-accent/20 text-accent-foreground" />
+            <ImpactStat label="Active Cases" value={openCases} icon={<Phone className="h-4 w-4" />} color="bg-primary/5 border-primary/10 text-primary" />
+            <ImpactStat label="Open Tasks" value={pendingTasks} icon={<Clock className="h-4 w-4" />} color="bg-secondary/5 border-secondary/10 text-secondary" />
           </div>
         </div>
       </div>
@@ -567,7 +567,7 @@ export default function MyAskanus() {
             <div className="flex items-center justify-between">
               <h2 className="font-serif text-2xl font-bold text-primary">Notifications</h2>
               {unread > 0 && (
-                <Button variant="outline" size="sm" className="gap-2" onClick={() => markAllRead.mutate({}, { onSuccess: () => qc.invalidateQueries({ queryKey: getListNotificationsQueryKey() }) })} disabled={markAllRead.isPending}>
+                <Button variant="outline" size="sm" className="gap-2" onClick={() => markAllRead.mutate(undefined, { onSuccess: () => qc.invalidateQueries({ queryKey: getListNotificationsQueryKey() }) })} disabled={markAllRead.isPending}>
                   <CheckCheck className="h-4 w-4" /> Mark all read
                 </Button>
               )}

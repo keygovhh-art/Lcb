@@ -44,7 +44,9 @@ export const ListUsersResponse = zod.array(ListUsersResponseItem)
  */
 export const CreateUserBody = zod.object({
   "name": zod.string(),
-  "email": zod.string(),
+  "nickname": zod.string().optional(),
+  "email": zod.string().optional(),
+  "phone": zod.string().optional(),
   "password": zod.string(),
   "location": zod.string().optional(),
   "bio": zod.string().optional()
@@ -80,10 +82,12 @@ export const UpdateUserParams = zod.object({
 
 export const UpdateUserBody = zod.object({
   "name": zod.string().optional(),
+  "nickname": zod.string().optional(),
   "bio": zod.string().optional(),
   "location": zod.string().optional(),
   "role": zod.string().optional(),
-  "status": zod.string().optional()
+  "status": zod.string().optional(),
+  "preferredLanguage": zod.string().optional()
 })
 
 export const UpdateUserResponse = zod.object({
@@ -436,7 +440,8 @@ export const CreateNewsBody = zod.object({
   "summary": zod.string().optional(),
   "imageUrl": zod.string().optional(),
   "category": zod.string(),
-  "isFeatured": zod.boolean().optional()
+  "isFeatured": zod.boolean().optional(),
+  "authorName": zod.string().optional()
 })
 
 
@@ -842,10 +847,12 @@ export const ListVolunteersResponse = zod.array(ListVolunteersResponseItem)
  * @summary Register as a volunteer
  */
 export const CreateVolunteerBody = zod.object({
+  "userName": zod.string().optional(),
   "skills": zod.array(zod.string()),
   "availability": zod.string(),
-  "location": zod.string(),
-  "areasOfInterest": zod.array(zod.string())
+  "location": zod.string().optional(),
+  "bio": zod.string().optional(),
+  "areasOfInterest": zod.array(zod.string()).optional()
 })
 
 
@@ -898,10 +905,11 @@ export const ListHelpRequestsResponse = zod.array(ListHelpRequestsResponseItem)
  */
 export const CreateHelpRequestBody = zod.object({
   "name": zod.string(),
-  "contactInfo": zod.string(),
+  "contactInfo": zod.string().optional(),
   "needType": zod.string(),
   "description": zod.string(),
-  "urgency": zod.string()
+  "urgency": zod.string(),
+  "location": zod.string().optional()
 })
 
 

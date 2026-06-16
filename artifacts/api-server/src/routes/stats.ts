@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, discussionsTable, volunteerProfilesTable, helpRequestsTable, groupsTable, donationsTable, activityLogTable } from "@workspace/db";
-import { desc, count, sum } from "drizzle-orm";
+import { db, usersTable, discussionsTable, volunteerProfilesTable, helpRequestsTable, groupsTable, donationsTable, activityLogTable, newsTable } from "@workspace/db";
+import { desc, count, sum, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -11,6 +11,7 @@ router.get("/stats/community", async (_req, res): Promise<void> => {
   const [reqCount] = await db.select({ count: count() }).from(helpRequestsTable);
   const [groupCount] = await db.select({ count: count() }).from(groupsTable);
   const [donationSum] = await db.select({ total: sum(donationsTable.amount) }).from(donationsTable);
+  const [newsCount] = await db.select({ count: count() }).from(newsTable);
 
   res.json({
     totalPeopleHelped: reqCount?.count ?? 0,
@@ -21,22 +22,70 @@ router.get("/stats/community", async (_req, res): Promise<void> => {
     activeGroups: groupCount?.count ?? 0,
     totalDiscussions: discCount?.count ?? 0,
     totalMembers: userCount?.count ?? 0,
+    totalNewsArticles: newsCount?.count ?? 0,
   });
 });
 
 router.get("/stats/activity", async (req, res): Promise<void> => {
   const { period } = req.query as { period?: string };
   const isMonthly = period === "monthly";
-  const labels = isMonthly
-    ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    : ["Mon", "Tue", "Wed", "Thu", "Fri", "Shabbos", "Sun"];
-  const data = labels.map(label => ({
+
+  if (isMonthly) {
+    const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    // Count records created per month this year
+    const discByMonth = await db.select({
+      month: sql<number>`EXTRACT(MONTH FROM created_at)::int`,
+      count: count(),
+    }).from(discussionsTable)
+      .where(sql`created_at > NOW() - INTERVAL '12 months'`)
+      .groupBy(sql`EXTRACT(MONTH FROM created_at)`);
+
+    const reqByMonth = await db.select({
+      month: sql<number>`EXTRACT(MONTH FROM created_at)::int`,
+      count: count(),
+    }).from(helpRequestsTable)
+      .where(sql`created_at > NOW() - INTERVAL '12 months'`)
+      .groupBy(sql`EXTRACT(MONTH FROM created_at)`);
+
+    const data = labels.map((label, idx) => {
+      const m = idx + 1;
+      return {
+        label,
+        discussions: discByMonth.find(r => r.month === m)?.count ?? 0,
+        helpRequests: reqByMonth.find(r => r.month === m)?.count ?? 0,
+        donations: 0,
+        volunteers: 0,
+      };
+    });
+    res.json(data);
+    return;
+  }
+
+  // Weekly: Sun=0 … Sat=6, but we label Mon–Sun
+  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Shabbos"];
+
+  const discByDay = await db.select({
+    dow: sql<number>`EXTRACT(DOW FROM created_at)::int`,
+    count: count(),
+  }).from(discussionsTable)
+    .where(sql`created_at > NOW() - INTERVAL '28 days'`)
+    .groupBy(sql`EXTRACT(DOW FROM created_at)`);
+
+  const reqByDay = await db.select({
+    dow: sql<number>`EXTRACT(DOW FROM created_at)::int`,
+    count: count(),
+  }).from(helpRequestsTable)
+    .where(sql`created_at > NOW() - INTERVAL '28 days'`)
+    .groupBy(sql`EXTRACT(DOW FROM created_at)`);
+
+  const data = DAYS.map((label, idx) => ({
     label,
-    discussions: Math.floor(Math.random() * 20) + 2,
-    helpRequests: Math.floor(Math.random() * 15) + 1,
-    donations: Math.floor(Math.random() * 10) + 1,
-    volunteers: Math.floor(Math.random() * 8) + 1,
+    discussions: discByDay.find(r => r.dow === idx)?.count ?? 0,
+    helpRequests: reqByDay.find(r => r.dow === idx)?.count ?? 0,
+    donations: 0,
+    volunteers: 0,
   }));
+
   res.json(data);
 });
 

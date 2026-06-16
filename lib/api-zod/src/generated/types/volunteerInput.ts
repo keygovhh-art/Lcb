@@ -7,8 +7,10 @@
  */
 
 export interface VolunteerInput {
+  userName?: string;
   skills: string[];
   availability: string;
-  location: string;
-  areasOfInterest: string[];
+  location?: string;
+  bio?: string;
+  areasOfInterest?: string[];
 }

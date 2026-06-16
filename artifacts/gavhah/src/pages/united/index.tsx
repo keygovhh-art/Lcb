@@ -1,241 +1,301 @@
 import { useState } from "react";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Network, Search, Users, BookOpen, MessageCircle, Handshake, MapPin, Star, Send } from "lucide-react";
+import { Heart, Users, HandHeart, Stethoscope, Home, AlertTriangle, Crown, Plus, ChevronRight } from "lucide-react";
+import { useListHelpRequests, useCreateHelpRequest, getListHelpRequestsQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
-const PROFILES = [
-  { id: 1, name: "Rabbi Moshe Goldstein", location: "Brooklyn, NY", role: "Bikur Cholim Coordinator", skills: ["Hospital visits", "Medical transport", "Crisis counseling"], bio: "20+ years coordinating hospital chesed in the NY area. Available to connect activists nationwide.", featured: true },
-  { id: 2, name: "Devorah Katz", location: "Lakewood, NJ", role: "Hachnosas Kallah Director", skills: ["Shidduchim support", "Wedding coordination", "Fundraising"], bio: "Director of a 200-family Hachnosas Kallah fund. Happy to advise and connect.", featured: true },
-  { id: 3, name: "Yitzchok Friedman", location: "Monsey, NY", role: "Askan — General", skills: ["Community organizing", "Government liaison", "Housing"], bio: "15 years of community activism across Rockland County.", featured: false },
-  { id: 4, name: "Shmuel Weiss", location: "Boro Park, Brooklyn", role: "Chesed Fund Manager", skills: ["Financial assistance", "Grant writing", "Donor relations"], bio: "Managing a community chesed fund since 2009.", featured: false },
-  { id: 5, name: "Chana Berger", location: "Passaic, NJ", role: "Special Needs Advocate", skills: ["Special education", "IEP navigation", "Family support"], bio: "Advocate for special needs families throughout NJ.", featured: true },
-  { id: 6, name: "Avigdor Rubin", location: "Jerusalem, Israel", role: "International Chesed Connector", skills: ["International networking", "Aliyah support", "Emergency response"], bio: "Connecting chesed organizations across Israel and the diaspora.", featured: false },
+const CAUSES = [
+  {
+    id: "chassan",
+    label: "Chassan / Kallah Support",
+    description: "Help newlyweds start their lives with dignity. Furniture, household essentials, and simcha expenses.",
+    icon: Crown,
+    color: "bg-rose-50 border-rose-200 text-rose-700",
+    iconColor: "text-rose-500",
+    needType: "wedding",
+  },
+  {
+    id: "almana",
+    label: "Almana / Widow Support",
+    description: "Standing beside widows with practical help, emotional support, and ongoing assistance.",
+    icon: Heart,
+    color: "bg-purple-50 border-purple-200 text-purple-700",
+    iconColor: "text-purple-500",
+    needType: "other",
+  },
+  {
+    id: "yasom",
+    label: "Yasom / Orphan Support",
+    description: "Ensuring orphaned children have what they need — school support, Yom Tov needs, and more.",
+    icon: Users,
+    color: "bg-blue-50 border-blue-200 text-blue-700",
+    iconColor: "text-blue-500",
+    needType: "financial",
+  },
+  {
+    id: "medical",
+    label: "Medical / Bikur Cholim",
+    description: "Hospital visits, medical transport, meals for patients' families, and crisis support.",
+    icon: Stethoscope,
+    color: "bg-green-50 border-green-200 text-green-700",
+    iconColor: "text-green-500",
+    needType: "medical",
+  },
+  {
+    id: "emergency",
+    label: "Emergency Assistance",
+    description: "Rapid response for urgent situations — fire, flood, sudden loss of income, or family crisis.",
+    icon: AlertTriangle,
+    color: "bg-orange-50 border-orange-200 text-orange-700",
+    iconColor: "text-orange-500",
+    needType: "other",
+  },
+  {
+    id: "housing",
+    label: "Housing / Parnassa",
+    description: "Food assistance, housing support, and help for families struggling with basic needs.",
+    icon: Home,
+    color: "bg-amber-50 border-amber-200 text-amber-700",
+    iconColor: "text-amber-500",
+    needType: "housing",
+  },
 ];
 
-const RESOURCES = [
-  { title: "How to Start a Bikur Cholim Organization", category: "Guide", author: "R. Moshe Goldstein", reads: 312 },
-  { title: "Hachnosas Kallah: Practical Templates", category: "Template", author: "Devorah Katz", reads: 218 },
-  { title: "Grant Writing for Jewish Charities", category: "Guide", author: "Shmuel Weiss", reads: 175 },
-  { title: "Working with Government Agencies as an Askan", category: "Training", author: "Yitzchok Friedman", reads: 143 },
-  { title: "Crisis Intervention for Community Leaders", category: "Training", author: "Chana Berger", reads: 189 },
-];
-
-const CATEGORIES = ["All", "Bikur Cholim", "Hachnosas Kallah", "Housing", "Education", "Financial", "Special Needs", "International"];
-
-function ProfileCard({ p }: { p: typeof PROFILES[0] }) {
-  const [msgOpen, setMsgOpen] = useState(false);
-  const [msg, setMsg] = useState("");
+function CauseCard({ cause, onSupport, onRequest, count }: {
+  cause: typeof CAUSES[0];
+  onSupport: () => void;
+  onRequest: () => void;
+  count: number;
+}) {
+  const Icon = cause.icon;
   return (
-    <div className="bg-card border rounded-xl p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
-      <div className="flex items-start gap-3">
-        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-serif font-bold text-xl shrink-0">
-          {p.name[0]}
+    <div className={`border-2 rounded-2xl p-6 ${cause.color} flex flex-col gap-4 hover:shadow-md transition-shadow`}>
+      <div className="flex items-start gap-4">
+        <div className={`w-12 h-12 rounded-xl bg-white/60 flex items-center justify-center shrink-0`}>
+          <Icon className={`h-6 w-6 ${cause.iconColor}`} />
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-semibold text-foreground text-sm">{p.name}</span>
-            {p.featured && <Star className="h-3.5 w-3.5 text-accent fill-accent" />}
-          </div>
-          <p className="text-xs text-secondary font-medium">{p.role}</p>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-            <MapPin className="h-3 w-3" /> {p.location}
-          </div>
+        <div className="flex-1">
+          <h3 className="font-serif font-bold text-lg mb-1">{cause.label}</h3>
+          <p className="text-sm opacity-80 leading-relaxed">{cause.description}</p>
         </div>
       </div>
-      <p className="text-xs text-muted-foreground leading-relaxed">{p.bio}</p>
-      <div className="flex flex-wrap gap-1">
-        {p.skills.map((s, i) => <Badge key={i} variant="outline" className="text-xs">{s}</Badge>)}
-      </div>
+      {count > 0 && (
+        <div className="flex items-center gap-1.5 text-xs font-medium opacity-70">
+          <HandHeart className="h-3.5 w-3.5" />
+          {count} {count === 1 ? "family" : "families"} currently need support
+        </div>
+      )}
       <div className="flex gap-2 pt-1">
-        <Dialog open={msgOpen} onOpenChange={setMsgOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="bg-secondary hover:bg-secondary/90 text-white gap-1.5 flex-1">
-              <MessageCircle className="h-3.5 w-3.5" /> Connect
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="font-serif text-xl text-primary">Connect with {p.name}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 pt-2">
-              <p className="text-sm text-muted-foreground">Send a collaboration request. All contact is reviewed by Gavhah staff before delivery.</p>
-              <Textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder="Describe your chesed initiative and how you'd like to collaborate..." className="min-h-28 resize-none" />
-              <Button className="w-full bg-secondary hover:bg-secondary/90 text-white gap-2" onClick={() => { setMsgOpen(false); setMsg(""); }}>
-                <Send className="h-4 w-4" /> Send Request
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button size="sm" variant="outline" className="flex-1 bg-white/60 border-current gap-1.5 font-medium" onClick={onSupport}>
+          <Heart className="h-3.5 w-3.5" /> I Want to Help
+        </Button>
+        <Button size="sm" variant="outline" className="flex-1 bg-white/60 border-current gap-1.5 font-medium" onClick={onRequest}>
+          <ChevronRight className="h-3.5 w-3.5" /> Request Support
+        </Button>
       </div>
     </div>
   );
 }
 
-export default function United() {
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
+function SupportDialog({ cause, mode, open, onClose }: {
+  cause: typeof CAUSES[0] | null;
+  mode: "support" | "request";
+  open: boolean;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const createReq = useCreateHelpRequest();
+  const [form, setForm] = useState({ name: "", description: "", urgency: "medium", location: "" });
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
+    setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
-  const filtered = PROFILES.filter(p =>
-    (category === "All" || p.skills.some(s => s.toLowerCase().includes(category.toLowerCase())) || p.role.toLowerCase().includes(category.toLowerCase())) &&
-    (p.name.toLowerCase().includes(search.toLowerCase()) || p.role.toLowerCase().includes(search.toLowerCase()) || p.location.toLowerCase().includes(search.toLowerCase()))
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name || !form.description || !cause) return;
+    const description = mode === "support"
+      ? `[VOLUNTEER TO HELP] ${form.description}`
+      : form.description;
+    createReq.mutate(
+      { data: { name: form.name, description, needType: cause.needType, urgency: form.urgency, location: form.location || undefined } },
+      {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: getListHelpRequestsQueryKey({}) });
+          onClose();
+          setForm({ name: "", description: "", urgency: "medium", location: "" });
+          toast({
+            title: mode === "support" ? "Thank you for stepping up!" : "Your request has been received",
+            description: mode === "support"
+              ? "Gavhah will connect you with a family that needs your help."
+              : "Our team will be in touch discreetly to coordinate assistance.",
+          });
+        },
+        onError: () => toast({ title: "Error", description: "Please try again.", variant: "destructive" }),
+      }
+    );
+  };
+
+  const isSupport = mode === "support";
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-serif text-xl text-primary">
+            {isSupport ? `Help with ${cause?.label}` : `Request ${cause?.label} Support`}
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          {!isSupport && (
+            <div className="bg-muted/40 rounded-lg p-3 text-sm text-muted-foreground">
+              Your information will be handled with complete discretion by Gavhah staff.
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label className="font-semibold">{isSupport ? "Your Name / Nickname" : "Name / Reference"} *</Label>
+            <Input value={form.name} onChange={set("name")} placeholder={isSupport ? "How should we address you?" : "First name is fine"} className="h-11" required />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="font-semibold">Location <span className="font-normal text-muted-foreground">(optional)</span></Label>
+            <Input value={form.location} onChange={set("location")} placeholder="City or neighborhood" className="h-11" />
+          </div>
+          {!isSupport && (
+            <div className="space-y-1.5">
+              <Label className="font-semibold">Urgency</Label>
+              <Select value={form.urgency} onValueChange={set("urgency")}>
+                <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="critical">Critical — Immediate</SelectItem>
+                  <SelectItem value="high">High — Within days</SelectItem>
+                  <SelectItem value="medium">Medium — Within weeks</SelectItem>
+                  <SelectItem value="low">Low — Ongoing</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label className="font-semibold">{isSupport ? "How can you help?" : "What do you need?"} *</Label>
+            <Textarea
+              value={form.description}
+              onChange={set("description")}
+              placeholder={isSupport
+                ? "Describe your availability, skills, or what you can contribute..."
+                : "Describe your situation and what kind of support would help most..."}
+              className="resize-none min-h-28"
+              required
+            />
+          </div>
+          <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold gap-2" disabled={createReq.isPending}>
+            <Heart className="h-4 w-4" />
+            {createReq.isPending ? "Submitting..." : isSupport ? "Submit Offer to Help" : "Submit Request"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
+}
+
+export default function United() {
+  const [dialogCause, setDialogCause] = useState<typeof CAUSES[0] | null>(null);
+  const [dialogMode, setDialogMode] = useState<"support" | "request">("support");
+
+  const { data: allRequests } = useListHelpRequests({}, { query: { queryKey: getListHelpRequestsQueryKey({}) } });
+
+  const getCount = (needType: string) =>
+    allRequests?.filter((r: any) => r.needType === needType && r.status === "open" && !r.description?.startsWith("[VOLUNTEER")).length ?? 0;
+
+  const openDialog = (cause: typeof CAUSES[0], mode: "support" | "request") => {
+    setDialogCause(cause);
+    setDialogMode(mode);
+  };
 
   return (
     <Layout>
-      <div className="bg-gradient-to-br from-primary/5 via-secondary/5 to-transparent border-b">
+      <div className="bg-gradient-to-br from-rose-50 via-amber-50/30 to-transparent border-b">
         <div className="container mx-auto px-4 py-12">
-          <div className="flex items-center gap-3 mb-2">
-            <Network className="h-8 w-8 text-secondary" />
+          <div className="flex items-center gap-3 mb-3">
+            <Heart className="h-8 w-8 text-rose-500 fill-rose-100" />
             <h1 className="font-serif text-4xl font-bold text-primary">United In Kindness</h1>
           </div>
-          <p className="text-muted-foreground font-serif italic ml-11 max-w-xl">
-            A professional networking hub for activists and chesed organizations worldwide. Connect, collaborate, and amplify your impact.
+          <p className="text-muted-foreground font-serif italic ml-11 max-w-2xl">
+            Communities uniting around those who need us most. Every family in need has a community ready to help.
           </p>
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-10">
-        <Tabs defaultValue="network" className="space-y-8">
-          <TabsList className="bg-muted/50 h-auto p-1 flex flex-wrap gap-1">
-            <TabsTrigger value="network" className="gap-2"><Users className="h-4 w-4" /> Activist Network</TabsTrigger>
-            <TabsTrigger value="resources" className="gap-2"><BookOpen className="h-4 w-4" /> Resource Library</TabsTrigger>
-            <TabsTrigger value="collaborate" className="gap-2"><Handshake className="h-4 w-4" /> Collaboration Board</TabsTrigger>
-          </TabsList>
+        <div className="mb-8 text-center max-w-2xl mx-auto">
+          <h2 className="font-serif text-2xl font-bold text-primary mb-2">Choose a Cause</h2>
+          <p className="text-muted-foreground text-sm">
+            Whether you need help or want to give it — find your place in the community's circle of support.
+          </p>
+        </div>
 
-          {/* Activist Network */}
-          <TabsContent value="network" className="space-y-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-10 h-11" placeholder="Search activists, skills, or location..." value={search} onChange={e => setSearch(e.target.value)} />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {CAUSES.map(cause => (
+            <CauseCard
+              key={cause.id}
+              cause={cause}
+              count={getCount(cause.needType)}
+              onSupport={() => openDialog(cause, "support")}
+              onRequest={() => openDialog(cause, "request")}
+            />
+          ))}
+        </div>
+
+        {/* How it works */}
+        <div className="mt-16 bg-muted/30 rounded-2xl p-8 border">
+          <h3 className="font-serif text-xl font-bold text-primary mb-6 text-center">How United In Kindness Works</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+            {[
+              { step: "1", title: "Identify the Need", desc: "A family reaches out through Gavhah — confidentially and with dignity." },
+              { step: "2", title: "Community Responds", desc: "Volunteers from across the world step up to help in whatever way they can." },
+              { step: "3", title: "Gavhah Coordinates", desc: "Our team connects helpers with those in need, protecting everyone's privacy." },
+            ].map(s => (
+              <div key={s.step} className="space-y-2">
+                <div className="w-10 h-10 rounded-full bg-secondary text-white font-serif font-bold text-lg flex items-center justify-center mx-auto">
+                  {s.step}
+                </div>
+                <h4 className="font-semibold text-primary">{s.title}</h4>
+                <p className="text-sm text-muted-foreground leading-relaxed">{s.desc}</p>
               </div>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="h-11 w-full sm:w-52"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2">
-                <Users className="h-4 w-4" /> Join Network
-              </Button>
-            </div>
+            ))}
+          </div>
+        </div>
 
-            {/* Featured */}
-            {!search && category === "All" && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Star className="h-4 w-4 text-accent fill-accent" />
-                  <h3 className="font-serif font-bold text-primary">Featured Activists</h3>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {PROFILES.filter(p => p.featured).map(p => <ProfileCard key={p.id} p={p} />)}
-                </div>
-                <hr className="my-4" />
+        {/* Open requests banner */}
+        {allRequests && allRequests.filter((r: any) => r.status === "open" && !r.description?.startsWith("[VOLUNTEER")).length > 0 && (
+          <div className="mt-8 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl p-5">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+              <div>
+                <p className="font-semibold text-amber-800">
+                  {allRequests.filter((r: any) => r.status === "open" && !r.description?.startsWith("[VOLUNTEER")).length} families are currently waiting for help
+                </p>
+                <p className="text-sm text-amber-700">Every act of chesed matters.</p>
               </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtered.map(p => <ProfileCard key={p.id} p={p} />)}
-              {filtered.length === 0 && (
-                <div className="col-span-full text-center py-16 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">
-                  No activists found for this search.
-                </div>
-              )}
             </div>
-          </TabsContent>
-
-          {/* Resource Library */}
-          <TabsContent value="resources" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif text-2xl font-bold text-primary">Resource Library</h2>
-              <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2">
-                <BookOpen className="h-4 w-4" /> Share Resource
-              </Button>
-            </div>
-            <p className="text-muted-foreground text-sm">Guides, templates, and training materials contributed by our activist network.</p>
-            <div className="space-y-3">
-              {RESOURCES.map((r, i) => (
-                <div key={i} className="bg-card border rounded-xl p-5 flex items-start justify-between gap-4 hover:border-primary/20 hover:shadow-sm transition-all">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <Badge variant="outline" className="text-xs">{r.category}</Badge>
-                    </div>
-                    <h3 className="font-serif font-semibold text-primary mb-1">{r.title}</h3>
-                    <p className="text-xs text-muted-foreground">By {r.author} · {r.reads} reads</p>
-                  </div>
-                  <Button size="sm" variant="outline" className="shrink-0">View</Button>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* Collaboration Board */}
-          <TabsContent value="collaborate" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif text-2xl font-bold text-primary">Collaboration Board</h2>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2">
-                    <Handshake className="h-4 w-4" /> Post Request
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle className="font-serif text-2xl text-primary">Post Collaboration Request</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 pt-2">
-                    <div className="space-y-2">
-                      <Label className="font-semibold">Title</Label>
-                      <Input placeholder="What kind of collaboration are you seeking?" className="h-11" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="font-semibold">Category</Label>
-                      <Select>
-                        <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
-                        <SelectContent>
-                          {CATEGORIES.filter(c => c !== "All").map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="font-semibold">Description</Label>
-                      <Textarea placeholder="Describe the project and what you need..." className="min-h-24 resize-none" />
-                    </div>
-                    <Button className="w-full bg-secondary hover:bg-secondary/90 text-white">Post Request</Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { title: "Seeking: Medical Transport Volunteers — Brooklyn", category: "Bikur Cholim", org: "Bikur Cholim of Brooklyn", urgent: true },
-                { title: "Seeking: Fundraising Partner for Hachnosas Kallah Fund", category: "Hachnosas Kallah", org: "Anshei Chesed Foundation", urgent: false },
-                { title: "Looking to Expand: Special Needs Summer Program", category: "Special Needs", org: "Yad B'Yad NJ", urgent: false },
-                { title: "Seeking: Housing Contacts in Lakewood Area", category: "Housing", org: "Community Askan Network", urgent: true },
-              ].map((item, i) => (
-                <div key={i} className="bg-card border rounded-xl p-5 hover:shadow-sm transition-shadow">
-                  <div className="flex items-start gap-2 mb-3 flex-wrap">
-                    {item.urgent && <Badge variant="destructive" className="text-xs">Urgent</Badge>}
-                    <Badge variant="outline" className="text-xs">{item.category}</Badge>
-                  </div>
-                  <h3 className="font-serif font-semibold text-primary mb-1">{item.title}</h3>
-                  <p className="text-xs text-muted-foreground mb-3">{item.org}</p>
-                  <Button size="sm" className="bg-secondary hover:bg-secondary/90 text-white gap-1.5 w-full">
-                    <MessageCircle className="h-3.5 w-3.5" /> Respond
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
+            <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 shrink-0" onClick={() => openDialog(CAUSES[3], "support")}>
+              <Plus className="h-4 w-4" /> I Want to Help
+            </Button>
+          </div>
+        )}
       </div>
+
+      <SupportDialog
+        cause={dialogCause}
+        mode={dialogMode}
+        open={dialogCause !== null}
+        onClose={() => setDialogCause(null)}
+      />
     </Layout>
   );
 }

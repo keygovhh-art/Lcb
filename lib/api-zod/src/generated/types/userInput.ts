@@ -8,7 +8,9 @@
 
 export interface UserInput {
   name: string;
-  email: string;
+  nickname?: string;
+  email?: string;
+  phone?: string;
   password: string;
   location?: string;
   bio?: string;

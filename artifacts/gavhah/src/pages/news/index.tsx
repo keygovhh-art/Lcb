@@ -19,18 +19,21 @@ import { useToast } from "@/hooks/use-toast";
 import { useLikeArticle } from "@/hooks/use-like-article";
 
 const CATEGORIES = [
-  { value: "all", label: "All" },
-  { value: "medical", label: "Medical" },
-  { value: "wedding", label: "Wedding" },
-  { value: "bikur_cholim", label: "Bikur Cholim" },
+  { value: "all", label: "All Updates" },
   { value: "community", label: "Community" },
-  { value: "emergency", label: "Emergency" },
-  { value: "volunteer", label: "Volunteer" },
+  { value: "announcement", label: "Announcements" },
+  { value: "campaign", label: "Campaigns" },
+  { value: "emergency", label: "Emergency Appeals" },
+  { value: "volunteer", label: "Volunteer Calls" },
+  { value: "bikur_cholim", label: "Bikur Cholim" },
+  { value: "medical", label: "Medical" },
+  { value: "wedding", label: "Simchos" },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
-  medical: "Medical", wedding: "Wedding", bikur_cholim: "Bikur Cholim",
-  community: "Community", emergency: "Emergency", volunteer: "Volunteer",
+  community: "Community", announcement: "Announcement", campaign: "Campaign",
+  emergency: "Emergency Appeal", volunteer: "Volunteer Call",
+  bikur_cholim: "Bikur Cholim", medical: "Medical", wedding: "Simcha",
 };
 
 export default function NewsList() {
@@ -41,7 +44,7 @@ export default function NewsList() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({
-    title: "", content: "", summary: "", category: "community", authorName: "",
+    title: "", content: "", summary: "", category: "announcement", authorName: "",
   });
 
   const { data: news, isLoading } = useListNews(

@@ -45,7 +45,9 @@ export interface User {
 
 export interface UserInput {
   name: string;
-  email: string;
+  nickname?: string;
+  email?: string;
+  phone?: string;
   password: string;
   location?: string;
   bio?: string;
@@ -53,10 +55,12 @@ export interface UserInput {
 
 export interface UserUpdate {
   name?: string;
+  nickname?: string;
   bio?: string;
   location?: string;
   role?: string;
   status?: string;
+  preferredLanguage?: string;
 }
 
 export type DiscussionCategory = typeof DiscussionCategory[keyof typeof DiscussionCategory];
@@ -196,6 +200,7 @@ export interface NewsArticleInput {
   imageUrl?: string;
   category: string;
   isFeatured?: boolean;
+  authorName?: string;
 }
 
 export interface NewsArticleUpdate {
@@ -329,10 +334,12 @@ export interface VolunteerProfile {
 }
 
 export interface VolunteerInput {
+  userName?: string;
   skills: string[];
   availability: string;
-  location: string;
-  areasOfInterest: string[];
+  location?: string;
+  bio?: string;
+  areasOfInterest?: string[];
 }
 
 export type HelpRequestNeedType = typeof HelpRequestNeedType[keyof typeof HelpRequestNeedType];
@@ -383,10 +390,11 @@ export interface HelpRequest {
 
 export interface HelpRequestInput {
   name: string;
-  contactInfo: string;
+  contactInfo?: string;
   needType: string;
   description: string;
   urgency: string;
+  location?: string;
 }
 
 export interface HelpRequestUpdate {

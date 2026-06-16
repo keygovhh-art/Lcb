@@ -1382,11 +1382,15 @@ components:
 
     UserInput:
       type: object
-      required: [name, email, password]
+      required: [name, password]
       properties:
         name:
           type: string
+        nickname:
+          type: string
         email:
+          type: string
+        phone:
           type: string
         password:
           type: string
@@ -1400,6 +1404,8 @@ components:
       properties:
         name:
           type: string
+        nickname:
+          type: string
         bio:
           type: string
         location:
@@ -1407,6 +1413,8 @@ components:
         role:
           type: string
         status:
+          type: string
+        preferredLanguage:
           type: string
 
     UserDashboard:
@@ -1578,6 +1586,8 @@ components:
           type: string
         isFeatured:
           type: boolean
+        authorName:
+          type: string
 
     NewsArticleUpdate:
       type: object
@@ -1804,8 +1814,10 @@ components:
 
     VolunteerInput:
       type: object
-      required: [skills, availability, location, areasOfInterest]
+      required: [skills, availability]
       properties:
+        userName:
+          type: string
         skills:
           type: array
           items:
@@ -1813,6 +1825,8 @@ components:
         availability:
           type: string
         location:
+          type: string
+        bio:
           type: string
         areasOfInterest:
           type: array
@@ -1847,7 +1861,7 @@ components:
 
     HelpRequestInput:
       type: object
-      required: [name, contactInfo, needType, description, urgency]
+      required: [name, needType, description, urgency]
       properties:
         name:
           type: string
@@ -1858,6 +1872,8 @@ components:
         description:
           type: string
         urgency:
+          type: string
+        location:
           type: string
 
     HelpRequestUpdate:

@@ -8,8 +8,9 @@
 
 export interface HelpRequestInput {
   name: string;
-  contactInfo: string;
+  contactInfo?: string;
   needType: string;
   description: string;
   urgency: string;
+  location?: string;
 }

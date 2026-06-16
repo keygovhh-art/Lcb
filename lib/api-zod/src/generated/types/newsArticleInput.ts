@@ -13,4 +13,5 @@ export interface NewsArticleInput {
   imageUrl?: string;
   category: string;
   isFeatured?: boolean;
+  authorName?: string;
 }

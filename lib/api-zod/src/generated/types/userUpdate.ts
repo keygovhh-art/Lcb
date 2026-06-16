@@ -8,8 +8,10 @@
 
 export interface UserUpdate {
   name?: string;
+  nickname?: string;
   bio?: string;
   location?: string;
   role?: string;
   status?: string;
+  preferredLanguage?: string;
 }

@@ -5,13 +5,16 @@ import { z } from "zod/v4";
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  email: text("email").notNull().unique(),
+  nickname: text("nickname"),
+  email: text("email").unique(),
+  phone: text("phone").unique(),
   passwordHash: text("password_hash").notNull().default(""),
   role: text("role").notNull().default("member"),
   status: text("status").notNull().default("active"),
   location: text("location"),
   bio: text("bio"),
   avatarUrl: text("avatar_url"),
+  preferredLanguage: text("preferred_language").notNull().default("en"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

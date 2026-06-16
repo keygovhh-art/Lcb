@@ -6,6 +6,7 @@ import {
   Radio, CalendarDays, Star, Briefcase
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/context/language-context";
 
 const PRIMARY_DEPTS = [
   { label: "News", fullLabel: "Chesed News Center", href: "/news", icon: <Globe className="h-4 w-4" /> },
@@ -31,6 +32,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [location] = useLocation();
+  const { lang, setLang } = useLanguage();
 
   const isActive = (href: string) =>
     href === "/" ? location === "/" : location.startsWith(href);
@@ -102,6 +104,14 @@ export function Layout({ children }: { children: ReactNode }) {
             <Button variant="ghost" size="icon" className="hidden md:flex h-8 w-8">
               <Search className="h-4 w-4" />
             </Button>
+            {/* Language toggle */}
+            <button
+              onClick={() => setLang(lang === "en" ? "yi" : "en")}
+              className="hidden md:flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border border-muted hover:border-primary/40 text-muted-foreground hover:text-primary transition-colors"
+              title={lang === "en" ? "Switch to Yiddish" : "Switch to English"}
+            >
+              {lang === "en" ? "עי" : "EN"}
+            </button>
             <Link href="/my">
               <Button variant="ghost" size="icon" className="relative h-8 w-8">
                 <Bell className="h-4 w-4" />
