@@ -419,6 +419,44 @@ paths:
                 items:
                   $ref: "#/components/schemas/Discussion"
 
+  # ---- CAUSE SUPPORTERS ----
+  /cause-supporters:
+    get:
+      operationId: listCauseSupporters
+      tags: [cause-supporters]
+      summary: List supporters for a cause
+      parameters:
+        - name: causeType
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of supporters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CauseSupporter"
+    post:
+      operationId: joinCause
+      tags: [cause-supporters]
+      summary: Join a cause as a supporter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CauseSupporterInput"
+      responses:
+        "201":
+          description: Supporter created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CauseSupporter"
+
   # ---- NEWS ----
   /news:
     get:
@@ -1540,7 +1578,7 @@ components:
     # ---- NEWS ----
     NewsArticle:
       type: object
-      required: [id, title, content, category, authorId, authorName, isFeatured, createdAt]
+      required: [id, title, content, category, authorId, authorName, isFeatured, urgency, createdAt]
       properties:
         id:
           type: integer
@@ -1554,7 +1592,12 @@ components:
           type: ["string", "null"]
         category:
           type: string
-          enum: [medical, wedding, bikur_cholim, community, emergency, volunteer]
+        urgency:
+          type: string
+        deadline:
+          type: ["string", "null"]
+        organization:
+          type: ["string", "null"]
         authorId:
           type: integer
         authorName:
@@ -1584,9 +1627,53 @@ components:
           type: string
         category:
           type: string
+        urgency:
+          type: string
+        deadline:
+          type: string
+        organization:
+          type: string
         isFeatured:
           type: boolean
         authorName:
+          type: string
+
+    CauseSupporter:
+      type: object
+      required: [id, causeType, name, pledgeType, createdAt]
+      properties:
+        id:
+          type: integer
+        causeType:
+          type: string
+        name:
+          type: string
+        pledgeType:
+          type: string
+        pledgeAmount:
+          type: number
+        message:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    CauseSupporterInput:
+      type: object
+      required: [causeType, name, pledgeType]
+      properties:
+        causeType:
+          type: string
+        name:
+          type: string
+        pledgeType:
+          type: string
+        pledgeAmount:
+          type: number
+        message:
+          type: string
+        location:
           type: string
 
     NewsArticleUpdate:

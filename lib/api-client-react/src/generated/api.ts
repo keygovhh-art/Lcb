@@ -24,6 +24,8 @@ import type {
   ActivityItem,
   Announcement,
   AnnouncementInput,
+  CauseSupporter,
+  CauseSupporterInput,
   Charity,
   CharityUpdate,
   Comment,
@@ -47,6 +49,7 @@ import type {
   HelpRequestUpdate,
   LikeNews200,
   LikeResult,
+  ListCauseSupportersParams,
   ListDiscussionsParams,
   ListGroupsParams,
   ListHelpRequestsParams,
@@ -1569,6 +1572,161 @@ export function useGetTrendingDiscussions<TData = Awaited<ReturnType<typeof getT
 
 
 
+
+export const getListCauseSupportersUrl = (params?: ListCauseSupportersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/cause-supporters?${stringifiedParams}` : `/api/cause-supporters`
+}
+
+/**
+ * @summary List supporters for a cause
+ */
+export const listCauseSupporters = async (params?: ListCauseSupportersParams, options?: RequestInit): Promise<CauseSupporter[]> => {
+
+  return customFetch<CauseSupporter[]>(getListCauseSupportersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCauseSupportersQueryKey = (params?: ListCauseSupportersParams,) => {
+    return [
+    `/api/cause-supporters`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCauseSupportersQueryOptions = <TData = Awaited<ReturnType<typeof listCauseSupporters>>, TError = ErrorType<unknown>>(params?: ListCauseSupportersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCauseSupporters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCauseSupportersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCauseSupporters>>> = ({ signal }) => listCauseSupporters(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCauseSupporters>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCauseSupportersQueryResult = NonNullable<Awaited<ReturnType<typeof listCauseSupporters>>>
+export type ListCauseSupportersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List supporters for a cause
+ */
+
+export function useListCauseSupporters<TData = Awaited<ReturnType<typeof listCauseSupporters>>, TError = ErrorType<unknown>>(
+ params?: ListCauseSupportersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCauseSupporters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCauseSupportersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getJoinCauseUrl = () => {
+
+
+
+
+  return `/api/cause-supporters`
+}
+
+/**
+ * @summary Join a cause as a supporter
+ */
+export const joinCause = async (causeSupporterInput: CauseSupporterInput, options?: RequestInit): Promise<CauseSupporter> => {
+
+  return customFetch<CauseSupporter>(getJoinCauseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      causeSupporterInput,)
+  }
+);}
+
+
+
+
+export const getJoinCauseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinCause>>, TError,{data: BodyType<CauseSupporterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinCause>>, TError,{data: BodyType<CauseSupporterInput>}, TContext> => {
+
+const mutationKey = ['joinCause'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinCause>>, {data: BodyType<CauseSupporterInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  joinCause(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinCauseMutationResult = NonNullable<Awaited<ReturnType<typeof joinCause>>>
+    export type JoinCauseMutationBody = BodyType<CauseSupporterInput>
+    export type JoinCauseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Join a cause as a supporter
+ */
+export const useJoinCause = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinCause>>, TError,{data: BodyType<CauseSupporterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinCause>>,
+        TError,
+        {data: BodyType<CauseSupporterInput>},
+        TContext
+      > => {
+      return useMutation(getJoinCauseMutationOptions(options));
+    }
 
 export const getListNewsUrl = (params?: ListNewsParams,) => {
   const normalizedParams = new URLSearchParams();

@@ -404,6 +404,39 @@ export const GetTrendingDiscussionsResponse = zod.array(GetTrendingDiscussionsRe
 
 
 /**
+ * @summary List supporters for a cause
+ */
+export const ListCauseSupportersQueryParams = zod.object({
+  "causeType": zod.coerce.string().optional()
+})
+
+export const ListCauseSupportersResponseItem = zod.object({
+  "id": zod.number(),
+  "causeType": zod.string(),
+  "name": zod.string(),
+  "pledgeType": zod.string(),
+  "pledgeAmount": zod.number().optional(),
+  "message": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListCauseSupportersResponse = zod.array(ListCauseSupportersResponseItem)
+
+
+/**
+ * @summary Join a cause as a supporter
+ */
+export const JoinCauseBody = zod.object({
+  "causeType": zod.string(),
+  "name": zod.string(),
+  "pledgeType": zod.string(),
+  "pledgeAmount": zod.number().optional(),
+  "message": zod.string().optional(),
+  "location": zod.string().optional()
+})
+
+
+/**
  * @summary List news articles
  */
 export const ListNewsQueryParams = zod.object({
@@ -419,7 +452,10 @@ export const ListNewsResponseItem = zod.object({
   "content": zod.string(),
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "category": zod.enum(['medical', 'wedding', 'bikur_cholim', 'community', 'emergency', 'volunteer']),
+  "category": zod.string(),
+  "urgency": zod.string(),
+  "deadline": zod.string().nullish(),
+  "organization": zod.string().nullish(),
   "authorId": zod.number(),
   "authorName": zod.string(),
   "isFeatured": zod.boolean(),
@@ -440,6 +476,9 @@ export const CreateNewsBody = zod.object({
   "summary": zod.string().optional(),
   "imageUrl": zod.string().optional(),
   "category": zod.string(),
+  "urgency": zod.string().optional(),
+  "deadline": zod.string().optional(),
+  "organization": zod.string().optional(),
   "isFeatured": zod.boolean().optional(),
   "authorName": zod.string().optional()
 })
@@ -458,7 +497,10 @@ export const GetNewsResponse = zod.object({
   "content": zod.string(),
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "category": zod.enum(['medical', 'wedding', 'bikur_cholim', 'community', 'emergency', 'volunteer']),
+  "category": zod.string(),
+  "urgency": zod.string(),
+  "deadline": zod.string().nullish(),
+  "organization": zod.string().nullish(),
   "authorId": zod.number(),
   "authorName": zod.string(),
   "isFeatured": zod.boolean(),
@@ -491,7 +533,10 @@ export const UpdateNewsResponse = zod.object({
   "content": zod.string(),
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "category": zod.enum(['medical', 'wedding', 'bikur_cholim', 'community', 'emergency', 'volunteer']),
+  "category": zod.string(),
+  "urgency": zod.string(),
+  "deadline": zod.string().nullish(),
+  "organization": zod.string().nullish(),
   "authorId": zod.number(),
   "authorName": zod.string(),
   "isFeatured": zod.boolean(),
@@ -531,7 +576,10 @@ export const GetFeaturedNewsResponseItem = zod.object({
   "content": zod.string(),
   "summary": zod.string().nullish(),
   "imageUrl": zod.string().nullish(),
-  "category": zod.enum(['medical', 'wedding', 'bikur_cholim', 'community', 'emergency', 'volunteer']),
+  "category": zod.string(),
+  "urgency": zod.string(),
+  "deadline": zod.string().nullish(),
+  "organization": zod.string().nullish(),
   "authorId": zod.number(),
   "authorName": zod.string(),
   "isFeatured": zod.boolean(),

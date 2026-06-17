@@ -5,7 +5,6 @@
  * Gavhah Community Kindness Platform API
  * OpenAPI spec version: 0.1.0
  */
-import type { NewsArticleCategory } from './newsArticleCategory';
 
 export interface NewsArticle {
   id: number;
@@ -15,7 +14,12 @@ export interface NewsArticle {
   summary?: string | null;
   /** @nullable */
   imageUrl?: string | null;
-  category: NewsArticleCategory;
+  category: string;
+  urgency: string;
+  /** @nullable */
+  deadline?: string | null;
+  /** @nullable */
+  organization?: string | null;
   authorId: number;
   authorName: string;
   isFeatured: boolean;

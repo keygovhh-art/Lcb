@@ -9,6 +9,7 @@ import volunteersRouter from "./volunteers";
 import charityRouter from "./charity";
 import statsRouter from "./stats";
 import platformRouter from "./platform";
+import causeSupportersRouter from "./cause-supporters";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(volunteersRouter);
 router.use(charityRouter);
 router.use(statsRouter);
 router.use(platformRouter);
+router.use(causeSupportersRouter);
 
 export default router;

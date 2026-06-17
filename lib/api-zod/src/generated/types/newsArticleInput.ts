@@ -12,6 +12,9 @@ export interface NewsArticleInput {
   summary?: string;
   imageUrl?: string;
   category: string;
+  urgency?: string;
+  deadline?: string;
+  organization?: string;
   isFeatured?: boolean;
   authorName?: string;
 }

@@ -163,18 +163,6 @@ export interface LikeResult {
   likes: number;
 }
 
-export type NewsArticleCategory = typeof NewsArticleCategory[keyof typeof NewsArticleCategory];
-
-
-export const NewsArticleCategory = {
-  medical: 'medical',
-  wedding: 'wedding',
-  bikur_cholim: 'bikur_cholim',
-  community: 'community',
-  emergency: 'emergency',
-  volunteer: 'volunteer',
-} as const;
-
 export interface NewsArticle {
   id: number;
   title: string;
@@ -183,7 +171,12 @@ export interface NewsArticle {
   summary?: string | null;
   /** @nullable */
   imageUrl?: string | null;
-  category: NewsArticleCategory;
+  category: string;
+  urgency: string;
+  /** @nullable */
+  deadline?: string | null;
+  /** @nullable */
+  organization?: string | null;
   authorId: number;
   authorName: string;
   isFeatured: boolean;
@@ -199,8 +192,33 @@ export interface NewsArticleInput {
   summary?: string;
   imageUrl?: string;
   category: string;
+  urgency?: string;
+  deadline?: string;
+  organization?: string;
   isFeatured?: boolean;
   authorName?: string;
+}
+
+export interface CauseSupporter {
+  id: number;
+  causeType: string;
+  name: string;
+  pledgeType: string;
+  pledgeAmount?: number;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  location?: string | null;
+  createdAt: string;
+}
+
+export interface CauseSupporterInput {
+  causeType: string;
+  name: string;
+  pledgeType: string;
+  pledgeAmount?: number;
+  message?: string;
+  location?: string;
 }
 
 export interface NewsArticleUpdate {
@@ -584,6 +602,10 @@ category?: string;
 search?: string;
 trending?: boolean;
 page?: number;
+};
+
+export type ListCauseSupportersParams = {
+causeType?: string;
 };
 
 export type ListNewsParams = {

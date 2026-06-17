@@ -6,3 +6,4 @@ export * from "./minyans";
 export * from "./volunteers";
 export * from "./charity";
 export * from "./platform";
+export * from "./cause-supporters";
