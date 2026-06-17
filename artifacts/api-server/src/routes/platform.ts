@@ -49,10 +49,33 @@ router.post("/reports/:id/resolve", async (req, res): Promise<void> => {
   res.json(report);
 });
 
+router.post("/reports/:id/dismiss", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const [report] = await db.update(reportsTable).set({ status: "dismissed" }).where(eq(reportsTable.id, id)).returning();
+  if (!report) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(report);
+});
+
 // Notifications
 router.get("/notifications", async (_req, res): Promise<void> => {
   const all = await db.select().from(notificationsTable).where(eq(notificationsTable.userId, 1)).orderBy(desc(notificationsTable.createdAt));
   res.json(all);
+});
+
+router.get("/notifications/unread-count", async (_req, res): Promise<void> => {
+  const all = await db.select().from(notificationsTable).where(eq(notificationsTable.userId, 1));
+  const count = all.filter(n => !n.isRead).length;
+  res.json({ count });
+});
+
+router.post("/notifications", async (req, res): Promise<void> => {
+  const { userId, type, message, linkUrl } = req.body;
+  if (!message || !type) { res.status(400).json({ error: "message and type required" }); return; }
+  const [notif] = await db.insert(notificationsTable).values({
+    userId: userId ?? 1, type, message, linkUrl: linkUrl ?? null, isRead: false,
+  }).returning();
+  res.status(201).json(notif);
 });
 
 router.post("/notifications/:id/read", async (req, res): Promise<void> => {

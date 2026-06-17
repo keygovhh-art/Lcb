@@ -9,8 +9,10 @@ import { Layout } from "@/components/layout/layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Heart, Eye, MessageCircle, Lock, Flag, Pin } from "lucide-react";
+import { ArrowLeft, Heart, Eye, MessageCircle, Lock, Pin } from "lucide-react";
 import { format } from "date-fns";
+import { ReportButton } from "@/components/shared/report-button";
+import { SaveButton } from "@/components/shared/save-button";
 
 const CATEGORY_LABELS: Record<string, string> = {
   medical: "Medical Assistance", shidduchim: "Shidduchim",
@@ -88,9 +90,15 @@ export default function ForumDetail() {
                     </span>
                   )}
                 </div>
-                <Button variant="ghost" size="sm" className="text-muted-foreground gap-1 shrink-0">
-                  <Flag className="h-4 w-4" /> Report
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <SaveButton
+                    contentType="discussion"
+                    contentId={discussion.id}
+                    contentTitle={discussion.title}
+                    contentUrl={`/forum/${discussion.id}`}
+                  />
+                  <ReportButton contentType="discussion" contentId={discussion.id} />
+                </div>
               </div>
 
               <h1 className="font-serif text-3xl font-bold text-primary mb-4 leading-tight">

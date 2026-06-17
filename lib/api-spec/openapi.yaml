@@ -1636,6 +1636,23 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Notification"
+    post:
+      operationId: createNotification
+      tags: [platform]
+      summary: Create a notification (system/admin use)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewNotificationInput"
+      responses:
+        "201":
+          description: Created notification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
 
   /notifications/{id}/read:
     post:
@@ -1699,6 +1716,225 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/HelpRequest"
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get comprehensive platform stats for founder dashboard
+      responses:
+        "200":
+          description: Admin stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
+  /reports/{id}/dismiss:
+    post:
+      operationId: dismissReport
+      tags: [platform]
+      summary: Dismiss a report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Dismissed report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+
+  /follows:
+    get:
+      operationId: listFollows
+      tags: [social]
+      summary: List entities the current user follows
+      responses:
+        "200":
+          description: Follows list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FollowEntry"
+    post:
+      operationId: createFollow
+      tags: [social]
+      summary: Follow an entity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewFollowInput"
+      responses:
+        "201":
+          description: Created follow
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowEntry"
+
+  /follows/{id}:
+    delete:
+      operationId: deleteFollow
+      tags: [social]
+      summary: Unfollow an entity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Unfollowed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+
+  /follows/check:
+    get:
+      operationId: checkFollow
+      tags: [social]
+      summary: Check if user follows an entity
+      parameters:
+        - name: entityType
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: entityId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Follow check result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [following, followId]
+                properties:
+                  following:
+                    type: boolean
+                  followId:
+                    type: ["integer", "null"]
+
+  /saved:
+    get:
+      operationId: listSavedItems
+      tags: [social]
+      summary: List items saved by the current user
+      responses:
+        "200":
+          description: Saved items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SavedItem"
+    post:
+      operationId: createSavedItem
+      tags: [social]
+      summary: Save an item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewSavedItemInput"
+      responses:
+        "201":
+          description: Saved item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedItem"
+
+  /saved/{id}:
+    delete:
+      operationId: deleteSavedItem
+      tags: [social]
+      summary: Remove a saved item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+
+  /saved/check:
+    get:
+      operationId: checkSaved
+      tags: [social]
+      summary: Check if an item is saved
+      parameters:
+        - name: contentType
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: contentId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Save check result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [saved, savedId]
+                properties:
+                  saved:
+                    type: boolean
+                  savedId:
+                    type: ["integer", "null"]
+
+  /notifications/unread-count:
+    get:
+      operationId: getUnreadNotificationCount
+      tags: [platform]
+      summary: Get count of unread notifications for current user
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count:
+                    type: integer
 
   /api/askanus/cases:
     get:
@@ -3178,4 +3414,110 @@ components:
         title:
           type: string
         content:
+          type: string
+
+    AdminStats:
+      type: object
+      required: [totalMembers, activeMembers, totalVolunteers, totalProjects, totalCauses, totalDiscussions, pendingReports, totalNews, totalGroups, totalFollows, totalSaved]
+      properties:
+        totalMembers:
+          type: integer
+        activeMembers:
+          type: integer
+        totalVolunteers:
+          type: integer
+        totalProjects:
+          type: integer
+        totalCauses:
+          type: integer
+        totalDiscussions:
+          type: integer
+        pendingReports:
+          type: integer
+        totalReports:
+          type: integer
+        totalNews:
+          type: integer
+        totalGroups:
+          type: integer
+        totalFollows:
+          type: integer
+        totalSaved:
+          type: integer
+
+    FollowEntry:
+      type: object
+      required: [id, userId, entityType, entityId, entityTitle, entityUrl, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        entityType:
+          type: string
+        entityId:
+          type: integer
+        entityTitle:
+          type: string
+        entityUrl:
+          type: string
+        createdAt:
+          type: string
+
+    NewFollowInput:
+      type: object
+      required: [entityType, entityId, entityTitle]
+      properties:
+        entityType:
+          type: string
+        entityId:
+          type: integer
+        entityTitle:
+          type: string
+        entityUrl:
+          type: string
+
+    SavedItem:
+      type: object
+      required: [id, userId, contentType, contentId, contentTitle, contentUrl, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        contentType:
+          type: string
+        contentId:
+          type: integer
+        contentTitle:
+          type: string
+        contentUrl:
+          type: string
+        createdAt:
+          type: string
+
+    NewSavedItemInput:
+      type: object
+      required: [contentType, contentId, contentTitle]
+      properties:
+        contentType:
+          type: string
+        contentId:
+          type: integer
+        contentTitle:
+          type: string
+        contentUrl:
+          type: string
+
+    NewNotificationInput:
+      type: object
+      required: [message, type]
+      properties:
+        userId:
+          type: integer
+        type:
+          type: string
+        message:
+          type: string
+        linkUrl:
           type: string

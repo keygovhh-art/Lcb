@@ -24,6 +24,9 @@ import SystemCenter from "@/pages/system/index";
 import Dashboard from "@/pages/dashboard/index";
 import Login from "@/pages/auth/login";
 import Register from "@/pages/auth/register";
+import Admin from "@/pages/admin/index";
+import NotificationsPage from "@/pages/notifications/index";
+import ProfilePage from "@/pages/profile/index";
 
 const queryClient = new QueryClient();
 
@@ -46,8 +49,10 @@ function Router() {
       <Route path="/my" component={MyAskanus} />
       <Route path="/reservations" component={Reservations} />
       <Route path="/system" component={SystemCenter} />
-      <Route path="/admin" component={SystemCenter} />
+      <Route path="/admin" component={Admin} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/notifications" component={NotificationsPage} />
+      <Route path="/profile" component={ProfilePage} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route component={NotFound} />

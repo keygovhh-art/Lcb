@@ -816,6 +816,62 @@ export interface NewAskanusNoteInput {
   content: string;
 }
 
+export interface AdminStats {
+  totalMembers: number;
+  activeMembers: number;
+  totalVolunteers: number;
+  totalProjects: number;
+  totalCauses: number;
+  totalDiscussions: number;
+  pendingReports: number;
+  totalReports?: number;
+  totalNews: number;
+  totalGroups: number;
+  totalFollows: number;
+  totalSaved: number;
+}
+
+export interface FollowEntry {
+  id: number;
+  userId: number;
+  entityType: string;
+  entityId: number;
+  entityTitle: string;
+  entityUrl: string;
+  createdAt: string;
+}
+
+export interface NewFollowInput {
+  entityType: string;
+  entityId: number;
+  entityTitle: string;
+  entityUrl?: string;
+}
+
+export interface SavedItem {
+  id: number;
+  userId: number;
+  contentType: string;
+  contentId: number;
+  contentTitle: string;
+  contentUrl: string;
+  createdAt: string;
+}
+
+export interface NewSavedItemInput {
+  contentType: string;
+  contentId: number;
+  contentTitle: string;
+  contentUrl?: string;
+}
+
+export interface NewNotificationInput {
+  userId?: number;
+  type: string;
+  message: string;
+  linkUrl?: string;
+}
+
 export type ListUsersParams = {
 role?: string;
 search?: string;
@@ -893,6 +949,40 @@ export const GetActivityStatsPeriod = {
 
 export type ListReportsParams = {
 status?: string;
+};
+
+export type DeleteFollow200 = {
+  ok: boolean;
+};
+
+export type CheckFollowParams = {
+entityType: string;
+entityId: number;
+};
+
+export type CheckFollow200 = {
+  following: boolean;
+  /** @nullable */
+  followId: number | null;
+};
+
+export type DeleteSavedItem200 = {
+  ok: boolean;
+};
+
+export type CheckSavedParams = {
+contentType: string;
+contentId: number;
+};
+
+export type CheckSaved200 = {
+  saved: boolean;
+  /** @nullable */
+  savedId: number | null;
+};
+
+export type GetUnreadNotificationCount200 = {
+  count: number;
 };
 
 export type DeleteAskanusCase200 = {

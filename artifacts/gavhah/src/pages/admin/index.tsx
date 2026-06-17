@@ -1,7 +1,8 @@
 import { useState } from "react";
 import {
-  useListReports, useResolveReport, useListUsers, useBanUser, useSuspendUser, useListAnnouncements, useCreateAnnouncement, useDeleteAnnouncement,
-  getListReportsQueryKey, getListUsersQueryKey, getListAnnouncementsQueryKey
+  useListReports, useResolveReport, useDismissReport, useListUsers, useBanUser, useSuspendUser,
+  useListAnnouncements, useCreateAnnouncement, useDeleteAnnouncement, useGetAdminStats,
+  getListReportsQueryKey, getListUsersQueryKey, getListAnnouncementsQueryKey, getGetAdminStatsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/layout";
@@ -10,19 +11,39 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, Flag, Megaphone, CheckCircle, Ban, Clock, Trash2 } from "lucide-react";
+import {
+  Shield, Users, Flag, Megaphone, CheckCircle, Ban, Clock, Trash2, BarChart3,
+  TrendingUp, Heart, MessageSquare, Globe, Star, AlertTriangle, UserCheck, BookmarkCheck, UserPlus,
+} from "lucide-react";
 import { format } from "date-fns";
+
+function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: number | string; sub?: string }) {
+  return (
+    <div className="bg-card border rounded-xl p-5 flex items-start gap-4">
+      <div className="w-11 h-11 rounded-lg bg-primary/8 flex items-center justify-center text-primary shrink-0">
+        {icon}
+      </div>
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">{label}</p>
+        <p className="text-2xl font-serif font-bold text-primary">{value}</p>
+        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  );
+}
 
 export default function Admin() {
   const qc = useQueryClient();
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
 
+  const { data: stats } = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey() } });
   const { data: reports } = useListReports({}, { query: { queryKey: getListReportsQueryKey({}) } });
   const { data: users } = useListUsers({}, { query: { queryKey: getListUsersQueryKey({}) } });
   const { data: announcements } = useListAnnouncements({ query: { queryKey: getListAnnouncementsQueryKey() } });
 
   const resolveReport = useResolveReport();
+  const dismissReport = useDismissReport();
   const banUser = useBanUser();
   const suspendUser = useSuspendUser();
   const createAnn = useCreateAnnouncement();
@@ -39,20 +60,23 @@ export default function Admin() {
   return (
     <Layout>
       <div className="bg-muted/30 border-b">
-        <div className="container mx-auto px-4 py-12">
+        <div className="container mx-auto px-4 py-10">
           <div className="flex items-center gap-3 mb-2">
             <Shield className="h-8 w-8 text-secondary" />
             <h1 className="font-serif text-4xl font-bold text-primary">Administration Center</h1>
           </div>
           <p className="text-muted-foreground font-serif italic ml-11">
-            Platform management, moderation, and community coordination.
+            Platform management, moderation, and community oversight.
           </p>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-12">
-        <Tabs defaultValue="reports" className="space-y-8">
+      <div className="container mx-auto px-4 py-10">
+        <Tabs defaultValue="dashboard" className="space-y-8">
           <TabsList className="bg-muted/50 flex flex-wrap h-auto gap-1 p-1">
+            <TabsTrigger value="dashboard" className="gap-2">
+              <BarChart3 className="h-4 w-4" /> Founder Dashboard
+            </TabsTrigger>
             <TabsTrigger value="reports" className="gap-2">
               <Flag className="h-4 w-4" /> Reports
               {pendingReports.length > 0 && (
@@ -63,6 +87,78 @@ export default function Admin() {
             <TabsTrigger value="announcements" className="gap-2"><Megaphone className="h-4 w-4" /> Announcements</TabsTrigger>
           </TabsList>
 
+          {/* ─── Founder Dashboard ─── */}
+          <TabsContent value="dashboard" className="space-y-8">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-primary mb-1">Platform Overview</h2>
+              <p className="text-muted-foreground text-sm">Live statistics across all departments.</p>
+            </div>
+
+            {/* Member stats */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Community</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <StatCard icon={<Users className="h-5 w-5" />} label="Total Members" value={stats?.totalMembers ?? "—"} sub={stats ? `${stats.activeMembers} active` : undefined} />
+                <StatCard icon={<UserCheck className="h-5 w-5" />} label="Volunteers" value={stats?.totalVolunteers ?? "—"} sub="registered in directory" />
+                <StatCard icon={<UserPlus className="h-5 w-5" />} label="Follows" value={stats?.totalFollows ?? "—"} sub="connections made" />
+                <StatCard icon={<BookmarkCheck className="h-5 w-5" />} label="Saved Items" value={stats?.totalSaved ?? "—"} sub="bookmarked content" />
+              </div>
+            </div>
+
+            {/* Content stats */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Content</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <StatCard icon={<MessageSquare className="h-5 w-5" />} label="Forum Posts" value={stats?.totalDiscussions ?? "—"} />
+                <StatCard icon={<Globe className="h-5 w-5" />} label="Chesed News" value={stats?.totalNews ?? "—"} />
+                <StatCard icon={<Users className="h-5 w-5" />} label="Groups" value={stats?.totalGroups ?? "—"} />
+                <StatCard icon={<Heart className="h-5 w-5" />} label="Causes" value={stats?.totalCauses ?? "—"} />
+              </div>
+            </div>
+
+            {/* Projects + Moderation */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Moderation</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <StatCard icon={<Star className="h-5 w-5" />} label="Projects" value={stats?.totalProjects ?? "—"} sub="community projects" />
+                <StatCard icon={<AlertTriangle className="h-5 w-5" />} label="Pending Reports" value={stats?.pendingReports ?? "—"} sub={stats ? `${stats.totalReports ?? 0} total` : undefined} />
+                <StatCard icon={<TrendingUp className="h-5 w-5" />} label="Platform Health" value={stats && stats.pendingReports === 0 ? "Clean" : "Needs Review"} sub="moderation status" />
+                <StatCard icon={<Shield className="h-5 w-5" />} label="Admin Status" value="Active" sub="system operational" />
+              </div>
+            </div>
+
+            {/* Feature toggles */}
+            <div className="bg-card border rounded-xl p-6">
+              <h3 className="font-serif text-xl font-bold text-primary mb-1">Platform Feature Management</h3>
+              <p className="text-sm text-muted-foreground mb-6">Control which modules are active across the platform.</p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {[
+                  { label: "Chesed News Center", sub: "Articles and global news", active: true },
+                  { label: "Askanim Forum", sub: "Discussion boards", active: true },
+                  { label: "Activists Directory", sub: "Volunteer profiles and projects", active: true },
+                  { label: "United In Kindness", sub: "Featured cause system", active: true },
+                  { label: "Today's Cause", sub: "Daily charity spotlight", active: true },
+                  { label: "Minyan Directory", sub: "Worldwide minyan times", active: true },
+                  { label: "Group Center", sub: "Community groups and posts", active: true },
+                  { label: "My Askanus", sub: "Case management system", active: true },
+                  { label: "Communications", sub: "Olam Hachesed broadcasts", active: true },
+                  { label: "Reservations", sub: "Office reservation system", active: false },
+                ].map(feat => (
+                  <div key={feat.label} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
+                    <div>
+                      <p className="font-medium text-sm text-foreground">{feat.label}</p>
+                      <p className="text-xs text-muted-foreground">{feat.sub}</p>
+                    </div>
+                    <Badge variant={feat.active ? "default" : "secondary"} className={feat.active ? "bg-green-100 text-green-800 border-green-200" : ""}>
+                      {feat.active ? "Active" : "Paused"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ─── Reports ─── */}
           <TabsContent value="reports" className="space-y-4">
             <h2 className="font-serif text-2xl font-bold text-primary">Content Reports</h2>
             {reports?.length === 0 && (
@@ -86,22 +182,36 @@ export default function Admin() {
                   <p className="text-xs text-muted-foreground mt-1">{format(new Date(report.createdAt), "MMM d, yyyy")}</p>
                 </div>
                 {report.status === "pending" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-2 shrink-0"
-                    onClick={() => resolveReport.mutate({ id: report.id }, {
-                      onSuccess: () => qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) })
-                    })}
-                    disabled={resolveReport.isPending}
-                  >
-                    <CheckCircle className="h-4 w-4 text-green-600" /> Resolve
-                  </Button>
+                  <div className="flex gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => resolveReport.mutate({ id: report.id }, {
+                        onSuccess: () => qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) })
+                      })}
+                      disabled={resolveReport.isPending}
+                    >
+                      <CheckCircle className="h-4 w-4 text-green-600" /> Resolve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-2 text-muted-foreground"
+                      onClick={() => dismissReport.mutate({ id: report.id }, {
+                        onSuccess: () => qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) })
+                      })}
+                      disabled={dismissReport.isPending}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
                 )}
               </div>
             ))}
           </TabsContent>
 
+          {/* ─── Users ─── */}
           <TabsContent value="users" className="space-y-4">
             <h2 className="font-serif text-2xl font-bold text-primary">User Management</h2>
             {users?.map(user => (
@@ -146,6 +256,7 @@ export default function Admin() {
             ))}
           </TabsContent>
 
+          {/* ─── Announcements ─── */}
           <TabsContent value="announcements" className="space-y-6">
             <h2 className="font-serif text-2xl font-bold text-primary">Announcements</h2>
             <div className="bg-card border rounded-xl p-6">

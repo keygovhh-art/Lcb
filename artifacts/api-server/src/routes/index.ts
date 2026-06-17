@@ -13,6 +13,8 @@ import causeSupportersRouter from "./cause-supporters";
 import featuredCausesRouter from "./featured-causes";
 import communityProjectsRouter from "./community-projects";
 import askanusRouter from "./askanus";
+import socialRouter from "./social";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -30,5 +32,7 @@ router.use(causeSupportersRouter);
 router.use(featuredCausesRouter);
 router.use(communityProjectsRouter);
 router.use(askanusRouter);
+router.use(socialRouter);
+router.use(adminRouter);
 
 export default router;

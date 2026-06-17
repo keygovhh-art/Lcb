@@ -1,4 +1,1 @@
-- [Dialog removeChild fix](dialog-bug.md) — Never use `<DialogTrigger asChild>` on plain divs; use controlled `useState` + `onClick={() => setOpen(true)}` instead.
-- [DB push interactive TTY](db-push-tty.md) — `drizzle-kit push` fails in non-TTY shells when adding constraints to existing tables; apply schema changes directly via `psql "$DATABASE_URL" -c "ALTER TABLE..."` instead.
-- [No Zod parse on API output](no-zod-parse.md) — Drizzle returns JS Date objects; Zod schemas expect strings. Always `res.json(data)` directly, never `.parse()` on route outputs.
-- [Codegen after every spec change](codegen-pattern.md) — Always run `pnpm --filter @workspace/api-spec run codegen` after any openapi.yaml edit before typechecking. Missing fields in VolunteerInput/HelpRequestInput/NewsArticleInput must be added to the spec first.
+- [OpenAPI path prefix convention](openapi-path-prefix.md) — spec paths must NOT include /api prefix; orval baseUrl=/api prepends it automatically

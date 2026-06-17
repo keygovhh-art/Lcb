@@ -3,10 +3,14 @@ import { Link, useLocation } from "wouter";
 import {
   Bell, Search, Menu, X, Globe, MessageSquare, HandHeart, Heart, Clock,
   Users, BarChart3, Shield, Home, ChevronRight, ChevronDown, Network,
-  Radio, CalendarDays, Star, Briefcase
+  Radio, CalendarDays, Star, User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/context/language-context";
+import {
+  useGetUnreadNotificationCount,
+  getGetUnreadNotificationCountQueryKey,
+} from "@workspace/api-client-react";
 
 const PRIMARY_DEPTS = [
   { label: "News", fullLabel: "Chesed News Center", href: "/news", icon: <Globe className="h-4 w-4" /> },
@@ -22,7 +26,7 @@ const PRIMARY_DEPTS = [
 const MORE_DEPTS = [
   { label: "Communications", fullLabel: "Olam Hachesed Communications", href: "/communications", icon: <Radio className="h-4 w-4" /> },
   { label: "Reservations", fullLabel: "Gavhah Office Reservations", href: "/reservations", icon: <CalendarDays className="h-4 w-4" /> },
-  { label: "System Center", fullLabel: "System Center", href: "/system", icon: <Shield className="h-4 w-4" /> },
+  { label: "Admin Center", fullLabel: "Administration Center", href: "/admin", icon: <Shield className="h-4 w-4" /> },
   { label: "Koach Harabim", fullLabel: "Koach Harabim Dashboard", href: "/dashboard", icon: <BarChart3 className="h-4 w-4" /> },
 ];
 
@@ -33,6 +37,14 @@ export function Layout({ children }: { children: ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [location] = useLocation();
   const { lang, setLang } = useLanguage();
+
+  const { data: unreadData } = useGetUnreadNotificationCount({
+    query: {
+      queryKey: getGetUnreadNotificationCountQueryKey(),
+      refetchInterval: 30_000,
+    }
+  });
+  const unreadCount = unreadData?.count ?? 0;
 
   const isActive = (href: string) =>
     href === "/" ? location === "/" : location.startsWith(href);
@@ -112,12 +124,26 @@ export function Layout({ children }: { children: ReactNode }) {
             >
               {lang === "en" ? "עי" : "EN"}
             </button>
-            <Link href="/my">
+
+            {/* Bell — links to notifications, shows real unread count */}
+            <Link href="/notifications">
               <Button variant="ghost" size="icon" className="relative h-8 w-8">
                 <Bell className="h-4 w-4" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </Button>
             </Link>
+
+            {/* Profile */}
+            <Link href="/profile" className="hidden md:flex">
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <User className="h-4 w-4" />
+              </Button>
+            </Link>
+
             <Link href="/login" className="hidden md:flex">
               <Button variant="outline" size="sm" className="font-serif h-8 text-xs px-3">Sign In</Button>
             </Link>
@@ -153,7 +179,7 @@ export function Layout({ children }: { children: ReactNode }) {
         )}
       </header>
 
-      {/* Mobile Drawer — all 12 departments */}
+      {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-[60] lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
@@ -174,7 +200,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   <ChevronRight className="h-4 w-4 opacity-40" />
                 </div>
               </Link>
-              <p className="px-4 pt-4 pb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">12 Departments</p>
+              <p className="px-4 pt-4 pb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Departments</p>
               <nav className="space-y-0.5 px-2">
                 {ALL_DEPTS.map((d) => (
                   <Link key={d.href} href={d.href}>
@@ -188,6 +214,28 @@ export function Layout({ children }: { children: ReactNode }) {
                   </Link>
                 ))}
               </nav>
+              <div className="border-t mt-3 pt-3 px-2 space-y-0.5">
+                <Link href="/notifications">
+                  <div onClick={() => setMobileOpen(false)} className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${isActive("/notifications") ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-foreground"}`}>
+                    <div className="flex items-center gap-3">
+                      <Bell className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">Notifications</span>
+                    </div>
+                    {unreadCount > 0 && (
+                      <span className="bg-destructive text-white text-xs rounded-full px-1.5 py-0.5">{unreadCount}</span>
+                    )}
+                  </div>
+                </Link>
+                <Link href="/profile">
+                  <div onClick={() => setMobileOpen(false)} className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${isActive("/profile") ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-foreground"}`}>
+                    <div className="flex items-center gap-3">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">My Profile</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 opacity-40" />
+                  </div>
+                </Link>
+              </div>
             </div>
             <div className="p-4 border-t space-y-2">
               <Link href="/login" onClick={() => setMobileOpen(false)}>
@@ -232,7 +280,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div>
               <p className="font-semibold text-primary-foreground/80 mb-3 uppercase tracking-wider text-xs">Platform</p>
               <nav className="space-y-1.5">
-                {[["My Askanus", "/my"], ["Koach Harabim", "/dashboard"], ["Communications", "/communications"], ["System Center", "/system"]].map(([l, h]) => (
+                {[["My Askanus", "/my"], ["Koach Harabim", "/dashboard"], ["Notifications", "/notifications"], ["My Profile", "/profile"], ["Admin Center", "/admin"]].map(([l, h]) => (
                   <Link key={h} href={h} className="block text-primary-foreground/60 hover:text-accent transition-colors text-xs">{l}</Link>
                 ))}
               </nav>

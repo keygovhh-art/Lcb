@@ -5,7 +5,9 @@ import { Layout } from "@/components/layout/layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Calendar, User, Eye, Share2, Globe, Heart } from "lucide-react";
+import { ArrowLeft, Calendar, User, Eye, Share2, Heart } from "lucide-react";
+import { SaveButton } from "@/components/shared/save-button";
+import { ReportButton } from "@/components/shared/report-button";
 import { format } from "date-fns";
 import { useLikeArticle } from "@/hooks/use-like-article";
 
@@ -93,7 +95,7 @@ function ArticleBody({ article }: { article: any }) {
             <Eye className="h-4 w-4" />
             <span>{(article.viewCount ?? 0).toLocaleString()} {article.viewCount === 1 ? "view" : "views"}</span>
           </div>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2">
             <button
               onClick={toggle}
               disabled={pending}
@@ -111,6 +113,14 @@ function ArticleBody({ article }: { article: any }) {
                 </span>
               )}
             </button>
+            <SaveButton
+              contentType="news"
+              contentId={article.id}
+              contentTitle={article.title}
+              contentUrl={`/news/${article.id}`}
+              size="sm"
+              showLabel
+            />
             <Button
               variant="outline"
               size="sm"
@@ -119,6 +129,7 @@ function ArticleBody({ article }: { article: any }) {
             >
               <Share2 className="h-4 w-4" /> Share
             </Button>
+            <ReportButton contentType="news" contentId={article.id} variant="ghost" />
           </div>
         </div>
       </div>

@@ -1547,6 +1547,17 @@ export const ListNotificationsResponse = zod.array(ListNotificationsResponseItem
 
 
 /**
+ * @summary Create a notification (system/admin use)
+ */
+export const CreateNotificationBody = zod.object({
+  "userId": zod.number().optional(),
+  "type": zod.string(),
+  "message": zod.string(),
+  "linkUrl": zod.string().optional()
+})
+
+
+/**
  * @summary Mark a notification as read
  */
 export const MarkNotificationReadParams = zod.object({
@@ -1605,6 +1616,156 @@ export const GetFeaturedRequestsResponseItem = zod.object({
   "createdAt": zod.string()
 })
 export const GetFeaturedRequestsResponse = zod.array(GetFeaturedRequestsResponseItem)
+
+
+/**
+ * @summary Get comprehensive platform stats for founder dashboard
+ */
+export const GetAdminStatsResponse = zod.object({
+  "totalMembers": zod.number(),
+  "activeMembers": zod.number(),
+  "totalVolunteers": zod.number(),
+  "totalProjects": zod.number(),
+  "totalCauses": zod.number(),
+  "totalDiscussions": zod.number(),
+  "pendingReports": zod.number(),
+  "totalReports": zod.number().optional(),
+  "totalNews": zod.number(),
+  "totalGroups": zod.number(),
+  "totalFollows": zod.number(),
+  "totalSaved": zod.number()
+})
+
+
+/**
+ * @summary Dismiss a report
+ */
+export const DismissReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DismissReportResponse = zod.object({
+  "id": zod.number(),
+  "contentType": zod.enum(['discussion', 'comment', 'group', 'news', 'minyan', 'help_request']),
+  "contentId": zod.number(),
+  "reason": zod.enum(['spam', 'harassment', 'inappropriate', 'false_information', 'other']),
+  "description": zod.string().nullish(),
+  "reporterId": zod.number(),
+  "status": zod.enum(['pending', 'resolved', 'dismissed']),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary List entities the current user follows
+ */
+export const ListFollowsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "entityType": zod.string(),
+  "entityId": zod.number(),
+  "entityTitle": zod.string(),
+  "entityUrl": zod.string(),
+  "createdAt": zod.string()
+})
+export const ListFollowsResponse = zod.array(ListFollowsResponseItem)
+
+
+/**
+ * @summary Follow an entity
+ */
+export const CreateFollowBody = zod.object({
+  "entityType": zod.string(),
+  "entityId": zod.number(),
+  "entityTitle": zod.string(),
+  "entityUrl": zod.string().optional()
+})
+
+
+/**
+ * @summary Unfollow an entity
+ */
+export const DeleteFollowParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteFollowResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Check if user follows an entity
+ */
+export const CheckFollowQueryParams = zod.object({
+  "entityType": zod.coerce.string(),
+  "entityId": zod.coerce.number()
+})
+
+export const CheckFollowResponse = zod.object({
+  "following": zod.boolean(),
+  "followId": zod.number().nullable()
+})
+
+
+/**
+ * @summary List items saved by the current user
+ */
+export const ListSavedItemsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "contentType": zod.string(),
+  "contentId": zod.number(),
+  "contentTitle": zod.string(),
+  "contentUrl": zod.string(),
+  "createdAt": zod.string()
+})
+export const ListSavedItemsResponse = zod.array(ListSavedItemsResponseItem)
+
+
+/**
+ * @summary Save an item
+ */
+export const CreateSavedItemBody = zod.object({
+  "contentType": zod.string(),
+  "contentId": zod.number(),
+  "contentTitle": zod.string(),
+  "contentUrl": zod.string().optional()
+})
+
+
+/**
+ * @summary Remove a saved item
+ */
+export const DeleteSavedItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteSavedItemResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Check if an item is saved
+ */
+export const CheckSavedQueryParams = zod.object({
+  "contentType": zod.coerce.string(),
+  "contentId": zod.coerce.number()
+})
+
+export const CheckSavedResponse = zod.object({
+  "saved": zod.boolean(),
+  "savedId": zod.number().nullable()
+})
+
+
+/**
+ * @summary Get count of unread notifications for current user
+ */
+export const GetUnreadNotificationCountResponse = zod.object({
+  "count": zod.number()
+})
 
 
 /**
