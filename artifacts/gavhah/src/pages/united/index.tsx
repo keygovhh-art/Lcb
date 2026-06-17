@@ -1,100 +1,28 @@
 import { useState } from "react";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import {
-  Heart, Users, HandHeart, Stethoscope, Home, AlertTriangle,
-  Crown, Plus, ChevronDown, ChevronUp, CheckCircle, DollarSign, UserPlus
+  Heart, Users, MapPin, Clock, DollarSign, CheckCircle,
+  UserPlus, Share2, ChevronDown, ChevronUp, SendHorizonal, Star
 } from "lucide-react";
 import {
-  useListHelpRequests, useCreateHelpRequest, getListHelpRequestsQueryKey,
-  useListCauseSupporters, useJoinCause, getListCauseSupportersQueryKey,
+  useGetActiveFeaturedCause,
+  useJoinFeaturedCause,
+  useListFeaturedCauseSupporters,
+  useSubmitCause,
+  getGetActiveFeaturedCauseQueryKey,
+  getListFeaturedCauseSupportersQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-
-const CAUSES = [
-  {
-    id: "chassan",
-    label: "Chassan / Kallah Support",
-    description: "Help newlyweds start their lives with dignity — furniture, household essentials, simcha expenses, and ongoing support.",
-    icon: Crown,
-    color: "bg-rose-50 border-rose-200",
-    headerColor: "bg-rose-600",
-    textColor: "text-rose-700",
-    iconColor: "text-rose-500",
-    badgeColor: "bg-rose-100 text-rose-800 border-rose-200",
-    needType: "wedding",
-  },
-  {
-    id: "almana",
-    label: "Almana / Widow Support",
-    description: "Standing beside widows with practical help, emotional support, childcare, and ongoing assistance through difficult times.",
-    icon: Heart,
-    color: "bg-purple-50 border-purple-200",
-    headerColor: "bg-purple-600",
-    textColor: "text-purple-700",
-    iconColor: "text-purple-500",
-    badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
-    needType: "other",
-  },
-  {
-    id: "yasom",
-    label: "Yasom / Orphan Support",
-    description: "Ensuring orphaned children have what they need — school support, Yom Tov essentials, Bar/Bat Mitzvah help, and more.",
-    icon: Users,
-    color: "bg-blue-50 border-blue-200",
-    headerColor: "bg-blue-600",
-    textColor: "text-blue-700",
-    iconColor: "text-blue-500",
-    badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
-    needType: "financial",
-  },
-  {
-    id: "medical",
-    label: "Medical / Bikur Cholim",
-    description: "Hospital visits, medical transport, meals for patients' families, and crisis support for those facing illness.",
-    icon: Stethoscope,
-    color: "bg-green-50 border-green-200",
-    headerColor: "bg-green-600",
-    textColor: "text-green-700",
-    iconColor: "text-green-500",
-    badgeColor: "bg-green-100 text-green-800 border-green-200",
-    needType: "medical",
-  },
-  {
-    id: "emergency",
-    label: "Emergency Assistance",
-    description: "Rapid response for urgent situations — fire, flood, sudden loss of income, eviction, or unexpected family crisis.",
-    icon: AlertTriangle,
-    color: "bg-orange-50 border-orange-200",
-    headerColor: "bg-orange-600",
-    textColor: "text-orange-700",
-    iconColor: "text-orange-500",
-    badgeColor: "bg-orange-100 text-orange-800 border-orange-200",
-    needType: "other",
-  },
-  {
-    id: "housing",
-    label: "Housing / Parnassa",
-    description: "Food assistance, rent support, job placement help, and support for families struggling with basic daily needs.",
-    icon: Home,
-    color: "bg-amber-50 border-amber-200",
-    headerColor: "bg-amber-600",
-    textColor: "text-amber-700",
-    iconColor: "text-amber-500",
-    badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
-    needType: "housing",
-  },
-];
-
-type Cause = typeof CAUSES[0];
 
 const PLEDGE_LABELS: Record<string, string> = {
   financial: "Financial Support",
@@ -104,34 +32,36 @@ const PLEDGE_LABELS: Record<string, string> = {
   coordination: "Coordination Help",
 };
 
-function JoinCauseDialog({ cause, open, onClose }: { cause: Cause; open: boolean; onClose: () => void }) {
+// ---- Join Cause Dialog ----
+function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const joinCause = useJoinCause();
+  const joinCause = useJoinFeaturedCause();
   const [form, setForm] = useState({ name: "", pledgeType: "volunteer", pledgeAmount: "", message: "", location: "" });
-  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
+  const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.pledgeType) return;
+    if (!form.name) return;
     joinCause.mutate(
       {
+        id: causeId,
         data: {
-          causeType: cause.id,
           name: form.name,
           pledgeType: form.pledgeType,
           pledgeAmount: form.pledgeAmount ? Number(form.pledgeAmount) : undefined,
           message: form.message || undefined,
           location: form.location || undefined,
-        }
+        },
       },
       {
         onSuccess: () => {
-          qc.invalidateQueries({ queryKey: getListCauseSupportersQueryKey({}) });
+          qc.invalidateQueries({ queryKey: getGetActiveFeaturedCauseQueryKey() });
+          qc.invalidateQueries({ queryKey: getListFeaturedCauseSupportersQueryKey(causeId) });
           onClose();
           setForm({ name: "", pledgeType: "volunteer", pledgeAmount: "", message: "", location: "" });
-          toast({ title: "You have joined this cause", description: `Thank you for committing to ${cause.label}. Gavhah will be in touch to coordinate.` });
+          toast({ title: "Thank you for joining this cause", description: "Your commitment has been recorded. Gavhah will be in touch to coordinate." });
         },
         onError: () => toast({ title: "Error", description: "Could not register. Please try again.", variant: "destructive" }),
       }
@@ -142,21 +72,21 @@ function JoinCauseDialog({ cause, open, onClose }: { cause: Cause; open: boolean
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-serif text-xl text-primary">Join: {cause.label}</DialogTitle>
-          <p className="text-sm text-muted-foreground">Register your commitment to this cause. Gavhah will coordinate with you.</p>
+          <DialogTitle className="font-serif text-xl text-primary">Join This Cause</DialogTitle>
+          <p className="text-sm text-muted-foreground">Register your commitment. Gavhah will coordinate with you directly.</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-1.5">
-            <Label className="font-semibold">Your Name / Nickname *</Label>
-            <Input value={form.name} onChange={set("name")} placeholder="How should we address you?" className="h-11" required />
+            <Label className="font-semibold">Your Name *</Label>
+            <Input value={form.name} onChange={s("name")} placeholder="First name or nickname" className="h-11" required />
           </div>
           <div className="space-y-1.5">
             <Label className="font-semibold">Location <span className="font-normal text-muted-foreground">(optional)</span></Label>
-            <Input value={form.location} onChange={set("location")} placeholder="City or neighborhood" className="h-11" />
+            <Input value={form.location} onChange={s("location")} placeholder="City or neighborhood" className="h-11" />
           </div>
           <div className="space-y-1.5">
-            <Label className="font-semibold">How Can You Help?</Label>
-            <Select value={form.pledgeType} onValueChange={set("pledgeType")}>
+            <Label className="font-semibold">How Will You Help?</Label>
+            <Select value={form.pledgeType} onValueChange={s("pledgeType")}>
               <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="volunteer">Volunteer Time</SelectItem>
@@ -169,16 +99,16 @@ function JoinCauseDialog({ cause, open, onClose }: { cause: Cause; open: boolean
           </div>
           {(form.pledgeType === "financial" || form.pledgeType === "both") && (
             <div className="space-y-1.5">
-              <Label className="font-semibold">Approximate Pledge Amount ($) <span className="font-normal text-muted-foreground">(optional)</span></Label>
-              <Input type="number" min="0" value={form.pledgeAmount} onChange={set("pledgeAmount")} placeholder="0" className="h-11" />
+              <Label className="font-semibold">Pledge Amount ($) <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <Input type="number" min="0" value={form.pledgeAmount} onChange={s("pledgeAmount")} placeholder="0" className="h-11" />
             </div>
           )}
           <div className="space-y-1.5">
-            <Label className="font-semibold">Message / What You Offer <span className="font-normal text-muted-foreground">(optional)</span></Label>
-            <Textarea value={form.message} onChange={set("message")} placeholder="Describe your availability, skills, or specific offer..." className="resize-none min-h-24" />
+            <Label className="font-semibold">Message <span className="font-normal text-muted-foreground">(optional)</span></Label>
+            <Textarea value={form.message} onChange={s("message")} placeholder="Words of support or what you can offer..." className="resize-none min-h-20" />
           </div>
           <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold gap-2" disabled={joinCause.isPending}>
-            <UserPlus className="h-4 w-4" />
+            <Heart className="h-4 w-4 fill-current" />
             {joinCause.isPending ? "Registering..." : "Join This Cause"}
           </Button>
         </form>
@@ -187,27 +117,26 @@ function JoinCauseDialog({ cause, open, onClose }: { cause: Cause; open: boolean
   );
 }
 
-function RequestSupportDialog({ cause, open, onClose }: { cause: Cause; open: boolean; onClose: () => void }) {
-  const qc = useQueryClient();
+// ---- Submit Future Cause Dialog ----
+function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { toast } = useToast();
-  const createReq = useCreateHelpRequest();
-  const [form, setForm] = useState({ name: "", description: "", urgency: "medium", location: "" });
-  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
+  const submitCause = useSubmitCause();
+  const [form, setForm] = useState({ title: "", description: "", submittedBy: "", location: "", urgency: "normal" });
+  const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.description) return;
-    createReq.mutate(
-      { data: { name: form.name, description: form.description, needType: cause.needType, urgency: form.urgency, location: form.location || undefined } },
+    if (!form.title || !form.description || !form.submittedBy) return;
+    submitCause.mutate(
+      { data: { title: form.title, description: form.description, submittedBy: form.submittedBy, location: form.location || undefined, urgency: form.urgency } },
       {
         onSuccess: () => {
-          qc.invalidateQueries({ queryKey: getListHelpRequestsQueryKey({}) });
           onClose();
-          setForm({ name: "", description: "", urgency: "medium", location: "" });
-          toast({ title: "Request received", description: "Our team will be in touch discreetly to coordinate assistance." });
+          setForm({ title: "", description: "", submittedBy: "", location: "", urgency: "normal" });
+          toast({ title: "Cause submitted for review", description: "The Gavhah committee will review your submission and be in touch." });
         },
-        onError: () => toast({ title: "Error", description: "Please try again.", variant: "destructive" }),
+        onError: () => toast({ title: "Error", description: "Could not submit. Please try again.", variant: "destructive" }),
       }
     );
   };
@@ -216,39 +145,45 @@ function RequestSupportDialog({ cause, open, onClose }: { cause: Cause; open: bo
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-serif text-xl text-primary">Request {cause.label} Support</DialogTitle>
-          <div className="text-sm text-muted-foreground bg-muted/40 rounded-lg p-3 mt-1">
-            Your information will be handled with complete discretion by Gavhah staff.
-          </div>
+          <DialogTitle className="font-serif text-xl text-primary">Submit a Future Cause</DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Know of a need that the entire community should rally around? Submit it for consideration as a future featured cause.
+            The Gavhah committee reviews all submissions and selects causes based on urgency and community impact.
+          </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-1.5">
-            <Label className="font-semibold">Name / Reference *</Label>
-            <Input value={form.name} onChange={set("name")} placeholder="First name is fine" className="h-11" required />
+            <Label className="font-semibold">Cause Title *</Label>
+            <Input value={form.title} onChange={s("title")} placeholder="Brief, clear name for the cause" className="h-11" required />
           </div>
           <div className="space-y-1.5">
-            <Label className="font-semibold">Location <span className="font-normal text-muted-foreground">(optional)</span></Label>
-            <Input value={form.location} onChange={set("location")} placeholder="City or neighborhood" className="h-11" />
+            <Label className="font-semibold">Your Name *</Label>
+            <Input value={form.submittedBy} onChange={s("submittedBy")} placeholder="Who is submitting this?" className="h-11" required />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="font-semibold">Location</Label>
+              <Input value={form.location} onChange={s("location")} placeholder="City / community" className="h-11" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="font-semibold">Urgency</Label>
+              <Select value={form.urgency} onValueChange={s("urgency")}>
+                <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="urgent">Urgent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="font-semibold">Urgency</Label>
-            <Select value={form.urgency} onValueChange={set("urgency")}>
-              <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="critical">Critical — Immediate</SelectItem>
-                <SelectItem value="high">High — Within days</SelectItem>
-                <SelectItem value="medium">Medium — Within weeks</SelectItem>
-                <SelectItem value="low">Low — Ongoing</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label className="font-semibold">Description *</Label>
+            <Textarea value={form.description} onChange={s("description")} placeholder="Describe the need, the community affected, and why this cause deserves featured status..." className="resize-none min-h-28" required />
           </div>
-          <div className="space-y-1.5">
-            <Label className="font-semibold">What do you need? *</Label>
-            <Textarea value={form.description} onChange={set("description")} placeholder="Describe your situation and what kind of support would help most..." className="resize-none min-h-28" required />
-          </div>
-          <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold gap-2" disabled={createReq.isPending}>
-            <Heart className="h-4 w-4" />
-            {createReq.isPending ? "Submitting..." : "Submit Request"}
+          <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold gap-2" disabled={submitCause.isPending}>
+            <SendHorizonal className="h-4 w-4" />
+            {submitCause.isPending ? "Submitting..." : "Submit for Review"}
           </Button>
         </form>
       </DialogContent>
@@ -256,215 +191,262 @@ function RequestSupportDialog({ cause, open, onClose }: { cause: Cause; open: bo
   );
 }
 
-function CauseCard({
-  cause, supporters, needCount,
-}: {
-  cause: Cause;
-  supporters: any[];
-  needCount: number;
-}) {
-  const Icon = cause.icon;
-  const [expanded, setExpanded] = useState(false);
-  const [joinOpen, setJoinOpen] = useState(false);
-  const [requestOpen, setRequestOpen] = useState(false);
-
-  const supporterCount = supporters.length;
-  const pledgedFinancial = supporters.filter(s => s.pledgeType === "financial" || s.pledgeType === "both");
-  const totalPledged = pledgedFinancial.reduce((a: number, s: any) => a + (Number(s.pledgeAmount) || 0), 0);
-  const recentSupporters = supporters.slice(0, 4);
-
+// ---- Supporter row ----
+function SupporterRow({ supporter }: { supporter: any }) {
   return (
-    <div className={`border-2 rounded-2xl overflow-hidden ${cause.color} transition-shadow hover:shadow-md`}>
-      {/* Card header with icon + title */}
-      <div className="p-6 flex flex-col gap-4">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-xl bg-white/60 flex items-center justify-center shrink-0">
-            <Icon className={`h-6 w-6 ${cause.iconColor}`} />
-          </div>
-          <div className="flex-1">
-            <h3 className={`font-serif font-bold text-lg mb-1 ${cause.textColor}`}>{cause.label}</h3>
-            <p className={`text-sm leading-relaxed opacity-80 ${cause.textColor}`}>{cause.description}</p>
-          </div>
-        </div>
-
-        {/* Live stats */}
-        <div className="flex gap-3 flex-wrap">
-          <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border ${cause.badgeColor}`}>
-            <UserPlus className="h-3.5 w-3.5" />
-            {supporterCount} {supporterCount === 1 ? "supporter" : "supporters"} joined
-          </div>
-          {needCount > 0 && (
-            <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border ${cause.badgeColor}`}>
-              <HandHeart className="h-3.5 w-3.5" />
-              {needCount} {needCount === 1 ? "family" : "families"} waiting
-            </div>
-          )}
-          {totalPledged > 0 && (
-            <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border ${cause.badgeColor}`}>
-              <DollarSign className="h-3.5 w-3.5" />
-              ${totalPledged.toLocaleString()} pledged
-            </div>
+    <div className="flex items-start gap-3 py-3 border-b last:border-0">
+      <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
+        <CheckCircle className="h-4 w-4 text-secondary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-semibold text-sm text-foreground">{supporter.name}</span>
+          <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">
+            {PLEDGE_LABELS[supporter.pledgeType] ?? supporter.pledgeType}
+            {supporter.pledgeAmount && ` · $${Number(supporter.pledgeAmount).toLocaleString()}`}
+          </span>
+          {supporter.location && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <MapPin className="h-3 w-3" /> {supporter.location}
+            </span>
           )}
         </div>
-
-        {/* Action buttons */}
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            className="flex-1 bg-secondary hover:bg-secondary/90 text-white gap-1.5 font-medium"
-            onClick={() => setJoinOpen(true)}
-          >
-            <UserPlus className="h-3.5 w-3.5" /> Join This Cause
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 bg-white/60 border-current gap-1.5 font-medium"
-            onClick={() => setRequestOpen(true)}
-          >
-            <HandHeart className="h-3.5 w-3.5" /> Request Support
-          </Button>
-        </div>
-
-        {/* Toggle supporters */}
-        {supporterCount > 0 && (
-          <button
-            className={`text-xs font-medium flex items-center gap-1.5 ${cause.textColor} opacity-70 hover:opacity-100 transition-opacity`}
-            onClick={() => setExpanded(e => !e)}
-          >
-            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            {expanded ? "Hide supporters" : "See who is helping"}
-          </button>
+        {supporter.message && (
+          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 italic">"{supporter.message}"</p>
         )}
       </div>
-
-      {/* Expanded: recent supporters */}
-      {expanded && supporters.length > 0 && (
-        <div className="border-t border-white/40 bg-white/30 p-5 space-y-3">
-          <p className={`text-xs font-bold uppercase tracking-wider ${cause.textColor} opacity-70`}>
-            Recent Supporters
-          </p>
-          {recentSupporters.map((s: any) => (
-            <div key={s.id} className="flex items-start gap-3">
-              <div className={`w-7 h-7 rounded-full bg-white/60 flex items-center justify-center shrink-0`}>
-                <CheckCircle className={`h-4 w-4 ${cause.iconColor}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`font-semibold text-sm ${cause.textColor}`}>{s.name}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border ${cause.badgeColor}`}>
-                    {PLEDGE_LABELS[s.pledgeType] ?? s.pledgeType}
-                    {s.pledgeAmount && ` · $${Number(s.pledgeAmount).toLocaleString()}`}
-                  </span>
-                  {s.location && <span className={`text-xs opacity-60 ${cause.textColor}`}>{s.location}</span>}
-                </div>
-                {s.message && (
-                  <p className={`text-xs mt-1 leading-relaxed opacity-70 ${cause.textColor} line-clamp-2`}>
-                    "{s.message}"
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-          {supporters.length > 4 && (
-            <p className={`text-xs ${cause.textColor} opacity-60 font-medium`}>
-              + {supporters.length - 4} more supporters…
-            </p>
-          )}
-        </div>
-      )}
-
-      <JoinCauseDialog cause={cause} open={joinOpen} onClose={() => setJoinOpen(false)} />
-      <RequestSupportDialog cause={cause} open={requestOpen} onClose={() => setRequestOpen(false)} />
+      <span className="text-xs text-muted-foreground shrink-0">
+        {format(new Date(supporter.createdAt), "MMM d")}
+      </span>
     </div>
   );
 }
 
+// ---- Main Page ----
 export default function United() {
-  const { data: allRequests } = useListHelpRequests({}, { query: { queryKey: getListHelpRequestsQueryKey({}) } });
-  const { data: allSupporters } = useListCauseSupporters({}, { query: { queryKey: getListCauseSupportersQueryKey({}) } });
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [showAllSupporters, setShowAllSupporters] = useState(false);
 
-  const getCount = (needType: string) =>
-    allRequests?.filter((r: any) => r.needType === needType && r.status === "open").length ?? 0;
+  const { data: cause, isLoading } = useGetActiveFeaturedCause({
+    query: { queryKey: getGetActiveFeaturedCauseQueryKey() },
+  });
 
-  const getSupporters = (causeId: string) =>
-    (allSupporters ?? []).filter((s: any) => s.causeType === causeId);
+  const causeId = cause?.id ?? 0;
+  const { data: supporters } = useListFeaturedCauseSupporters(
+    causeId,
+    { query: { queryKey: getListFeaturedCauseSupportersQueryKey(causeId), enabled: !!causeId } }
+  );
 
-  const totalSupporters = allSupporters?.length ?? 0;
-  const totalNeeds = allRequests?.filter((r: any) => r.status === "open").length ?? 0;
+  const goal = Number(cause?.goalAmount ?? 0);
+  const raised = Number(cause?.amountRaised ?? 0);
+  const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+  const remaining = Math.max(0, goal - raised);
+
+  const displayedSupporters = showAllSupporters ? (supporters ?? []) : (supporters ?? []).slice(0, 6);
 
   return (
     <Layout>
       {/* Header */}
-      <div className="bg-gradient-to-br from-rose-50 via-amber-50/30 to-transparent border-b">
+      <div className="bg-gradient-to-br from-rose-50 via-amber-50/40 to-transparent border-b">
         <div className="container mx-auto px-4 py-12">
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-3 mb-2">
             <Heart className="h-8 w-8 text-rose-500 fill-rose-100" />
             <h1 className="font-serif text-4xl font-bold text-primary">United In Kindness</h1>
           </div>
           <p className="text-muted-foreground font-serif italic ml-11 max-w-2xl">
-            Join a cause, pledge your support, and coordinate with others — together we can help every family in need.
+            The entire Gavhah community uniting around one cause at a time — focused, powerful, and effective.
           </p>
+        </div>
+      </div>
 
-          {/* Platform stats */}
-          {(totalSupporters > 0 || totalNeeds > 0) && (
-            <div className="mt-6 ml-11 flex flex-wrap gap-4">
-              {totalSupporters > 0 && (
-                <div className="flex items-center gap-2 text-sm font-medium text-rose-700">
-                  <UserPlus className="h-4 w-4" />
-                  <span>{totalSupporters} people have joined a cause</span>
-                </div>
-              )}
-              {totalNeeds > 0 && (
-                <div className="flex items-center gap-2 text-sm font-medium text-secondary">
-                  <HandHeart className="h-4 w-4" />
-                  <span>{totalNeeds} {totalNeeds === 1 ? "family" : "families"} currently seeking help</span>
-                </div>
-              )}
+      <div className="container mx-auto px-4 py-10 max-w-4xl">
+        {isLoading ? (
+          <div className="space-y-6">
+            <Skeleton className="h-10 w-2/3" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-6 w-full rounded-full" />
+            <div className="flex gap-4">
+              <Skeleton className="h-12 flex-1" />
+              <Skeleton className="h-12 flex-1" />
             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 py-10">
-        <div className="mb-8 max-w-2xl">
-          <h2 className="font-serif text-2xl font-bold text-primary mb-2">Choose Your Cause</h2>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            Each cause unites people around a shared commitment. Join a cause to register your pledge and connect with others who share your dedication. If your family needs help, you can also request support through any cause.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {CAUSES.map(cause => (
-            <CauseCard
-              key={cause.id}
-              cause={cause}
-              supporters={getSupporters(cause.id)}
-              needCount={getCount(cause.needType)}
-            />
-          ))}
-        </div>
-
-        {/* How it works */}
-        <div className="mt-16 bg-muted/30 rounded-2xl p-8 border">
-          <h3 className="font-serif text-xl font-bold text-primary mb-6 text-center">How United In Kindness Works</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
-            {[
-              { step: "1", title: "Join a Cause", desc: "Choose the area you care about and register your commitment — financial, volunteer time, or both." },
-              { step: "2", title: "Coordinate Together", desc: "Gavhah connects you with others in the same cause, matching helpers with families that need support." },
-              { step: "3", title: "Make It Happen", desc: "Act together with your cause group. Track progress, share updates, and see the impact you create." },
-            ].map(s => (
-              <div key={s.step} className="space-y-2">
-                <div className="w-10 h-10 rounded-full bg-secondary text-white font-serif font-bold text-lg flex items-center justify-center mx-auto">
-                  {s.step}
-                </div>
-                <h4 className="font-semibold text-primary">{s.title}</h4>
-                <p className="text-sm text-muted-foreground leading-relaxed">{s.desc}</p>
-              </div>
-            ))}
           </div>
-        </div>
+        ) : !cause ? (
+          <div className="text-center py-20 space-y-4">
+            <Star className="h-12 w-12 text-muted-foreground/30 mx-auto" />
+            <h2 className="font-serif text-2xl font-bold text-primary">No Active Cause Right Now</h2>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              The Gavhah committee selects one community cause at a time. Submit a cause for consideration below.
+            </p>
+            <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 mt-4" onClick={() => setSubmitOpen(true)}>
+              <SendHorizonal className="h-4 w-4" /> Submit a Cause for Review
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-10">
+
+            {/* Featured cause card */}
+            <div className="bg-card border-2 border-secondary/20 rounded-2xl overflow-hidden shadow-sm">
+              {/* Top banner */}
+              <div className="bg-gradient-to-r from-secondary to-primary px-8 py-4 flex items-center gap-3">
+                <Star className="h-5 w-5 text-white/80 fill-white/40" />
+                <span className="text-white font-semibold text-sm uppercase tracking-wider">Community Featured Cause</span>
+              </div>
+
+              <div className="p-8 space-y-6">
+                {/* Title + organizer */}
+                <div>
+                  <h2 className="font-serif text-3xl font-bold text-primary mb-2">{cause.title}</h2>
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                    {cause.organizerName && (
+                      <span className="flex items-center gap-1.5">
+                        <Users className="h-4 w-4" /> {cause.organizerName}
+                      </span>
+                    )}
+                    {cause.location && (
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="h-4 w-4" /> {cause.location}
+                      </span>
+                    )}
+                    {cause.deadline && (
+                      <span className="flex items-center gap-1.5 text-orange-600 font-medium">
+                        <Clock className="h-4 w-4" /> Deadline: {cause.deadline}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Description */}
+                <p className="text-foreground leading-relaxed text-base">{cause.description}</p>
+
+                {/* Progress */}
+                <div className="bg-muted/30 rounded-xl p-6 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Funds Raised</p>
+                      <p className="font-serif text-3xl font-bold text-secondary">${raised.toLocaleString()}</p>
+                      {goal > 0 && (
+                        <p className="text-sm text-muted-foreground">of ${goal.toLocaleString()} goal</p>
+                      )}
+                    </div>
+                    <div className="space-y-1 text-right">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Supporters</p>
+                      <p className="font-serif text-3xl font-bold text-primary">{cause.supporterCount.toLocaleString()}</p>
+                      <p className="text-sm text-muted-foreground">people joined</p>
+                    </div>
+                    {goal > 0 && remaining > 0 && (
+                      <div className="space-y-1 text-right">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Still Needed</p>
+                        <p className="font-serif text-3xl font-bold text-amber-600">${remaining.toLocaleString()}</p>
+                        <p className="text-sm text-muted-foreground">{pct}% reached</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {goal > 0 && (
+                    <div className="space-y-1.5">
+                      <Progress value={pct} className="h-3" />
+                      <p className="text-right text-xs text-muted-foreground">{pct}% of goal</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    className="flex-1 bg-secondary hover:bg-secondary/90 text-white h-13 text-base font-semibold gap-2 py-3"
+                    onClick={() => setJoinOpen(true)}
+                  >
+                    <Heart className="h-5 w-5 fill-current" /> Join This Cause
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 h-13 text-base font-semibold gap-2 py-3 border-primary/30 hover:border-primary/50"
+                    onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({ title: cause.title, text: cause.description, url: window.location.href });
+                      } else {
+                        navigator.clipboard?.writeText(window.location.href);
+                        // toast would be nice but no context here
+                      }
+                    }}
+                  >
+                    <Share2 className="h-5 w-5" /> Share This Cause
+                  </Button>
+                </div>
+
+                {/* Financial stat strip */}
+                {goal > 0 && (
+                  <div className="grid grid-cols-3 gap-3 pt-2 border-t">
+                    {[
+                      { icon: DollarSign, label: "Raised", value: `$${raised.toLocaleString()}`, color: "text-secondary" },
+                      { icon: DollarSign, label: "Goal", value: `$${goal.toLocaleString()}`, color: "text-primary" },
+                      { icon: DollarSign, label: "Needed", value: `$${remaining.toLocaleString()}`, color: "text-amber-600" },
+                    ].map(stat => (
+                      <div key={stat.label} className="text-center space-y-0.5">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">{stat.label}</p>
+                        <p className={`font-serif font-bold text-lg ${stat.color}`}>{stat.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Supporters section */}
+            {(supporters ?? []).length > 0 && (
+              <div className="bg-card border rounded-2xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-serif text-xl font-bold text-primary">
+                    Community Supporters
+                    <span className="ml-2 text-base font-normal text-muted-foreground">({(supporters ?? []).length})</span>
+                  </h3>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setJoinOpen(true)}>
+                    <UserPlus className="h-3.5 w-3.5" /> Join Them
+                  </Button>
+                </div>
+
+                <div className="divide-y">
+                  {displayedSupporters.map((s: any) => (
+                    <SupporterRow key={s.id} supporter={s} />
+                  ))}
+                </div>
+
+                {(supporters ?? []).length > 6 && (
+                  <button
+                    className="flex items-center gap-1.5 text-sm font-medium text-secondary hover:text-secondary/80 transition-colors"
+                    onClick={() => setShowAllSupporters(v => !v)}
+                  >
+                    {showAllSupporters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    {showAllSupporters ? "Show fewer" : `See all ${(supporters ?? []).length} supporters`}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Submit future cause */}
+            <div className="border border-dashed border-primary/20 rounded-2xl p-8 text-center space-y-4 bg-muted/10">
+              <h3 className="font-serif text-xl font-bold text-primary">Know a Cause That Deserves This Spotlight?</h3>
+              <p className="text-muted-foreground max-w-lg mx-auto text-sm leading-relaxed">
+                The Gavhah committee selects one cause at a time based on urgency and community impact.
+                Submit a cause and we will review it for future consideration.
+              </p>
+              <Button
+                variant="outline"
+                className="gap-2 border-secondary/30 text-secondary hover:bg-secondary/5"
+                onClick={() => setSubmitOpen(true)}
+              >
+                <SendHorizonal className="h-4 w-4" /> Submit a Future Cause
+              </Button>
+            </div>
+
+          </div>
+        )}
       </div>
+
+      <JoinCauseDialog causeId={causeId} open={joinOpen} onClose={() => setJoinOpen(false)} />
+      <SubmitCauseDialog open={submitOpen} onClose={() => setSubmitOpen(false)} />
     </Layout>
   );
 }

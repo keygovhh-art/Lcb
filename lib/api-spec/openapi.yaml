@@ -25,6 +25,10 @@ tags:
     description: Today's Charity
   - name: stats
     description: Community Dashboard statistics
+  - name: featured-causes
+    description: United In Kindness featured cause
+  - name: community-projects
+    description: Activists Directory community projects
   - name: announcements
     description: Platform announcements
   - name: reports
@@ -456,6 +460,320 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CauseSupporter"
+
+  # ---- FEATURED CAUSES ----
+  /featured-causes:
+    get:
+      operationId: listFeaturedCauses
+      tags: [featured-causes]
+      summary: List featured causes
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of featured causes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeaturedCause"
+    post:
+      operationId: createFeaturedCause
+      tags: [featured-causes]
+      summary: Create a featured cause (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeaturedCauseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeaturedCause"
+
+  /featured-causes/active:
+    get:
+      operationId: getActiveFeaturedCause
+      tags: [featured-causes]
+      summary: Get the currently active featured cause
+      responses:
+        "200":
+          description: Active cause
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeaturedCause"
+
+  /featured-causes/{id}:
+    get:
+      operationId: getFeaturedCause
+      tags: [featured-causes]
+      summary: Get a featured cause by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Featured cause
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeaturedCause"
+    patch:
+      operationId: updateFeaturedCause
+      tags: [featured-causes]
+      summary: Update a featured cause (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeaturedCauseInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeaturedCause"
+
+  /featured-causes/{id}/join:
+    post:
+      operationId: joinFeaturedCause
+      tags: [featured-causes]
+      summary: Join / support a featured cause
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeaturedCauseSupporterInput"
+      responses:
+        "201":
+          description: Supporter registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeaturedCauseSupporter"
+
+  /featured-causes/{id}/supporters:
+    get:
+      operationId: listFeaturedCauseSupporters
+      tags: [featured-causes]
+      summary: List supporters for a featured cause
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Supporters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeaturedCauseSupporter"
+
+  /cause-submissions:
+    post:
+      operationId: submitCause
+      tags: [featured-causes]
+      summary: Submit a cause for review / future consideration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CauseSubmissionInput"
+      responses:
+        "201":
+          description: Submission received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CauseSubmission"
+    get:
+      operationId: listCauseSubmissions
+      tags: [featured-causes]
+      summary: List submitted causes (admin)
+      responses:
+        "200":
+          description: Submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CauseSubmission"
+
+  # ---- COMMUNITY PROJECTS ----
+  /community-projects:
+    get:
+      operationId: listCommunityProjects
+      tags: [community-projects]
+      summary: List community projects
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommunityProject"
+    post:
+      operationId: createCommunityProject
+      tags: [community-projects]
+      summary: Create a community project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityProjectInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityProject"
+
+  /community-projects/{id}:
+    get:
+      operationId: getCommunityProject
+      tags: [community-projects]
+      summary: Get a project by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityProject"
+    patch:
+      operationId: updateCommunityProject
+      tags: [community-projects]
+      summary: Update a project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunityProjectInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityProject"
+    delete:
+      operationId: deleteCommunityProject
+      tags: [community-projects]
+      summary: Delete a project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /community-projects/{id}/join:
+    post:
+      operationId: joinCommunityProject
+      tags: [community-projects]
+      summary: Join / volunteer for a project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectMemberInput"
+      responses:
+        "201":
+          description: Member registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectMember"
+
+  /community-projects/{id}/members:
+    get:
+      operationId: listProjectMembers
+      tags: [community-projects]
+      summary: List members of a project
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProjectMember"
 
   # ---- NEWS ----
   /news:
@@ -2172,6 +2490,200 @@ components:
         linkUrl:
           type: ["string", "null"]
         createdAt:
+          type: string
+
+    # ---- FEATURED CAUSES ----
+    FeaturedCause:
+      type: object
+      required: [id, title, description, status, amountRaised, supporterCount, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        organizerName:
+          type: ["string", "null"]
+        goalAmount:
+          type: ["number", "null"]
+        amountRaised:
+          type: number
+        supporterCount:
+          type: integer
+        status:
+          type: string
+        imageUrl:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        deadline:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    FeaturedCauseInput:
+      type: object
+      required: [title, description]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        organizerName:
+          type: string
+        goalAmount:
+          type: number
+        status:
+          type: string
+        imageUrl:
+          type: string
+        location:
+          type: string
+        deadline:
+          type: string
+
+    FeaturedCauseSupporter:
+      type: object
+      required: [id, causeId, name, pledgeType, createdAt]
+      properties:
+        id:
+          type: integer
+        causeId:
+          type: integer
+        name:
+          type: string
+        pledgeType:
+          type: string
+        pledgeAmount:
+          type: ["number", "null"]
+        message:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    FeaturedCauseSupporterInput:
+      type: object
+      required: [name, pledgeType]
+      properties:
+        name:
+          type: string
+        pledgeType:
+          type: string
+        pledgeAmount:
+          type: number
+        message:
+          type: string
+        location:
+          type: string
+
+    CauseSubmission:
+      type: object
+      required: [id, title, description, submittedBy, urgency, status, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        submittedBy:
+          type: string
+        location:
+          type: ["string", "null"]
+        urgency:
+          type: string
+        status:
+          type: string
+        adminNotes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    CauseSubmissionInput:
+      type: object
+      required: [title, description, submittedBy]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        submittedBy:
+          type: string
+        location:
+          type: string
+        urgency:
+          type: string
+
+    # ---- COMMUNITY PROJECTS ----
+    CommunityProject:
+      type: object
+      required: [id, title, description, type, organizerName, status, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        organizerName:
+          type: string
+        location:
+          type: ["string", "null"]
+        status:
+          type: string
+        goalDescription:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    CommunityProjectInput:
+      type: object
+      required: [title, description, organizerName]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        organizerName:
+          type: string
+        location:
+          type: string
+        goalDescription:
+          type: string
+
+    ProjectMember:
+      type: object
+      required: [id, projectId, name, role, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        role:
+          type: string
+        message:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ProjectMemberInput:
+      type: object
+      required: [name, role]
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+        message:
           type: string
 
     NotificationReadResult:

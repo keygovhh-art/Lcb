@@ -24,18 +24,26 @@ import type {
   ActivityItem,
   Announcement,
   AnnouncementInput,
+  CauseSubmission,
+  CauseSubmissionInput,
   CauseSupporter,
   CauseSupporterInput,
   Charity,
   CharityUpdate,
   Comment,
   CommentInput,
+  CommunityProject,
+  CommunityProjectInput,
   CommunityStats,
   Discussion,
   DiscussionInput,
   DiscussionUpdate,
   Donation,
   DonationInput,
+  FeaturedCause,
+  FeaturedCauseInput,
+  FeaturedCauseSupporter,
+  FeaturedCauseSupporterInput,
   GetActivityStatsParams,
   Group,
   GroupInput,
@@ -50,7 +58,9 @@ import type {
   LikeNews200,
   LikeResult,
   ListCauseSupportersParams,
+  ListCommunityProjectsParams,
   ListDiscussionsParams,
+  ListFeaturedCausesParams,
   ListGroupsParams,
   ListHelpRequestsParams,
   ListMinyansParams,
@@ -66,6 +76,8 @@ import type {
   NewsArticleUpdate,
   Notification,
   NotificationReadResult,
+  ProjectMember,
+  ProjectMemberInput,
   Report,
   ReportInput,
   User,
@@ -1727,6 +1739,1207 @@ export const useJoinCause = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getJoinCauseMutationOptions(options));
     }
+
+export const getListFeaturedCausesUrl = (params?: ListFeaturedCausesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/featured-causes?${stringifiedParams}` : `/api/featured-causes`
+}
+
+/**
+ * @summary List featured causes
+ */
+export const listFeaturedCauses = async (params?: ListFeaturedCausesParams, options?: RequestInit): Promise<FeaturedCause[]> => {
+
+  return customFetch<FeaturedCause[]>(getListFeaturedCausesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFeaturedCausesQueryKey = (params?: ListFeaturedCausesParams,) => {
+    return [
+    `/api/featured-causes`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListFeaturedCausesQueryOptions = <TData = Awaited<ReturnType<typeof listFeaturedCauses>>, TError = ErrorType<unknown>>(params?: ListFeaturedCausesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFeaturedCauses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFeaturedCausesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFeaturedCauses>>> = ({ signal }) => listFeaturedCauses(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFeaturedCauses>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFeaturedCausesQueryResult = NonNullable<Awaited<ReturnType<typeof listFeaturedCauses>>>
+export type ListFeaturedCausesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List featured causes
+ */
+
+export function useListFeaturedCauses<TData = Awaited<ReturnType<typeof listFeaturedCauses>>, TError = ErrorType<unknown>>(
+ params?: ListFeaturedCausesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFeaturedCauses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFeaturedCausesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateFeaturedCauseUrl = () => {
+
+
+
+
+  return `/api/featured-causes`
+}
+
+/**
+ * @summary Create a featured cause (admin)
+ */
+export const createFeaturedCause = async (featuredCauseInput: FeaturedCauseInput, options?: RequestInit): Promise<FeaturedCause> => {
+
+  return customFetch<FeaturedCause>(getCreateFeaturedCauseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      featuredCauseInput,)
+  }
+);}
+
+
+
+
+export const getCreateFeaturedCauseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFeaturedCause>>, TError,{data: BodyType<FeaturedCauseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createFeaturedCause>>, TError,{data: BodyType<FeaturedCauseInput>}, TContext> => {
+
+const mutationKey = ['createFeaturedCause'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createFeaturedCause>>, {data: BodyType<FeaturedCauseInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createFeaturedCause(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateFeaturedCauseMutationResult = NonNullable<Awaited<ReturnType<typeof createFeaturedCause>>>
+    export type CreateFeaturedCauseMutationBody = BodyType<FeaturedCauseInput>
+    export type CreateFeaturedCauseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a featured cause (admin)
+ */
+export const useCreateFeaturedCause = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFeaturedCause>>, TError,{data: BodyType<FeaturedCauseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createFeaturedCause>>,
+        TError,
+        {data: BodyType<FeaturedCauseInput>},
+        TContext
+      > => {
+      return useMutation(getCreateFeaturedCauseMutationOptions(options));
+    }
+
+export const getGetActiveFeaturedCauseUrl = () => {
+
+
+
+
+  return `/api/featured-causes/active`
+}
+
+/**
+ * @summary Get the currently active featured cause
+ */
+export const getActiveFeaturedCause = async ( options?: RequestInit): Promise<FeaturedCause> => {
+
+  return customFetch<FeaturedCause>(getGetActiveFeaturedCauseUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetActiveFeaturedCauseQueryKey = () => {
+    return [
+    `/api/featured-causes/active`
+    ] as const;
+    }
+
+
+export const getGetActiveFeaturedCauseQueryOptions = <TData = Awaited<ReturnType<typeof getActiveFeaturedCause>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActiveFeaturedCause>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetActiveFeaturedCauseQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getActiveFeaturedCause>>> = ({ signal }) => getActiveFeaturedCause({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getActiveFeaturedCause>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetActiveFeaturedCauseQueryResult = NonNullable<Awaited<ReturnType<typeof getActiveFeaturedCause>>>
+export type GetActiveFeaturedCauseQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the currently active featured cause
+ */
+
+export function useGetActiveFeaturedCause<TData = Awaited<ReturnType<typeof getActiveFeaturedCause>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActiveFeaturedCause>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetActiveFeaturedCauseQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetFeaturedCauseUrl = (id: number,) => {
+
+
+
+
+  return `/api/featured-causes/${id}`
+}
+
+/**
+ * @summary Get a featured cause by ID
+ */
+export const getFeaturedCause = async (id: number, options?: RequestInit): Promise<FeaturedCause> => {
+
+  return customFetch<FeaturedCause>(getGetFeaturedCauseUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFeaturedCauseQueryKey = (id: number,) => {
+    return [
+    `/api/featured-causes/${id}`
+    ] as const;
+    }
+
+
+export const getGetFeaturedCauseQueryOptions = <TData = Awaited<ReturnType<typeof getFeaturedCause>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFeaturedCause>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFeaturedCauseQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFeaturedCause>>> = ({ signal }) => getFeaturedCause(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFeaturedCause>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFeaturedCauseQueryResult = NonNullable<Awaited<ReturnType<typeof getFeaturedCause>>>
+export type GetFeaturedCauseQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get a featured cause by ID
+ */
+
+export function useGetFeaturedCause<TData = Awaited<ReturnType<typeof getFeaturedCause>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFeaturedCause>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFeaturedCauseQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateFeaturedCauseUrl = (id: number,) => {
+
+
+
+
+  return `/api/featured-causes/${id}`
+}
+
+/**
+ * @summary Update a featured cause (admin)
+ */
+export const updateFeaturedCause = async (id: number,
+    featuredCauseInput: FeaturedCauseInput, options?: RequestInit): Promise<FeaturedCause> => {
+
+  return customFetch<FeaturedCause>(getUpdateFeaturedCauseUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      featuredCauseInput,)
+  }
+);}
+
+
+
+
+export const getUpdateFeaturedCauseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFeaturedCause>>, TError,{id: number;data: BodyType<FeaturedCauseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateFeaturedCause>>, TError,{id: number;data: BodyType<FeaturedCauseInput>}, TContext> => {
+
+const mutationKey = ['updateFeaturedCause'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateFeaturedCause>>, {id: number;data: BodyType<FeaturedCauseInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateFeaturedCause(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateFeaturedCauseMutationResult = NonNullable<Awaited<ReturnType<typeof updateFeaturedCause>>>
+    export type UpdateFeaturedCauseMutationBody = BodyType<FeaturedCauseInput>
+    export type UpdateFeaturedCauseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a featured cause (admin)
+ */
+export const useUpdateFeaturedCause = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFeaturedCause>>, TError,{id: number;data: BodyType<FeaturedCauseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateFeaturedCause>>,
+        TError,
+        {id: number;data: BodyType<FeaturedCauseInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateFeaturedCauseMutationOptions(options));
+    }
+
+export const getJoinFeaturedCauseUrl = (id: number,) => {
+
+
+
+
+  return `/api/featured-causes/${id}/join`
+}
+
+/**
+ * @summary Join / support a featured cause
+ */
+export const joinFeaturedCause = async (id: number,
+    featuredCauseSupporterInput: FeaturedCauseSupporterInput, options?: RequestInit): Promise<FeaturedCauseSupporter> => {
+
+  return customFetch<FeaturedCauseSupporter>(getJoinFeaturedCauseUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      featuredCauseSupporterInput,)
+  }
+);}
+
+
+
+
+export const getJoinFeaturedCauseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinFeaturedCause>>, TError,{id: number;data: BodyType<FeaturedCauseSupporterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinFeaturedCause>>, TError,{id: number;data: BodyType<FeaturedCauseSupporterInput>}, TContext> => {
+
+const mutationKey = ['joinFeaturedCause'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinFeaturedCause>>, {id: number;data: BodyType<FeaturedCauseSupporterInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  joinFeaturedCause(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinFeaturedCauseMutationResult = NonNullable<Awaited<ReturnType<typeof joinFeaturedCause>>>
+    export type JoinFeaturedCauseMutationBody = BodyType<FeaturedCauseSupporterInput>
+    export type JoinFeaturedCauseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Join / support a featured cause
+ */
+export const useJoinFeaturedCause = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinFeaturedCause>>, TError,{id: number;data: BodyType<FeaturedCauseSupporterInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinFeaturedCause>>,
+        TError,
+        {id: number;data: BodyType<FeaturedCauseSupporterInput>},
+        TContext
+      > => {
+      return useMutation(getJoinFeaturedCauseMutationOptions(options));
+    }
+
+export const getListFeaturedCauseSupportersUrl = (id: number,) => {
+
+
+
+
+  return `/api/featured-causes/${id}/supporters`
+}
+
+/**
+ * @summary List supporters for a featured cause
+ */
+export const listFeaturedCauseSupporters = async (id: number, options?: RequestInit): Promise<FeaturedCauseSupporter[]> => {
+
+  return customFetch<FeaturedCauseSupporter[]>(getListFeaturedCauseSupportersUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFeaturedCauseSupportersQueryKey = (id: number,) => {
+    return [
+    `/api/featured-causes/${id}/supporters`
+    ] as const;
+    }
+
+
+export const getListFeaturedCauseSupportersQueryOptions = <TData = Awaited<ReturnType<typeof listFeaturedCauseSupporters>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFeaturedCauseSupporters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFeaturedCauseSupportersQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFeaturedCauseSupporters>>> = ({ signal }) => listFeaturedCauseSupporters(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFeaturedCauseSupporters>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFeaturedCauseSupportersQueryResult = NonNullable<Awaited<ReturnType<typeof listFeaturedCauseSupporters>>>
+export type ListFeaturedCauseSupportersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List supporters for a featured cause
+ */
+
+export function useListFeaturedCauseSupporters<TData = Awaited<ReturnType<typeof listFeaturedCauseSupporters>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFeaturedCauseSupporters>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFeaturedCauseSupportersQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubmitCauseUrl = () => {
+
+
+
+
+  return `/api/cause-submissions`
+}
+
+/**
+ * @summary Submit a cause for review / future consideration
+ */
+export const submitCause = async (causeSubmissionInput: CauseSubmissionInput, options?: RequestInit): Promise<CauseSubmission> => {
+
+  return customFetch<CauseSubmission>(getSubmitCauseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      causeSubmissionInput,)
+  }
+);}
+
+
+
+
+export const getSubmitCauseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitCause>>, TError,{data: BodyType<CauseSubmissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitCause>>, TError,{data: BodyType<CauseSubmissionInput>}, TContext> => {
+
+const mutationKey = ['submitCause'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitCause>>, {data: BodyType<CauseSubmissionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitCause(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitCauseMutationResult = NonNullable<Awaited<ReturnType<typeof submitCause>>>
+    export type SubmitCauseMutationBody = BodyType<CauseSubmissionInput>
+    export type SubmitCauseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Submit a cause for review / future consideration
+ */
+export const useSubmitCause = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitCause>>, TError,{data: BodyType<CauseSubmissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitCause>>,
+        TError,
+        {data: BodyType<CauseSubmissionInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitCauseMutationOptions(options));
+    }
+
+export const getListCauseSubmissionsUrl = () => {
+
+
+
+
+  return `/api/cause-submissions`
+}
+
+/**
+ * @summary List submitted causes (admin)
+ */
+export const listCauseSubmissions = async ( options?: RequestInit): Promise<CauseSubmission[]> => {
+
+  return customFetch<CauseSubmission[]>(getListCauseSubmissionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCauseSubmissionsQueryKey = () => {
+    return [
+    `/api/cause-submissions`
+    ] as const;
+    }
+
+
+export const getListCauseSubmissionsQueryOptions = <TData = Awaited<ReturnType<typeof listCauseSubmissions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCauseSubmissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCauseSubmissionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCauseSubmissions>>> = ({ signal }) => listCauseSubmissions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCauseSubmissions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCauseSubmissionsQueryResult = NonNullable<Awaited<ReturnType<typeof listCauseSubmissions>>>
+export type ListCauseSubmissionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List submitted causes (admin)
+ */
+
+export function useListCauseSubmissions<TData = Awaited<ReturnType<typeof listCauseSubmissions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCauseSubmissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCauseSubmissionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListCommunityProjectsUrl = (params?: ListCommunityProjectsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/community-projects?${stringifiedParams}` : `/api/community-projects`
+}
+
+/**
+ * @summary List community projects
+ */
+export const listCommunityProjects = async (params?: ListCommunityProjectsParams, options?: RequestInit): Promise<CommunityProject[]> => {
+
+  return customFetch<CommunityProject[]>(getListCommunityProjectsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCommunityProjectsQueryKey = (params?: ListCommunityProjectsParams,) => {
+    return [
+    `/api/community-projects`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCommunityProjectsQueryOptions = <TData = Awaited<ReturnType<typeof listCommunityProjects>>, TError = ErrorType<unknown>>(params?: ListCommunityProjectsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommunityProjects>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCommunityProjectsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommunityProjects>>> = ({ signal }) => listCommunityProjects(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCommunityProjects>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCommunityProjectsQueryResult = NonNullable<Awaited<ReturnType<typeof listCommunityProjects>>>
+export type ListCommunityProjectsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List community projects
+ */
+
+export function useListCommunityProjects<TData = Awaited<ReturnType<typeof listCommunityProjects>>, TError = ErrorType<unknown>>(
+ params?: ListCommunityProjectsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommunityProjects>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCommunityProjectsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateCommunityProjectUrl = () => {
+
+
+
+
+  return `/api/community-projects`
+}
+
+/**
+ * @summary Create a community project
+ */
+export const createCommunityProject = async (communityProjectInput: CommunityProjectInput, options?: RequestInit): Promise<CommunityProject> => {
+
+  return customFetch<CommunityProject>(getCreateCommunityProjectUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      communityProjectInput,)
+  }
+);}
+
+
+
+
+export const getCreateCommunityProjectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommunityProject>>, TError,{data: BodyType<CommunityProjectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCommunityProject>>, TError,{data: BodyType<CommunityProjectInput>}, TContext> => {
+
+const mutationKey = ['createCommunityProject'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCommunityProject>>, {data: BodyType<CommunityProjectInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCommunityProject(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCommunityProjectMutationResult = NonNullable<Awaited<ReturnType<typeof createCommunityProject>>>
+    export type CreateCommunityProjectMutationBody = BodyType<CommunityProjectInput>
+    export type CreateCommunityProjectMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a community project
+ */
+export const useCreateCommunityProject = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommunityProject>>, TError,{data: BodyType<CommunityProjectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCommunityProject>>,
+        TError,
+        {data: BodyType<CommunityProjectInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCommunityProjectMutationOptions(options));
+    }
+
+export const getGetCommunityProjectUrl = (id: number,) => {
+
+
+
+
+  return `/api/community-projects/${id}`
+}
+
+/**
+ * @summary Get a project by ID
+ */
+export const getCommunityProject = async (id: number, options?: RequestInit): Promise<CommunityProject> => {
+
+  return customFetch<CommunityProject>(getGetCommunityProjectUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommunityProjectQueryKey = (id: number,) => {
+    return [
+    `/api/community-projects/${id}`
+    ] as const;
+    }
+
+
+export const getGetCommunityProjectQueryOptions = <TData = Awaited<ReturnType<typeof getCommunityProject>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommunityProject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommunityProjectQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommunityProject>>> = ({ signal }) => getCommunityProject(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommunityProject>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCommunityProjectQueryResult = NonNullable<Awaited<ReturnType<typeof getCommunityProject>>>
+export type GetCommunityProjectQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get a project by ID
+ */
+
+export function useGetCommunityProject<TData = Awaited<ReturnType<typeof getCommunityProject>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommunityProject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCommunityProjectQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateCommunityProjectUrl = (id: number,) => {
+
+
+
+
+  return `/api/community-projects/${id}`
+}
+
+/**
+ * @summary Update a project
+ */
+export const updateCommunityProject = async (id: number,
+    communityProjectInput: CommunityProjectInput, options?: RequestInit): Promise<CommunityProject> => {
+
+  return customFetch<CommunityProject>(getUpdateCommunityProjectUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      communityProjectInput,)
+  }
+);}
+
+
+
+
+export const getUpdateCommunityProjectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCommunityProject>>, TError,{id: number;data: BodyType<CommunityProjectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCommunityProject>>, TError,{id: number;data: BodyType<CommunityProjectInput>}, TContext> => {
+
+const mutationKey = ['updateCommunityProject'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCommunityProject>>, {id: number;data: BodyType<CommunityProjectInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCommunityProject(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCommunityProjectMutationResult = NonNullable<Awaited<ReturnType<typeof updateCommunityProject>>>
+    export type UpdateCommunityProjectMutationBody = BodyType<CommunityProjectInput>
+    export type UpdateCommunityProjectMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a project
+ */
+export const useUpdateCommunityProject = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCommunityProject>>, TError,{id: number;data: BodyType<CommunityProjectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCommunityProject>>,
+        TError,
+        {id: number;data: BodyType<CommunityProjectInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateCommunityProjectMutationOptions(options));
+    }
+
+export const getDeleteCommunityProjectUrl = (id: number,) => {
+
+
+
+
+  return `/api/community-projects/${id}`
+}
+
+/**
+ * @summary Delete a project
+ */
+export const deleteCommunityProject = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteCommunityProjectUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteCommunityProjectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCommunityProject>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCommunityProject>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteCommunityProject'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCommunityProject>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteCommunityProject(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCommunityProjectMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCommunityProject>>>
+
+    export type DeleteCommunityProjectMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a project
+ */
+export const useDeleteCommunityProject = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCommunityProject>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCommunityProject>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteCommunityProjectMutationOptions(options));
+    }
+
+export const getJoinCommunityProjectUrl = (id: number,) => {
+
+
+
+
+  return `/api/community-projects/${id}/join`
+}
+
+/**
+ * @summary Join / volunteer for a project
+ */
+export const joinCommunityProject = async (id: number,
+    projectMemberInput: ProjectMemberInput, options?: RequestInit): Promise<ProjectMember> => {
+
+  return customFetch<ProjectMember>(getJoinCommunityProjectUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      projectMemberInput,)
+  }
+);}
+
+
+
+
+export const getJoinCommunityProjectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinCommunityProject>>, TError,{id: number;data: BodyType<ProjectMemberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinCommunityProject>>, TError,{id: number;data: BodyType<ProjectMemberInput>}, TContext> => {
+
+const mutationKey = ['joinCommunityProject'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinCommunityProject>>, {id: number;data: BodyType<ProjectMemberInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  joinCommunityProject(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinCommunityProjectMutationResult = NonNullable<Awaited<ReturnType<typeof joinCommunityProject>>>
+    export type JoinCommunityProjectMutationBody = BodyType<ProjectMemberInput>
+    export type JoinCommunityProjectMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Join / volunteer for a project
+ */
+export const useJoinCommunityProject = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinCommunityProject>>, TError,{id: number;data: BodyType<ProjectMemberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinCommunityProject>>,
+        TError,
+        {id: number;data: BodyType<ProjectMemberInput>},
+        TContext
+      > => {
+      return useMutation(getJoinCommunityProjectMutationOptions(options));
+    }
+
+export const getListProjectMembersUrl = (id: number,) => {
+
+
+
+
+  return `/api/community-projects/${id}/members`
+}
+
+/**
+ * @summary List members of a project
+ */
+export const listProjectMembers = async (id: number, options?: RequestInit): Promise<ProjectMember[]> => {
+
+  return customFetch<ProjectMember[]>(getListProjectMembersUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProjectMembersQueryKey = (id: number,) => {
+    return [
+    `/api/community-projects/${id}/members`
+    ] as const;
+    }
+
+
+export const getListProjectMembersQueryOptions = <TData = Awaited<ReturnType<typeof listProjectMembers>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProjectMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProjectMembersQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProjectMembers>>> = ({ signal }) => listProjectMembers(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProjectMembers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProjectMembersQueryResult = NonNullable<Awaited<ReturnType<typeof listProjectMembers>>>
+export type ListProjectMembersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List members of a project
+ */
+
+export function useListProjectMembers<TData = Awaited<ReturnType<typeof listProjectMembers>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProjectMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProjectMembersQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getListNewsUrl = (params?: ListNewsParams,) => {
   const normalizedParams = new URLSearchParams();

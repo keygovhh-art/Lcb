@@ -587,6 +587,120 @@ export interface Notification {
   createdAt: string;
 }
 
+export interface FeaturedCause {
+  id: number;
+  title: string;
+  description: string;
+  /** @nullable */
+  organizerName?: string | null;
+  /** @nullable */
+  goalAmount?: number | null;
+  amountRaised: number;
+  supporterCount: number;
+  status: string;
+  /** @nullable */
+  imageUrl?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  deadline?: string | null;
+  createdAt: string;
+}
+
+export interface FeaturedCauseInput {
+  title: string;
+  description: string;
+  organizerName?: string;
+  goalAmount?: number;
+  status?: string;
+  imageUrl?: string;
+  location?: string;
+  deadline?: string;
+}
+
+export interface FeaturedCauseSupporter {
+  id: number;
+  causeId: number;
+  name: string;
+  pledgeType: string;
+  /** @nullable */
+  pledgeAmount?: number | null;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  location?: string | null;
+  createdAt: string;
+}
+
+export interface FeaturedCauseSupporterInput {
+  name: string;
+  pledgeType: string;
+  pledgeAmount?: number;
+  message?: string;
+  location?: string;
+}
+
+export interface CauseSubmission {
+  id: number;
+  title: string;
+  description: string;
+  submittedBy: string;
+  /** @nullable */
+  location?: string | null;
+  urgency: string;
+  status: string;
+  /** @nullable */
+  adminNotes?: string | null;
+  createdAt: string;
+}
+
+export interface CauseSubmissionInput {
+  title: string;
+  description: string;
+  submittedBy: string;
+  location?: string;
+  urgency?: string;
+}
+
+export interface CommunityProject {
+  id: number;
+  title: string;
+  description: string;
+  type: string;
+  organizerName: string;
+  /** @nullable */
+  location?: string | null;
+  status: string;
+  /** @nullable */
+  goalDescription?: string | null;
+  createdAt: string;
+}
+
+export interface CommunityProjectInput {
+  title: string;
+  description: string;
+  type?: string;
+  organizerName: string;
+  location?: string;
+  goalDescription?: string;
+}
+
+export interface ProjectMember {
+  id: number;
+  projectId: number;
+  name: string;
+  role: string;
+  /** @nullable */
+  message?: string | null;
+  createdAt: string;
+}
+
+export interface ProjectMemberInput {
+  name: string;
+  role: string;
+  message?: string;
+}
+
 export interface NotificationReadResult {
   updatedCount: number;
 }
@@ -606,6 +720,15 @@ page?: number;
 
 export type ListCauseSupportersParams = {
 causeType?: string;
+};
+
+export type ListFeaturedCausesParams = {
+status?: string;
+};
+
+export type ListCommunityProjectsParams = {
+type?: string;
+status?: string;
 };
 
 export type ListNewsParams = {

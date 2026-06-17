@@ -437,6 +437,310 @@ export const JoinCauseBody = zod.object({
 
 
 /**
+ * @summary List featured causes
+ */
+export const ListFeaturedCausesQueryParams = zod.object({
+  "status": zod.coerce.string().optional()
+})
+
+export const ListFeaturedCausesResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "organizerName": zod.string().nullish(),
+  "goalAmount": zod.number().nullish(),
+  "amountRaised": zod.number(),
+  "supporterCount": zod.number(),
+  "status": zod.string(),
+  "imageUrl": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "deadline": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListFeaturedCausesResponse = zod.array(ListFeaturedCausesResponseItem)
+
+
+/**
+ * @summary Create a featured cause (admin)
+ */
+export const CreateFeaturedCauseBody = zod.object({
+  "title": zod.string(),
+  "description": zod.string(),
+  "organizerName": zod.string().optional(),
+  "goalAmount": zod.number().optional(),
+  "status": zod.string().optional(),
+  "imageUrl": zod.string().optional(),
+  "location": zod.string().optional(),
+  "deadline": zod.string().optional()
+})
+
+
+/**
+ * @summary Get the currently active featured cause
+ */
+export const GetActiveFeaturedCauseResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "organizerName": zod.string().nullish(),
+  "goalAmount": zod.number().nullish(),
+  "amountRaised": zod.number(),
+  "supporterCount": zod.number(),
+  "status": zod.string(),
+  "imageUrl": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "deadline": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get a featured cause by ID
+ */
+export const GetFeaturedCauseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetFeaturedCauseResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "organizerName": zod.string().nullish(),
+  "goalAmount": zod.number().nullish(),
+  "amountRaised": zod.number(),
+  "supporterCount": zod.number(),
+  "status": zod.string(),
+  "imageUrl": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "deadline": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update a featured cause (admin)
+ */
+export const UpdateFeaturedCauseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateFeaturedCauseBody = zod.object({
+  "title": zod.string(),
+  "description": zod.string(),
+  "organizerName": zod.string().optional(),
+  "goalAmount": zod.number().optional(),
+  "status": zod.string().optional(),
+  "imageUrl": zod.string().optional(),
+  "location": zod.string().optional(),
+  "deadline": zod.string().optional()
+})
+
+export const UpdateFeaturedCauseResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "organizerName": zod.string().nullish(),
+  "goalAmount": zod.number().nullish(),
+  "amountRaised": zod.number(),
+  "supporterCount": zod.number(),
+  "status": zod.string(),
+  "imageUrl": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "deadline": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Join / support a featured cause
+ */
+export const JoinFeaturedCauseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const JoinFeaturedCauseBody = zod.object({
+  "name": zod.string(),
+  "pledgeType": zod.string(),
+  "pledgeAmount": zod.number().optional(),
+  "message": zod.string().optional(),
+  "location": zod.string().optional()
+})
+
+
+/**
+ * @summary List supporters for a featured cause
+ */
+export const ListFeaturedCauseSupportersParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListFeaturedCauseSupportersResponseItem = zod.object({
+  "id": zod.number(),
+  "causeId": zod.number(),
+  "name": zod.string(),
+  "pledgeType": zod.string(),
+  "pledgeAmount": zod.number().nullish(),
+  "message": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListFeaturedCauseSupportersResponse = zod.array(ListFeaturedCauseSupportersResponseItem)
+
+
+/**
+ * @summary Submit a cause for review / future consideration
+ */
+export const SubmitCauseBody = zod.object({
+  "title": zod.string(),
+  "description": zod.string(),
+  "submittedBy": zod.string(),
+  "location": zod.string().optional(),
+  "urgency": zod.string().optional()
+})
+
+
+/**
+ * @summary List submitted causes (admin)
+ */
+export const ListCauseSubmissionsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "submittedBy": zod.string(),
+  "location": zod.string().nullish(),
+  "urgency": zod.string(),
+  "status": zod.string(),
+  "adminNotes": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListCauseSubmissionsResponse = zod.array(ListCauseSubmissionsResponseItem)
+
+
+/**
+ * @summary List community projects
+ */
+export const ListCommunityProjectsQueryParams = zod.object({
+  "type": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListCommunityProjectsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "type": zod.string(),
+  "organizerName": zod.string(),
+  "location": zod.string().nullish(),
+  "status": zod.string(),
+  "goalDescription": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListCommunityProjectsResponse = zod.array(ListCommunityProjectsResponseItem)
+
+
+/**
+ * @summary Create a community project
+ */
+export const CreateCommunityProjectBody = zod.object({
+  "title": zod.string(),
+  "description": zod.string(),
+  "type": zod.string().optional(),
+  "organizerName": zod.string(),
+  "location": zod.string().optional(),
+  "goalDescription": zod.string().optional()
+})
+
+
+/**
+ * @summary Get a project by ID
+ */
+export const GetCommunityProjectParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCommunityProjectResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "type": zod.string(),
+  "organizerName": zod.string(),
+  "location": zod.string().nullish(),
+  "status": zod.string(),
+  "goalDescription": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update a project
+ */
+export const UpdateCommunityProjectParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCommunityProjectBody = zod.object({
+  "title": zod.string(),
+  "description": zod.string(),
+  "type": zod.string().optional(),
+  "organizerName": zod.string(),
+  "location": zod.string().optional(),
+  "goalDescription": zod.string().optional()
+})
+
+export const UpdateCommunityProjectResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "type": zod.string(),
+  "organizerName": zod.string(),
+  "location": zod.string().nullish(),
+  "status": zod.string(),
+  "goalDescription": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a project
+ */
+export const DeleteCommunityProjectParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Join / volunteer for a project
+ */
+export const JoinCommunityProjectParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const JoinCommunityProjectBody = zod.object({
+  "name": zod.string(),
+  "role": zod.string(),
+  "message": zod.string().optional()
+})
+
+
+/**
+ * @summary List members of a project
+ */
+export const ListProjectMembersParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListProjectMembersResponseItem = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "message": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListProjectMembersResponse = zod.array(ListProjectMembersResponseItem)
+
+
+/**
  * @summary List news articles
  */
 export const ListNewsQueryParams = zod.object({
