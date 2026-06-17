@@ -24,6 +24,10 @@ import type {
   ActivityItem,
   Announcement,
   AnnouncementInput,
+  AskanusCase,
+  AskanusNote,
+  AskanusTask,
+  CaseFollowup,
   CauseSubmission,
   CauseSubmissionInput,
   CauseSupporter,
@@ -35,6 +39,9 @@ import type {
   CommunityProject,
   CommunityProjectInput,
   CommunityStats,
+  DeleteAskanusCase200,
+  DeleteAskanusNote200,
+  DeleteAskanusTask200,
   Discussion,
   DiscussionInput,
   DiscussionUpdate,
@@ -71,15 +78,21 @@ import type {
   Minyan,
   MinyanInput,
   MinyanUpdate,
+  NewAskanusNoteInput,
+  NewAskanuscaseInput,
+  NewAskanustaskInput,
   NewsArticle,
   NewsArticleInput,
   NewsArticleUpdate,
   Notification,
   NotificationReadResult,
+  ProgressUpdateInput,
   ProjectMember,
   ProjectMemberInput,
   Report,
   ReportInput,
+  UpdateAskanuscaseInput,
+  UpdateAskanustaskInput,
   User,
   UserDashboard,
   UserInput,
@@ -6468,4 +6481,1016 @@ export function useGetFeaturedRequests<TData = Awaited<ReturnType<typeof getFeat
 
 
 
+
+export const getListAskanuscasesUrl = () => {
+
+
+
+
+  return `/api/api/askanus/cases`
+}
+
+/**
+ * @summary List all askanus cases with activity log and followups
+ */
+export const listAskanuscases = async ( options?: RequestInit): Promise<AskanusCase[]> => {
+
+  return customFetch<AskanusCase[]>(getListAskanuscasesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAskanuscasesQueryKey = () => {
+    return [
+    `/api/api/askanus/cases`
+    ] as const;
+    }
+
+
+export const getListAskanuscasesQueryOptions = <TData = Awaited<ReturnType<typeof listAskanuscases>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAskanuscases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAskanuscasesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAskanuscases>>> = ({ signal }) => listAskanuscases({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAskanuscases>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAskanuscasesQueryResult = NonNullable<Awaited<ReturnType<typeof listAskanuscases>>>
+export type ListAskanuscasesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all askanus cases with activity log and followups
+ */
+
+export function useListAskanuscases<TData = Awaited<ReturnType<typeof listAskanuscases>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAskanuscases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAskanuscasesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateAskanusCaseUrl = () => {
+
+
+
+
+  return `/api/api/askanus/cases`
+}
+
+/**
+ * @summary Create a new askanus case
+ */
+export const createAskanusCase = async (newAskanuscaseInput: NewAskanuscaseInput, options?: RequestInit): Promise<AskanusCase> => {
+
+  return customFetch<AskanusCase>(getCreateAskanusCaseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      newAskanuscaseInput,)
+  }
+);}
+
+
+
+
+export const getCreateAskanusCaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAskanusCase>>, TError,{data: BodyType<NewAskanuscaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAskanusCase>>, TError,{data: BodyType<NewAskanuscaseInput>}, TContext> => {
+
+const mutationKey = ['createAskanusCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAskanusCase>>, {data: BodyType<NewAskanuscaseInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAskanusCase(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAskanusCaseMutationResult = NonNullable<Awaited<ReturnType<typeof createAskanusCase>>>
+    export type CreateAskanusCaseMutationBody = BodyType<NewAskanuscaseInput>
+    export type CreateAskanusCaseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a new askanus case
+ */
+export const useCreateAskanusCase = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAskanusCase>>, TError,{data: BodyType<NewAskanuscaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAskanusCase>>,
+        TError,
+        {data: BodyType<NewAskanuscaseInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAskanusCaseMutationOptions(options));
+    }
+
+export const getUpdateAskanusCaseUrl = (id: number,) => {
+
+
+
+
+  return `/api/api/askanus/cases/${id}`
+}
+
+/**
+ * @summary Update case fields
+ */
+export const updateAskanusCase = async (id: number,
+    updateAskanuscaseInput: UpdateAskanuscaseInput, options?: RequestInit): Promise<AskanusCase> => {
+
+  return customFetch<AskanusCase>(getUpdateAskanusCaseUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateAskanuscaseInput,)
+  }
+);}
+
+
+
+
+export const getUpdateAskanusCaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAskanusCase>>, TError,{id: number;data: BodyType<UpdateAskanuscaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAskanusCase>>, TError,{id: number;data: BodyType<UpdateAskanuscaseInput>}, TContext> => {
+
+const mutationKey = ['updateAskanusCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAskanusCase>>, {id: number;data: BodyType<UpdateAskanuscaseInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAskanusCase(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAskanusCaseMutationResult = NonNullable<Awaited<ReturnType<typeof updateAskanusCase>>>
+    export type UpdateAskanusCaseMutationBody = BodyType<UpdateAskanuscaseInput>
+    export type UpdateAskanusCaseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update case fields
+ */
+export const useUpdateAskanusCase = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAskanusCase>>, TError,{id: number;data: BodyType<UpdateAskanuscaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAskanusCase>>,
+        TError,
+        {id: number;data: BodyType<UpdateAskanuscaseInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAskanusCaseMutationOptions(options));
+    }
+
+export const getDeleteAskanusCaseUrl = (id: number,) => {
+
+
+
+
+  return `/api/api/askanus/cases/${id}`
+}
+
+/**
+ * @summary Delete a case
+ */
+export const deleteAskanusCase = async (id: number, options?: RequestInit): Promise<DeleteAskanusCase200> => {
+
+  return customFetch<DeleteAskanusCase200>(getDeleteAskanusCaseUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteAskanusCaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAskanusCase>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAskanusCase>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteAskanusCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAskanusCase>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAskanusCase(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAskanusCaseMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAskanusCase>>>
+
+    export type DeleteAskanusCaseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a case
+ */
+export const useDeleteAskanusCase = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAskanusCase>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAskanusCase>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteAskanusCaseMutationOptions(options));
+    }
+
+export const getUpdateAskanuscaseProgressUrl = (id: number,) => {
+
+
+
+
+  return `/api/api/askanus/cases/${id}/progress`
+}
+
+/**
+ * @summary Record funds, add note, add followup, or change status
+ */
+export const updateAskanuscaseProgress = async (id: number,
+    progressUpdateInput: ProgressUpdateInput, options?: RequestInit): Promise<AskanusCase> => {
+
+  return customFetch<AskanusCase>(getUpdateAskanuscaseProgressUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      progressUpdateInput,)
+  }
+);}
+
+
+
+
+export const getUpdateAskanuscaseProgressMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAskanuscaseProgress>>, TError,{id: number;data: BodyType<ProgressUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAskanuscaseProgress>>, TError,{id: number;data: BodyType<ProgressUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateAskanuscaseProgress'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAskanuscaseProgress>>, {id: number;data: BodyType<ProgressUpdateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAskanuscaseProgress(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAskanuscaseProgressMutationResult = NonNullable<Awaited<ReturnType<typeof updateAskanuscaseProgress>>>
+    export type UpdateAskanuscaseProgressMutationBody = BodyType<ProgressUpdateInput>
+    export type UpdateAskanuscaseProgressMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Record funds, add note, add followup, or change status
+ */
+export const useUpdateAskanuscaseProgress = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAskanuscaseProgress>>, TError,{id: number;data: BodyType<ProgressUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAskanuscaseProgress>>,
+        TError,
+        {id: number;data: BodyType<ProgressUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAskanuscaseProgressMutationOptions(options));
+    }
+
+export const getToggleCaseFollowupUrl = (id: number,) => {
+
+
+
+
+  return `/api/api/askanus/followups/${id}/toggle`
+}
+
+/**
+ * @summary Toggle a followup completed state
+ */
+export const toggleCaseFollowup = async (id: number, options?: RequestInit): Promise<CaseFollowup> => {
+
+  return customFetch<CaseFollowup>(getToggleCaseFollowupUrl(id),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+
+export const getToggleCaseFollowupMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof toggleCaseFollowup>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof toggleCaseFollowup>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['toggleCaseFollowup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof toggleCaseFollowup>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  toggleCaseFollowup(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ToggleCaseFollowupMutationResult = NonNullable<Awaited<ReturnType<typeof toggleCaseFollowup>>>
+
+    export type ToggleCaseFollowupMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Toggle a followup completed state
+ */
+export const useToggleCaseFollowup = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof toggleCaseFollowup>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof toggleCaseFollowup>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getToggleCaseFollowupMutationOptions(options));
+    }
+
+export const getListAskanustasksUrl = () => {
+
+
+
+
+  return `/api/api/askanus/tasks`
+}
+
+/**
+ * @summary List all tasks
+ */
+export const listAskanustasks = async ( options?: RequestInit): Promise<AskanusTask[]> => {
+
+  return customFetch<AskanusTask[]>(getListAskanustasksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAskanustasksQueryKey = () => {
+    return [
+    `/api/api/askanus/tasks`
+    ] as const;
+    }
+
+
+export const getListAskanustasksQueryOptions = <TData = Awaited<ReturnType<typeof listAskanustasks>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAskanustasks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAskanustasksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAskanustasks>>> = ({ signal }) => listAskanustasks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAskanustasks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAskanustasksQueryResult = NonNullable<Awaited<ReturnType<typeof listAskanustasks>>>
+export type ListAskanustasksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all tasks
+ */
+
+export function useListAskanustasks<TData = Awaited<ReturnType<typeof listAskanustasks>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAskanustasks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAskanustasksQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateAskanusTaskUrl = () => {
+
+
+
+
+  return `/api/api/askanus/tasks`
+}
+
+/**
+ * @summary Create a task
+ */
+export const createAskanusTask = async (newAskanustaskInput: NewAskanustaskInput, options?: RequestInit): Promise<AskanusTask> => {
+
+  return customFetch<AskanusTask>(getCreateAskanusTaskUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      newAskanustaskInput,)
+  }
+);}
+
+
+
+
+export const getCreateAskanusTaskMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAskanusTask>>, TError,{data: BodyType<NewAskanustaskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAskanusTask>>, TError,{data: BodyType<NewAskanustaskInput>}, TContext> => {
+
+const mutationKey = ['createAskanusTask'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAskanusTask>>, {data: BodyType<NewAskanustaskInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAskanusTask(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAskanusTaskMutationResult = NonNullable<Awaited<ReturnType<typeof createAskanusTask>>>
+    export type CreateAskanusTaskMutationBody = BodyType<NewAskanustaskInput>
+    export type CreateAskanusTaskMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a task
+ */
+export const useCreateAskanusTask = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAskanusTask>>, TError,{data: BodyType<NewAskanustaskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAskanusTask>>,
+        TError,
+        {data: BodyType<NewAskanustaskInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAskanusTaskMutationOptions(options));
+    }
+
+export const getUpdateAskanusTaskUrl = (id: number,) => {
+
+
+
+
+  return `/api/api/askanus/tasks/${id}`
+}
+
+/**
+ * @summary Update or toggle a task
+ */
+export const updateAskanusTask = async (id: number,
+    updateAskanustaskInput: UpdateAskanustaskInput, options?: RequestInit): Promise<AskanusTask> => {
+
+  return customFetch<AskanusTask>(getUpdateAskanusTaskUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateAskanustaskInput,)
+  }
+);}
+
+
+
+
+export const getUpdateAskanusTaskMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAskanusTask>>, TError,{id: number;data: BodyType<UpdateAskanustaskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAskanusTask>>, TError,{id: number;data: BodyType<UpdateAskanustaskInput>}, TContext> => {
+
+const mutationKey = ['updateAskanusTask'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAskanusTask>>, {id: number;data: BodyType<UpdateAskanustaskInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAskanusTask(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAskanusTaskMutationResult = NonNullable<Awaited<ReturnType<typeof updateAskanusTask>>>
+    export type UpdateAskanusTaskMutationBody = BodyType<UpdateAskanustaskInput>
+    export type UpdateAskanusTaskMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update or toggle a task
+ */
+export const useUpdateAskanusTask = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAskanusTask>>, TError,{id: number;data: BodyType<UpdateAskanustaskInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAskanusTask>>,
+        TError,
+        {id: number;data: BodyType<UpdateAskanustaskInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAskanusTaskMutationOptions(options));
+    }
+
+export const getDeleteAskanusTaskUrl = (id: number,) => {
+
+
+
+
+  return `/api/api/askanus/tasks/${id}`
+}
+
+/**
+ * @summary Delete a task
+ */
+export const deleteAskanusTask = async (id: number, options?: RequestInit): Promise<DeleteAskanusTask200> => {
+
+  return customFetch<DeleteAskanusTask200>(getDeleteAskanusTaskUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteAskanusTaskMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAskanusTask>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAskanusTask>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteAskanusTask'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAskanusTask>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAskanusTask(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAskanusTaskMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAskanusTask>>>
+
+    export type DeleteAskanusTaskMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a task
+ */
+export const useDeleteAskanusTask = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAskanusTask>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAskanusTask>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteAskanusTaskMutationOptions(options));
+    }
+
+export const getListAskanusNotesUrl = () => {
+
+
+
+
+  return `/api/api/askanus/notes`
+}
+
+/**
+ * @summary List all notes
+ */
+export const listAskanusNotes = async ( options?: RequestInit): Promise<AskanusNote[]> => {
+
+  return customFetch<AskanusNote[]>(getListAskanusNotesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAskanusNotesQueryKey = () => {
+    return [
+    `/api/api/askanus/notes`
+    ] as const;
+    }
+
+
+export const getListAskanusNotesQueryOptions = <TData = Awaited<ReturnType<typeof listAskanusNotes>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAskanusNotes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAskanusNotesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAskanusNotes>>> = ({ signal }) => listAskanusNotes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAskanusNotes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAskanusNotesQueryResult = NonNullable<Awaited<ReturnType<typeof listAskanusNotes>>>
+export type ListAskanusNotesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all notes
+ */
+
+export function useListAskanusNotes<TData = Awaited<ReturnType<typeof listAskanusNotes>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAskanusNotes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAskanusNotesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateAskanusNoteUrl = () => {
+
+
+
+
+  return `/api/api/askanus/notes`
+}
+
+/**
+ * @summary Create a note
+ */
+export const createAskanusNote = async (newAskanusNoteInput: NewAskanusNoteInput, options?: RequestInit): Promise<AskanusNote> => {
+
+  return customFetch<AskanusNote>(getCreateAskanusNoteUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      newAskanusNoteInput,)
+  }
+);}
+
+
+
+
+export const getCreateAskanusNoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAskanusNote>>, TError,{data: BodyType<NewAskanusNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAskanusNote>>, TError,{data: BodyType<NewAskanusNoteInput>}, TContext> => {
+
+const mutationKey = ['createAskanusNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAskanusNote>>, {data: BodyType<NewAskanusNoteInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAskanusNote(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAskanusNoteMutationResult = NonNullable<Awaited<ReturnType<typeof createAskanusNote>>>
+    export type CreateAskanusNoteMutationBody = BodyType<NewAskanusNoteInput>
+    export type CreateAskanusNoteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a note
+ */
+export const useCreateAskanusNote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAskanusNote>>, TError,{data: BodyType<NewAskanusNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAskanusNote>>,
+        TError,
+        {data: BodyType<NewAskanusNoteInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAskanusNoteMutationOptions(options));
+    }
+
+export const getUpdateAskanusNoteUrl = (id: number,) => {
+
+
+
+
+  return `/api/api/askanus/notes/${id}`
+}
+
+/**
+ * @summary Update a note
+ */
+export const updateAskanusNote = async (id: number,
+    newAskanusNoteInput: NewAskanusNoteInput, options?: RequestInit): Promise<AskanusNote> => {
+
+  return customFetch<AskanusNote>(getUpdateAskanusNoteUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      newAskanusNoteInput,)
+  }
+);}
+
+
+
+
+export const getUpdateAskanusNoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAskanusNote>>, TError,{id: number;data: BodyType<NewAskanusNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAskanusNote>>, TError,{id: number;data: BodyType<NewAskanusNoteInput>}, TContext> => {
+
+const mutationKey = ['updateAskanusNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAskanusNote>>, {id: number;data: BodyType<NewAskanusNoteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAskanusNote(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAskanusNoteMutationResult = NonNullable<Awaited<ReturnType<typeof updateAskanusNote>>>
+    export type UpdateAskanusNoteMutationBody = BodyType<NewAskanusNoteInput>
+    export type UpdateAskanusNoteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a note
+ */
+export const useUpdateAskanusNote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAskanusNote>>, TError,{id: number;data: BodyType<NewAskanusNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAskanusNote>>,
+        TError,
+        {id: number;data: BodyType<NewAskanusNoteInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAskanusNoteMutationOptions(options));
+    }
+
+export const getDeleteAskanusNoteUrl = (id: number,) => {
+
+
+
+
+  return `/api/api/askanus/notes/${id}`
+}
+
+/**
+ * @summary Delete a note
+ */
+export const deleteAskanusNote = async (id: number, options?: RequestInit): Promise<DeleteAskanusNote200> => {
+
+  return customFetch<DeleteAskanusNote200>(getDeleteAskanusNoteUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteAskanusNoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAskanusNote>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAskanusNote>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteAskanusNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAskanusNote>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAskanusNote(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAskanusNoteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAskanusNote>>>
+
+    export type DeleteAskanusNoteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a note
+ */
+export const useDeleteAskanusNote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAskanusNote>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAskanusNote>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteAskanusNoteMutationOptions(options));
+    }
 

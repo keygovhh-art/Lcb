@@ -9,3 +9,4 @@ export * from "./platform";
 export * from "./cause-supporters";
 export * from "./featured-causes";
 export * from "./community-projects";
+export * from "./askanus";

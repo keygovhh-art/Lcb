@@ -1607,3 +1607,314 @@ export const GetFeaturedRequestsResponseItem = zod.object({
 export const GetFeaturedRequestsResponse = zod.array(GetFeaturedRequestsResponseItem)
 
 
+/**
+ * @summary List all askanus cases with activity log and followups
+ */
+export const ListAskanuscasesResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "status": zod.string(),
+  "urgency": zod.string(),
+  "category": zod.string(),
+  "contactName": zod.string(),
+  "deadline": zod.string(),
+  "goalAmount": zod.number(),
+  "fundsPromised": zod.number(),
+  "fundsReceived": zod.number(),
+  "notes": zod.string(),
+  "createdAt": zod.string(),
+  "lastUpdated": zod.string(),
+  "activityLog": zod.array(zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "date": zod.string(),
+  "type": zod.string(),
+  "note": zod.string(),
+  "amount": zod.number().nullish(),
+  "createdAt": zod.string()
+})),
+  "followUpNotes": zod.array(zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "date": zod.string(),
+  "note": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "completed": zod.boolean(),
+  "createdAt": zod.string()
+}))
+})
+export const ListAskanuscasesResponse = zod.array(ListAskanuscasesResponseItem)
+
+
+/**
+ * @summary Create a new askanus case
+ */
+export const CreateAskanusCaseBody = zod.object({
+  "title": zod.string(),
+  "description": zod.string().optional(),
+  "urgency": zod.string().optional(),
+  "category": zod.string().optional(),
+  "contactName": zod.string().optional(),
+  "deadline": zod.string().optional(),
+  "goalAmount": zod.number().optional(),
+  "notes": zod.string().optional()
+})
+
+
+/**
+ * @summary Update case fields
+ */
+export const UpdateAskanusCaseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateAskanusCaseBody = zod.object({
+  "status": zod.string().optional(),
+  "urgency": zod.string().optional(),
+  "goalAmount": zod.number().optional(),
+  "fundsPromised": zod.number().optional(),
+  "fundsReceived": zod.number().optional(),
+  "notes": zod.string().optional()
+})
+
+export const UpdateAskanusCaseResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "status": zod.string(),
+  "urgency": zod.string(),
+  "category": zod.string(),
+  "contactName": zod.string(),
+  "deadline": zod.string(),
+  "goalAmount": zod.number(),
+  "fundsPromised": zod.number(),
+  "fundsReceived": zod.number(),
+  "notes": zod.string(),
+  "createdAt": zod.string(),
+  "lastUpdated": zod.string(),
+  "activityLog": zod.array(zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "date": zod.string(),
+  "type": zod.string(),
+  "note": zod.string(),
+  "amount": zod.number().nullish(),
+  "createdAt": zod.string()
+})),
+  "followUpNotes": zod.array(zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "date": zod.string(),
+  "note": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "completed": zod.boolean(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Delete a case
+ */
+export const DeleteAskanusCaseParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteAskanusCaseResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Record funds, add note, add followup, or change status
+ */
+export const UpdateAskanuscaseProgressParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateAskanuscaseProgressBody = zod.object({
+  "action": zod.string(),
+  "amount": zod.number().optional(),
+  "note": zod.string().optional(),
+  "from": zod.string().optional(),
+  "dueDate": zod.string().optional(),
+  "status": zod.string().optional(),
+  "goal": zod.number().optional()
+})
+
+export const UpdateAskanuscaseProgressResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "description": zod.string(),
+  "status": zod.string(),
+  "urgency": zod.string(),
+  "category": zod.string(),
+  "contactName": zod.string(),
+  "deadline": zod.string(),
+  "goalAmount": zod.number(),
+  "fundsPromised": zod.number(),
+  "fundsReceived": zod.number(),
+  "notes": zod.string(),
+  "createdAt": zod.string(),
+  "lastUpdated": zod.string(),
+  "activityLog": zod.array(zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "date": zod.string(),
+  "type": zod.string(),
+  "note": zod.string(),
+  "amount": zod.number().nullish(),
+  "createdAt": zod.string()
+})),
+  "followUpNotes": zod.array(zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "date": zod.string(),
+  "note": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "completed": zod.boolean(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Toggle a followup completed state
+ */
+export const ToggleCaseFollowupParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ToggleCaseFollowupResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "date": zod.string(),
+  "note": zod.string(),
+  "dueDate": zod.string().nullish(),
+  "completed": zod.boolean(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary List all tasks
+ */
+export const ListAskanustasksResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "caseTitle": zod.string(),
+  "deadline": zod.string(),
+  "completed": zod.boolean(),
+  "priority": zod.string(),
+  "notes": zod.string(),
+  "createdAt": zod.string()
+})
+export const ListAskanustasksResponse = zod.array(ListAskanustasksResponseItem)
+
+
+/**
+ * @summary Create a task
+ */
+export const CreateAskanusTaskBody = zod.object({
+  "title": zod.string(),
+  "caseTitle": zod.string().optional(),
+  "deadline": zod.string().optional(),
+  "priority": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+
+/**
+ * @summary Update or toggle a task
+ */
+export const UpdateAskanusTaskParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateAskanusTaskBody = zod.object({
+  "title": zod.string().optional(),
+  "caseTitle": zod.string().optional(),
+  "deadline": zod.string().optional(),
+  "completed": zod.boolean().optional(),
+  "priority": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const UpdateAskanusTaskResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "caseTitle": zod.string(),
+  "deadline": zod.string(),
+  "completed": zod.boolean(),
+  "priority": zod.string(),
+  "notes": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a task
+ */
+export const DeleteAskanusTaskParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteAskanusTaskResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary List all notes
+ */
+export const ListAskanusNotesResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.string()
+})
+export const ListAskanusNotesResponse = zod.array(ListAskanusNotesResponseItem)
+
+
+/**
+ * @summary Create a note
+ */
+export const CreateAskanusNoteBody = zod.object({
+  "title": zod.string(),
+  "content": zod.string()
+})
+
+
+/**
+ * @summary Update a note
+ */
+export const UpdateAskanusNoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateAskanusNoteBody = zod.object({
+  "title": zod.string(),
+  "content": zod.string()
+})
+
+export const UpdateAskanusNoteResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a note
+ */
+export const DeleteAskanusNoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteAskanusNoteResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+

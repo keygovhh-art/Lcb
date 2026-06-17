@@ -705,6 +705,117 @@ export interface NotificationReadResult {
   updatedCount: number;
 }
 
+export interface ActivityEntry {
+  id: number;
+  caseId: number;
+  date: string;
+  type: string;
+  note: string;
+  /** @nullable */
+  amount?: number | null;
+  createdAt: string;
+}
+
+export interface CaseFollowup {
+  id: number;
+  caseId: number;
+  date: string;
+  note: string;
+  /** @nullable */
+  dueDate?: string | null;
+  completed: boolean;
+  createdAt: string;
+}
+
+export interface AskanusCase {
+  id: number;
+  title: string;
+  description: string;
+  status: string;
+  urgency: string;
+  category: string;
+  contactName: string;
+  deadline: string;
+  goalAmount: number;
+  fundsPromised: number;
+  fundsReceived: number;
+  notes: string;
+  createdAt: string;
+  lastUpdated: string;
+  activityLog: ActivityEntry[];
+  followUpNotes: CaseFollowup[];
+}
+
+export interface NewAskanuscaseInput {
+  title: string;
+  description?: string;
+  urgency?: string;
+  category?: string;
+  contactName?: string;
+  deadline?: string;
+  goalAmount?: number;
+  notes?: string;
+}
+
+export interface UpdateAskanuscaseInput {
+  status?: string;
+  urgency?: string;
+  goalAmount?: number;
+  fundsPromised?: number;
+  fundsReceived?: number;
+  notes?: string;
+}
+
+export interface ProgressUpdateInput {
+  action: string;
+  amount?: number;
+  note?: string;
+  from?: string;
+  dueDate?: string;
+  status?: string;
+  goal?: number;
+}
+
+export interface AskanusTask {
+  id: number;
+  title: string;
+  caseTitle: string;
+  deadline: string;
+  completed: boolean;
+  priority: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface NewAskanustaskInput {
+  title: string;
+  caseTitle?: string;
+  deadline?: string;
+  priority?: string;
+  notes?: string;
+}
+
+export interface UpdateAskanustaskInput {
+  title?: string;
+  caseTitle?: string;
+  deadline?: string;
+  completed?: boolean;
+  priority?: string;
+  notes?: string;
+}
+
+export interface AskanusNote {
+  id: number;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface NewAskanusNoteInput {
+  title: string;
+  content: string;
+}
+
 export type ListUsersParams = {
 role?: string;
 search?: string;
@@ -782,5 +893,17 @@ export const GetActivityStatsPeriod = {
 
 export type ListReportsParams = {
 status?: string;
+};
+
+export type DeleteAskanusCase200 = {
+  ok: boolean;
+};
+
+export type DeleteAskanusTask200 = {
+  ok: boolean;
+};
+
+export type DeleteAskanusNote200 = {
+  ok: boolean;
 };
 

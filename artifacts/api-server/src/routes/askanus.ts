@@ -1,0 +1,201 @@
+import { Router } from "express";
+import { db } from "@workspace/db";
+import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes } from "@workspace/db/schema";
+import { eq, desc } from "drizzle-orm";
+
+const router = Router();
+
+const TODAY = () => new Date().toISOString().slice(0, 10);
+
+async function getCaseWithDetails(id: number) {
+  const [c] = await db.select().from(askanuscases).where(eq(askanuscases.id, id));
+  if (!c) return null;
+  const activity = await db.select().from(caseActivityLog).where(eq(caseActivityLog.caseId, id)).orderBy(desc(caseActivityLog.createdAt));
+  const followups = await db.select().from(caseFollowups).where(eq(caseFollowups.caseId, id)).orderBy(desc(caseFollowups.createdAt));
+  return {
+    ...c,
+    goalAmount: Number(c.goalAmount),
+    fundsPromised: Number(c.fundsPromised),
+    fundsReceived: Number(c.fundsReceived),
+    createdAt: c.createdAt.toISOString(),
+    lastUpdated: c.lastUpdated.toISOString(),
+    activityLog: activity.map(a => ({
+      ...a,
+      amount: a.amount != null ? Number(a.amount) : null,
+      createdAt: a.createdAt.toISOString(),
+    })),
+    followUpNotes: followups.map(f => ({ ...f, createdAt: f.createdAt.toISOString() })),
+  };
+}
+
+// --- Cases ---
+
+router.get("/api/askanus/cases", async (req, res) => {
+  const cases = await db.select().from(askanuscases).orderBy(desc(askanuscases.lastUpdated));
+  const result = await Promise.all(cases.map(c => getCaseWithDetails(c.id)));
+  res.json(result);
+});
+
+router.post("/api/askanus/cases", async (req, res) => {
+  const { title, description, urgency, category, contactName, deadline, goalAmount, notes } = req.body;
+  const [created] = await db.insert(askanuscases).values({
+    title,
+    description: description ?? "",
+    urgency: urgency ?? "medium",
+    category: category ?? "General",
+    contactName: contactName ?? "",
+    deadline: deadline ?? "",
+    goalAmount: String(goalAmount ?? 0),
+    notes: notes ?? "",
+  }).returning();
+  // seed opening activity
+  const today = TODAY();
+  await db.insert(caseActivityLog).values({ caseId: created.id, date: today, type: "status_change", note: "Case opened" });
+  const full = await getCaseWithDetails(created.id);
+  res.status(201).json(full);
+});
+
+router.patch("/api/askanus/cases/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const { status, urgency, goalAmount, fundsPromised, fundsReceived, notes } = req.body;
+  const updates: Record<string, unknown> = { lastUpdated: new Date() };
+  if (status !== undefined) updates.status = status;
+  if (urgency !== undefined) updates.urgency = urgency;
+  if (goalAmount !== undefined) updates.goalAmount = String(goalAmount);
+  if (fundsPromised !== undefined) updates.fundsPromised = String(fundsPromised);
+  if (fundsReceived !== undefined) updates.fundsReceived = String(fundsReceived);
+  if (notes !== undefined) updates.notes = notes;
+  await db.update(askanuscases).set(updates).where(eq(askanuscases.id, id));
+  const full = await getCaseWithDetails(id);
+  res.json(full);
+});
+
+router.delete("/api/askanus/cases/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  await db.delete(askanuscases).where(eq(askanuscases.id, id));
+  res.json({ ok: true });
+});
+
+// Unified progress update — handles all UpdateProgressDialog actions atomically
+router.post("/api/askanus/cases/:id/progress", async (req, res) => {
+  const id = Number(req.params.id);
+  const { action, amount, note, from, dueDate, status, goal } = req.body;
+  const today = TODAY();
+
+  const [existing] = await db.select().from(askanuscases).where(eq(askanuscases.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+  const caseUpdates: Record<string, unknown> = { lastUpdated: new Date() };
+
+  if (action === "funds_received" && amount) {
+    const newTotal = Number(existing.fundsReceived) + Number(amount);
+    caseUpdates.fundsReceived = String(newTotal);
+    await db.insert(caseActivityLog).values({
+      caseId: id, date: today, type: "funds_received",
+      note: note || `$${Number(amount).toLocaleString()} received`,
+      amount: String(amount),
+    });
+  } else if (action === "funds_promised" && amount) {
+    const newTotal = Number(existing.fundsPromised) + Number(amount);
+    caseUpdates.fundsPromised = String(newTotal);
+    const pledgeNote = from ? `$${Number(amount).toLocaleString()} pledged by ${from}` : `$${Number(amount).toLocaleString()} pledged`;
+    await db.insert(caseActivityLog).values({
+      caseId: id, date: today, type: "funds_promised",
+      note: pledgeNote, amount: String(amount),
+    });
+  } else if (action === "goal" && goal !== undefined) {
+    caseUpdates.goalAmount = String(goal);
+    await db.insert(caseActivityLog).values({
+      caseId: id, date: today, type: "update",
+      note: `Goal updated to $${Number(goal).toLocaleString()}`,
+    });
+  } else if (action === "note" && note) {
+    await db.insert(caseActivityLog).values({ caseId: id, date: today, type: "note", note });
+  } else if (action === "followup" && note) {
+    await db.insert(caseFollowups).values({ caseId: id, date: today, note, dueDate: dueDate || null });
+  } else if (action === "status" && status) {
+    caseUpdates.status = status;
+    await db.insert(caseActivityLog).values({
+      caseId: id, date: today, type: "status_change",
+      note: `Status changed to ${status.replace("_", " ")}`,
+    });
+  }
+
+  if (Object.keys(caseUpdates).length > 1) {
+    await db.update(askanuscases).set(caseUpdates).where(eq(askanuscases.id, id));
+  }
+
+  const full = await getCaseWithDetails(id);
+  res.json(full);
+});
+
+// Toggle followup
+router.patch("/api/askanus/followups/:id/toggle", async (req, res) => {
+  const id = Number(req.params.id);
+  const [existing] = await db.select().from(caseFollowups).where(eq(caseFollowups.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  const [updated] = await db.update(caseFollowups).set({ completed: !existing.completed }).where(eq(caseFollowups.id, id)).returning();
+  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+});
+
+// --- Tasks ---
+
+router.get("/api/askanus/tasks", async (req, res) => {
+  const tasks = await db.select().from(askanustasks).orderBy(desc(askanustasks.createdAt));
+  res.json(tasks.map(t => ({ ...t, createdAt: t.createdAt.toISOString() })));
+});
+
+router.post("/api/askanus/tasks", async (req, res) => {
+  const { title, caseTitle, deadline, priority, notes } = req.body;
+  const [created] = await db.insert(askanustasks).values({
+    title, caseTitle: caseTitle ?? "", deadline: deadline ?? "",
+    priority: priority ?? "medium", notes: notes ?? "",
+  }).returning();
+  res.status(201).json({ ...created, createdAt: created.createdAt.toISOString() });
+});
+
+router.patch("/api/askanus/tasks/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const updates: Record<string, unknown> = {};
+  const { title, caseTitle, deadline, completed, priority, notes } = req.body;
+  if (title !== undefined) updates.title = title;
+  if (caseTitle !== undefined) updates.caseTitle = caseTitle;
+  if (deadline !== undefined) updates.deadline = deadline;
+  if (completed !== undefined) updates.completed = completed;
+  if (priority !== undefined) updates.priority = priority;
+  if (notes !== undefined) updates.notes = notes;
+  const [updated] = await db.update(askanustasks).set(updates).where(eq(askanustasks.id, id)).returning();
+  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+});
+
+router.delete("/api/askanus/tasks/:id", async (req, res) => {
+  await db.delete(askanustasks).where(eq(askanustasks.id, Number(req.params.id)));
+  res.json({ ok: true });
+});
+
+// --- Notes ---
+
+router.get("/api/askanus/notes", async (req, res) => {
+  const notes = await db.select().from(askanusnotes).orderBy(desc(askanusnotes.createdAt));
+  res.json(notes.map(n => ({ ...n, createdAt: n.createdAt.toISOString() })));
+});
+
+router.post("/api/askanus/notes", async (req, res) => {
+  const { title, content } = req.body;
+  const [created] = await db.insert(askanusnotes).values({ title, content }).returning();
+  res.status(201).json({ ...created, createdAt: created.createdAt.toISOString() });
+});
+
+router.patch("/api/askanus/notes/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const { title, content } = req.body;
+  const [updated] = await db.update(askanusnotes).set({ title, content }).where(eq(askanusnotes.id, id)).returning();
+  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+});
+
+router.delete("/api/askanus/notes/:id", async (req, res) => {
+  await db.delete(askanusnotes).where(eq(askanusnotes.id, Number(req.params.id)));
+  res.json({ ok: true });
+});
+
+export default router;

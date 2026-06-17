@@ -1700,6 +1700,284 @@ paths:
                 items:
                   $ref: "#/components/schemas/HelpRequest"
 
+  /api/askanus/cases:
+    get:
+      operationId: listAskanuscases
+      tags: [askanus]
+      summary: List all askanus cases with activity log and followups
+      responses:
+        "200":
+          description: Cases list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AskanusCase"
+    post:
+      operationId: createAskanusCase
+      tags: [askanus]
+      summary: Create a new askanus case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewAskanuscaseInput"
+      responses:
+        "201":
+          description: Created case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskanusCase"
+
+  /api/askanus/cases/{id}:
+    patch:
+      operationId: updateAskanusCase
+      tags: [askanus]
+      summary: Update case fields
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAskanuscaseInput"
+      responses:
+        "200":
+          description: Updated case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskanusCase"
+    delete:
+      operationId: deleteAskanusCase
+      tags: [askanus]
+      summary: Delete a case
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+
+  /api/askanus/cases/{id}/progress:
+    post:
+      operationId: updateAskanuscaseProgress
+      tags: [askanus]
+      summary: Record funds, add note, add followup, or change status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgressUpdateInput"
+      responses:
+        "200":
+          description: Updated case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskanusCase"
+
+  /api/askanus/followups/{id}/toggle:
+    patch:
+      operationId: toggleCaseFollowup
+      tags: [askanus]
+      summary: Toggle a followup completed state
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Toggled followup
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseFollowup"
+
+  /api/askanus/tasks:
+    get:
+      operationId: listAskanustasks
+      tags: [askanus]
+      summary: List all tasks
+      responses:
+        "200":
+          description: Tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AskanusTask"
+    post:
+      operationId: createAskanusTask
+      tags: [askanus]
+      summary: Create a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewAskanustaskInput"
+      responses:
+        "201":
+          description: Created task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskanusTask"
+
+  /api/askanus/tasks/{id}:
+    patch:
+      operationId: updateAskanusTask
+      tags: [askanus]
+      summary: Update or toggle a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAskanustaskInput"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskanusTask"
+    delete:
+      operationId: deleteAskanusTask
+      tags: [askanus]
+      summary: Delete a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+
+  /api/askanus/notes:
+    get:
+      operationId: listAskanusNotes
+      tags: [askanus]
+      summary: List all notes
+      responses:
+        "200":
+          description: Notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AskanusNote"
+    post:
+      operationId: createAskanusNote
+      tags: [askanus]
+      summary: Create a note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewAskanusNoteInput"
+      responses:
+        "201":
+          description: Created note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskanusNote"
+
+  /api/askanus/notes/{id}:
+    patch:
+      operationId: updateAskanusNote
+      tags: [askanus]
+      summary: Update a note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewAskanusNoteInput"
+      responses:
+        "200":
+          description: Updated note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskanusNote"
+    delete:
+      operationId: deleteAskanusNote
+      tags: [askanus]
+      summary: Delete a note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+
 components:
   schemas:
     HealthStatus:
@@ -2692,3 +2970,212 @@ components:
       properties:
         updatedCount:
           type: integer
+
+    ActivityEntry:
+      type: object
+      required: [id, caseId, date, type, note, createdAt]
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        date:
+          type: string
+        type:
+          type: string
+        note:
+          type: string
+        amount:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+
+    CaseFollowup:
+      type: object
+      required: [id, caseId, date, note, completed, createdAt]
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        date:
+          type: string
+        note:
+          type: string
+        dueDate:
+          type: ["string", "null"]
+        completed:
+          type: boolean
+        createdAt:
+          type: string
+
+    AskanusCase:
+      type: object
+      required: [id, title, description, status, urgency, category, contactName, deadline, goalAmount, fundsPromised, fundsReceived, notes, createdAt, lastUpdated, activityLog, followUpNotes]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+        urgency:
+          type: string
+        category:
+          type: string
+        contactName:
+          type: string
+        deadline:
+          type: string
+        goalAmount:
+          type: number
+        fundsPromised:
+          type: number
+        fundsReceived:
+          type: number
+        notes:
+          type: string
+        createdAt:
+          type: string
+        lastUpdated:
+          type: string
+        activityLog:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityEntry"
+        followUpNotes:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseFollowup"
+
+    NewAskanuscaseInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        urgency:
+          type: string
+        category:
+          type: string
+        contactName:
+          type: string
+        deadline:
+          type: string
+        goalAmount:
+          type: number
+        notes:
+          type: string
+
+    UpdateAskanuscaseInput:
+      type: object
+      properties:
+        status:
+          type: string
+        urgency:
+          type: string
+        goalAmount:
+          type: number
+        fundsPromised:
+          type: number
+        fundsReceived:
+          type: number
+        notes:
+          type: string
+
+    ProgressUpdateInput:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+        amount:
+          type: number
+        note:
+          type: string
+        from:
+          type: string
+        dueDate:
+          type: string
+        status:
+          type: string
+        goal:
+          type: number
+
+    AskanusTask:
+      type: object
+      required: [id, title, caseTitle, deadline, completed, priority, notes, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        caseTitle:
+          type: string
+        deadline:
+          type: string
+        completed:
+          type: boolean
+        priority:
+          type: string
+        notes:
+          type: string
+        createdAt:
+          type: string
+
+    NewAskanustaskInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        caseTitle:
+          type: string
+        deadline:
+          type: string
+        priority:
+          type: string
+        notes:
+          type: string
+
+    UpdateAskanustaskInput:
+      type: object
+      properties:
+        title:
+          type: string
+        caseTitle:
+          type: string
+        deadline:
+          type: string
+        completed:
+          type: boolean
+        priority:
+          type: string
+        notes:
+          type: string
+
+    AskanusNote:
+      type: object
+      required: [id, title, content, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+
+    NewAskanusNoteInput:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+        content:
+          type: string

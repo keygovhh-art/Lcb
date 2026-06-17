@@ -12,6 +12,7 @@ import platformRouter from "./platform";
 import causeSupportersRouter from "./cause-supporters";
 import featuredCausesRouter from "./featured-causes";
 import communityProjectsRouter from "./community-projects";
+import askanusRouter from "./askanus";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(platformRouter);
 router.use(causeSupportersRouter);
 router.use(featuredCausesRouter);
 router.use(communityProjectsRouter);
+router.use(askanusRouter);
 
 export default router;
