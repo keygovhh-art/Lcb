@@ -1,12 +1,13 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Bell, Search, Menu, X, Globe, MessageSquare, HandHeart, Heart, Clock,
   Users, BarChart3, Shield, Home, ChevronRight, ChevronDown, Network,
-  Radio, CalendarDays, Star, User,
+  Radio, CalendarDays, Star, User, LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/context/language-context";
+import { useAuth } from "@/context/auth-context";
 import {
   useGetUnreadNotificationCount,
   getGetUnreadNotificationCountQueryKey,
@@ -26,17 +27,21 @@ const PRIMARY_DEPTS = [
 const MORE_DEPTS = [
   { label: "Communications", fullLabel: "Olam Hachesed Communications", href: "/communications", icon: <Radio className="h-4 w-4" /> },
   { label: "Reservations", fullLabel: "Gavhah Office Reservations", href: "/reservations", icon: <CalendarDays className="h-4 w-4" /> },
-  { label: "Admin Center", fullLabel: "Administration Center", href: "/admin", icon: <Shield className="h-4 w-4" /> },
   { label: "Koach Harabim", fullLabel: "Koach Harabim Dashboard", href: "/dashboard", icon: <BarChart3 className="h-4 w-4" /> },
 ];
 
-const ALL_DEPTS = [...PRIMARY_DEPTS, ...MORE_DEPTS];
+const ADMIN_DEPT = { label: "Founder Dashboard", fullLabel: "Founder & Admin Dashboard", href: "/founder", icon: <Shield className="h-4 w-4" /> };
+
+const ALL_PUBLIC_DEPTS = [...PRIMARY_DEPTS, ...MORE_DEPTS];
 
 export function Layout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
   const [location] = useLocation();
   const { lang, setLang } = useLanguage();
+  const { user, isAuthenticated, isAdmin, logout } = useAuth();
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const { data: unreadData } = useGetUnreadNotificationCount({
     query: {
@@ -49,7 +54,21 @@ export function Layout({ children }: { children: ReactNode }) {
   const isActive = (href: string) =>
     href === "/" ? location === "/" : location.startsWith(href);
 
-  const activeMoreDept = MORE_DEPTS.find(d => isActive(d.href));
+  const visibleMoreDepts = isAdmin ? [...MORE_DEPTS, ADMIN_DEPT] : MORE_DEPTS;
+  const allDepts = [...PRIMARY_DEPTS, ...visibleMoreDepts];
+  const activeMoreDept = visibleMoreDepts.find(d => isActive(d.href));
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const displayName = user?.nickname || user?.name || "Account";
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
@@ -61,7 +80,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <span className="font-serif text-xl font-bold text-primary tracking-wide">GAVHAH</span>
           </Link>
 
-          {/* Desktop Nav — 8 primary + More dropdown */}
+          {/* Desktop Nav */}
           <nav className="hidden lg:flex items-center gap-0 flex-1 justify-center">
             {PRIMARY_DEPTS.map((d) => (
               <Link key={d.href} href={d.href}>
@@ -105,6 +124,22 @@ export function Layout({ children }: { children: ReactNode }) {
                         </div>
                       </Link>
                     ))}
+                    {isAdmin && (
+                      <>
+                        <div className="my-1 border-t" />
+                        <Link href="/founder">
+                          <div
+                            onClick={() => setMoreOpen(false)}
+                            className={`flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer transition-colors ${
+                              isActive("/founder") ? "bg-primary/5 text-primary font-semibold" : "hover:bg-muted/50 text-foreground"
+                            }`}
+                          >
+                            <span className="text-muted-foreground"><Shield className="h-4 w-4" /></span>
+                            Founder Dashboard
+                          </div>
+                        </Link>
+                      </>
+                    )}
                   </div>
                 </>
               )}
@@ -116,6 +151,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <Button variant="ghost" size="icon" className="hidden md:flex h-8 w-8">
               <Search className="h-4 w-4" />
             </Button>
+
             {/* Language toggle */}
             <button
               onClick={() => setLang(lang === "en" ? "yi" : "en")}
@@ -125,7 +161,7 @@ export function Layout({ children }: { children: ReactNode }) {
               {lang === "en" ? "עי" : "EN"}
             </button>
 
-            {/* Bell — links to notifications, shows real unread count */}
+            {/* Bell */}
             <Link href="/notifications">
               <Button variant="ghost" size="icon" className="relative h-8 w-8">
                 <Bell className="h-4 w-4" />
@@ -137,19 +173,68 @@ export function Layout({ children }: { children: ReactNode }) {
               </Button>
             </Link>
 
-            {/* Profile */}
-            <Link href="/profile" className="hidden md:flex">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <User className="h-4 w-4" />
-              </Button>
-            </Link>
+            {isAuthenticated ? (
+              /* Logged-in user menu */
+              <div className="relative hidden md:block" ref={userMenuRef}>
+                <button
+                  onClick={() => setUserOpen(o => !o)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary border border-primary/20 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                >
+                  <User className="h-3.5 w-3.5" />
+                  <span className="max-w-[100px] truncate">{displayName}</span>
+                  <ChevronDown className="h-3 w-3 opacity-60" />
+                </button>
+                {userOpen && (
+                  <div className="absolute top-full mt-1 right-0 z-50 bg-card border rounded-xl shadow-lg py-1 min-w-48">
+                    <div className="px-4 py-2 border-b mb-1">
+                      <p className="text-xs font-semibold text-foreground truncate">{displayName}</p>
+                      {user?.email && <p className="text-xs text-muted-foreground truncate">{user.email}</p>}
+                    </div>
+                    {[
+                      { label: "My Profile", href: "/profile" },
+                      { label: "My Askanus", href: "/my" },
+                      { label: "Notifications", href: "/notifications" },
+                    ].map(item => (
+                      <Link key={item.href} href={item.href}>
+                        <div onClick={() => setUserOpen(false)} className="px-4 py-2 text-sm hover:bg-muted/50 cursor-pointer text-foreground">
+                          {item.label}
+                        </div>
+                      </Link>
+                    ))}
+                    {isAdmin && (
+                      <>
+                        <div className="my-1 border-t" />
+                        <Link href="/founder">
+                          <div onClick={() => setUserOpen(false)} className="px-4 py-2 text-sm hover:bg-muted/50 cursor-pointer text-foreground flex items-center gap-2">
+                            <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                            Founder Dashboard
+                          </div>
+                        </Link>
+                      </>
+                    )}
+                    <div className="my-1 border-t" />
+                    <button
+                      onClick={async () => { setUserOpen(false); await logout(); }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-muted/50 cursor-pointer text-destructive flex items-center gap-2"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Guest buttons */
+              <div className="hidden md:flex items-center gap-1">
+                <Link href="/login">
+                  <Button variant="outline" size="sm" className="font-serif h-8 text-xs px-3">Sign In</Button>
+                </Link>
+                <Link href="/register">
+                  <Button size="sm" className="bg-secondary hover:bg-secondary/90 text-white font-serif h-8 text-xs px-3">Join</Button>
+                </Link>
+              </div>
+            )}
 
-            <Link href="/login" className="hidden md:flex">
-              <Button variant="outline" size="sm" className="font-serif h-8 text-xs px-3">Sign In</Button>
-            </Link>
-            <Link href="/register" className="hidden md:flex">
-              <Button size="sm" className="bg-secondary hover:bg-secondary/90 text-white font-serif h-8 text-xs px-3">Join</Button>
-            </Link>
             <Button
               variant="ghost" size="icon"
               className="lg:hidden h-8 w-8"
@@ -160,12 +245,12 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        {/* Active department breadcrumb */}
+        {/* Breadcrumb */}
         {location !== "/" && (
           <div className="border-t border-muted/40 bg-muted/20">
             <div className="container mx-auto px-4 flex items-center gap-2 py-1.5">
               <Link href="/"><span className="text-xs text-muted-foreground hover:text-primary cursor-pointer">Home</span></Link>
-              {ALL_DEPTS.filter(d => isActive(d.href)).map(d => (
+              {allDepts.filter(d => isActive(d.href)).map(d => (
                 <div key={d.href} className="flex items-center gap-2">
                   <span className="text-muted-foreground/40 text-xs">/</span>
                   <div className="flex items-center gap-1.5">
@@ -202,7 +287,7 @@ export function Layout({ children }: { children: ReactNode }) {
               </Link>
               <p className="px-4 pt-4 pb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Departments</p>
               <nav className="space-y-0.5 px-2">
-                {ALL_DEPTS.map((d) => (
+                {ALL_PUBLIC_DEPTS.map((d) => (
                   <Link key={d.href} href={d.href}>
                     <div onClick={() => setMobileOpen(false)} className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${isActive(d.href) ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-foreground"}`}>
                       <div className="flex items-center gap-3">
@@ -213,6 +298,17 @@ export function Layout({ children }: { children: ReactNode }) {
                     </div>
                   </Link>
                 ))}
+                {isAdmin && (
+                  <Link href="/founder">
+                    <div onClick={() => setMobileOpen(false)} className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${isActive("/founder") ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-foreground"}`}>
+                      <div className="flex items-center gap-3">
+                        <Shield className={`h-4 w-4 ${isActive("/founder") ? "text-primary-foreground" : "text-muted-foreground"}`} />
+                        <span className="font-medium text-sm">Founder Dashboard</span>
+                      </div>
+                      <ChevronRight className="h-4 w-4 opacity-40" />
+                    </div>
+                  </Link>
+                )}
               </nav>
               <div className="border-t mt-3 pt-3 px-2 space-y-0.5">
                 <Link href="/notifications">
@@ -238,12 +334,29 @@ export function Layout({ children }: { children: ReactNode }) {
               </div>
             </div>
             <div className="p-4 border-t space-y-2">
-              <Link href="/login" onClick={() => setMobileOpen(false)}>
-                <Button variant="outline" className="w-full font-serif">Sign In</Button>
-              </Link>
-              <Link href="/register" onClick={() => setMobileOpen(false)}>
-                <Button className="w-full bg-secondary hover:bg-secondary/90 text-white font-serif">Join Kehilla</Button>
-              </Link>
+              {isAuthenticated ? (
+                <>
+                  <div className="px-2 py-1 text-sm text-muted-foreground font-medium truncate">
+                    Signed in as <span className="text-foreground font-semibold">{displayName}</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={async () => { setMobileOpen(false); await logout(); }}
+                  >
+                    <LogOut className="h-4 w-4" /> Sign Out
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" onClick={() => setMobileOpen(false)}>
+                    <Button variant="outline" className="w-full font-serif">Sign In</Button>
+                  </Link>
+                  <Link href="/register" onClick={() => setMobileOpen(false)}>
+                    <Button className="w-full bg-secondary hover:bg-secondary/90 text-white font-serif">Join Kehilla</Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -280,7 +393,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div>
               <p className="font-semibold text-primary-foreground/80 mb-3 uppercase tracking-wider text-xs">Platform</p>
               <nav className="space-y-1.5">
-                {[["My Askanus", "/my"], ["Koach Harabim", "/dashboard"], ["Notifications", "/notifications"], ["My Profile", "/profile"], ["Admin Center", "/admin"]].map(([l, h]) => (
+                {[["My Askanus", "/my"], ["Koach Harabim", "/dashboard"], ["Notifications", "/notifications"], ["My Profile", "/profile"]].map(([l, h]) => (
                   <Link key={h} href={h} className="block text-primary-foreground/60 hover:text-accent transition-colors text-xs">{l}</Link>
                 ))}
               </nav>

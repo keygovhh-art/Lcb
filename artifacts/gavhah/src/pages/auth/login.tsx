@@ -5,25 +5,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, LogIn } from "lucide-react";
+import { useAuth } from "@/context/auth-context";
 
 export default function Login() {
   const [, navigate] = useLocation();
-  const [email, setEmail] = useState("");
+  const { login } = useAuth();
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) { setError("Please fill in all fields."); return; }
+    if (!identifier.trim() || !password) { setError("Please fill in all fields."); return; }
     setLoading(true);
     setError("");
-    // Simulate auth — in production this would call a real auth endpoint
-    setTimeout(() => {
-      setLoading(false);
-      navigate("/my");
-    }, 800);
+    const result = await login(identifier.trim(), password);
+    setLoading(false);
+    if (result.ok) {
+      navigate("/");
+    } else {
+      setError(result.error ?? "Login failed. Please check your credentials.");
+    }
   };
 
   return (
@@ -39,14 +43,15 @@ export default function Login() {
           <div className="bg-card border rounded-2xl p-8 shadow-sm">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="email" className="font-semibold">Email Address</Label>
+                <Label htmlFor="identifier" className="font-semibold">Email or Phone Number</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="your@email.com"
+                  id="identifier"
+                  type="text"
+                  value={identifier}
+                  onChange={e => setIdentifier(e.target.value)}
+                  placeholder="your@email.com or +1 (718) 555-0100"
                   className="h-12"
+                  autoComplete="username"
                   required
                 />
               </div>
@@ -54,9 +59,6 @@ export default function Login() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password" className="font-semibold">Password</Label>
-                  <button type="button" className="text-xs text-secondary hover:underline">
-                    Forgot password?
-                  </button>
                 </div>
                 <div className="relative">
                   <Input
@@ -66,6 +68,7 @@ export default function Login() {
                     onChange={e => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     className="h-12 pr-11"
+                    autoComplete="current-password"
                     required
                   />
                   <button

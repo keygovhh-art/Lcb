@@ -6,15 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, UserPlus, CheckCircle, Mail, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/auth-context";
 
 type ContactMethod = "email" | "phone";
 
 export default function Register() {
   const [, navigate] = useLocation();
+  const { refresh } = useAuth();
   const { toast } = useToast();
   const [method, setMethod] = useState<ContactMethod>("email");
   const [form, setForm] = useState({
-    name: "", nickname: "", email: "", phone: "",
+    nickname: "", name: "", email: "", phone: "",
     location: "", password: "", confirm: "",
   });
   const [showPw, setShowPw] = useState(false);
@@ -26,7 +28,7 @@ export default function Register() {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.name.trim()) e.name = "Name is required";
+    if (!form.nickname.trim()) e.nickname = "Nickname is required";
     if (method === "email" && !form.email.includes("@")) e.contact = "A valid email address is required";
     if (method === "phone" && form.phone.replace(/\D/g, "").length < 7) e.contact = "A valid phone number is required";
     if (form.password.length < 6) e.password = "Password must be at least 6 characters";
@@ -42,20 +44,32 @@ export default function Register() {
     setLoading(true);
     try {
       const payload: Record<string, string> = {
-        name: form.name,
+        nickname: form.nickname.trim(),
         password: form.password,
-        ...(form.nickname ? { nickname: form.nickname } : {}),
-        ...(form.location ? { location: form.location } : {}),
-        ...(method === "email" ? { email: form.email } : { phone: form.phone }),
+        ...(form.name.trim() ? { name: form.name.trim() } : {}),
+        ...(form.location.trim() ? { location: form.location.trim() } : {}),
+        ...(method === "email" ? { email: form.email.trim() } : { phone: form.phone.trim() }),
       };
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        toast({ title: "Welcome to Gavhah!", description: "Your account has been created." });
-        navigate("/my");
+        const user = await res.json();
+        const loginRes = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            identifier: method === "email" ? form.email.trim() : form.phone.trim(),
+            password: form.password,
+          }),
+        });
+        if (loginRes.ok) await refresh();
+        toast({ title: `Welcome, ${user.nickname}!`, description: "Your Gavhah membership is active." });
+        navigate("/");
       } else {
         const data = await res.json().catch(() => ({}));
         toast({ title: "Registration failed", description: data.error ?? "Please try again.", variant: "destructive" });
@@ -80,30 +94,49 @@ export default function Register() {
           <div className="text-center mb-8">
             <span className="font-serif text-3xl font-bold text-accent">Gavhah</span>
             <h1 className="font-serif text-2xl font-bold text-primary mt-2 mb-1">Join the Kehilla</h1>
-            <p className="text-muted-foreground font-serif italic text-sm">Create your community account</p>
+            <p className="text-muted-foreground font-serif italic text-sm">Membership is free</p>
           </div>
 
           <div className="bg-card border rounded-2xl p-8 shadow-sm">
             <form onSubmit={handleSubmit} className="space-y-5">
 
-              {/* Name */}
-              <div className="space-y-2">
-                <Label htmlFor="name" className="font-semibold">Full Name *</Label>
-                <Input id="name" value={form.name} onChange={set("name")} placeholder="Your name" className="h-12" />
-                {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
-              </div>
-
-              {/* Nickname */}
+              {/* Nickname — required, public */}
               <div className="space-y-2">
                 <Label htmlFor="nickname" className="font-semibold">
-                  Nickname <span className="text-muted-foreground font-normal">(shown publicly on posts)</span>
+                  Nickname <span className="text-destructive">*</span>
+                  <span className="text-muted-foreground font-normal ml-1 text-xs">(shown publicly)</span>
                 </Label>
-                <Input id="nickname" value={form.nickname} onChange={set("nickname")} placeholder="How the community will know you" className="h-12" />
+                <Input
+                  id="nickname"
+                  value={form.nickname}
+                  onChange={set("nickname")}
+                  placeholder="How the community will know you"
+                  className="h-12"
+                  autoComplete="username"
+                />
+                {errors.nickname && <p className="text-xs text-destructive">{errors.nickname}</p>}
               </div>
 
-              {/* Contact method toggle */}
+              {/* Real Name — optional, private */}
               <div className="space-y-2">
-                <Label className="font-semibold">Contact Method *</Label>
+                <Label htmlFor="name" className="font-semibold">
+                  Real Name <span className="text-muted-foreground font-normal">(optional, kept private)</span>
+                </Label>
+                <Input
+                  id="name"
+                  value={form.name}
+                  onChange={set("name")}
+                  placeholder="Your full name"
+                  className="h-12"
+                  autoComplete="name"
+                />
+              </div>
+
+              {/* Contact method */}
+              <div className="space-y-2">
+                <Label className="font-semibold">
+                  Contact Method <span className="text-destructive">*</span>
+                </Label>
                 <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg">
                   <button
                     type="button"
@@ -121,36 +154,24 @@ export default function Register() {
                   </button>
                 </div>
                 {method === "email" ? (
-                  <Input
-                    type="email"
-                    value={form.email}
-                    onChange={set("email")}
-                    placeholder="your@email.com"
-                    className="h-12"
-                    autoComplete="email"
-                  />
+                  <Input type="email" value={form.email} onChange={set("email")} placeholder="your@email.com" className="h-12" autoComplete="email" />
                 ) : (
-                  <Input
-                    type="tel"
-                    value={form.phone}
-                    onChange={set("phone")}
-                    placeholder="+1 (718) 555-0100"
-                    className="h-12"
-                    autoComplete="tel"
-                  />
+                  <Input type="tel" value={form.phone} onChange={set("phone")} placeholder="+1 (718) 555-0100" className="h-12" autoComplete="tel" />
                 )}
                 {errors.contact && <p className="text-xs text-destructive">{errors.contact}</p>}
               </div>
 
-              {/* Location */}
+              {/* Location — optional */}
               <div className="space-y-2">
-                <Label htmlFor="location" className="font-semibold">City / Community <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Label htmlFor="location" className="font-semibold">
+                  City / Community <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
                 <Input id="location" value={form.location} onChange={set("location")} placeholder="Brooklyn, NY" className="h-12" />
               </div>
 
               {/* Password */}
               <div className="space-y-2">
-                <Label htmlFor="password" className="font-semibold">Password *</Label>
+                <Label htmlFor="password" className="font-semibold">Password <span className="text-destructive">*</span></Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -159,6 +180,7 @@ export default function Register() {
                     onChange={set("password")}
                     placeholder="Minimum 6 characters"
                     className="h-12 pr-11"
+                    autoComplete="new-password"
                   />
                   <button
                     type="button"
@@ -181,7 +203,7 @@ export default function Register() {
 
               {/* Confirm password */}
               <div className="space-y-2">
-                <Label htmlFor="confirm" className="font-semibold">Confirm Password *</Label>
+                <Label htmlFor="confirm" className="font-semibold">Confirm Password <span className="text-destructive">*</span></Label>
                 <div className="relative">
                   <Input
                     id="confirm"
@@ -190,6 +212,7 @@ export default function Register() {
                     onChange={set("confirm")}
                     placeholder="Repeat your password"
                     className="h-12 pr-11"
+                    autoComplete="new-password"
                   />
                   {form.confirm && form.confirm === form.password && (
                     <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-green-500" />
@@ -203,7 +226,7 @@ export default function Register() {
                 className="w-full h-12 bg-secondary hover:bg-secondary/90 text-white font-semibold text-base gap-2"
                 disabled={loading}
               >
-                {loading ? "Creating account..." : <><UserPlus className="h-5 w-5" /> Create Account</>}
+                {loading ? "Creating account..." : <><UserPlus className="h-5 w-5" /> Create Free Account</>}
               </Button>
             </form>
 

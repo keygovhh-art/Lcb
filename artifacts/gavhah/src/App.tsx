@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/context/language-context";
+import { AuthProvider } from "@/context/auth-context";
 import NotFound from "@/pages/not-found";
 
 import Home from "@/pages/home";
@@ -24,7 +25,7 @@ import SystemCenter from "@/pages/system/index";
 import Dashboard from "@/pages/dashboard/index";
 import Login from "@/pages/auth/login";
 import Register from "@/pages/auth/register";
-import Admin from "@/pages/admin/index";
+import FounderDashboard from "@/pages/admin/index";
 import NotificationsPage from "@/pages/notifications/index";
 import ProfilePage from "@/pages/profile/index";
 
@@ -49,7 +50,7 @@ function Router() {
       <Route path="/my" component={MyAskanus} />
       <Route path="/reservations" component={Reservations} />
       <Route path="/system" component={SystemCenter} />
-      <Route path="/admin" component={Admin} />
+      <Route path="/founder" component={FounderDashboard} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/notifications" component={NotificationsPage} />
       <Route path="/profile" component={ProfilePage} />
@@ -64,12 +65,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </AuthProvider>
       </LanguageProvider>
     </QueryClientProvider>
   );

@@ -1,1 +1,2 @@
-- [OpenAPI path prefix convention](openapi-path-prefix.md) — spec paths must NOT include /api prefix; orval baseUrl=/api prepends it automatically
+- [OpenAPI User type fields](openapi-user-type.md) — Generated User type lacks nickname/phone; those fields exist in DB schema but not in the OpenAPI spec.
+- [Session auth setup](session-auth.md) — express-session with secure:false works through Replit proxy; trust proxy:1 is required; SESSION_SECRET env var must be set.

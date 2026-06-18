@@ -13,6 +13,8 @@ import { ArrowLeft, Heart, Eye, MessageCircle, Lock, Pin } from "lucide-react";
 import { format } from "date-fns";
 import { ReportButton } from "@/components/shared/report-button";
 import { SaveButton } from "@/components/shared/save-button";
+import { MemberGate } from "@/components/shared/member-gate";
+import { useAuth } from "@/context/auth-context";
 
 const CATEGORY_LABELS: Record<string, string> = {
   medical: "Medical Assistance", shidduchim: "Shidduchim",
@@ -24,6 +26,7 @@ export default function ForumDetail() {
   const { id } = useParams<{ id: string }>();
   const numId = parseInt(id ?? "0", 10);
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [reply, setReply] = useState("");
 
   const { data: discussion, isLoading } = useGetDiscussion(numId, {
@@ -153,7 +156,6 @@ export default function ForumDetail() {
                     <button className="flex items-center gap-1 hover:text-secondary transition-colors">
                       <Heart className="h-3 w-3" /> {comment.likes}
                     </button>
-                    <button className="hover:text-secondary transition-colors">Reply</button>
                   </div>
                 </div>
               ))}
@@ -165,26 +167,28 @@ export default function ForumDetail() {
             </div>
 
             {!discussion.isLocked && (
-              <div className="bg-card border rounded-xl p-6 shadow-sm">
-                <h3 className="font-serif font-bold text-primary mb-4">Leave a Reply</h3>
-                <form onSubmit={handleComment} className="space-y-4">
-                  <Textarea
-                    value={reply}
-                    onChange={e => setReply(e.target.value)}
-                    placeholder="Share your thoughts or advice..."
-                    className="min-h-28 resize-none"
-                  />
-                  <div className="flex justify-end">
-                    <Button
-                      type="submit"
-                      className="bg-secondary hover:bg-secondary/90 text-white"
-                      disabled={addComment.isPending || !reply.trim()}
-                    >
-                      {addComment.isPending ? "Posting..." : "Post Reply"}
-                    </Button>
-                  </div>
-                </form>
-              </div>
+              <MemberGate action="leave a reply" compact={!user}>
+                <div className="bg-card border rounded-xl p-6 shadow-sm">
+                  <h3 className="font-serif font-bold text-primary mb-4">Leave a Reply</h3>
+                  <form onSubmit={handleComment} className="space-y-4">
+                    <Textarea
+                      value={reply}
+                      onChange={e => setReply(e.target.value)}
+                      placeholder="Share your thoughts or advice..."
+                      className="min-h-28 resize-none"
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        type="submit"
+                        className="bg-secondary hover:bg-secondary/90 text-white"
+                        disabled={addComment.isPending || !reply.trim()}
+                      >
+                        {addComment.isPending ? "Posting..." : "Post Reply"}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              </MemberGate>
             )}
           </>
         ) : (

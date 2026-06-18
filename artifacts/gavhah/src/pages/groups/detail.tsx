@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Users, Lock, Globe, KeyRound, Heart, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
+import { MemberGate } from "@/components/shared/member-gate";
 
 const privacyIcon = (p: string) => {
   if (p === "private") return <Lock className="h-4 w-4" />;
@@ -92,14 +93,16 @@ export default function GroupDetail() {
                     <h1 className="font-serif text-3xl font-bold text-primary">{group.name}</h1>
                     <p className="text-muted-foreground mt-2">Created by {group.ownerName}</p>
                   </div>
-                  <Button
-                    onClick={handleJoin}
-                    className="bg-secondary hover:bg-secondary/90 text-white shrink-0"
-                    disabled={join.isPending}
-                  >
-                    <Users className="h-4 w-4 mr-2" />
-                    {join.isPending ? "Joining..." : "Join Group"}
-                  </Button>
+                  <MemberGate action="join this group" compact>
+                    <Button
+                      onClick={handleJoin}
+                      className="bg-secondary hover:bg-secondary/90 text-white shrink-0"
+                      disabled={join.isPending}
+                    >
+                      <Users className="h-4 w-4 mr-2" />
+                      {join.isPending ? "Joining..." : "Join Group"}
+                    </Button>
+                  </MemberGate>
                 </div>
                 <p className="text-foreground mt-4 leading-relaxed">{group.description}</p>
                 <div className="flex gap-6 mt-6 pt-6 border-t text-sm text-muted-foreground">
@@ -117,26 +120,28 @@ export default function GroupDetail() {
               </TabsList>
 
               <TabsContent value="posts" className="space-y-6">
-                <div className="bg-card border rounded-xl p-6">
-                  <h3 className="font-semibold text-foreground mb-4">Share with the group</h3>
-                  <form onSubmit={handlePost} className="space-y-4">
-                    <Textarea
-                      value={newPost}
-                      onChange={e => setNewPost(e.target.value)}
-                      placeholder="Write a post..."
-                      className="min-h-24 resize-none"
-                    />
-                    <div className="flex justify-end">
-                      <Button
-                        type="submit"
-                        className="bg-secondary hover:bg-secondary/90 text-white"
-                        disabled={createPost.isPending || !newPost.trim()}
-                      >
-                        Post
-                      </Button>
-                    </div>
-                  </form>
-                </div>
+                <MemberGate action="post in this group" compact>
+                  <div className="bg-card border rounded-xl p-6">
+                    <h3 className="font-semibold text-foreground mb-4">Share with the group</h3>
+                    <form onSubmit={handlePost} className="space-y-4">
+                      <Textarea
+                        value={newPost}
+                        onChange={e => setNewPost(e.target.value)}
+                        placeholder="Write a post..."
+                        className="min-h-24 resize-none"
+                      />
+                      <div className="flex justify-end">
+                        <Button
+                          type="submit"
+                          className="bg-secondary hover:bg-secondary/90 text-white"
+                          disabled={createPost.isPending || !newPost.trim()}
+                        >
+                          Post
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                </MemberGate>
 
                 {posts?.map(post => (
                   <div key={post.id} className="bg-card border rounded-xl p-6">

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
+import { MemberGate } from "@/components/shared/member-gate";
 
 const CATEGORIES = [
   { value: "medical", label: "Medical Assistance" },
@@ -53,63 +54,65 @@ export default function ForumNew() {
       </div>
 
       <div className="container mx-auto px-4 py-12 max-w-3xl">
-        <div className="bg-card border rounded-xl p-8 shadow-sm">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="category" className="font-semibold text-foreground">Category</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="h-12">
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(cat => (
-                    <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <MemberGate action="start a discussion">
+          <div className="bg-card border rounded-xl p-8 shadow-sm">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="category" className="font-semibold text-foreground">Category</Label>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="h-12">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map(cat => (
+                      <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="title" className="font-semibold text-foreground">Discussion Title</Label>
-              <Input
-                id="title"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                placeholder="What would you like to discuss?"
-                className="h-12 text-base"
-                required
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="title" className="font-semibold text-foreground">Discussion Title</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder="What would you like to discuss?"
+                  className="h-12 text-base"
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="content" className="font-semibold text-foreground">Your Message</Label>
-              <Textarea
-                id="content"
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                placeholder="Provide details, context, and what kind of input you are looking for from the community..."
-                className="min-h-48 text-base resize-none"
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Please maintain a respectful tone. All content is subject to community guidelines.
-              </p>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="content" className="font-semibold text-foreground">Your Message</Label>
+                <Textarea
+                  id="content"
+                  value={content}
+                  onChange={e => setContent(e.target.value)}
+                  placeholder="Provide details, context, and what kind of input you are looking for from the community..."
+                  className="min-h-48 text-base resize-none"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Please maintain a respectful tone. All content is subject to community guidelines.
+                </p>
+              </div>
 
-            <div className="flex gap-4 justify-end pt-4 border-t">
-              <Link href="/forum">
-                <Button type="button" variant="outline" className="px-8">Cancel</Button>
-              </Link>
-              <Button
-                type="submit"
-                className="bg-secondary hover:bg-secondary/90 text-white px-8"
-                disabled={createDiscussion.isPending || !title.trim() || !content.trim()}
-              >
-                {createDiscussion.isPending ? "Posting..." : "Post Discussion"}
-              </Button>
-            </div>
-          </form>
-        </div>
+              <div className="flex gap-4 justify-end pt-4 border-t">
+                <Link href="/forum">
+                  <Button type="button" variant="outline" className="px-8">Cancel</Button>
+                </Link>
+                <Button
+                  type="submit"
+                  className="bg-secondary hover:bg-secondary/90 text-white px-8"
+                  disabled={createDiscussion.isPending || !title.trim() || !content.trim()}
+                >
+                  {createDiscussion.isPending ? "Posting..." : "Post Discussion"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </MemberGate>
 
         <div className="mt-8 p-6 bg-accent/5 border border-accent/20 rounded-xl">
           <h3 className="font-serif font-bold text-primary mb-2">Community Guidelines</h3>
