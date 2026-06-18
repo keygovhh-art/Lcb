@@ -4,13 +4,12 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useCreateReport, getListReportsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface ReportButtonProps {
   contentType: string;
@@ -36,15 +35,19 @@ export function ReportButton({ contentType, contentId, variant = "ghost", size =
   const { toast } = useToast();
   const createReport = useCreateReport();
 
+  function handleClose() {
+    setOpen(false);
+    setReason("");
+    setDescription("");
+  }
+
   const handleSubmit = () => {
     if (!reason) return;
     createReport.mutate(
       { data: { contentType, contentId, reason, description } },
       {
         onSuccess: () => {
-          setOpen(false);
-          setReason("");
-          setDescription("");
+          handleClose();
           qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) });
           toast({ title: "Report submitted", description: "Our moderation team will review this." });
         },
@@ -59,24 +62,37 @@ export function ReportButton({ contentType, contentId, variant = "ghost", size =
         {label ?? "Report"}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(val) => { if (!val) handleClose(); else setOpen(true); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-serif">Submit a Report</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <p className="text-sm font-medium text-foreground mb-2">Reason</p>
-              <Select value={reason} onValueChange={setReason}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a reason..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {REASONS.map(r => (
-                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="text-sm font-medium text-foreground mb-3">Reason</p>
+              <div className="space-y-2">
+                {REASONS.map(r => (
+                  <Label
+                    key={r.value}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-md border cursor-pointer transition-colors",
+                      reason === r.value
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-border hover:bg-muted/50"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="report-reason"
+                      value={r.value}
+                      checked={reason === r.value}
+                      onChange={() => setReason(r.value)}
+                      className="accent-primary"
+                    />
+                    <span className="text-sm">{r.label}</span>
+                  </Label>
+                ))}
+              </div>
             </div>
             <div>
               <p className="text-sm font-medium text-foreground mb-2">Additional details (optional)</p>
@@ -85,11 +101,12 @@ export function ReportButton({ contentType, contentId, variant = "ghost", size =
                 onChange={e => setDescription(e.target.value)}
                 placeholder="Describe the issue..."
                 className="resize-none min-h-20"
+                autoComplete="off"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={handleClose}>Cancel</Button>
             <Button
               onClick={handleSubmit}
               disabled={!reason || createReport.isPending}
