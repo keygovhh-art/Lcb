@@ -10,4 +10,5 @@ export interface CommentInput {
   content: string;
   /** @nullable */
   parentId?: number | null;
+  authorName?: string;
 }

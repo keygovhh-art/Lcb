@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 import { MemberGate } from "@/components/shared/member-gate";
+import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
+import { useAuth } from "@/context/auth-context";
 
 const CATEGORIES = [
   { value: "medical", label: "Medical Assistance" },
@@ -23,16 +25,19 @@ const CATEGORIES = [
 
 export default function ForumNew() {
   const [, navigate] = useLocation();
+  const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("general");
+  const [displayAs, setDisplayAs] = useState<DisplayAs>("nickname");
   const createDiscussion = useCreateDiscussion();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
+    const authorName = getDisplayName(displayAs, user);
     createDiscussion.mutate(
-      { data: { title, content, category } },
+      { data: { title, content, category, authorName } },
       { onSuccess: (disc) => navigate(`/forum/${disc.id}`) }
     );
   };
@@ -97,6 +102,8 @@ export default function ForumNew() {
                   Please maintain a respectful tone. All content is subject to community guidelines.
                 </p>
               </div>
+
+              <DisplayAsSelector value={displayAs} onChange={setDisplayAs} />
 
               <div className="flex gap-4 justify-end pt-4 border-t">
                 <Link href="/forum">

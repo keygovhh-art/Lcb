@@ -247,7 +247,8 @@ export const ListDiscussionsResponse = zod.array(ListDiscussionsResponseItem)
 export const CreateDiscussionBody = zod.object({
   "title": zod.string(),
   "content": zod.string(),
-  "category": zod.string()
+  "category": zod.string(),
+  "authorName": zod.string().optional()
 })
 
 
@@ -378,7 +379,8 @@ export const CreateDiscussionCommentParams = zod.object({
 
 export const CreateDiscussionCommentBody = zod.object({
   "content": zod.string(),
-  "parentId": zod.number().nullish()
+  "parentId": zod.number().nullish(),
+  "authorName": zod.string().optional()
 })
 
 
@@ -1053,7 +1055,8 @@ export const CreateGroupPostParams = zod.object({
 })
 
 export const CreateGroupPostBody = zod.object({
-  "content": zod.string()
+  "content": zod.string(),
+  "authorName": zod.string().optional()
 })
 
 

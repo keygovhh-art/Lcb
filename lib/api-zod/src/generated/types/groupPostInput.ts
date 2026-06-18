@@ -8,4 +8,5 @@
 
 export interface GroupPostInput {
   content: string;
+  authorName?: string;
 }

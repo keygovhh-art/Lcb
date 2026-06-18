@@ -6,15 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Search, Heart, MapPin, Clock, Plus } from "lucide-react";
 import { useCreateMinyan } from "@workspace/api-client-react";
+import { useAuth } from "@/context/auth-context";
+import { MemberGate } from "@/components/shared/member-gate";
+import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 const COMMUNITIES = ["", "Chassidish", "Yeshivish", "Modern Orthodox", "Sephardic", "Other"];
 
 function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
+  const { isAuthenticated, isLoaded } = useAuth();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     synagogueName: "", community: "", city: "", country: "USA",
@@ -32,71 +37,75 @@ function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
     });
   };
 
+  if (isLoaded && !isAuthenticated) {
+    return <MemberGate compact action="add a minyan">{null}</MemberGate>;
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2">
-          <Plus className="h-4 w-4" /> Add Minyan
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-serif text-2xl text-primary">Add a Minyan</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-1.5">
-              <Label className="font-semibold">Synagogue Name *</Label>
-              <Input value={form.synagogueName} onChange={set("synagogueName")} placeholder="Beis Medrash..." className="h-11" required />
+    <>
+      <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2" onClick={() => setOpen(true)}>
+        <Plus className="h-4 w-4" /> Add Minyan
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-primary">Add a Minyan</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 space-y-1.5">
+                <Label className="font-semibold">Synagogue Name *</Label>
+                <Input value={form.synagogueName} onChange={set("synagogueName")} placeholder="Beis Medrash..." className="h-11" required />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="font-semibold">Community</Label>
+                <Select value={form.community || "none"} onValueChange={v => setForm(f => ({ ...f, community: v === "none" ? "" : v }))}>
+                  <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Select community...</SelectItem>
+                    {COMMUNITIES.filter(Boolean).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="font-semibold">Country</Label>
+                <Input value={form.country} onChange={set("country")} className="h-11" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="font-semibold">City *</Label>
+                <Input value={form.city} onChange={set("city")} placeholder="Brooklyn" className="h-11" required />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="font-semibold">Address</Label>
+                <Input value={form.address} onChange={set("address")} placeholder="123 Main St" className="h-11" />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Community</Label>
-              <Select value={form.community || "none"} onValueChange={v => setForm(f => ({ ...f, community: v === "none" ? "" : v }))}>
-                <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Select community...</SelectItem>
-                  {COMMUNITIES.filter(Boolean).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-1.5">
+                <Label className="font-semibold">Shacharis Times *</Label>
+                <Input value={form.shacharis} onChange={set("shacharis")} placeholder="6:30 AM, 7:00 AM, 8:00 AM" className="h-11" required />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="font-semibold">Mincha Times *</Label>
+                <Input value={form.mincha} onChange={set("mincha")} placeholder="2:00 PM (weekday)" className="h-11" required />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="font-semibold">Maariv Times *</Label>
+                <Input value={form.maariv} onChange={set("maariv")} placeholder="9:00 PM" className="h-11" required />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="font-semibold">Additional Notes</Label>
+                <Textarea value={form.notes} onChange={set("notes")} placeholder="Shabbos minyanim, special shiurim, etc." className="resize-none" />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Country</Label>
-              <Input value={form.country} onChange={set("country")} className="h-11" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">City *</Label>
-              <Input value={form.city} onChange={set("city")} placeholder="Brooklyn" className="h-11" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Address</Label>
-              <Input value={form.address} onChange={set("address")} placeholder="123 Main St" className="h-11" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Shacharis Times *</Label>
-              <Input value={form.shacharis} onChange={set("shacharis")} placeholder="6:30 AM, 7:00 AM, 8:00 AM" className="h-11" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Mincha Times *</Label>
-              <Input value={form.mincha} onChange={set("mincha")} placeholder="2:00 PM (weekday)" className="h-11" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Maariv Times *</Label>
-              <Input value={form.maariv} onChange={set("maariv")} placeholder="9:00 PM" className="h-11" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Additional Notes</Label>
-              <Textarea value={form.notes} onChange={set("notes")} placeholder="Shabbos minyanim, special shiurim, etc." className="resize-none" />
-            </div>
-          </div>
-          <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12" disabled={create.isPending}>
-            {create.isPending ? "Submitting..." : "Submit for Review"}
-          </Button>
-          <p className="text-xs text-center text-muted-foreground">Submissions are reviewed before appearing publicly.</p>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12" disabled={create.isPending}>
+              {create.isPending ? "Submitting..." : "Submit for Review"}
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">Submissions are reviewed before appearing publicly.</p>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -104,6 +113,9 @@ export default function Minyans() {
   const [city, setCity] = useState("");
   const [community, setCommunity] = useState("");
   const qc = useQueryClient();
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const params = { city: city || undefined, community: community === "all" ? undefined : community || undefined };
   const { data: minyans, isLoading } = useListMinyans(params, {
@@ -112,6 +124,15 @@ export default function Minyans() {
   const like = useLikeMinyan();
 
   const refresh = () => qc.invalidateQueries({ queryKey: getListMinyansQueryKey(params) });
+
+  const handleLike = (id: number) => {
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to like a minyan", description: "Join Gavhah free to support your favourite minyanim." });
+      setLocation("/login");
+      return;
+    }
+    like.mutate({ id }, { onSuccess: refresh });
+  };
 
   return (
     <Layout>
@@ -188,7 +209,7 @@ export default function Minyans() {
                     )}
                   </div>
                   <button
-                    onClick={() => like.mutate({ id: minyan.id }, { onSuccess: refresh })}
+                    onClick={() => handleLike(minyan.id)}
                     className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-secondary transition-colors shrink-0"
                     disabled={like.isPending}
                   >

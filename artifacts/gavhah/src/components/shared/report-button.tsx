@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { useCreateReport, getListReportsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/auth-context";
+import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 
 interface ReportButtonProps {
@@ -33,12 +35,23 @@ export function ReportButton({ contentType, contentId, variant = "ghost", size =
   const [description, setDescription] = useState("");
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
+  const [, setLocation] = useLocation();
   const createReport = useCreateReport();
 
   function handleClose() {
     setOpen(false);
     setReason("");
     setDescription("");
+  }
+
+  function handleOpen() {
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to report content", description: "Join Gavhah free to help moderate the community." });
+      setLocation("/login");
+      return;
+    }
+    setOpen(true);
   }
 
   const handleSubmit = () => {
@@ -57,7 +70,7 @@ export function ReportButton({ contentType, contentId, variant = "ghost", size =
 
   return (
     <>
-      <Button variant={variant} size={size} className="gap-1.5 text-muted-foreground hover:text-destructive" onClick={() => setOpen(true)}>
+      <Button variant={variant} size={size} className="gap-1.5 text-muted-foreground hover:text-destructive" onClick={handleOpen}>
         <Flag className="h-3.5 w-3.5" />
         {label ?? "Report"}
       </Button>

@@ -2359,6 +2359,8 @@ components:
           type: string
         category:
           type: string
+        authorName:
+          type: string
 
     DiscussionUpdate:
       type: object
@@ -2399,6 +2401,8 @@ components:
           type: string
         parentId:
           type: ["integer", "null"]
+        authorName:
+          type: string
 
     LikeResult:
       type: object
@@ -2625,6 +2629,8 @@ components:
       required: [content]
       properties:
         content:
+          type: string
+        authorName:
           type: string
 
     # ---- MINYAN ----

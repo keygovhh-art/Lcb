@@ -133,6 +133,7 @@ export interface DiscussionInput {
   title: string;
   content: string;
   category: string;
+  authorName?: string;
 }
 
 export interface DiscussionUpdate {
@@ -157,6 +158,7 @@ export interface CommentInput {
   content: string;
   /** @nullable */
   parentId?: number | null;
+  authorName?: string;
 }
 
 export interface LikeResult {
@@ -288,6 +290,7 @@ export interface GroupPost {
 
 export interface GroupPostInput {
   content: string;
+  authorName?: string;
 }
 
 export type MinyanStatus = typeof MinyanStatus[keyof typeof MinyanStatus];

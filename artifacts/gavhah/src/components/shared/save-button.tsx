@@ -7,6 +7,8 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/auth-context";
+import { useLocation } from "wouter";
 
 interface SaveButtonProps {
   contentType: string;
@@ -21,12 +23,14 @@ interface SaveButtonProps {
 export function SaveButton({ contentType, contentId, contentTitle, contentUrl = "", variant = "ghost", size = "icon", showLabel = false }: SaveButtonProps) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { isAuthenticated, isLoaded } = useAuth();
+  const [, setLocation] = useLocation();
   const [savedId, setSavedId] = useState<number | null>(null);
   const [saved, setSaved] = useState(false);
 
   const { data } = useCheckSaved(
     { contentType, contentId },
-    { query: { queryKey: getCheckSavedQueryKey({ contentType, contentId }) } }
+    { query: { queryKey: getCheckSavedQueryKey({ contentType, contentId }), enabled: isAuthenticated } }
   );
 
   useEffect(() => {
@@ -40,6 +44,14 @@ export function SaveButton({ contentType, contentId, contentTitle, contentUrl = 
   const deleteSaved = useDeleteSavedItem();
 
   const handleToggle = () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign in to save",
+        description: "Join Gavhah free to save articles and resources.",
+      });
+      setLocation("/login");
+      return;
+    }
     if (saved && savedId !== null) {
       deleteSaved.mutate({ id: savedId }, {
         onSuccess: () => {
@@ -63,6 +75,8 @@ export function SaveButton({ contentType, contentId, contentTitle, contentUrl = 
       );
     }
   };
+
+  if (!isLoaded) return null;
 
   const isPending = createSaved.isPending || deleteSaved.isPending;
 

@@ -74,10 +74,10 @@ router.get("/groups/:id/posts", async (req, res): Promise<void> => {
 router.post("/groups/:id/posts", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const groupId = parseInt(raw, 10);
-  const { content } = req.body;
+  const { content, authorName } = req.body;
   if (!content) { res.status(400).json({ error: "content required" }); return; }
   const [post] = await db.insert(groupPostsTable).values({
-    content, groupId, authorId: 1, authorName: "Community Member",
+    content, groupId, authorId: 1, authorName: authorName || "Community Member",
   }).returning();
   await db.update(groupsTable).set({ postCount: sql`${groupsTable.postCount} + 1` }).where(eq(groupsTable.id, groupId));
   res.status(201).json(post);

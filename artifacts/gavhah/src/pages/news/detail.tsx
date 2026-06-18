@@ -1,4 +1,4 @@
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useEffect } from "react";
 import { useGetNews, getGetNewsQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout/layout";
@@ -10,6 +10,8 @@ import { SaveButton } from "@/components/shared/save-button";
 import { ReportButton } from "@/components/shared/report-button";
 import { format } from "date-fns";
 import { useLikeArticle } from "@/hooks/use-like-article";
+import { useAuth } from "@/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
 
 const CATEGORY_LABELS: Record<string, string> = {
   medical: "Medical Assistance",
@@ -71,6 +73,19 @@ export default function NewsDetail() {
 
 function ArticleBody({ article }: { article: any }) {
   const { isLiked, likeCount, toggle, pending } = useLikeArticle(article.id, article.likeCount ?? 0);
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+
+  const handleLike = (e: React.MouseEvent) => {
+    if (!isAuthenticated) {
+      e.preventDefault();
+      toast({ title: "Sign in to like stories", description: "Join Gavhah free to show appreciation for chesed stories." });
+      setLocation("/login");
+      return;
+    }
+    toggle(e);
+  };
 
   return (
     <article>
@@ -97,7 +112,7 @@ function ArticleBody({ article }: { article: any }) {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <button
-              onClick={toggle}
+              onClick={handleLike}
               disabled={pending}
               className={`flex items-center gap-2 px-4 py-2 rounded-full border font-medium text-sm transition-all ${
                 isLiked
@@ -160,7 +175,6 @@ function ArticleBody({ article }: { article: any }) {
             {CATEGORY_LABELS[article.category] ?? article.category} · Gavhah Community
           </p>
         </div>
-        {/* Like summary */}
         {likeCount > 0 && (
           <div className="text-sm text-muted-foreground font-serif italic">
             {likeCount.toLocaleString()} {likeCount === 1 ? "person appreciated" : "people appreciated"} this story

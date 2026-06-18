@@ -23,6 +23,9 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useAuth } from "@/context/auth-context";
+import { MemberGate } from "@/components/shared/member-gate";
+import { useLocation } from "wouter";
 
 const PLEDGE_LABELS: Record<string, string> = {
   financial: "Financial Support",
@@ -36,10 +39,18 @@ const PLEDGE_LABELS: Record<string, string> = {
 function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   const joinCause = useJoinFeaturedCause();
   const [form, setForm] = useState({ name: "", pledgeType: "volunteer", pledgeAmount: "", message: "", location: "" });
   const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
+
+  // Pre-fill name from user nickname when dialog opens
+  const handleOpen = () => {
+    if (user && !(form.name)) {
+      setForm(f => ({ ...f, name: (user as any).nickname || user.name || "" }));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +80,7 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
   };
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); else handleOpen(); }}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-serif text-xl text-primary">Join This Cause</DialogTitle>
@@ -120,6 +131,7 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
 // ---- Submit Future Cause Dialog ----
 function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const submitCause = useSubmitCause();
   const [form, setForm] = useState({ title: "", description: "", submittedBy: "", location: "", urgency: "normal" });
   const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
@@ -141,6 +153,9 @@ function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => vo
     );
   };
 
+  // Pre-fill submittedBy from user nickname
+  const submittedByValue = form.submittedBy || ((user as any)?.nickname || user?.name || "");
+
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
@@ -158,7 +173,13 @@ function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => vo
           </div>
           <div className="space-y-1.5">
             <Label className="font-semibold">Your Name *</Label>
-            <Input value={form.submittedBy} onChange={s("submittedBy")} placeholder="Who is submitting this?" className="h-11" required />
+            <Input
+              value={submittedByValue}
+              onChange={s("submittedBy")}
+              placeholder="Who is submitting this?"
+              className="h-11"
+              required
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -227,6 +248,9 @@ export default function United() {
   const [joinOpen, setJoinOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [showAllSupporters, setShowAllSupporters] = useState(false);
+  const { isAuthenticated, isLoaded } = useAuth();
+  const { toast } = useToast();
+  const [, setLocation] = useState<string>("");
 
   const { data: cause, isLoading } = useGetActiveFeaturedCause({
     query: { queryKey: getGetActiveFeaturedCauseQueryKey() },
@@ -244,6 +268,15 @@ export default function United() {
   const remaining = Math.max(0, goal - raised);
 
   const displayedSupporters = showAllSupporters ? (supporters ?? []) : (supporters ?? []).slice(0, 6);
+
+  const requireAuth = (action: () => void, label: string) => {
+    if (!isAuthenticated) {
+      toast({ title: `Sign in to ${label}`, description: "Join Gavhah free to participate in the community." });
+      window.location.href = "/login";
+      return;
+    }
+    action();
+  };
 
   return (
     <Layout>
@@ -279,9 +312,13 @@ export default function United() {
             <p className="text-muted-foreground max-w-md mx-auto">
               The Gavhah committee selects one community cause at a time. Submit a cause for consideration below.
             </p>
-            <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 mt-4" onClick={() => setSubmitOpen(true)}>
-              <SendHorizonal className="h-4 w-4" /> Submit a Cause for Review
-            </Button>
+            {isLoaded && !isAuthenticated ? (
+              <MemberGate compact action="submit a cause">{null}</MemberGate>
+            ) : (
+              <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 mt-4" onClick={() => setSubmitOpen(true)}>
+                <SendHorizonal className="h-4 w-4" /> Submit a Cause for Review
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-10">
@@ -353,28 +390,31 @@ export default function United() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Button
-                    className="flex-1 bg-secondary hover:bg-secondary/90 text-white h-13 text-base font-semibold gap-2 py-3"
-                    onClick={() => setJoinOpen(true)}
-                  >
-                    <Heart className="h-5 w-5 fill-current" /> Join This Cause
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1 h-13 text-base font-semibold gap-2 py-3 border-primary/30 hover:border-primary/50"
-                    onClick={() => {
-                      if (navigator.share) {
-                        navigator.share({ title: cause.title, text: cause.description, url: window.location.href });
-                      } else {
-                        navigator.clipboard?.writeText(window.location.href);
-                        // toast would be nice but no context here
-                      }
-                    }}
-                  >
-                    <Share2 className="h-5 w-5" /> Share This Cause
-                  </Button>
-                </div>
+                {isLoaded && !isAuthenticated ? (
+                  <MemberGate compact action="join this cause">{null}</MemberGate>
+                ) : (
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      className="flex-1 bg-secondary hover:bg-secondary/90 text-white h-13 text-base font-semibold gap-2 py-3"
+                      onClick={() => setJoinOpen(true)}
+                    >
+                      <Heart className="h-5 w-5 fill-current" /> Join This Cause
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 h-13 text-base font-semibold gap-2 py-3 border-primary/30 hover:border-primary/50"
+                      onClick={() => {
+                        if (navigator.share) {
+                          navigator.share({ title: cause.title, text: cause.description, url: window.location.href });
+                        } else {
+                          navigator.clipboard?.writeText(window.location.href);
+                        }
+                      }}
+                    >
+                      <Share2 className="h-5 w-5" /> Share This Cause
+                    </Button>
+                  </div>
+                )}
 
                 {/* Financial stat strip */}
                 {goal > 0 && (
@@ -402,9 +442,11 @@ export default function United() {
                     Community Supporters
                     <span className="ml-2 text-base font-normal text-muted-foreground">({(supporters ?? []).length})</span>
                   </h3>
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setJoinOpen(true)}>
-                    <UserPlus className="h-3.5 w-3.5" /> Join Them
-                  </Button>
+                  {isAuthenticated && (
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setJoinOpen(true)}>
+                      <UserPlus className="h-3.5 w-3.5" /> Join Them
+                    </Button>
+                  )}
                 </div>
 
                 <div className="divide-y">
@@ -432,13 +474,17 @@ export default function United() {
                 The Gavhah committee selects one cause at a time based on urgency and community impact.
                 Submit a cause and we will review it for future consideration.
               </p>
-              <Button
-                variant="outline"
-                className="gap-2 border-secondary/30 text-secondary hover:bg-secondary/5"
-                onClick={() => setSubmitOpen(true)}
-              >
-                <SendHorizonal className="h-4 w-4" /> Submit a Future Cause
-              </Button>
+              {isLoaded && !isAuthenticated ? (
+                <MemberGate compact action="submit a cause for review">{null}</MemberGate>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="gap-2 border-secondary/30 text-secondary hover:bg-secondary/5"
+                  onClick={() => setSubmitOpen(true)}
+                >
+                  <SendHorizonal className="h-4 w-4" /> Submit a Future Cause
+                </Button>
+              )}
             </div>
 
           </div>

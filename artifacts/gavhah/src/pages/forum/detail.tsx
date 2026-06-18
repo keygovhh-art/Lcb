@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { ReportButton } from "@/components/shared/report-button";
 import { SaveButton } from "@/components/shared/save-button";
 import { MemberGate } from "@/components/shared/member-gate";
+import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -28,6 +29,7 @@ export default function ForumDetail() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [reply, setReply] = useState("");
+  const [displayAs, setDisplayAs] = useState<DisplayAs>("nickname");
 
   const { data: discussion, isLoading } = useGetDiscussion(numId, {
     query: { queryKey: getGetDiscussionQueryKey(numId), enabled: !!numId },
@@ -47,7 +49,8 @@ export default function ForumDetail() {
   const handleComment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reply.trim()) return;
-    addComment.mutate({ id: numId, data: { content: reply } }, {
+    const authorName = getDisplayName(displayAs, user);
+    addComment.mutate({ id: numId, data: { content: reply, authorName } }, {
       onSuccess: () => {
         setReply("");
         qc.invalidateQueries({ queryKey: getListDiscussionCommentsQueryKey(numId) });
@@ -177,6 +180,7 @@ export default function ForumDetail() {
                       placeholder="Share your thoughts or advice..."
                       className="min-h-28 resize-none"
                     />
+                    <DisplayAsSelector value={displayAs} onChange={setDisplayAs} />
                     <div className="flex justify-end">
                       <Button
                         type="submit"

@@ -13,6 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Users, Lock, Globe, KeyRound, Heart, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { MemberGate } from "@/components/shared/member-gate";
+import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
+import { useAuth } from "@/context/auth-context";
 
 const privacyIcon = (p: string) => {
   if (p === "private") return <Lock className="h-4 w-4" />;
@@ -24,7 +26,9 @@ export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const numId = parseInt(id ?? "0", 10);
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [newPost, setNewPost] = useState("");
+  const [displayAs, setDisplayAs] = useState<DisplayAs>("nickname");
 
   const { data: group, isLoading } = useGetGroup(numId, {
     query: { queryKey: getGetGroupQueryKey(numId), enabled: !!numId },
@@ -48,7 +52,8 @@ export default function GroupDetail() {
   const handlePost = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPost.trim()) return;
-    createPost.mutate({ id: numId, data: { content: newPost } }, {
+    const authorName = getDisplayName(displayAs, user);
+    createPost.mutate({ id: numId, data: { content: newPost, authorName } }, {
       onSuccess: () => {
         setNewPost("");
         qc.invalidateQueries({ queryKey: getListGroupPostsQueryKey(numId) });
@@ -130,6 +135,7 @@ export default function GroupDetail() {
                         placeholder="Write a post..."
                         className="min-h-24 resize-none"
                       />
+                      <DisplayAsSelector value={displayAs} onChange={setDisplayAs} />
                       <div className="flex justify-end">
                         <Button
                           type="submit"

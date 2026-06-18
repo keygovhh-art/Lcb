@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useAuth } from "@/context/auth-context";
+import { MemberGate } from "@/components/shared/member-gate";
 
 // ---- Constants ----
 const URGENCY_MAP: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -177,13 +179,23 @@ function HelpRequestCard({ req }: { req: any }) {
 }
 
 // ---- Register Volunteer Dialog ----
+// Activists Directory special rule: always show Nickname only
 function RegisterVolunteerDialog() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { isAuthenticated, isLoaded, user } = useAuth();
   const [open, setOpen] = useState(false);
+
+  const nickname = (user as any)?.nickname || user?.name || "";
   const [form, setForm] = useState({ userName: "", location: "", availability: "weekends", bio: "" });
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const createVol = useCreateVolunteer();
+
+  const handleOpen = () => {
+    // Pre-fill userName with nickname (Activists Directory always uses nickname)
+    setForm(f => ({ ...f, userName: nickname }));
+    setOpen(true);
+  };
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
@@ -200,7 +212,7 @@ function RegisterVolunteerDialog() {
           qc.invalidateQueries({ queryKey: getListVolunteersQueryKey({}) });
           qc.invalidateQueries({ queryKey: getGetFeaturedVolunteersQueryKey() });
           setOpen(false);
-          setForm({ userName: "", location: "", availability: "weekends", bio: "" });
+          setForm({ userName: nickname, location: "", availability: "weekends", bio: "" });
           setSelectedSkills([]);
           toast({ title: "Thank you!", description: "You have been registered as a volunteer." });
         },
@@ -209,9 +221,13 @@ function RegisterVolunteerDialog() {
     );
   };
 
+  if (isLoaded && !isAuthenticated) {
+    return <MemberGate compact action="register as a volunteer">{null}</MemberGate>;
+  }
+
   return (
     <>
-      <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2" onClick={() => setOpen(true)}>
+      <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2" onClick={handleOpen}>
         <UserPlus className="h-4 w-4" /> Become a Volunteer
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -219,8 +235,9 @@ function RegisterVolunteerDialog() {
           <DialogHeader><DialogTitle className="font-serif text-2xl text-primary">Register as a Volunteer</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <Label className="font-semibold">Display Name *</Label>
-              <Input value={form.userName} onChange={set("userName")} placeholder="Name shown publicly (nickname is fine)" className="h-11" required />
+              <Label className="font-semibold">Display Name</Label>
+              <Input value={form.userName} onChange={set("userName")} placeholder="Your nickname" className="h-11" required />
+              <p className="text-xs text-muted-foreground">Activists Directory shows nicknames only to protect privacy.</p>
             </div>
             <div className="space-y-1.5">
               <Label className="font-semibold">City / Community</Label>
@@ -269,6 +286,7 @@ function RegisterVolunteerDialog() {
 function SubmitRequestDialog() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { isAuthenticated, isLoaded } = useAuth();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", needType: "medical", urgency: "medium", location: "" });
   const createReq = useCreateHelpRequest();
@@ -293,6 +311,10 @@ function SubmitRequestDialog() {
       }
     );
   };
+
+  if (isLoaded && !isAuthenticated) {
+    return <MemberGate compact action="submit a help request">{null}</MemberGate>;
+  }
 
   return (
     <>
@@ -359,9 +381,17 @@ function SubmitRequestDialog() {
 function CreateProjectDialog() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { isAuthenticated, isLoaded, user } = useAuth();
   const [open, setOpen] = useState(false);
+
+  const displayName = (user as any)?.nickname || user?.name || "";
   const [form, setForm] = useState({ title: "", description: "", type: "project", organizerName: "", location: "", goalDescription: "" });
   const createProject = useCreateCommunityProject();
+
+  const handleOpen = () => {
+    setForm(f => ({ ...f, organizerName: f.organizerName || displayName }));
+    setOpen(true);
+  };
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
@@ -375,7 +405,7 @@ function CreateProjectDialog() {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getListCommunityProjectsQueryKey({}) });
           setOpen(false);
-          setForm({ title: "", description: "", type: "project", organizerName: "", location: "", goalDescription: "" });
+          setForm({ title: "", description: "", type: "project", organizerName: displayName, location: "", goalDescription: "" });
           toast({ title: "Project created", description: "Your project is now listed in the directory." });
         },
         onError: () => toast({ title: "Error", description: "Could not create project.", variant: "destructive" }),
@@ -383,9 +413,13 @@ function CreateProjectDialog() {
     );
   };
 
+  if (isLoaded && !isAuthenticated) {
+    return <MemberGate compact action="create a project">{null}</MemberGate>;
+  }
+
   return (
     <>
-      <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2" onClick={() => setOpen(true)}>
+      <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2" onClick={handleOpen}>
         <Plus className="h-4 w-4" /> Create Project
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -444,8 +478,11 @@ function CreateProjectDialog() {
 function ProjectCard({ project }: { project: any }) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { isAuthenticated, isLoaded, user } = useAuth();
   const [joinOpen, setJoinOpen] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+
+  const nickname = (user as any)?.nickname || user?.name || "";
   const [joinForm, setJoinForm] = useState({ name: "", role: "volunteer", message: "" });
   const joinProject = useJoinCommunityProject();
 
@@ -457,6 +494,11 @@ function ProjectCard({ project }: { project: any }) {
   const setF = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setJoinForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
+  const handleJoinOpen = () => {
+    setJoinForm(f => ({ ...f, name: f.name || nickname }));
+    setJoinOpen(true);
+  };
+
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!joinForm.name) return;
@@ -466,7 +508,7 @@ function ProjectCard({ project }: { project: any }) {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getListProjectMembersQueryKey(project.id) });
           setJoinOpen(false);
-          setJoinForm({ name: "", role: "volunteer", message: "" });
+          setJoinForm({ name: nickname, role: "volunteer", message: "" });
           toast({ title: "You have joined this project", description: "The organizer will be in touch to coordinate." });
         },
         onError: () => toast({ title: "Error", description: "Could not join.", variant: "destructive" }),
@@ -512,9 +554,13 @@ function ProjectCard({ project }: { project: any }) {
 
         {/* Actions */}
         <div className="flex gap-2 pt-1">
-          <Button size="sm" className="flex-1 bg-secondary hover:bg-secondary/90 text-white gap-1.5" onClick={() => setJoinOpen(true)}>
-            <UserPlus className="h-3.5 w-3.5" /> Join / Volunteer
-          </Button>
+          {isLoaded && !isAuthenticated ? (
+            <MemberGate compact action="join this project">{null}</MemberGate>
+          ) : (
+            <Button size="sm" className="flex-1 bg-secondary hover:bg-secondary/90 text-white gap-1.5" onClick={handleJoinOpen}>
+              <UserPlus className="h-3.5 w-3.5" /> Join / Volunteer
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="bg-white/50 gap-1.5" onClick={() => setShowMembers(v => !v)}>
             {showMembers ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             Members

@@ -10,4 +10,5 @@ export interface DiscussionInput {
   title: string;
   content: string;
   category: string;
+  authorName?: string;
 }

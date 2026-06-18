@@ -20,11 +20,11 @@ router.get("/discussions", async (req, res): Promise<void> => {
 });
 
 router.post("/discussions", async (req, res): Promise<void> => {
-  const { title, content, category } = req.body;
+  const { title, content, category, authorName } = req.body;
   if (!title || !content) { res.status(400).json({ error: "title and content required" }); return; }
   const [disc] = await db.insert(discussionsTable).values({
     title, content, category: category || "general",
-    authorId: 1, authorName: "Community Member",
+    authorId: 1, authorName: authorName || "Community Member",
   }).returning();
   res.status(201).json(disc);
 });
@@ -80,11 +80,11 @@ router.get("/discussions/:id/comments", async (req, res): Promise<void> => {
 router.post("/discussions/:id/comments", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const discussionId = parseInt(raw, 10);
-  const { content, parentId } = req.body;
+  const { content, parentId, authorName } = req.body;
   if (!content) { res.status(400).json({ error: "content required" }); return; }
   const [comment] = await db.insert(commentsTable).values({
     content, discussionId, parentId: parentId ?? null,
-    authorId: 1, authorName: "Community Member",
+    authorId: 1, authorName: authorName || "Community Member",
   }).returning();
   await db.update(discussionsTable).set({ commentCount: sql`${discussionsTable.commentCount} + 1` }).where(eq(discussionsTable.id, discussionId));
   res.status(201).json(comment);
