@@ -14,6 +14,8 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/auth-context";
+import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import {
   Search, Plus, Eye, Heart, Star, Globe, ChevronRight,
   AlertTriangle, Clock, Building2, Megaphone, HandHeart, Siren
@@ -63,10 +65,16 @@ const URGENCY_STYLE: Record<string, { badge: string; card: string; label: string
 };
 
 function useLikeArticle(id: number, initialCount: number) {
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(initialCount);
   const toggle = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to like stories", description: "Join Gavhah free to show appreciation for chesed stories." });
+      return;
+    }
     const next = !isLiked;
     setIsLiked(next);
     setLikeCount(c => next ? c + 1 : c - 1);
@@ -78,26 +86,37 @@ function useLikeArticle(id: number, initialCount: number) {
 function PostUpdateDialog() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user, isAuthenticated } = useAuth();
   const createNews = useCreateNews();
   const [open, setOpen] = useState(false);
+  const [displayAs, setDisplayAs] = useState<DisplayAs>("nickname");
   const [form, setForm] = useState({
-    title: "", content: "", summary: "", organization: "", authorName: "",
+    title: "", content: "", summary: "", organization: "",
     category: "announcement", urgency: "normal", deadline: "",
   });
 
   const s = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
+  const handleTrigger = () => {
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to post updates", description: "Join Gavhah free to share community updates." });
+      return;
+    }
+    setOpen(true);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title || !form.content) return;
+    const authorName = getDisplayName(displayAs, user);
     createNews.mutate(
-      { data: { ...form, deadline: form.deadline || undefined, organization: form.organization || undefined, summary: form.summary || undefined } },
+      { data: { ...form, authorName, deadline: form.deadline || undefined, organization: form.organization || undefined, summary: form.summary || undefined } },
       {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getListNewsQueryKey({}) });
           setOpen(false);
-          setForm({ title: "", content: "", summary: "", organization: "", authorName: "", category: "announcement", urgency: "normal", deadline: "" });
+          setForm({ title: "", content: "", summary: "", organization: "", category: "announcement", urgency: "normal", deadline: "" });
           toast({ title: "Update posted", description: "Your community update has been published." });
         },
         onError: () => toast({ title: "Error", description: "Could not post update. Please try again.", variant: "destructive" }),
@@ -108,7 +127,7 @@ function PostUpdateDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 shrink-0">
+        <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 shrink-0" onClick={handleTrigger}>
           <Plus className="h-4 w-4" /> Post Update
         </Button>
       </DialogTrigger>
@@ -148,16 +167,12 @@ function PostUpdateDialog() {
             <Input value={form.title} onChange={s("title")} placeholder="Clear, descriptive headline" className="h-11" required />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Organization / Department</Label>
-              <Input value={form.organization} onChange={s("organization")} placeholder="Who is posting?" className="h-11" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Contact / Author Name</Label>
-              <Input value={form.authorName} onChange={s("authorName")} placeholder="Optional name" className="h-11" />
-            </div>
+          <div className="space-y-1.5">
+            <Label className="font-semibold">Organization / Department</Label>
+            <Input value={form.organization} onChange={s("organization")} placeholder="Who is posting?" className="h-11" />
           </div>
+
+          <DisplayAsSelector value={displayAs} onChange={setDisplayAs} />
 
           <div className="space-y-1.5">
             <Label className="font-semibold">

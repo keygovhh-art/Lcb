@@ -194,6 +194,7 @@ export function Layout({ children }: { children: ReactNode }) {
                       { label: "My Profile", href: "/profile" },
                       { label: "My Askanus", href: "/my" },
                       { label: "Notifications", href: "/notifications" },
+                      { label: "Settings", href: "/system" },
                     ].map(item => (
                       <Link key={item.href} href={item.href}>
                         <div onClick={() => setUserOpen(false)} className="px-4 py-2 text-sm hover:bg-muted/50 cursor-pointer text-foreground">

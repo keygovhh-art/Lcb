@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/context/auth-context";
 import {
   useListReports, useResolveReport, useListUsers, useBanUser, useSuspendUser,
   useListAnnouncements, useCreateAnnouncement, useDeleteAnnouncement,
@@ -57,8 +58,19 @@ export default function SystemCenter() {
   const createAnn = useCreateAnnouncement();
   const deleteAnn = useDeleteAnnouncement();
 
+  const { isAdmin } = useAuth();
   const pendingReports = reports?.filter(r => r.status === "pending") ?? [];
   const statusColor = (status: string) => status === "active" ? "default" : status === "suspended" ? "secondary" : "destructive";
+
+  const AdminOnly = ({ children }: { children: React.ReactNode }) => isAdmin ? <>{children}</> : (
+    <div className="flex-1 flex items-center justify-center py-24">
+      <div className="text-center">
+        <Shield className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+        <h2 className="font-serif text-xl font-bold text-primary mb-2">Admin Access Required</h2>
+        <p className="text-muted-foreground text-sm">This section is for administrators only.</p>
+      </div>
+    </div>
+  );
 
   return (
     <Layout>
@@ -171,6 +183,7 @@ export default function SystemCenter() {
 
           {/* Moderation */}
           <TabsContent value="reports" className="space-y-4">
+            <AdminOnly>
             <h2 className="font-serif text-2xl font-bold text-primary">Content Moderation</h2>
             {reports?.length === 0 && (
               <div className="text-center py-12 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic flex flex-col items-center gap-2">
@@ -199,10 +212,12 @@ export default function SystemCenter() {
                 )}
               </div>
             ))}
+            </AdminOnly>
           </TabsContent>
 
           {/* Users */}
           <TabsContent value="users" className="space-y-4">
+            <AdminOnly>
             <h2 className="font-serif text-2xl font-bold text-primary">User Management</h2>
             {users?.map(user => (
               <div key={user.id} className="bg-card border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -230,10 +245,12 @@ export default function SystemCenter() {
                 )}
               </div>
             ))}
+            </AdminOnly>
           </TabsContent>
 
           {/* Announcements */}
           <TabsContent value="announcements" className="space-y-6">
+            <AdminOnly>
             <h2 className="font-serif text-2xl font-bold text-primary">Announcements</h2>
             <div className="bg-card border rounded-xl p-6">
               <h3 className="font-semibold text-foreground mb-4">Create Announcement</h3>
@@ -266,10 +283,12 @@ export default function SystemCenter() {
             {announcements?.length === 0 && (
               <div className="text-center py-8 text-muted-foreground font-serif italic border rounded-xl bg-muted/20">No announcements yet.</div>
             )}
+            </AdminOnly>
           </TabsContent>
 
           {/* Settings */}
           <TabsContent value="settings" className="space-y-6">
+            <AdminOnly>
             <h2 className="font-serif text-2xl font-bold text-primary">Platform Settings</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[
@@ -289,6 +308,7 @@ export default function SystemCenter() {
                 </div>
               ))}
             </div>
+            </AdminOnly>
           </TabsContent>
         </Tabs>
       </div>

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useAuth } from "@/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,10 +92,20 @@ function Calendar({ selected, onSelect }: { selected: string; onSelect: (d: stri
 }
 
 export default function Reservations() {
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [bookingOpen, setBookingOpen] = useState(false);
   const [form, setForm] = useState({ name: "", purpose: "", notes: "" });
+
+  const handleBookClick = () => {
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to book a slot", description: "Join Gavhah free to make reservations." });
+      return;
+    }
+    setBookingOpen(true);
+  };
 
   const bookedSlots = selectedDate ? (BOOKED[selectedDate] || []) : [];
   const available = HOURS.filter(h => !bookedSlots.includes(h));
@@ -169,12 +181,11 @@ export default function Reservations() {
                           <span className="flex items-center gap-1.5"><Clock className="h-4 w-4" /> {selectedTime}</span>
                         </div>
                       </div>
-                      <Dialog open={bookingOpen} onOpenChange={setBookingOpen}>
-                        <DialogTrigger asChild>
-                          <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 shrink-0">
-                            <CheckCircle className="h-4 w-4" /> Book This Slot
-                          </Button>
-                        </DialogTrigger>
+                      <>
+                        <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 shrink-0" onClick={handleBookClick}>
+                          <CheckCircle className="h-4 w-4" /> Book This Slot
+                        </Button>
+                        <Dialog open={bookingOpen} onOpenChange={setBookingOpen}>
                         <DialogContent className="sm:max-w-md">
                           <DialogHeader>
                             <DialogTitle className="font-serif text-2xl text-primary">Confirm Reservation</DialogTitle>
@@ -219,7 +230,8 @@ export default function Reservations() {
                             </Button>
                           </div>
                         </DialogContent>
-                      </Dialog>
+                        </Dialog>
+                      </>
                     </div>
                   </div>
                 )}

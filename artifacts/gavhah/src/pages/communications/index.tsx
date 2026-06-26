@@ -1,3 +1,5 @@
+import { useAuth } from "@/context/auth-context";
+import { MemberGate } from "@/components/shared/member-gate";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -44,6 +46,7 @@ export default function Communications() {
         </div>
       </div>
 
+      <MemberGate action="access the communications platform">
       <div className="container mx-auto px-4 py-10">
         {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
@@ -282,6 +285,7 @@ export default function Communications() {
           </TabsContent>
         </Tabs>
       </div>
+      </MemberGate>
     </Layout>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useListNotifications, useMarkAllNotificationsRead, getListNotificationsQueryKey,
   useListAskanuscases, useCreateAskanusCase, useUpdateAskanusCase, useDeleteAskanusCase,
@@ -9,6 +9,8 @@ import {
   getListAskanusNotesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { useAuth } from "@/context/auth-context";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -570,6 +572,12 @@ function HistoryCalendar({ onSelect, selected }: { onSelect: (d: string) => void
 export default function MyAskanus() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { isAuthenticated, isLoaded } = useAuth();
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (isLoaded && !isAuthenticated) navigate("/login");
+  }, [isLoaded, isAuthenticated, navigate]);
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().slice(0, 10));
   const [newNote, setNewNote] = useState({ title: "", content: "" });
   const [editNoteId, setEditNoteId] = useState<number | null>(null);
