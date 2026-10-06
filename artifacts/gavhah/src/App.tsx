@@ -29,7 +29,42 @@ import FounderDashboard from "@/pages/admin/index";
 import NotificationsPage from "@/pages/notifications/index";
 import ProfilePage from "@/pages/profile/index";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 0,
+      refetchOnMount: "always",
+      refetchOnWindowFocus: true,
+    },
+  },
+});
+
+if (typeof window !== "undefined" && !(window as any).__gavhahApiRefetchInstalled) {
+  (window as any).__gavhahApiRefetchInstalled = true;
+  const nativeFetch = window.fetch.bind(window);
+
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const response = await nativeFetch(input, init);
+    const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+    const url = typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+
+    if (
+      response.ok &&
+      url.includes("/api/") &&
+      ["POST", "PUT", "PATCH", "DELETE"].includes(method)
+    ) {
+      queueMicrotask(() => {
+        void queryClient.invalidateQueries({ refetchType: "active" });
+      });
+    }
+
+    return response;
+  };
+}
 
 function Router() {
   return (
