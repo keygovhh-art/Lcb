@@ -14,3 +14,4 @@ export * from "./social";
 
 export * from "./reservations";
 export * from "./support";
+export * from "./likes";
