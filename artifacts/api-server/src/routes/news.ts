@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, sql } from "drizzle-orm";
-import { db, newsTable } from "@workspace/db";
+import { eq, desc, sql, and } from "drizzle-orm";
+import { db, newsTable, entityLikesTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName } from "../lib/user-display";
@@ -113,6 +113,10 @@ router.delete("/news/:id", requireAuth, async (req, res): Promise<void> => {
   if (existing.authorId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
     res.status(403).json({ error: "Not allowed" }); return;
   }
+  await db.delete(entityLikesTable).where(and(
+    eq(entityLikesTable.entityType, "news"),
+    eq(entityLikesTable.entityId, id),
+  ));
   await db.delete(newsTable).where(eq(newsTable.id, id));
   res.sendStatus(204);
 });
