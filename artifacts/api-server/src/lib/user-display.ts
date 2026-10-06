@@ -19,6 +19,7 @@ export async function resolveMemberDisplayName(userId: number, requested?: strin
 
   const allowed = [user.nickname, user.name].filter((v): v is string => !!v?.trim());
   const cleanRequested = requested?.trim();
+  if (cleanRequested === "Anonymous") return "Anonymous";
   if (cleanRequested && allowed.includes(cleanRequested)) return cleanRequested;
 
   return user.nickname || user.name || "Community Member";
