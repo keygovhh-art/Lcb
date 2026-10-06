@@ -117,7 +117,7 @@ export default function Dashboard() {
               { label: "Minyan Center", href: "/minyans", icon: <Clock className="h-5 w-5" /> },
               { label: "Group Center", href: "/groups", icon: <Globe className="h-5 w-5" /> },
               { label: "My Gavhah", href: "/my", icon: <Users className="h-5 w-5" /> },
-              { label: "Administration", href: "/admin", icon: <BarChart3 className="h-5 w-5" /> },
+              { label: "Administration", href: "/founder", icon: <BarChart3 className="h-5 w-5" /> },
             ].map((dept, i) => (
               <Link key={i} href={dept.href}>
                 <div className="bg-card border rounded-xl p-4 hover:border-primary/20 hover:shadow-sm transition-all cursor-pointer flex flex-col items-center text-center gap-3">
