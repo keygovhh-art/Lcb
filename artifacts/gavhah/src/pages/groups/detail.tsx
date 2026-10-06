@@ -48,10 +48,7 @@ export default function GroupDetail() {
     query: { queryKey: getGetGroupQueryKey(numId), enabled: !!numId },
   });
   const { data: members } = useListGroupMembers(numId, {
-    query: { queryKey: getListGroupMembersQueryKey(numId), enabled: !!numId },
-  });
-  const { data: posts } = useListGroupPosts(numId, {
-    query: { queryKey: getListGroupPostsQueryKey(numId), enabled: !!numId },
+    query: { queryKey: getListGroupMembersQueryKey(numId), enabled: !!numId && !!group },
   });
 
   const join = useJoinGroup();
@@ -62,6 +59,11 @@ export default function GroupDetail() {
   const ownMembership = !!user ? (members ?? []).find((member: any) => member.userId === user.id) : undefined;
   const isPendingMember = ownMembership?.status === "pending";
   const isMember = !!user && (isOwner || ownMembership?.status === "approved");
+  const canReadPosts = !!group && (group.privacy === "public" || isMember || isAdmin);
+
+  const { data: posts } = useListGroupPosts(numId, {
+    query: { queryKey: getListGroupPostsQueryKey(numId), enabled: !!numId && canReadPosts },
+  });
 
   const openGroupEdit = () => {
     if (!group) return;
