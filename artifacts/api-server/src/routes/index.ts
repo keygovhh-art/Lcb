@@ -17,6 +17,7 @@ import askanusRouter from "./askanus";
 import socialRouter from "./social";
 import adminRouter from "./admin";
 import reservationsRouter from "./reservations";
+import supportRouter from "./support";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(askanusRouter);
 router.use(socialRouter);
 router.use(adminRouter);
 router.use(reservationsRouter);
+router.use(supportRouter);
 
 export default router;
