@@ -278,7 +278,10 @@ function RegisterVolunteerDialog() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.userName || selectedSkills.length === 0) return;
+    if (!form.userName.trim() || !form.location.trim() || selectedSkills.length === 0) {
+      toast({ title: "Please complete the required fields", description: "Display name, location, and at least one area of help are required.", variant: "destructive" });
+      return;
+    }
     createVol.mutate(
       { data: { userName: form.userName, location: form.location, availability: form.availability, bio: form.bio || undefined, skills: selectedSkills } },
       {
@@ -322,8 +325,8 @@ function RegisterVolunteerDialog() {
               <p className="text-xs text-muted-foreground">Activists Directory shows nicknames only to protect privacy.</p>
             </div>
             <div className="space-y-1.5">
-              <Label className="font-semibold">City / Community</Label>
-              <Input value={form.location} onChange={set("location")} placeholder="Brooklyn, NY" className="h-11" />
+              <Label className="font-semibold">City / Community *</Label>
+              <Input value={form.location} onChange={set("location")} placeholder="Brooklyn, NY" className="h-11" required />
             </div>
             <div className="space-y-1.5">
               <Label className="font-semibold">Availability</Label>
@@ -354,7 +357,7 @@ function RegisterVolunteerDialog() {
               <Label className="font-semibold">Brief Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
               <Textarea value={form.bio} onChange={set("bio")} placeholder="A few words about your background or how you like to help..." className="resize-none min-h-20" />
             </div>
-            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createVol.isPending || selectedSkills.length === 0}>
+            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createVol.isPending || selectedSkills.length === 0 || !form.location.trim()}>
               {createVol.isPending ? "Registering..." : "Register as Volunteer"}
             </Button>
           </form>
