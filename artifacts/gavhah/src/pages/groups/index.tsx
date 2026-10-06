@@ -1,23 +1,60 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useListGroups, useJoinGroup, getListGroupsQueryKey } from "@workspace/api-client-react";
+import { useListGroups, useJoinGroup, useCreateGroup, getListGroupsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Plus, Users, Lock, Globe, KeyRound, MessageCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
 
 export default function GroupsList() {
   const [search, setSearch] = useState("");
   const [privacy, setPrivacy] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: "", description: "", privacy: "public", imageUrl: "" });
   const qc = useQueryClient();
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
 
   const params = { search: search || undefined, privacy: privacy || undefined };
   const { data: groups, isLoading } = useListGroups(params, {
     query: { queryKey: getListGroupsQueryKey(params) },
   });
   const join = useJoinGroup();
+  const create = useCreateGroup();
+
+  const submitGroup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to create a group", description: "Join Gavhah free to create community groups." });
+      return;
+    }
+    if (!createForm.name.trim() || !createForm.description.trim()) return;
+    create.mutate(
+      { data: {
+        name: createForm.name.trim(),
+        description: createForm.description.trim(),
+        privacy: createForm.privacy,
+        imageUrl: createForm.imageUrl.trim() || null,
+      } },
+      {
+        onSuccess: () => {
+          setCreateOpen(false);
+          setCreateForm({ name: "", description: "", privacy: "public", imageUrl: "" });
+          void qc.invalidateQueries({ queryKey: getListGroupsQueryKey({}) });
+          toast({ title: "Group created", description: "Your new group is now live." });
+        },
+        onError: () => toast({ title: "Could not create group", variant: "destructive" }),
+      }
+    );
+  };
 
   const privacyIcon = (p: string) => {
     if (p === "private") return <Lock className="h-4 w-4 text-muted-foreground" />;
@@ -36,12 +73,74 @@ export default function GroupsList() {
                 Join organizations, neighborhoods, and cause groups across the global Jewish community.
               </p>
             </div>
-            <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 shrink-0">
+            <Button
+              className="bg-secondary hover:bg-secondary/90 text-white gap-2 shrink-0"
+              onClick={() => {
+                if (!isAuthenticated) {
+                  toast({ title: "Sign in to create a group", description: "Join Gavhah free to create community groups." });
+                  return;
+                }
+                setCreateOpen(true);
+              }}
+            >
               <Plus className="h-4 w-4" /> Create Group
             </Button>
           </div>
         </div>
       </div>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-primary">Create Community Group</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={submitGroup} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label className="font-semibold">Group Name *</Label>
+              <Input
+                value={createForm.name}
+                onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Group name"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="font-semibold">Description *</Label>
+              <Textarea
+                value={createForm.description}
+                onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="What is this group for?"
+                className="min-h-28"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="font-semibold">Privacy</Label>
+              <Select
+                value={createForm.privacy}
+                onValueChange={v => setCreateForm(f => ({ ...f, privacy: v }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="private">Private</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="font-semibold">Image URL <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <Input
+                value={createForm.imageUrl}
+                onChange={e => setCreateForm(f => ({ ...f, imageUrl: e.target.value }))}
+                placeholder="https://..."
+              />
+            </div>
+            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white" disabled={create.isPending}>
+              {create.isPending ? "Creating..." : "Create Group"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <div className="container mx-auto px-4 py-10 space-y-6">
         <div className="flex flex-col sm:flex-row gap-4">
