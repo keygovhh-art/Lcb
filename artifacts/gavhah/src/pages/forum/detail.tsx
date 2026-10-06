@@ -16,6 +16,7 @@ import { SaveButton } from "@/components/shared/save-button";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
 
 const CATEGORY_LABELS: Record<string, string> = {
   medical: "Medical Assistance", shidduchim: "Shidduchim",
@@ -27,7 +28,8 @@ export default function ForumDetail() {
   const { id } = useParams<{ id: string }>();
   const numId = parseInt(id ?? "0", 10);
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const [reply, setReply] = useState("");
   const [displayAs, setDisplayAs] = useState<DisplayAs>("nickname");
 
@@ -41,9 +43,27 @@ export default function ForumDetail() {
   const addComment = useCreateDiscussionComment();
 
   const handleLike = () => {
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to like discussions", description: "Join Gavhah free to participate." });
+      return;
+    }
     like.mutate({ id: numId }, {
       onSuccess: () => qc.invalidateQueries({ queryKey: getGetDiscussionQueryKey(numId) }),
     });
+  };
+
+  const handleCommentLike = async (commentId: number) => {
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to like replies", description: "Join Gavhah free to participate." });
+      return;
+    }
+    const res = await fetch(`/api/discussions/${numId}/comments/${commentId}/like`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (res.ok) {
+      void qc.invalidateQueries({ queryKey: getListDiscussionCommentsQueryKey(numId) });
+    }
   };
 
   const handleComment = (e: React.FormEvent) => {
@@ -156,7 +176,10 @@ export default function ForumDetail() {
                   </div>
                   <p className="text-foreground leading-relaxed">{comment.content}</p>
                   <div className="flex items-center gap-4 mt-3 pt-3 border-t text-xs text-muted-foreground">
-                    <button className="flex items-center gap-1 hover:text-secondary transition-colors">
+                    <button
+                      className="flex items-center gap-1 hover:text-secondary transition-colors"
+                      onClick={() => void handleCommentLike(comment.id)}
+                    >
                       <Heart className="h-3 w-3" /> {comment.likes}
                     </button>
                   </div>
