@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   useListReports, useResolveReport, useDismissReport, useListUsers, useBanUser, useSuspendUser,
   useListAnnouncements, useCreateAnnouncement, useDeleteAnnouncement, useGetAdminStats,
-  useListFeaturedCauses, useListCommunityProjects, useListCauseSupporters,
+  useListFeaturedCauses, useListCommunityProjects, useListCauseSupporters, useUpdateMinyan,
   getListReportsQueryKey, getListUsersQueryKey, getListAnnouncementsQueryKey, getGetAdminStatsQueryKey,
   getListFeaturedCausesQueryKey, getListCommunityProjectsQueryKey, getListCauseSupportersQueryKey,
 } from "@workspace/api-client-react";
@@ -43,12 +43,25 @@ export default function FounderDashboard() {
   const { user, isLoaded, isAdmin } = useAuth();
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
+  const [adminMinyans, setAdminMinyans] = useState<any[]>([]);
 
   useEffect(() => {
     if (isLoaded && (!user || !isAdmin)) {
       navigate("/");
     }
   }, [isLoaded, user, isAdmin, navigate]);
+
+  const loadAdminMinyans = async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch("/api/admin/minyans", { credentials: "include" });
+      if (res.ok) setAdminMinyans(await res.json());
+    } catch {}
+  };
+
+  useEffect(() => {
+    void loadAdminMinyans();
+  }, [isAdmin]);
 
   const { data: stats } = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey(), enabled: isAdmin } });
   const { data: reports } = useListReports({}, { query: { queryKey: getListReportsQueryKey({}), enabled: isAdmin } });
@@ -64,6 +77,7 @@ export default function FounderDashboard() {
   const suspendUser = useSuspendUser();
   const createAnn = useCreateAnnouncement();
   const deleteAnn = useDeleteAnnouncement();
+  const updateMinyan = useUpdateMinyan();
 
   const pendingReports = reports?.filter(r => r.status === "pending") ?? [];
 
@@ -130,6 +144,12 @@ export default function FounderDashboard() {
             <TabsTrigger value="featured" className="gap-2"><Sparkles className="h-4 w-4" /> Featured</TabsTrigger>
             <TabsTrigger value="causes" className="gap-2"><HandHeart className="h-4 w-4" /> Causes</TabsTrigger>
             <TabsTrigger value="projects" className="gap-2"><FolderKanban className="h-4 w-4" /> Projects</TabsTrigger>
+            <TabsTrigger value="minyans" className="gap-2">
+              <Clock className="h-4 w-4" /> Minyans
+              {adminMinyans.filter(m => m.status === "pending").length > 0 && (
+                <span className="bg-destructive text-white text-xs rounded-full px-1.5 py-0.5">{adminMinyans.filter(m => m.status === "pending").length}</span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="announcements" className="gap-2"><Megaphone className="h-4 w-4" /> Announcements</TabsTrigger>
           </TabsList>
 
@@ -369,6 +389,60 @@ export default function FounderDashboard() {
             ))}
             {projects?.length === 0 && (
               <div className="text-center py-12 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">No community projects yet.</div>
+            )}
+          </TabsContent>
+
+          {/* ─── Minyan Moderation ─── */}
+          <TabsContent value="minyans" className="space-y-4">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-primary">Minyan Submissions</h2>
+              <p className="text-muted-foreground text-sm mt-1">Review community submissions before they appear publicly.</p>
+            </div>
+            {adminMinyans.map(m => (
+              <div key={m.id} className="bg-card border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <h3 className="font-serif font-bold text-primary">{m.synagogueName}</h3>
+                    <Badge variant={m.status === "approved" ? "default" : m.status === "rejected" ? "destructive" : "secondary"} className="capitalize">
+                      {m.status}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{m.city}, {m.country}{m.community ? ` · ${m.community}` : ""}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Shacharis: {m.shacharis} · Mincha: {m.mincha} · Maariv: {m.maariv}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {m.status !== "approved" && (
+                    <Button
+                      size="sm"
+                      className="bg-secondary hover:bg-secondary/90 text-white"
+                      disabled={updateMinyan.isPending}
+                      onClick={() => updateMinyan.mutate(
+                        { id: m.id, data: { status: "approved" } },
+                        { onSuccess: loadAdminMinyans }
+                      )}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
+                    </Button>
+                  )}
+                  {m.status !== "rejected" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive border-destructive/20"
+                      disabled={updateMinyan.isPending}
+                      onClick={() => updateMinyan.mutate(
+                        { id: m.id, data: { status: "rejected" } },
+                        { onSuccess: loadAdminMinyans }
+                      )}
+                    >
+                      Reject
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {adminMinyans.length === 0 && (
+              <div className="text-center py-12 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">No minyan submissions yet.</div>
             )}
           </TabsContent>
 
