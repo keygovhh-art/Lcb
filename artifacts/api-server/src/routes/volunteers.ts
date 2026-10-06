@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, volunteerProfilesTable, helpRequestsTable } from "@workspace/db";
+import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -22,11 +23,11 @@ router.get("/volunteers", async (req, res): Promise<void> => {
   res.json(all);
 });
 
-router.post("/volunteers", async (req, res): Promise<void> => {
-  const { skills, availability, location, areasOfInterest } = req.body;
+router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
+  const { userName, skills, availability, location, areasOfInterest } = req.body;
   if (!availability || !location) { res.status(400).json({ error: "availability and location required" }); return; }
   const [vol] = await db.insert(volunteerProfilesTable).values({
-    userId: 1, userName: "Community Member",
+    userId: getSessionUserId(req)!, userName: userName || "Community Member",
     skills: skills || [],
     availability,
     location,
@@ -53,7 +54,7 @@ router.get("/help-requests", async (req, res): Promise<void> => {
   res.json(all);
 });
 
-router.post("/help-requests", async (req, res): Promise<void> => {
+router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
   const { name, contactInfo, needType, description, urgency } = req.body;
   if (!name || !contactInfo || !needType || !description) {
     res.status(400).json({ error: "Required fields missing" }); return;
@@ -73,7 +74,7 @@ router.get("/help-requests/:id", async (req, res): Promise<void> => {
   res.json(request);
 });
 
-router.patch("/help-requests/:id", async (req, res): Promise<void> => {
+router.patch("/help-requests/:id", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const { status, isFeatured } = req.body;
