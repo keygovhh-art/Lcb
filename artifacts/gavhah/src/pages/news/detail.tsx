@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { useLikeArticle } from "@/hooks/use-like-article";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
+import { ImageUploadField } from "@/components/shared/image-upload-field";
 
 const CATEGORY_LABELS: Record<string, string> = {
   medical: "Medical Assistance",
@@ -274,7 +275,11 @@ function ArticleBody({ article }: { article: any }) {
             <div><Label>Title</Label><Input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} /></div>
             <div><Label>Content</Label><Textarea className="min-h-40" value={editForm.content} onChange={e => setEditForm(f => ({ ...f, content: e.target.value }))} /></div>
             <div><Label>Summary</Label><Textarea value={editForm.summary} onChange={e => setEditForm(f => ({ ...f, summary: e.target.value }))} /></div>
-            <div><Label>Image URL</Label><Input type="url" value={editForm.imageUrl} onChange={e => setEditForm(f => ({ ...f, imageUrl: e.target.value }))} /></div>
+            <ImageUploadField
+              label="Image"
+              value={editForm.imageUrl}
+              onChange={imageUrl => setEditForm(f => ({ ...f, imageUrl }))}
+            />
             <div><Label>Organization</Label><Input value={editForm.organization} onChange={e => setEditForm(f => ({ ...f, organization: e.target.value }))} /></div>
             <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveEdit()} disabled={saving || !editForm.title.trim() || !editForm.content.trim()}>
               {saving ? "Saving..." : "Save Changes"}
