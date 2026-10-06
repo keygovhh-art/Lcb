@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import {
   useGetGroup, useListGroupMembers, useListGroupPosts, useJoinGroup, useCreateGroupPost,
   getGetGroupQueryKey, getListGroupMembersQueryKey, getListGroupPostsQueryKey
@@ -9,6 +9,10 @@ import { Layout } from "@/components/layout/layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Users, Lock, Globe, KeyRound, Heart, MessageCircle, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
@@ -27,12 +31,17 @@ export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const numId = parseInt(id ?? "0", 10);
   const qc = useQueryClient();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isAdmin } = useAuth();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [newPost, setNewPost] = useState("");
   const [displayAs, setDisplayAs] = useState<DisplayAs>("nickname");
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [editingPostContent, setEditingPostContent] = useState("");
+  const [editGroupOpen, setEditGroupOpen] = useState(false);
+  const [savingGroup, setSavingGroup] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
+  const [editGroupForm, setEditGroupForm] = useState({ name: "", description: "", privacy: "public", imageUrl: "" });
 
   const { data: group, isLoading } = useGetGroup(numId, {
     query: { queryKey: getGetGroupQueryKey(numId), enabled: !!numId },
@@ -48,9 +57,67 @@ export default function GroupDetail() {
   const createPost = useCreateGroupPost();
 
   const isOwner = !!user && group?.ownerId === user.id;
+  const canManageGroup = !!user && (isOwner || isAdmin);
   const isMember = !!user && (isOwner || (members ?? []).some((member: any) => member.userId === user.id && member.status === "approved"));
 
-  const handleJoin = () => {
+  const openGroupEdit = () => {
+    if (!group) return;
+    setEditGroupForm({
+      name: group.name ?? "",
+      description: group.description ?? "",
+      privacy: group.privacy ?? "public",
+      imageUrl: group.imageUrl ?? "",
+    });
+    setEditGroupOpen(true);
+  };
+
+  const saveGroupEdit = async () => {
+    if (!group || !editGroupForm.name.trim() || !editGroupForm.description.trim()) return;
+    setSavingGroup(true);
+    try {
+      const res = await fetch(`/api/groups/${group.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editGroupForm.name.trim(),
+          description: editGroupForm.description.trim(),
+          privacy: editGroupForm.privacy,
+          imageUrl: editGroupForm.imageUrl.trim() || null,
+        }),
+      });
+      if (!res.ok) throw new Error("update failed");
+      const updated = await res.json();
+      qc.setQueryData(getGetGroupQueryKey(numId), updated);
+      void qc.invalidateQueries({ queryKey: ["/api/groups"] });
+      setEditGroupOpen(false);
+      toast({ title: "Group updated" });
+    } catch {
+      toast({ title: "Could not update group", variant: "destructive" });
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
+  const deleteGroup = async () => {
+    if (!group || !window.confirm("Delete this group and its group page?")) return;
+    setDeletingGroup(true);
+    try {
+      const res = await fetch(`/api/groups/${group.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("delete failed");
+      void qc.invalidateQueries({ queryKey: ["/api/groups"] });
+      toast({ title: "Group deleted" });
+      navigate("/groups");
+    } catch {
+      toast({ title: "Could not delete group", variant: "destructive" });
+      setDeletingGroup(false);
+    }
+  };
+
+    const handleJoin = () => {
     join.mutate({ id: numId }, {
       onSuccess: () => qc.invalidateQueries({ queryKey: getGetGroupQueryKey(numId) }),
     });
@@ -168,6 +235,22 @@ export default function GroupDetail() {
                     <h1 className="font-serif text-3xl font-bold text-primary">{group.name}</h1>
                     <p className="text-muted-foreground mt-2">Created by {group.ownerName}</p>
                   </div>
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                  {canManageGroup && (
+                    <>
+                      <Button variant="outline" onClick={openGroupEdit} className="gap-2">
+                        <Pencil className="h-4 w-4" /> Edit Group
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="gap-2 text-destructive border-destructive/20"
+                        onClick={() => void deleteGroup()}
+                        disabled={deletingGroup}
+                      >
+                        <Trash2 className="h-4 w-4" /> {deletingGroup ? "Deleting..." : "Delete Group"}
+                      </Button>
+                    </>
+                  )}
                   {isMember ? (
                     <Button variant="outline" className="shrink-0" disabled>
                       <Users className="h-4 w-4 mr-2" /> {isOwner ? "Group Owner" : "Member"}
@@ -184,6 +267,7 @@ export default function GroupDetail() {
                       </Button>
                     </MemberGate>
                   )}
+                  </div>
                 </div>
                 <p className="text-foreground mt-4 leading-relaxed">{group.description}</p>
                 <div className="flex gap-6 mt-6 pt-6 border-t text-sm text-muted-foreground">
@@ -194,7 +278,31 @@ export default function GroupDetail() {
               </div>
             </div>
 
-            <Tabs defaultValue="posts" className="space-y-6">
+            <Dialog open={editGroupOpen} onOpenChange={setEditGroupOpen}>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader><DialogTitle>Edit Group</DialogTitle></DialogHeader>
+                <div className="space-y-4">
+                  <div><Label>Group Name</Label><Input value={editGroupForm.name} onChange={e => setEditGroupForm(f => ({ ...f, name: e.target.value }))} /></div>
+                  <div><Label>Description</Label><Textarea className="min-h-32" value={editGroupForm.description} onChange={e => setEditGroupForm(f => ({ ...f, description: e.target.value }))} /></div>
+                  <div>
+                    <Label>Privacy</Label>
+                    <Select value={editGroupForm.privacy} onValueChange={privacy => setEditGroupForm(f => ({ ...f, privacy }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="public">Public</SelectItem>
+                        <SelectItem value="private">Private</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Image URL</Label><Input type="url" value={editGroupForm.imageUrl} onChange={e => setEditGroupForm(f => ({ ...f, imageUrl: e.target.value }))} /></div>
+                  <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveGroupEdit()} disabled={savingGroup || !editGroupForm.name.trim() || !editGroupForm.description.trim()}>
+                    {savingGroup ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+                        <Tabs defaultValue="posts" className="space-y-6">
               <TabsList className="bg-muted/50">
                 <TabsTrigger value="posts">Posts</TabsTrigger>
                 <TabsTrigger value="members">Members</TabsTrigger>
