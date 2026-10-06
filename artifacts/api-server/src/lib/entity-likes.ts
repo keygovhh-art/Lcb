@@ -29,16 +29,23 @@ export async function setLikeState(
 ) {
   const current = await getLikeState(userId, entityType, entityId);
   const nextLiked = desired ?? !current.liked;
+  let changed = false;
 
   if (nextLiked && !current.liked) {
-    await db.insert(entityLikesTable).values({ userId, entityType, entityId }).onConflictDoNothing();
+    const inserted = await db.insert(entityLikesTable)
+      .values({ userId, entityType, entityId })
+      .onConflictDoNothing()
+      .returning({ id: entityLikesTable.id });
+    changed = inserted.length > 0;
   } else if (!nextLiked && current.liked) {
-    await db.delete(entityLikesTable).where(and(
+    const deleted = await db.delete(entityLikesTable).where(and(
       eq(entityLikesTable.userId, userId),
       eq(entityLikesTable.entityType, entityType),
       eq(entityLikesTable.entityId, entityId),
-    ));
+    )).returning({ id: entityLikesTable.id });
+    changed = deleted.length > 0;
   }
 
-  return getLikeState(userId, entityType, entityId);
+  const state = await getLikeState(userId, entityType, entityId);
+  return { ...state, changed, delta: changed ? (state.liked ? 1 : -1) : 0 };
 }
