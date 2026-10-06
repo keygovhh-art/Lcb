@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   Search, Users, HandHeart, MapPin, Clock, Star, AlertTriangle, AlertCircle,
   Minus, UserPlus, HelpCircle, FolderKanban, Plus, ChevronDown, ChevronUp,
-  Megaphone, Target, Handshake, Gift
+  Megaphone, Target, Handshake, Gift, Pencil, Trash2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -571,9 +571,20 @@ function CreateProjectDialog() {
 function ProjectCard({ project }: { project: any }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { isAuthenticated, isLoaded, user } = useAuth();
+  const { isAuthenticated, isLoaded, user, isAdmin } = useAuth();
   const [joinOpen, setJoinOpen] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: project.title ?? "",
+    description: project.description ?? "",
+    type: project.type ?? "project",
+    location: project.location ?? "",
+    goalDescription: project.goalDescription ?? "",
+    status: project.status ?? "active",
+  });
 
   const nickname = (user as any)?.nickname || user?.name || "";
   const [joinForm, setJoinForm] = useState({ name: "", role: "volunteer", message: "" });
@@ -587,7 +598,73 @@ function ProjectCard({ project }: { project: any }) {
   const setF = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setJoinForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
-  const handleJoinOpen = () => {
+  const canManageProject = !!user && (project.ownerId === user.id || isAdmin);
+
+  const openProjectEdit = () => {
+    setEditForm({
+      title: project.title ?? "",
+      description: project.description ?? "",
+      type: project.type ?? "project",
+      location: project.location ?? "",
+      goalDescription: project.goalDescription ?? "",
+      status: project.status ?? "active",
+    });
+    setEditOpen(true);
+  };
+
+  const saveProjectEdit = async () => {
+    if (!editForm.title.trim() || !editForm.description.trim()) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/community-projects/${project.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editForm.title.trim(),
+          description: editForm.description.trim(),
+          type: editForm.type,
+          organizerName: project.organizerName,
+          location: editForm.location.trim() || null,
+          goalDescription: editForm.goalDescription.trim() || null,
+          status: editForm.status,
+        }),
+      });
+      if (!res.ok) throw new Error("update failed");
+      const updated = await res.json();
+      qc.setQueriesData({ queryKey: ["/api/community-projects"] }, (current: any) =>
+        Array.isArray(current) ? current.map((item: any) => item.id === project.id ? updated : item) : current
+      );
+      void qc.invalidateQueries({ queryKey: ["/api/community-projects"] });
+      setEditOpen(false);
+      toast({ title: "Project updated" });
+    } catch {
+      toast({ title: "Could not update project", variant: "destructive" });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const deleteProject = async () => {
+    if (!window.confirm("Delete this community project?")) return;
+    setDeletingProject(true);
+    try {
+      const res = await fetch(`/api/community-projects/${project.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("delete failed");
+      qc.setQueriesData({ queryKey: ["/api/community-projects"] }, (current: any) =>
+        Array.isArray(current) ? current.filter((item: any) => item.id !== project.id) : current
+      );
+      toast({ title: "Project deleted" });
+    } catch {
+      toast({ title: "Could not delete project", variant: "destructive" });
+      setDeletingProject(false);
+    }
+  };
+
+    const handleJoinOpen = () => {
     setJoinForm(f => ({ ...f, name: f.name || nickname }));
     setJoinOpen(true);
   };
@@ -628,6 +705,23 @@ function ProjectCard({ project }: { project: any }) {
             </div>
             <h3 className="font-serif font-bold text-lg leading-tight">{project.title}</h3>
           </div>
+          {canManageProject && (
+            <div className="flex gap-1 shrink-0">
+              <Button size="icon" variant="ghost" onClick={openProjectEdit} title="Edit project">
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-destructive"
+                onClick={() => void deleteProject()}
+                disabled={deletingProject}
+                title="Delete project"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Meta */}
@@ -680,6 +774,33 @@ function ProjectCard({ project }: { project: any }) {
           )}
         </div>
       )}
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="font-serif text-lg text-primary">Edit Project</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div><Label>Title</Label><Input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} /></div>
+            <div><Label>Description</Label><Textarea className="min-h-32" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
+            <div>
+              <Label>Type</Label>
+              <Select value={editForm.type} onValueChange={type => setEditForm(f => ({ ...f, type }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="project">Project</SelectItem>
+                  <SelectItem value="campaign">Campaign</SelectItem>
+                  <SelectItem value="initiative">Initiative</SelectItem>
+                  <SelectItem value="program">Program</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Location</Label><Input value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} /></div>
+            <div><Label>Goal</Label><Input value={editForm.goalDescription} onChange={e => setEditForm(f => ({ ...f, goalDescription: e.target.value }))} /></div>
+            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveProjectEdit()} disabled={savingEdit || !editForm.title.trim() || !editForm.description.trim()}>
+              {savingEdit ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Join dialog */}
       <Dialog open={joinOpen} onOpenChange={v => !v && setJoinOpen(false)}>
