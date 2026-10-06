@@ -3,6 +3,7 @@ import { eq, desc, sql } from "drizzle-orm";
 import { db, newsTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
+import { resolveMemberDisplayName } from "../lib/user-display";
 
 const router: IRouter = Router();
 
@@ -31,17 +32,20 @@ router.get("/news", async (req, res): Promise<void> => {
 router.post("/news", requireAuth, async (req, res): Promise<void> => {
   const { title, content, summary, imageUrl, category, urgency, deadline, organization, isFeatured, authorName } = req.body;
   if (!title || !content) { res.status(400).json({ error: "title and content required" }); return; }
+  const userId = getSessionUserId(req)!;
+  const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
   const [article] = await db.insert(newsTable).values({
-    title, content,
-    summary: summary || null,
-    imageUrl: imageUrl || null,
+    title: String(title).trim(),
+    content: String(content).trim(),
+    summary: summary ? String(summary).trim() : null,
+    imageUrl: imageUrl ? String(imageUrl).trim() : null,
     category: category || "announcement",
     urgency: urgency || "normal",
     deadline: deadline || null,
-    organization: organization || null,
+    organization: organization ? String(organization).trim() : null,
     isFeatured: isStaffRole(getSessionUserRole(req)) ? (isFeatured ?? false) : false,
-    authorId: getSessionUserId(req)!,
-    authorName: authorName || "Community Member",
+    authorId: userId,
+    authorName: safeAuthorName,
   }).returning();
   res.status(201).json(article);
 });
