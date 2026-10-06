@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, communityProjectsTable, projectMembersTable } from "@workspace/db";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -14,7 +15,7 @@ router.get("/community-projects", async (req, res): Promise<void> => {
 });
 
 // POST /community-projects
-router.post("/community-projects", async (req, res): Promise<void> => {
+router.post("/community-projects", requireAuth, async (req, res): Promise<void> => {
   const { title, description, type, organizerName, location, goalDescription } = req.body;
   if (!title || !description || !organizerName) {
     res.status(400).json({ error: "title, description, and organizerName required" });
@@ -39,7 +40,7 @@ router.get("/community-projects/:id", async (req, res): Promise<void> => {
 });
 
 // PATCH /community-projects/:id
-router.patch("/community-projects/:id", async (req, res): Promise<void> => {
+router.patch("/community-projects/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const { title, description, type, organizerName, location, goalDescription, status } = req.body;
   const [project] = await db.update(communityProjectsTable)
@@ -51,14 +52,14 @@ router.patch("/community-projects/:id", async (req, res): Promise<void> => {
 });
 
 // DELETE /community-projects/:id
-router.delete("/community-projects/:id", async (req, res): Promise<void> => {
+router.delete("/community-projects/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   await db.delete(communityProjectsTable).where(eq(communityProjectsTable.id, id));
   res.sendStatus(204);
 });
 
 // POST /community-projects/:id/join
-router.post("/community-projects/:id/join", async (req, res): Promise<void> => {
+router.post("/community-projects/:id/join", requireAuth, async (req, res): Promise<void> => {
   const projectId = parseInt(req.params.id, 10);
   const { name, role, message } = req.body;
   if (!name || !role) { res.status(400).json({ error: "name and role required" }); return; }
