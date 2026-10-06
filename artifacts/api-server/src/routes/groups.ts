@@ -127,6 +127,47 @@ router.get("/groups/:id/posts", async (req, res): Promise<void> => {
   res.json(posts);
 });
 
+router.patch("/groups/:id/posts/:postId", requireAuth, async (req, res): Promise<void> => {
+  const groupId = Number(req.params.id);
+  const postId = Number(req.params.postId);
+  const [post] = await db.select().from(groupPostsTable).where(and(
+    eq(groupPostsTable.id, postId),
+    eq(groupPostsTable.groupId, groupId),
+  ));
+  if (!post) { res.status(404).json({ error: "Not found" }); return; }
+  if (post.authorId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
+
+  const content = String(req.body?.content || "").trim();
+  if (!content) { res.status(400).json({ error: "content required" }); return; }
+
+  const [updated] = await db.update(groupPostsTable)
+    .set({ content })
+    .where(eq(groupPostsTable.id, postId))
+    .returning();
+  res.json(updated);
+});
+
+router.delete("/groups/:id/posts/:postId", requireAuth, async (req, res): Promise<void> => {
+  const groupId = Number(req.params.id);
+  const postId = Number(req.params.postId);
+  const [post] = await db.select().from(groupPostsTable).where(and(
+    eq(groupPostsTable.id, postId),
+    eq(groupPostsTable.groupId, groupId),
+  ));
+  if (!post) { res.status(404).json({ error: "Not found" }); return; }
+  if (post.authorId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
+
+  await db.delete(groupPostsTable).where(eq(groupPostsTable.id, postId));
+  await db.update(groupsTable)
+    .set({ postCount: sql`GREATEST(0, ${groupsTable.postCount} - 1)` })
+    .where(eq(groupsTable.id, groupId));
+  res.sendStatus(204);
+});
+
 router.post("/groups/:id/posts/:postId/like", requireAuth, async (req, res): Promise<void> => {
   const groupId = Number(req.params.id);
   const postId = Number(req.params.postId);
