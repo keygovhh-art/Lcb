@@ -161,6 +161,10 @@ router.delete("/discussions/:id/comments/:commentId", requireAuth, async (req, r
     res.status(403).json({ error: "Not allowed" }); return;
   }
 
+  await db.delete(entityLikesTable).where(and(
+    eq(entityLikesTable.entityType, "comment"),
+    eq(entityLikesTable.entityId, commentId),
+  ));
   await db.delete(commentsTable).where(eq(commentsTable.id, commentId));
   await db.update(discussionsTable)
     .set({ commentCount: sql`GREATEST(0, ${discussionsTable.commentCount} - 1)` })
