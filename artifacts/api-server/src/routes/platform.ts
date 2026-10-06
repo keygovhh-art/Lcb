@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { db, announcementsTable, reportsTable, notificationsTable } from "@workspace/db";
+import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -10,14 +11,14 @@ router.get("/announcements", async (_req, res): Promise<void> => {
   res.json(all);
 });
 
-router.post("/announcements", async (req, res): Promise<void> => {
+router.post("/announcements", requireAdmin, async (req, res): Promise<void> => {
   const { title, content } = req.body;
   if (!title || !content) { res.status(400).json({ error: "title and content required" }); return; }
-  const [ann] = await db.insert(announcementsTable).values({ title, content, authorId: 1, authorName: "Admin" }).returning();
+  const [ann] = await db.insert(announcementsTable).values({ title, content, authorId: getSessionUserId(req)!, authorName: "Admin" }).returning();
   res.status(201).json(ann);
 });
 
-router.delete("/announcements/:id", async (req, res): Promise<void> => {
+router.delete("/announcements/:id", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   await db.delete(announcementsTable).where(eq(announcementsTable.id, id));
@@ -25,23 +26,23 @@ router.delete("/announcements/:id", async (req, res): Promise<void> => {
 });
 
 // Reports
-router.get("/reports", async (req, res): Promise<void> => {
+router.get("/reports", requireAdmin, async (req, res): Promise<void> => {
   const { status } = req.query as Record<string, string>;
   let all = await db.select().from(reportsTable).orderBy(desc(reportsTable.createdAt));
   if (status) all = all.filter(r => r.status === status);
   res.json(all);
 });
 
-router.post("/reports", async (req, res): Promise<void> => {
+router.post("/reports", requireAuth, async (req, res): Promise<void> => {
   const { contentType, contentId, reason, description } = req.body;
   if (!contentType || !contentId || !reason) { res.status(400).json({ error: "Required fields missing" }); return; }
   const [report] = await db.insert(reportsTable).values({
-    contentType, contentId, reason, description, reporterId: 1, status: "pending"
+    contentType, contentId, reason, description, reporterId: getSessionUserId(req)!, status: "pending"
   }).returning();
   res.status(201).json(report);
 });
 
-router.post("/reports/:id/resolve", async (req, res): Promise<void> => {
+router.post("/reports/:id/resolve", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const [report] = await db.update(reportsTable).set({ status: "resolved" }).where(eq(reportsTable.id, id)).returning();
@@ -49,7 +50,7 @@ router.post("/reports/:id/resolve", async (req, res): Promise<void> => {
   res.json(report);
 });
 
-router.post("/reports/:id/dismiss", async (req, res): Promise<void> => {
+router.post("/reports/:id/dismiss", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const [report] = await db.update(reportsTable).set({ status: "dismissed" }).where(eq(reportsTable.id, id)).returning();
@@ -58,18 +59,20 @@ router.post("/reports/:id/dismiss", async (req, res): Promise<void> => {
 });
 
 // Notifications
-router.get("/notifications", async (_req, res): Promise<void> => {
-  const all = await db.select().from(notificationsTable).where(eq(notificationsTable.userId, 1)).orderBy(desc(notificationsTable.createdAt));
+router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
+  const userId = getSessionUserId(req)!;
+  const all = await db.select().from(notificationsTable).where(eq(notificationsTable.userId, userId)).orderBy(desc(notificationsTable.createdAt));
   res.json(all);
 });
 
-router.get("/notifications/unread-count", async (_req, res): Promise<void> => {
-  const all = await db.select().from(notificationsTable).where(eq(notificationsTable.userId, 1));
+router.get("/notifications/unread-count", requireAuth, async (req, res): Promise<void> => {
+  const userId = getSessionUserId(req)!;
+  const all = await db.select().from(notificationsTable).where(eq(notificationsTable.userId, userId));
   const count = all.filter(n => !n.isRead).length;
   res.json({ count });
 });
 
-router.post("/notifications", async (req, res): Promise<void> => {
+router.post("/notifications", requireAdmin, async (req, res): Promise<void> => {
   const { userId, type, message, linkUrl } = req.body;
   if (!message || !type) { res.status(400).json({ error: "message and type required" }); return; }
   const [notif] = await db.insert(notificationsTable).values({
@@ -78,16 +81,20 @@ router.post("/notifications", async (req, res): Promise<void> => {
   res.status(201).json(notif);
 });
 
-router.post("/notifications/:id/read", async (req, res): Promise<void> => {
+router.post("/notifications/:id/read", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
-  const [notif] = await db.update(notificationsTable).set({ isRead: true }).where(eq(notificationsTable.id, id)).returning();
+  const userId = getSessionUserId(req)!;
+  const [notif] = await db.update(notificationsTable).set({ isRead: true }).where(
+    and(eq(notificationsTable.id, id), eq(notificationsTable.userId, userId))
+  ).returning();
   if (!notif) { res.status(404).json({ error: "Not found" }); return; }
   res.json(notif);
 });
 
-router.post("/notifications/read-all", async (_req, res): Promise<void> => {
-  const result = await db.update(notificationsTable).set({ isRead: true }).where(eq(notificationsTable.userId, 1)).returning();
+router.post("/notifications/read-all", requireAuth, async (req, res): Promise<void> => {
+  const userId = getSessionUserId(req)!;
+  const result = await db.update(notificationsTable).set({ isRead: true }).where(eq(notificationsTable.userId, userId)).returning();
   res.json({ updatedCount: result.length });
 });
 
