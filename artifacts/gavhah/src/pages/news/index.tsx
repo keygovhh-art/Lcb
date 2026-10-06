@@ -73,7 +73,7 @@ function PostUpdateDialog() {
   const [open, setOpen] = useState(false);
   const [displayAs, setDisplayAs] = useState<DisplayAs>("nickname");
   const [form, setForm] = useState({
-    title: "", content: "", summary: "", organization: "",
+    title: "", content: "", summary: "", organization: "", imageUrl: "",
     category: "announcement", urgency: "normal", deadline: "",
   });
 
@@ -101,9 +101,9 @@ function PostUpdateDialog() {
             const items = Array.isArray(current) ? current : [];
             return [article, ...items.filter((item: any) => item.id !== article.id)];
           });
-          void qc.invalidateQueries({ queryKey: listKey });
+          void qc.invalidateQueries({ queryKey: ["/api/news"] });
           setOpen(false);
-          setForm({ title: "", content: "", summary: "", organization: "", category: "announcement", urgency: "normal", deadline: "" });
+          setForm({ title: "", content: "", summary: "", organization: "", imageUrl: "", category: "announcement", urgency: "normal", deadline: "" });
           toast({ title: "Update posted", description: "Your community update has been published." });
         },
         onError: () => toast({ title: "Error", description: "Could not post update. Please try again.", variant: "destructive" }),
@@ -160,6 +160,18 @@ function PostUpdateDialog() {
           </div>
 
           <DisplayAsSelector value={displayAs} onChange={setDisplayAs} />
+
+          <div className="space-y-1.5">
+            <Label className="font-semibold">Image URL <span className="font-normal text-muted-foreground">(optional)</span></Label>
+            <Input
+              type="url"
+              value={form.imageUrl}
+              onChange={s("imageUrl")}
+              placeholder="https://..."
+              className="h-11"
+            />
+            <p className="text-xs text-muted-foreground">Paste a direct image link; the image will appear on the news card and article.</p>
+          </div>
 
           <div className="space-y-1.5">
             <Label className="font-semibold">
