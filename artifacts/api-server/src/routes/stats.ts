@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, discussionsTable, volunteerProfilesTable, helpRequestsTable, groupsTable, donationsTable, activityLogTable, newsTable } from "@workspace/db";
-import { desc, count, sum, sql, ne } from "drizzle-orm";
+import { desc, count, sum, sql, eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -9,7 +9,7 @@ router.get("/stats/community", async (_req, res): Promise<void> => {
   const [discCount] = await db.select({ count: count() }).from(discussionsTable);
   const [volCount] = await db.select({ count: count() }).from(volunteerProfilesTable);
   const [reqCount] = await db.select({ count: count() }).from(helpRequestsTable);
-  const [helpedCount] = await db.select({ count: count() }).from(helpRequestsTable).where(ne(helpRequestsTable.status, "open"));
+  const [helpedCount] = await db.select({ count: count() }).from(helpRequestsTable).where(eq(helpRequestsTable.status, "resolved"));
   const [groupCount] = await db.select({ count: count() }).from(groupsTable);
   const [donationSum] = await db.select({ total: sum(donationsTable.amount) }).from(donationsTable);
   const [newsCount] = await db.select({ count: count() }).from(newsTable);
