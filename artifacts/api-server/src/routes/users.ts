@@ -80,6 +80,11 @@ router.get("/users/me", requireAuth, async (req, res): Promise<void> => {
 
 router.get("/users/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
+  const requesterId = getSessionUserId(req)!;
+  if (requesterId !== id && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" });
+    return;
+  }
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   res.json(safeUser(user));
