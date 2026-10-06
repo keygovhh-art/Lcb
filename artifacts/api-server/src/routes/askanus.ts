@@ -44,11 +44,15 @@ router.get("/api/askanus/cases", requireAuth, async (req, res) => {
 
 router.post("/api/askanus/cases", requireAuth, async (req, res) => {
   const { title, description, urgency, category, contactName, deadline, goalAmount, notes } = req.body;
+  if (!String(title || "").trim()) {
+    res.status(400).json({ error: "title is required" });
+    return;
+  }
   const userId = getSessionUserId(req)!;
   const [created] = await db.insert(askanuscases).values({
     userId,
-    title,
-    description: description ?? "",
+    title: String(title).trim(),
+    description: description ? String(description).trim() : "",
     urgency: urgency ?? "medium",
     category: category ?? "General",
     contactName: contactName ?? "",
@@ -175,9 +179,13 @@ router.get("/api/askanus/tasks", requireAuth, async (req, res) => {
 
 router.post("/api/askanus/tasks", requireAuth, async (req, res) => {
   const { title, caseTitle, deadline, priority, notes } = req.body;
+  if (!String(title || "").trim()) {
+    res.status(400).json({ error: "title is required" });
+    return;
+  }
   const [created] = await db.insert(askanustasks).values({
     userId: getSessionUserId(req)!,
-    title, caseTitle: caseTitle ?? "", deadline: deadline ?? "",
+    title: String(title).trim(), caseTitle: caseTitle ?? "", deadline: deadline ?? "",
     priority: priority ?? "medium", notes: notes ?? "",
   }).returning();
   res.status(201).json({ ...created, createdAt: created.createdAt.toISOString() });
@@ -218,7 +226,15 @@ router.get("/api/askanus/notes", requireAuth, async (req, res) => {
 
 router.post("/api/askanus/notes", requireAuth, async (req, res) => {
   const { title, content } = req.body;
-  const [created] = await db.insert(askanusnotes).values({ userId: getSessionUserId(req)!, title, content }).returning();
+  if (!String(title || "").trim() || !String(content || "").trim()) {
+    res.status(400).json({ error: "title and content are required" });
+    return;
+  }
+  const [created] = await db.insert(askanusnotes).values({
+    userId: getSessionUserId(req)!,
+    title: String(title).trim(),
+    content: String(content).trim(),
+  }).returning();
   res.status(201).json({ ...created, createdAt: created.createdAt.toISOString() });
 });
 
