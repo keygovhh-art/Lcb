@@ -1,18 +1,15 @@
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, UserPlus, CheckCircle, Mail, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/context/auth-context";
 
 type ContactMethod = "email" | "phone";
 
 export default function Register() {
-  const [, navigate] = useLocation();
-  const { refresh } = useAuth();
   const { toast } = useToast();
   const [method, setMethod] = useState<ContactMethod>("email");
   const [form, setForm] = useState({
@@ -67,9 +64,12 @@ export default function Register() {
             password: form.password,
           }),
         });
-        if (loginRes.ok) await refresh();
         toast({ title: `Welcome, ${user.nickname}!`, description: "Your Gavhah membership is active." });
-        navigate("/");
+        if (loginRes.ok) {
+          window.location.assign("/");
+        } else {
+          window.location.assign("/login");
+        }
       } else {
         const data = await res.json().catch(() => ({}));
         toast({ title: "Registration failed", description: data.error ?? "Please try again.", variant: "destructive" });
