@@ -42,8 +42,8 @@ router.post("/users", async (req, res): Promise<void> => {
     res.status(400).json({ error: "email or phone is required" });
     return;
   }
-  if (!password || password.length < 6) {
-    res.status(400).json({ error: "password must be at least 6 characters" });
+  if (!password || password.length < 8) {
+    res.status(400).json({ error: "password must be at least 8 characters" });
     return;
   }
 
