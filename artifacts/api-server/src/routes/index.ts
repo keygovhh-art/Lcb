@@ -16,6 +16,7 @@ import communityProjectsRouter from "./community-projects";
 import askanusRouter from "./askanus";
 import socialRouter from "./social";
 import adminRouter from "./admin";
+import reservationsRouter from "./reservations";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(communityProjectsRouter);
 router.use(askanusRouter);
 router.use(socialRouter);
 router.use(adminRouter);
+router.use(reservationsRouter);
 
 export default router;
