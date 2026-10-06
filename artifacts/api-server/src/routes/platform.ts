@@ -17,7 +17,10 @@ router.get("/announcements", async (_req, res): Promise<void> => {
 
 router.post("/announcements", requireAdmin, async (req, res): Promise<void> => {
   const { title, content } = req.body;
-  if (!title || !content) { res.status(400).json({ error: "title and content required" }); return; }
+  if (!String(title || "").trim() || !String(content || "").trim()) {
+    res.status(400).json({ error: "title and content required" });
+    return;
+  }
   const userId = getSessionUserId(req)!;
   const authorName = await resolveMemberDisplayName(userId);
   const [ann] = await db.insert(announcementsTable).values({
