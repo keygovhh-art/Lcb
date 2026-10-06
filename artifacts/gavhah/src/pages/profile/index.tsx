@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { User, UserMinus, Bookmark, BookmarkX, ArrowRight, UserPlus, BookmarkCheck, ExternalLink, Pencil, MapPin } from "lucide-react";
+import { User, UserMinus, Bookmark, BookmarkX, ArrowRight, UserPlus, BookmarkCheck, ExternalLink, Pencil, MapPin, LockKeyhole } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
@@ -45,6 +45,9 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" });
   const [profileForm, setProfileForm] = useState({
     name: user?.name ?? "",
     nickname: user?.nickname ?? "",
@@ -68,6 +71,46 @@ export default function ProfilePage() {
     deleteSaved.mutate({ id }, {
       onSuccess: () => qc.invalidateQueries({ queryKey: getListSavedItemsQueryKey() })
     });
+  };
+
+  const changePassword = async () => {
+    if (!passwordForm.current || passwordForm.next.length < 8 || passwordForm.next !== passwordForm.confirm) {
+      toast({
+        title: "Check the password fields",
+        description: passwordForm.next.length < 8 ? "New password must be at least 8 characters." : "New passwords do not match.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: passwordForm.current,
+          newPassword: passwordForm.next,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Could not change password");
+      }
+
+      setPasswordForm({ current: "", next: "", confirm: "" });
+      setPasswordOpen(false);
+      toast({ title: "Password changed" });
+    } catch (err) {
+      toast({
+        title: "Could not change password",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   const openProfileEdit = () => {
@@ -126,7 +169,50 @@ export default function ProfilePage() {
   return (
     <Layout>
       <div className="bg-muted/30 border-b">
-        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Change Password</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Current Password</Label>
+              <Input
+                type="password"
+                value={passwordForm.current}
+                onChange={e => setPasswordForm(f => ({ ...f, current: e.target.value }))}
+                autoComplete="current-password"
+              />
+            </div>
+            <div>
+              <Label>New Password</Label>
+              <Input
+                type="password"
+                value={passwordForm.next}
+                onChange={e => setPasswordForm(f => ({ ...f, next: e.target.value }))}
+                autoComplete="new-password"
+                placeholder="At least 8 characters"
+              />
+            </div>
+            <div>
+              <Label>Confirm New Password</Label>
+              <Input
+                type="password"
+                value={passwordForm.confirm}
+                onChange={e => setPasswordForm(f => ({ ...f, confirm: e.target.value }))}
+                autoComplete="new-password"
+              />
+            </div>
+            <Button
+              className="w-full bg-secondary hover:bg-secondary/90 text-white"
+              onClick={() => void changePassword()}
+              disabled={savingPassword || !passwordForm.current || !passwordForm.next || !passwordForm.confirm}
+            >
+              {savingPassword ? "Changing..." : "Change Password"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Edit Profile</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -173,9 +259,14 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
-            <Button variant="outline" className="gap-2" onClick={openProfileEdit}>
-              <Pencil className="h-4 w-4" /> Edit Profile
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="gap-2" onClick={openProfileEdit}>
+                <Pencil className="h-4 w-4" /> Edit Profile
+              </Button>
+              <Button variant="outline" className="gap-2" onClick={() => setPasswordOpen(true)}>
+                <LockKeyhole className="h-4 w-4" /> Change Password
+              </Button>
+            </div>
           </div>
         </div>
       </div>
