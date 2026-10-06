@@ -353,23 +353,66 @@ export default function FounderDashboard() {
                     <p className="text-sm text-foreground mb-2">{req.description}</p>
                     <p className="text-xs text-muted-foreground">Private contact: {req.contactInfo}</p>
                   </div>
-                  {req.status === "open" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        const res = await fetch(`/api/help-requests/${req.id}`, {
-                          method: "PATCH",
-                          credentials: "include",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ status: "resolved", isFeatured: req.isFeatured }),
-                        });
-                        if (res.ok) await loadAdminHelpRequests();
-                      }}
-                    >
-                      <CheckCircle className="h-3.5 w-3.5 mr-1" /> Mark Resolved
-                    </Button>
-                  )}
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                    {req.status === "pending" && (
+                      <>
+                        <Button
+                          size="sm"
+                          className="bg-secondary hover:bg-secondary/90 text-white"
+                          onClick={async () => {
+                            const res = await fetch(`/api/help-requests/${req.id}`, {
+                              method: "PATCH",
+                              credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ status: "open", isFeatured: false }),
+                            });
+                            if (res.ok) {
+                              await loadAdminHelpRequests();
+                              void qc.invalidateQueries({ queryKey: ["/api/help-requests"] });
+                            }
+                          }}
+                        >
+                          <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive border-destructive/20"
+                          onClick={async () => {
+                            const res = await fetch(`/api/help-requests/${req.id}`, {
+                              method: "PATCH",
+                              credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ status: "rejected", isFeatured: false }),
+                            });
+                            if (res.ok) await loadAdminHelpRequests();
+                          }}
+                        >
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                    {req.status === "open" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          const res = await fetch(`/api/help-requests/${req.id}`, {
+                            method: "PATCH",
+                            credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ status: "resolved", isFeatured: req.isFeatured }),
+                          });
+                          if (res.ok) {
+                            await loadAdminHelpRequests();
+                            void qc.invalidateQueries({ queryKey: ["/api/help-requests"] });
+                          }
+                        }}
+                      >
+                        <CheckCircle className="h-3.5 w-3.5 mr-1" /> Mark Resolved
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
