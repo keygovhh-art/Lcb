@@ -167,7 +167,7 @@ export default function Home() {
               { label: "Members Worldwide", value: `${(stats?.totalMembers ?? 0).toLocaleString()}` },
               { label: "Acts of Chesed", value: `${(stats?.totalPeopleHelped ?? 0).toLocaleString()}` },
               { label: "Active Volunteers", value: `${(stats?.activeVolunteers ?? 0).toLocaleString()}` },
-              { label: "Donations Facilitated", value: `$${Number(stats?.donationsRaised ?? 0).toLocaleString()}` },
+              { label: "Recorded Donations", value: `$${Number(stats?.donationsRaised ?? 0).toLocaleString()}` },
             ].map((stat, i) => (
               <div key={i} className="text-center p-5 bg-card border rounded-xl shadow-sm">
                 <div className="text-4xl font-serif font-bold text-secondary mb-1">{stat.value}</div>
