@@ -5,6 +5,8 @@ import { requireAuth, getSessionUserId, getSessionUserRole } from "../middleware
 import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName } from "../lib/user-display";
 import { deleteManagedMediaUrl } from "../lib/media-cleanup";
+import { logActivity } from "../lib/activity";
+import { notifyUser } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -50,6 +52,7 @@ router.post("/groups", requireAuth, async (req, res): Promise<void> => {
     status: "approved",
   }).onConflictDoNothing();
 
+  await logActivity("group", `Created community group "${group.name}"`, ownerName);
   res.status(201).json(group);
 });
 
@@ -140,6 +143,17 @@ router.post("/groups/:id/join", requireAuth, async (req, res): Promise<void> => 
     groupId, role: "member", status: "approved",
   }).returning();
   await db.update(groupsTable).set({ memberCount: sql`${groupsTable.memberCount} + 1` }).where(eq(groupsTable.id, groupId));
+
+  const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
+  if (group && group.ownerId !== userId) {
+    await notifyUser(
+      group.ownerId,
+      "group_join",
+      `${userName} joined your group "${group.name}".`,
+      `/groups/${groupId}`,
+    );
+  }
+
   res.json(member);
 });
 
