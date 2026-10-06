@@ -4,6 +4,7 @@ import { db, groupsTable, groupMembersTable, groupPostsTable, usersTable, entity
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName } from "../lib/user-display";
+import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 
 const router: IRouter = Router();
 
@@ -69,8 +70,32 @@ router.patch("/groups/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Not allowed" }); return;
   }
   const { name, description, privacy, imageUrl } = req.body;
-  const [group] = await db.update(groupsTable).set({ name, description, privacy, imageUrl }).where(eq(groupsTable.id, id)).returning();
+  const updates: Record<string, unknown> = {};
+  if (name !== undefined) {
+    const cleanName = String(name).trim();
+    if (!cleanName) { res.status(400).json({ error: "name required" }); return; }
+    updates.name = cleanName;
+  }
+  if (description !== undefined) {
+    const cleanDescription = String(description).trim();
+    if (!cleanDescription) { res.status(400).json({ error: "description required" }); return; }
+    updates.description = cleanDescription;
+  }
+  if (privacy !== undefined) {
+    if (!["public", "private"].includes(privacy)) {
+      res.status(400).json({ error: "invalid privacy setting" }); return;
+    }
+    updates.privacy = privacy;
+  }
+  if (imageUrl !== undefined) updates.imageUrl = imageUrl || null;
+
+  const [group] = await db.update(groupsTable).set(updates).where(eq(groupsTable.id, id)).returning();
   if (!group) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (imageUrl !== undefined && existing.imageUrl && existing.imageUrl !== group.imageUrl) {
+    await deleteManagedMediaUrl(existing.imageUrl);
+  }
+
   res.json(group);
 });
 
@@ -96,6 +121,7 @@ router.delete("/groups/:id", requireAuth, async (req, res): Promise<void> => {
   await db.delete(groupPostsTable).where(eq(groupPostsTable.groupId, id));
   await db.delete(groupMembersTable).where(eq(groupMembersTable.groupId, id));
   await db.delete(groupsTable).where(eq(groupsTable.id, id));
+  await deleteManagedMediaUrl(existing.imageUrl);
   res.sendStatus(204);
 });
 
