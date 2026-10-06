@@ -5,6 +5,7 @@ import { requireAuth, getSessionUserId, getSessionUserRole } from "../middleware
 import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName } from "../lib/user-display";
 import { deleteManagedMediaUrl } from "../lib/media-cleanup";
+import { logActivity } from "../lib/activity";
 
 const router: IRouter = Router();
 
@@ -51,6 +52,7 @@ router.post("/news", requireAuth, async (req, res): Promise<void> => {
     authorId: userId,
     authorName: safeAuthorName,
   }).returning();
+  await logActivity("news", `Published news update "${article.title}"`, safeAuthorName);
   res.status(201).json(article);
 });
 
