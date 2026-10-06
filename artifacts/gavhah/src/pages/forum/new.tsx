@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useCreateDiscussion } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +27,8 @@ const CATEGORIES = [
 
 export default function ForumNew() {
   const [, navigate] = useLocation();
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -38,7 +42,18 @@ export default function ForumNew() {
     const authorName = getDisplayName(displayAs, user);
     createDiscussion.mutate(
       { data: { title, content, category, authorName } },
-      { onSuccess: (disc) => navigate(`/forum/${disc.id}`) }
+      {
+        onSuccess: (disc) => {
+          void qc.invalidateQueries({ queryKey: ["/api/discussions"] });
+          toast({ title: "Discussion published", description: "Your discussion is now live." });
+          navigate(`/forum/${disc.id}`);
+        },
+        onError: () => toast({
+          title: "Could not publish discussion",
+          description: "Please check the form and try again.",
+          variant: "destructive",
+        }),
+      }
     );
   };
 
