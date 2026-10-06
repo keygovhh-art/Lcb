@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bell, CheckCheck, MessageSquare, Heart, Users, Megaphone, Star, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/context/auth-context";
+import { MemberGate } from "@/components/shared/member-gate";
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
   comment: <MessageSquare className="h-4 w-4" />,
@@ -24,8 +26,9 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
 
 export default function NotificationsPage() {
   const qc = useQueryClient();
+  const { isAuthenticated, isLoaded } = useAuth();
   const { data: notifications, isLoading } = useListNotifications({
-    query: { queryKey: getListNotificationsQueryKey() }
+    query: { queryKey: getListNotificationsQueryKey(), enabled: isAuthenticated }
   });
 
   const markRead = useMarkNotificationRead();
@@ -50,6 +53,16 @@ export default function NotificationsPage() {
       }
     });
   };
+
+  if (isLoaded && !isAuthenticated) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-16">
+          <MemberGate action="view your notifications">{null}</MemberGate>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
