@@ -12,6 +12,11 @@ declare module "express-session" {
 
 const router = Router();
 
+function safeUser<T extends { passwordHash?: unknown }>(user: T) {
+  const { passwordHash: _passwordHash, ...safe } = user as T & { passwordHash?: unknown };
+  return safe;
+}
+
 router.get("/auth/me", async (req, res): Promise<void> => {
   const userId = req.session.userId;
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
@@ -21,7 +26,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     res.status(401).json({ error: "User not found" });
     return;
   }
-  res.json(user);
+  res.json(safeUser(user));
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -46,7 +51,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   req.session.userId = user.id;
   req.session.userRole = user.role;
-  res.json({ user });
+  res.json({ user: safeUser(user) });
 });
 
 router.post("/auth/logout", (req, res): void => {
