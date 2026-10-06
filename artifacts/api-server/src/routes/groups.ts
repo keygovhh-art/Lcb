@@ -132,24 +132,51 @@ router.post("/groups/:id/join", requireAuth, async (req, res): Promise<void> => 
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const groupId = parseInt(raw, 10);
   const userId = getSessionUserId(req)!;
+
+  const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
+  if (!group) { res.status(404).json({ error: "Group not found" }); return; }
+
+  const desiredStatus = group.privacy === "private" ? "pending" : "approved";
   const [existing] = await db.select().from(groupMembersTable).where(
     and(eq(groupMembersTable.groupId, groupId), eq(groupMembersTable.userId, userId))
   );
-  if (existing) { res.json(existing); return; }
+
+  if (existing && existing.status !== "rejected") {
+    res.json(existing);
+    return;
+  }
 
   const userName = await resolveMemberDisplayName(userId);
-  const [member] = await db.insert(groupMembersTable).values({
-    userId, userName,
-    groupId, role: "member", status: "approved",
-  }).returning();
-  await db.update(groupsTable).set({ memberCount: sql`${groupsTable.memberCount} + 1` }).where(eq(groupsTable.id, groupId));
+  let member;
 
-  const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
-  if (group && group.ownerId !== userId) {
+  if (existing?.status === "rejected") {
+    [member] = await db.update(groupMembersTable)
+      .set({ status: desiredStatus, role: "member", userName })
+      .where(eq(groupMembersTable.id, existing.id))
+      .returning();
+  } else {
+    [member] = await db.insert(groupMembersTable).values({
+      userId,
+      userName,
+      groupId,
+      role: "member",
+      status: desiredStatus,
+    }).returning();
+  }
+
+  if (desiredStatus === "approved") {
+    await db.update(groupsTable)
+      .set({ memberCount: sql`${groupsTable.memberCount} + 1` })
+      .where(eq(groupsTable.id, groupId));
+  }
+
+  if (group.ownerId !== userId) {
     await notifyUser(
       group.ownerId,
-      "group_join",
-      `${userName} joined your group "${group.name}".`,
+      desiredStatus === "pending" ? "group_join_request" : "group_join",
+      desiredStatus === "pending"
+        ? `${userName} requested to join your private group "${group.name}".`
+        : `${userName} joined your group "${group.name}".`,
       `/groups/${groupId}`,
     );
   }
@@ -159,9 +186,102 @@ router.post("/groups/:id/join", requireAuth, async (req, res): Promise<void> => 
 
 router.get("/groups/:id/members", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(raw, 10);
-  const members = await db.select().from(groupMembersTable).where(eq(groupMembersTable.groupId, id));
+  const groupId = parseInt(raw, 10);
+  const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
+  if (!group) { res.status(404).json({ error: "Group not found" }); return; }
+
+  if (group.privacy === "public") {
+    const members = await db.select().from(groupMembersTable).where(and(
+      eq(groupMembersTable.groupId, groupId),
+      eq(groupMembersTable.status, "approved"),
+    ));
+    res.json(members);
+    return;
+  }
+
+  const userId = getSessionUserId(req);
+  if (!userId) {
+    res.json([]);
+    return;
+  }
+
+  if (group.ownerId === userId || isStaffRole(getSessionUserRole(req))) {
+    const members = await db.select().from(groupMembersTable).where(eq(groupMembersTable.groupId, groupId));
+    res.json(members);
+    return;
+  }
+
+  const [membership] = await db.select().from(groupMembersTable).where(and(
+    eq(groupMembersTable.groupId, groupId),
+    eq(groupMembersTable.userId, userId),
+  ));
+
+  if (!membership) {
+    res.json([]);
+    return;
+  }
+
+  if (membership.status !== "approved") {
+    res.json([membership]);
+    return;
+  }
+
+  const members = await db.select().from(groupMembersTable).where(and(
+    eq(groupMembersTable.groupId, groupId),
+    eq(groupMembersTable.status, "approved"),
+  ));
   res.json(members);
+});
+
+router.patch("/groups/:id/members/:memberId", requireAuth, async (req, res): Promise<void> => {
+  const groupId = Number(req.params.id);
+  const memberId = Number(req.params.memberId);
+  const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
+  if (!group) { res.status(404).json({ error: "Group not found" }); return; }
+
+  const requesterId = getSessionUserId(req)!;
+  if (group.ownerId !== requesterId && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Only the group owner can review membership requests" });
+    return;
+  }
+
+  const [member] = await db.select().from(groupMembersTable).where(and(
+    eq(groupMembersTable.id, memberId),
+    eq(groupMembersTable.groupId, groupId),
+  ));
+  if (!member) { res.status(404).json({ error: "Membership request not found" }); return; }
+
+  const status = String(req.body?.status || "");
+  if (!["approved", "rejected"].includes(status)) {
+    res.status(400).json({ error: "Status must be approved or rejected" });
+    return;
+  }
+  if (member.status !== "pending") {
+    res.status(409).json({ error: "This membership request has already been reviewed" });
+    return;
+  }
+
+  const [updated] = await db.update(groupMembersTable)
+    .set({ status })
+    .where(eq(groupMembersTable.id, memberId))
+    .returning();
+
+  if (status === "approved") {
+    await db.update(groupsTable)
+      .set({ memberCount: sql`${groupsTable.memberCount} + 1` })
+      .where(eq(groupsTable.id, groupId));
+  }
+
+  await notifyUser(
+    updated.userId,
+    "group_membership_review",
+    status === "approved"
+      ? `Your request to join "${group.name}" was approved.`
+      : `Your request to join "${group.name}" was not approved.`,
+    `/groups/${groupId}`,
+  );
+
+  res.json(updated);
 });
 
 router.get("/groups/:id/posts", async (req, res): Promise<void> => {
