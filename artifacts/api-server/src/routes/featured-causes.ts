@@ -128,4 +128,42 @@ router.get("/cause-submissions", requireAdmin, async (_req, res): Promise<void> 
   res.json(all);
 });
 
+router.post("/cause-submissions/:id/approve", requireAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const [submission] = await db.select().from(causeSubmissionsTable).where(eq(causeSubmissionsTable.id, id));
+  if (!submission) { res.status(404).json({ error: "Not found" }); return; }
+  if (submission.status === "approved") {
+    res.status(409).json({ error: "Already approved" });
+    return;
+  }
+
+  await db.update(featuredCausesTable)
+    .set({ status: "completed" })
+    .where(eq(featuredCausesTable.status, "active"));
+
+  const [cause] = await db.insert(featuredCausesTable).values({
+    title: submission.title,
+    description: submission.description,
+    organizerName: submission.submittedBy,
+    status: "active",
+    location: submission.location,
+  }).returning();
+
+  await db.update(causeSubmissionsTable)
+    .set({ status: "approved", adminNotes: req.body?.adminNotes ?? null })
+    .where(eq(causeSubmissionsTable.id, id));
+
+  res.json(cause);
+});
+
+router.post("/cause-submissions/:id/reject", requireAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const [submission] = await db.update(causeSubmissionsTable)
+    .set({ status: "rejected", adminNotes: req.body?.adminNotes ?? null })
+    .where(eq(causeSubmissionsTable.id, id))
+    .returning();
+  if (!submission) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(submission);
+});
+
 export default router;
