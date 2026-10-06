@@ -4,6 +4,7 @@ import { db, newsTable, entityLikesTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName } from "../lib/user-display";
+import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 
 const router: IRouter = Router();
 
@@ -125,6 +126,11 @@ router.patch("/news/:id", requireAuth, async (req, res): Promise<void> => {
     .set(updates)
     .where(eq(newsTable.id, id)).returning();
   if (!article) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (imageUrl !== undefined && existing.imageUrl && existing.imageUrl !== article.imageUrl) {
+    await deleteManagedMediaUrl(existing.imageUrl);
+  }
+
   res.json(article);
 });
 
@@ -141,6 +147,7 @@ router.delete("/news/:id", requireAuth, async (req, res): Promise<void> => {
     eq(entityLikesTable.entityId, id),
   ));
   await db.delete(newsTable).where(eq(newsTable.id, id));
+  await deleteManagedMediaUrl(existing.imageUrl);
   res.sendStatus(204);
 });
 
