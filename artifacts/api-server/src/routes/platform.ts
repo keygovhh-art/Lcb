@@ -32,6 +32,26 @@ router.post("/announcements", requireAdmin, async (req, res): Promise<void> => {
   res.status(201).json(ann);
 });
 
+router.patch("/announcements/:id", requireAdmin, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  const title = String(req.body?.title || "").trim();
+  const content = String(req.body?.content || "").trim();
+
+  if (!title || !content) {
+    res.status(400).json({ error: "title and content required" });
+    return;
+  }
+
+  const [announcement] = await db.update(announcementsTable)
+    .set({ title, content })
+    .where(eq(announcementsTable.id, id))
+    .returning();
+
+  if (!announcement) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(announcement);
+});
+
 router.delete("/announcements/:id", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
