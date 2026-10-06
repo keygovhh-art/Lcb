@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, charitiesTable, donationsTable } from "@workspace/db";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -23,7 +24,7 @@ router.get("/charity/:id", async (req, res): Promise<void> => {
   res.json(charity);
 });
 
-router.patch("/charity/:id", async (req, res): Promise<void> => {
+router.patch("/charity/:id", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const { name, description, successStories, imageUrl, goalAmount, isTodaysFeatured } = req.body;
@@ -32,7 +33,7 @@ router.patch("/charity/:id", async (req, res): Promise<void> => {
   res.json(charity);
 });
 
-router.post("/charity/:id/donate", async (req, res): Promise<void> => {
+router.post("/charity/:id/donate", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const charityId = parseInt(raw, 10);
   const { amount, donorName } = req.body;
