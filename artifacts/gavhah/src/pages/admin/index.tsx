@@ -46,6 +46,8 @@ export default function FounderDashboard() {
   const [adminMinyans, setAdminMinyans] = useState<any[]>([]);
   const [causeSubmissions, setCauseSubmissions] = useState<any[]>([]);
   const [supportMessages, setSupportMessages] = useState<any[]>([]);
+  const [adminReservations, setAdminReservations] = useState<any[]>([]);
+  const [adminHelpRequests, setAdminHelpRequests] = useState<any[]>([]);
 
   useEffect(() => {
     if (isLoaded && (!user || !isAdmin)) {
@@ -77,10 +79,28 @@ export default function FounderDashboard() {
     } catch {}
   };
 
+  const loadAdminReservations = async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch("/api/admin/reservations", { credentials: "include" });
+      if (res.ok) setAdminReservations(await res.json());
+    } catch {}
+  };
+
+  const loadAdminHelpRequests = async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch("/api/admin/help-requests", { credentials: "include" });
+      if (res.ok) setAdminHelpRequests(await res.json());
+    } catch {}
+  };
+
   useEffect(() => {
     void loadAdminMinyans();
     void loadCauseSubmissions();
     void loadSupportMessages();
+    void loadAdminReservations();
+    void loadAdminHelpRequests();
   }, [isAdmin]);
 
   const { data: stats } = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey(), enabled: isAdmin } });
@@ -158,6 +178,18 @@ export default function FounderDashboard() {
               <MessageSquare className="h-4 w-4" /> Support
               {supportMessages.filter(m => m.status === "open").length > 0 && (
                 <span className="bg-destructive text-white text-xs rounded-full px-1.5 py-0.5">{supportMessages.filter(m => m.status === "open").length}</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="help-requests" className="gap-2">
+              <HandHeart className="h-4 w-4" /> Help Requests
+              {adminHelpRequests.filter(r => r.status === "open").length > 0 && (
+                <span className="bg-destructive text-white text-xs rounded-full px-1.5 py-0.5">{adminHelpRequests.filter(r => r.status === "open").length}</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="reservations" className="gap-2">
+              <Clock className="h-4 w-4" /> Reservations
+              {adminReservations.filter(r => r.status === "confirmed").length > 0 && (
+                <span className="bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">{adminReservations.filter(r => r.status === "confirmed").length}</span>
               )}
             </TabsTrigger>
             <TabsTrigger value="reports" className="gap-2">
@@ -288,6 +320,92 @@ export default function FounderDashboard() {
             ))}
             {supportMessages.length === 0 && (
               <div className="text-center py-12 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">No support messages yet.</div>
+            )}
+          </TabsContent>
+
+          {/* ─── Help Requests ─── */}
+          <TabsContent value="help-requests" className="space-y-4">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-primary">Help Requests</h2>
+              <p className="text-muted-foreground text-sm mt-1">Private contact details are visible here only to administrators.</p>
+            </div>
+            {adminHelpRequests.map(req => (
+              <div key={req.id} className="bg-card border rounded-xl p-5">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <h3 className="font-semibold text-foreground">{req.name}</h3>
+                      <Badge variant={req.status === "open" ? "destructive" : "secondary"} className="capitalize">{req.status}</Badge>
+                      <Badge variant="outline" className="capitalize">{req.needType}</Badge>
+                      <Badge variant="outline" className="capitalize">{req.urgency}</Badge>
+                    </div>
+                    <p className="text-sm text-foreground mb-2">{req.description}</p>
+                    <p className="text-xs text-muted-foreground">Private contact: {req.contactInfo}</p>
+                  </div>
+                  {req.status === "open" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        const res = await fetch(`/api/help-requests/${req.id}`, {
+                          method: "PATCH",
+                          credentials: "include",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ status: "resolved", isFeatured: req.isFeatured }),
+                        });
+                        if (res.ok) await loadAdminHelpRequests();
+                      }}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5 mr-1" /> Mark Resolved
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {adminHelpRequests.length === 0 && (
+              <div className="text-center py-12 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">No help requests yet.</div>
+            )}
+          </TabsContent>
+
+          {/* ─── Reservations ─── */}
+          <TabsContent value="reservations" className="space-y-4">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-primary">Office Reservations</h2>
+              <p className="text-muted-foreground text-sm mt-1">Live appointments booked through the public reservation page.</p>
+            </div>
+            {adminReservations.map(r => (
+              <div key={r.id} className="bg-card border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <h3 className="font-semibold text-foreground">{r.name}</h3>
+                    <Badge variant={r.status === "confirmed" ? "default" : "secondary"} className="capitalize">{r.status}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(r.reservationDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                    {" · "}{r.reservationTime}{" · "}{String(r.purpose).replace("_", " ")}
+                  </p>
+                  {r.notes && <p className="text-xs text-muted-foreground mt-1">{r.notes}</p>}
+                </div>
+                {r.status !== "cancelled" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive border-destructive/20"
+                    onClick={async () => {
+                      const res = await fetch(`/api/reservations/${r.id}`, {
+                        method: "DELETE",
+                        credentials: "include",
+                      });
+                      if (res.ok) await loadAdminReservations();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            ))}
+            {adminReservations.length === 0 && (
+              <div className="text-center py-12 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">No reservations yet.</div>
             )}
           </TabsContent>
 
