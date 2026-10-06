@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Shield, Users, Flag, Megaphone, CheckCircle, Ban, Clock, Trash2, Edit3, BarChart3,
   TrendingUp, Heart, MessageSquare, Globe, Star, AlertTriangle, UserCheck, BookmarkCheck, UserPlus,
-  Lock, Sparkles, FolderKanban, HandHeart, ExternalLink,
+  Lock, Sparkles, FolderKanban, HandHeart, ExternalLink, RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -591,18 +591,71 @@ export default function FounderDashboard() {
                   <p className="text-sm text-muted-foreground truncate">{u.email}</p>
                   {u.location && <p className="text-xs text-muted-foreground">{u.location}</p>}
                 </div>
-                {u.status === "active" && (
+                {u.id !== user?.id && (
                   <div className="flex gap-2 shrink-0 flex-wrap">
-                    <Button size="sm" variant="outline" className="gap-1 text-orange-600 border-orange-200 hover:bg-orange-50"
-                      onClick={() => suspendUser.mutate({ id: u.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListUsersQueryKey({}) }) })}
-                      disabled={suspendUser.isPending}>
-                      <Clock className="h-3 w-3" /> Suspend
-                    </Button>
-                    <Button size="sm" variant="outline" className="gap-1 text-destructive border-destructive/20 hover:bg-destructive/5"
-                      onClick={() => banUser.mutate({ id: u.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListUsersQueryKey({}) }) })}
-                      disabled={banUser.isPending}>
-                      <Ban className="h-3 w-3" /> Ban
-                    </Button>
+                    {u.status === "active" ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 text-orange-600 border-orange-200 hover:bg-orange-50"
+                          onClick={() => suspendUser.mutate(
+                            { id: u.id },
+                            {
+                              onSuccess: () => {
+                                void qc.invalidateQueries({ queryKey: getListUsersQueryKey({}) });
+                                toast({ title: "Member suspended" });
+                              },
+                              onError: () => toast({ title: "Could not suspend member", variant: "destructive" }),
+                            }
+                          )}
+                          disabled={suspendUser.isPending}
+                        >
+                          <Clock className="h-3 w-3" /> Suspend
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1 text-destructive border-destructive/20 hover:bg-destructive/5"
+                          onClick={() => banUser.mutate(
+                            { id: u.id },
+                            {
+                              onSuccess: () => {
+                                void qc.invalidateQueries({ queryKey: getListUsersQueryKey({}) });
+                                toast({ title: "Member banned" });
+                              },
+                              onError: () => toast({ title: "Could not ban member", variant: "destructive" }),
+                            }
+                          )}
+                          disabled={banUser.isPending}
+                        >
+                          <Ban className="h-3 w-3" /> Ban
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-green-700 border-green-200 hover:bg-green-50"
+                        onClick={async () => {
+                          const res = await fetch(`/api/users/${u.id}`, {
+                            method: "PATCH",
+                            credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ status: "active" }),
+                          });
+                          if (res.ok) {
+                            void qc.invalidateQueries({ queryKey: getListUsersQueryKey({}) });
+                            toast({ title: "Member reactivated" });
+                          } else {
+                            const body = await res.json().catch(() => ({}));
+                            toast({ title: "Could not reactivate member", description: body.error, variant: "destructive" });
+                          }
+                        }}
+                      >
+                        <RotateCcw className="h-3 w-3" /> Reactivate
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
