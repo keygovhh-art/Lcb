@@ -1,10 +1,14 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable } from "@workspace/db";
-import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
+import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { getMemberIdentity, resolveMemberDisplayName } from "../lib/user-display";
 
 const router: IRouter = Router();
+
+function isStaffRole(role?: string) {
+  return role === "admin" || role === "moderator";
+}
 
 function publicHelpRequest<T extends { contactInfo?: unknown }>(request: T) {
   const { contactInfo: _contactInfo, ...safe } = request as T & { contactInfo?: unknown };
@@ -66,6 +70,47 @@ router.get("/volunteers/:id", async (req, res): Promise<void> => {
   res.json(vol);
 });
 
+router.patch("/volunteers/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  const [existing] = await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.userId !== userId && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
+
+  const { userName, skills, availability, location, bio, areasOfInterest, isFeatured } = req.body;
+  const updates: Record<string, unknown> = {};
+  if (userName !== undefined) updates.userName = await resolveMemberDisplayName(existing.userId, userName);
+  if (Array.isArray(skills)) updates.skills = skills;
+  if (availability !== undefined) updates.availability = String(availability);
+  if (location !== undefined) {
+    if (!String(location).trim()) { res.status(400).json({ error: "location required" }); return; }
+    updates.location = String(location).trim();
+  }
+  if (bio !== undefined) updates.bio = bio ? String(bio).trim() : null;
+  if (Array.isArray(areasOfInterest)) updates.areasOfInterest = areasOfInterest;
+  if (isStaffRole(getSessionUserRole(req)) && isFeatured !== undefined) updates.isFeatured = !!isFeatured;
+
+  const [updated] = await db.update(volunteerProfilesTable)
+    .set(updates)
+    .where(eq(volunteerProfilesTable.id, id))
+    .returning();
+  res.json(updated);
+});
+
+router.delete("/volunteers/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  const [existing] = await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.userId !== userId && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
+  await db.delete(volunteerProfilesTable).where(eq(volunteerProfilesTable.id, id));
+  res.sendStatus(204);
+});
+
 router.get("/admin/help-requests", requireAdmin, async (_req, res): Promise<void> => {
   const all = await db.select().from(helpRequestsTable);
   res.json(all);
@@ -115,14 +160,42 @@ router.get("/help-requests/:id", async (req, res): Promise<void> => {
   res.json(publicHelpRequest(request));
 });
 
-router.patch("/help-requests/:id", requireAdmin, async (req, res): Promise<void> => {
-  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const id = parseInt(raw, 10);
-  const { status, isFeatured } = req.body;
-  const [request] = await db.update(helpRequestsTable).set({ status, isFeatured }).where(eq(helpRequestsTable.id, id)).returning();
-  if (!request) { res.status(404).json({ error: "Not found" }); return; }
+router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  const role = getSessionUserRole(req);
+  const [existing] = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.userId !== userId && !isStaffRole(role)) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
 
-  if (status === "resolved") {
+  const { name, location, needType, description, urgency, status, isFeatured } = req.body;
+  const updates: Record<string, unknown> = {};
+
+  if (name !== undefined) {
+    if (!String(name).trim()) { res.status(400).json({ error: "name required" }); return; }
+    updates.name = String(name).trim();
+  }
+  if (location !== undefined) updates.location = location ? String(location).trim() : null;
+  if (needType !== undefined) updates.needType = needType;
+  if (description !== undefined) {
+    if (!String(description).trim()) { res.status(400).json({ error: "description required" }); return; }
+    updates.description = String(description).trim();
+  }
+  if (urgency !== undefined) updates.urgency = urgency;
+
+  if (isStaffRole(role)) {
+    if (status !== undefined) updates.status = status;
+    if (isFeatured !== undefined) updates.isFeatured = !!isFeatured;
+  }
+
+  const [request] = await db.update(helpRequestsTable)
+    .set(updates)
+    .where(eq(helpRequestsTable.id, id))
+    .returning();
+
+  if (isStaffRole(role) && status === "resolved" && existing.status !== "resolved") {
     await db.insert(notificationsTable).values({
       userId: request.userId,
       type: "help_request",
@@ -132,7 +205,19 @@ router.patch("/help-requests/:id", requireAdmin, async (req, res): Promise<void>
     });
   }
 
-  res.json(request);
+  res.json(isStaffRole(role) ? request : publicHelpRequest(request));
+});
+
+router.delete("/help-requests/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  const [existing] = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.userId !== userId && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
+  await db.delete(helpRequestsTable).where(eq(helpRequestsTable.id, id));
+  res.sendStatus(204);
 });
 
 export default router;
