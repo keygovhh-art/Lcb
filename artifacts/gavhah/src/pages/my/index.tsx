@@ -583,13 +583,13 @@ export default function MyAskanus() {
   const [editNoteId, setEditNoteId] = useState<number | null>(null);
   const [caseFilter, setCaseFilter] = useState<"all" | "open" | "in_progress" | "closed">("all");
 
-  const { data: casesRaw = [] } = useListAskanuscases({ query: { queryKey: getListAskanuscasesQueryKey() } });
+  const { data: casesRaw = [] } = useListAskanuscases({ query: { queryKey: getListAskanuscasesQueryKey(), enabled: isAuthenticated } });
   const cases = casesRaw as unknown as AskanusCase[];
 
-  const { data: tasksRaw = [] } = useListAskanustasks({ query: { queryKey: getListAskanustasksQueryKey() } });
+  const { data: tasksRaw = [] } = useListAskanustasks({ query: { queryKey: getListAskanustasksQueryKey(), enabled: isAuthenticated } });
   const tasks = tasksRaw as any[];
 
-  const { data: notesRaw = [] } = useListAskanusNotes({ query: { queryKey: getListAskanusNotesQueryKey() } });
+  const { data: notesRaw = [] } = useListAskanusNotes({ query: { queryKey: getListAskanusNotesQueryKey(), enabled: isAuthenticated } });
   const notes = notesRaw as any[];
 
   const updateTask = useUpdateAskanusTask();
@@ -598,7 +598,7 @@ export default function MyAskanus() {
   const updateNote = useUpdateAskanusNote();
   const deleteNote = useDeleteAskanusNote();
 
-  const { data: notifications } = useListNotifications({ query: { queryKey: getListNotificationsQueryKey() } });
+  const { data: notifications } = useListNotifications({ query: { queryKey: getListNotificationsQueryKey(), enabled: isAuthenticated } });
   const markAllRead = useMarkAllNotificationsRead();
   const unread = notifications?.filter(n => !n.isRead).length ?? 0;
 
