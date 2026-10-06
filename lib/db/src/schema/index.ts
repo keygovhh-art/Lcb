@@ -11,3 +11,5 @@ export * from "./featured-causes";
 export * from "./community-projects";
 export * from "./askanus";
 export * from "./social";
+
+export * from "./reservations";
