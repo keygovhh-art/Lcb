@@ -1,61 +1,56 @@
-import { useState, useCallback } from "react";
-
-const STORAGE_KEY = "gavhah:liked-articles";
-
-function getLikedSet(): Set<number> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return new Set();
-    return new Set(JSON.parse(raw) as number[]);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveLikedSet(s: Set<number>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...s]));
-}
+import { useState, useCallback, useEffect } from "react";
 
 export function useLikeArticle(articleId: number, initialLikeCount: number) {
-  const liked = getLikedSet().has(articleId);
-  const [isLiked, setIsLiked] = useState(liked);
+  const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    setLikeCount(initialLikeCount);
+  }, [initialLikeCount]);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/likes/news/${articleId}`, { credentials: "include" })
+      .then(async res => {
+        if (!res.ok || !active) return;
+        const data = await res.json() as { liked: boolean };
+        setIsLiked(data.liked);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [articleId]);
 
   const toggle = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (pending) return;
 
-    const nextLiked = !isLiked;
-    // Optimistic update
+    const previousLiked = isLiked;
+    const previousCount = likeCount;
+    const nextLiked = !previousLiked;
     setIsLiked(nextLiked);
-    setLikeCount(c => Math.max(0, c + (nextLiked ? 1 : -1)));
-
-    // Persist in localStorage
-    const set = getLikedSet();
-    if (nextLiked) set.add(articleId); else set.delete(articleId);
-    saveLikedSet(set);
-
+    setLikeCount(Math.max(0, previousCount + (nextLiked ? 1 : -1)));
     setPending(true);
+
     try {
       const res = await fetch(`/api/news/${articleId}/like`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ liked: nextLiked }),
       });
-      if (res.ok) {
-        const data = await res.json() as { likeCount: number };
-        setLikeCount(data.likeCount);
-      }
+      if (!res.ok) throw new Error("Like failed");
+      const data = await res.json() as { likeCount: number; liked?: boolean };
+      setLikeCount(data.likeCount);
+      if (typeof data.liked === "boolean") setIsLiked(data.liked);
     } catch {
-      // Revert on failure
-      setIsLiked(isLiked);
-      setLikeCount(initialLikeCount);
+      setIsLiked(previousLiked);
+      setLikeCount(previousCount);
     } finally {
       setPending(false);
     }
-  }, [articleId, isLiked, initialLikeCount, pending]);
+  }, [articleId, isLiked, likeCount, pending]);
 
   return { isLiked, likeCount, toggle, pending };
 }
