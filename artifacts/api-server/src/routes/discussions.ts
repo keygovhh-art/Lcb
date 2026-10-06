@@ -28,7 +28,10 @@ router.get("/discussions", async (req, res): Promise<void> => {
 
 router.post("/discussions", requireAuth, async (req, res): Promise<void> => {
   const { title, content, category, authorName } = req.body;
-  if (!title || !content) { res.status(400).json({ error: "title and content required" }); return; }
+  if (!String(title || "").trim() || !String(content || "").trim()) {
+    res.status(400).json({ error: "title and content required" });
+    return;
+  }
   const userId = getSessionUserId(req)!;
   const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
   const [disc] = await db.insert(discussionsTable).values({
