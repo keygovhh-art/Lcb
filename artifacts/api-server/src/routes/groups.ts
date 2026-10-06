@@ -3,16 +3,12 @@ import { eq, desc, sql, and } from "drizzle-orm";
 import { db, groupsTable, groupMembersTable, groupPostsTable, usersTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
+import { resolveMemberDisplayName } from "../lib/user-display";
 
 const router: IRouter = Router();
 
 function isStaffRole(role?: string) {
   return role === "admin" || role === "moderator";
-}
-
-async function currentDisplayName(userId: number) {
-  const [user] = await db.select({ name: usersTable.name, nickname: usersTable.nickname }).from(usersTable).where(eq(usersTable.id, userId));
-  return user?.nickname || user?.name || "Community Member";
 }
 
 router.get("/groups", async (req, res): Promise<void> => {
@@ -27,11 +23,25 @@ router.post("/groups", requireAuth, async (req, res): Promise<void> => {
   const { name, description, privacy, imageUrl } = req.body;
   if (!name || !description) { res.status(400).json({ error: "name and description required" }); return; }
   const userId = getSessionUserId(req)!;
-  const ownerName = await currentDisplayName(userId);
+  const ownerName = await resolveMemberDisplayName(userId);
   const [group] = await db.insert(groupsTable).values({
-    name, description, privacy: privacy || "public", imageUrl,
-    ownerId: userId, ownerName,
+    name: String(name).trim(),
+    description: String(description).trim(),
+    privacy: privacy || "public",
+    imageUrl: imageUrl || null,
+    ownerId: userId,
+    ownerName,
+    memberCount: 1,
   }).returning();
+
+  await db.insert(groupMembersTable).values({
+    userId,
+    userName: ownerName,
+    groupId: group.id,
+    role: "owner",
+    status: "approved",
+  }).onConflictDoNothing();
+
   res.status(201).json(group);
 });
 
@@ -78,7 +88,7 @@ router.post("/groups/:id/join", requireAuth, async (req, res): Promise<void> => 
   );
   if (existing) { res.json(existing); return; }
 
-  const userName = await currentDisplayName(userId);
+  const userName = await resolveMemberDisplayName(userId);
   const [member] = await db.insert(groupMembersTable).values({
     userId, userName,
     groupId, role: "member", status: "approved",
@@ -97,6 +107,22 @@ router.get("/groups/:id/members", async (req, res): Promise<void> => {
 router.get("/groups/:id/posts", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, id));
+  if (!group) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (group.privacy !== "public") {
+    const userId = getSessionUserId(req);
+    if (!userId) { res.status(401).json({ error: "Sign in required" }); return; }
+    const [membership] = await db.select().from(groupMembersTable).where(and(
+      eq(groupMembersTable.groupId, id),
+      eq(groupMembersTable.userId, userId),
+      eq(groupMembersTable.status, "approved"),
+    ));
+    if (!membership && group.ownerId !== userId && !isStaffRole(getSessionUserRole(req))) {
+      res.status(403).json({ error: "Private group" }); return;
+    }
+  }
+
   const posts = await db.select().from(groupPostsTable).where(eq(groupPostsTable.groupId, id)).orderBy(desc(groupPostsTable.createdAt));
   res.json(posts);
 });
@@ -124,12 +150,35 @@ router.post("/groups/:id/posts/:postId/like", requireAuth, async (req, res): Pro
 router.post("/groups/:id/posts", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const groupId = parseInt(raw, 10);
+  const userId = getSessionUserId(req)!;
   const { content, authorName } = req.body;
-  if (!content) { res.status(400).json({ error: "content required" }); return; }
+  if (!String(content || "").trim()) { res.status(400).json({ error: "content required" }); return; }
+
+  const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
+  if (!group) { res.status(404).json({ error: "Group not found" }); return; }
+
+  const [membership] = await db.select().from(groupMembersTable).where(and(
+    eq(groupMembersTable.groupId, groupId),
+    eq(groupMembersTable.userId, userId),
+    eq(groupMembersTable.status, "approved"),
+  ));
+  if (!membership && group.ownerId !== userId && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Join this group before posting" });
+    return;
+  }
+
+  const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
   const [post] = await db.insert(groupPostsTable).values({
-    content, groupId, authorId: getSessionUserId(req)!, authorName: authorName || await currentDisplayName(getSessionUserId(req)!),
+    content: String(content).trim(),
+    groupId,
+    authorId: userId,
+    authorName: safeAuthorName,
   }).returning();
-  await db.update(groupsTable).set({ postCount: sql`${groupsTable.postCount} + 1` }).where(eq(groupsTable.id, groupId));
+
+  await db.update(groupsTable)
+    .set({ postCount: sql`${groupsTable.postCount} + 1` })
+    .where(eq(groupsTable.id, groupId));
+
   res.status(201).json(post);
 });
 
