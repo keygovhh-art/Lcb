@@ -114,7 +114,12 @@ export default function SystemCenter() {
         body: JSON.stringify(supportForm),
       });
       if (!res.ok) {
-        toast({ title: "Could not send message", variant: "destructive" });
+        const body = await res.json().catch(() => ({}));
+        toast({
+          title: "Could not send message",
+          description: body.error || "Please check the form and try again.",
+          variant: "destructive",
+        });
         return;
       }
       setSupportForm({ name: "", email: "", type: "", subject: "", message: "" });
@@ -397,7 +402,8 @@ export default function SystemCenter() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[
                 { title: "User Registration", desc: "Allow new users to register", status: "enabled" },
-                { title: "Email Notifications", desc: "Send email notifications to users", status: "enabled" },
+                { title: "Website Notifications", desc: "In-app notification inbox and bell", status: "enabled" },
+                { title: "Email Notifications", desc: "Email delivery requires a provider connection", status: "disabled" },
                 { title: "SMS Module", desc: "Send SMS alerts (requires provider setup)", status: "disabled" },
                 { title: "Public Volunteer Directory", desc: "Allow public viewing of volunteer profiles", status: "enabled" },
                 { title: "Guest Content Access", desc: "Allow non-registered users to view posts", status: "enabled" },
