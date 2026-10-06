@@ -3,7 +3,7 @@ import { Layout } from "@/components/layout/layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "wouter";
-import { Users, MessageSquare, HandHeart, Heart, Globe, BarChart3, Activity, Clock } from "lucide-react";
+import { Users, MessageSquare, HandHeart, Heart, Globe, BarChart3, Activity, Clock, Newspaper, FolderKanban, Star } from "lucide-react";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
@@ -15,6 +15,9 @@ const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
   donation: <Heart className="h-4 w-4 text-secondary" />,
   minyan: <Clock className="h-4 w-4 text-muted-foreground" />,
   announcement: <Activity className="h-4 w-4 text-primary" />,
+  news: <Newspaper className="h-4 w-4 text-primary" />,
+  project: <FolderKanban className="h-4 w-4 text-secondary" />,
+  cause: <Star className="h-4 w-4 text-accent" />,
 };
 
 export default function Dashboard() {
