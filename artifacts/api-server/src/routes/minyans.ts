@@ -66,14 +66,36 @@ router.get("/minyans/:id", async (req, res): Promise<void> => {
 router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
-  const { synagogueName, shacharis, mincha, maariv, notes, status } = req.body;
-  const { community, city, country, address } = req.body;
-  const [minyan] = await db.update(minyansTable).set({
-    synagogueName, community, city, country, address, shacharis, mincha, maariv, notes, status,
-  }).where(eq(minyansTable.id, id)).returning();
-  if (!minyan) { res.status(404).json({ error: "Not found" }); return; }
+  const [existing] = await db.select().from(minyansTable).where(eq(minyansTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
-  if (status === "approved" || status === "rejected") {
+  const { synagogueName, shacharis, mincha, maariv, notes, status, community, city, country, address } = req.body;
+  const updates: Record<string, unknown> = {};
+  if (synagogueName !== undefined) updates.synagogueName = String(synagogueName).trim();
+  if (community !== undefined) updates.community = String(community);
+  if (city !== undefined) updates.city = String(city).trim();
+  if (country !== undefined) updates.country = String(country).trim();
+  if (address !== undefined) updates.address = address ? String(address).trim() : null;
+  if (shacharis !== undefined) updates.shacharis = String(shacharis).trim();
+  if (mincha !== undefined) updates.mincha = String(mincha).trim();
+  if (maariv !== undefined) updates.maariv = String(maariv).trim();
+  if (notes !== undefined) updates.notes = notes ? String(notes).trim() : null;
+
+  if (status !== undefined) {
+    if (!["pending", "approved", "rejected"].includes(status)) {
+      res.status(400).json({ error: "Invalid status" });
+      return;
+    }
+    if (existing.status !== "pending" && status !== existing.status) {
+      res.status(409).json({ error: "This submission has already been reviewed" });
+      return;
+    }
+    updates.status = status;
+  }
+
+  const [minyan] = await db.update(minyansTable).set(updates).where(eq(minyansTable.id, id)).returning();
+
+  if (existing.status === "pending" && (status === "approved" || status === "rejected")) {
     await db.insert(notificationsTable).values({
       userId: minyan.submittedByUserId,
       type: "minyan_review",
