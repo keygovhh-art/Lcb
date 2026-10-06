@@ -1,4 +1,6 @@
 import type { Request, RequestHandler } from "express";
+import { eq } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 
 type SessionIdentity = {
   userId?: number;
@@ -17,20 +19,46 @@ export function getSessionUserRole(req: Request): string | undefined {
   return identity(req).userRole;
 }
 
-export const requireAuth: RequestHandler = (req, res, next) => {
-  if (!getSessionUserId(req)) {
-    res.status(401).json({ error: "Not authenticated" });
-    return;
+async function currentSessionUser(req: Request) {
+  const userId = getSessionUserId(req);
+  if (!userId) return null;
+
+  const [user] = await db.select({
+    id: usersTable.id,
+    role: usersTable.role,
+    status: usersTable.status,
+  }).from(usersTable).where(eq(usersTable.id, userId));
+
+  if (!user || user.status === "banned" || user.status === "suspended") {
+    return null;
   }
-  next();
+
+  identity(req).userRole = user.role;
+  return user;
+}
+
+export const requireAuth: RequestHandler = async (req, res, next) => {
+  try {
+    const user = await currentSessionUser(req);
+    if (!user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
 };
 
-export const requireAdmin: RequestHandler = (req, res, next) => {
-  const userId = getSessionUserId(req);
-  const role = getSessionUserRole(req);
-  if (!userId || (role !== "admin" && role !== "moderator")) {
-    res.status(403).json({ error: "Admin access required" });
-    return;
+export const requireAdmin: RequestHandler = async (req, res, next) => {
+  try {
+    const user = await currentSessionUser(req);
+    if (!user || (user.role !== "admin" && user.role !== "moderator")) {
+      res.status(403).json({ error: "Admin access required" });
+      return;
+    }
+    next();
+  } catch (error) {
+    next(error);
   }
-  next();
 };
