@@ -101,11 +101,20 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
 
   const { name, nickname, bio, location, role, status, preferredLanguage } = req.body;
   const updates: Record<string, unknown> = {};
-  if (name !== undefined) updates.name = name;
-  if (nickname !== undefined) updates.nickname = nickname;
-  if (bio !== undefined) updates.bio = bio;
-  if (location !== undefined) updates.location = location;
-  if (preferredLanguage !== undefined) updates.preferredLanguage = preferredLanguage;
+
+  if (name !== undefined) {
+    const cleanName = String(name).trim();
+    if (!cleanName) { res.status(400).json({ error: "name cannot be empty" }); return; }
+    updates.name = cleanName;
+  }
+  if (nickname !== undefined) {
+    const cleanNickname = String(nickname).trim();
+    if (!cleanNickname) { res.status(400).json({ error: "nickname cannot be empty" }); return; }
+    updates.nickname = cleanNickname;
+  }
+  if (bio !== undefined) updates.bio = bio ? String(bio).trim() : null;
+  if (location !== undefined) updates.location = location ? String(location).trim() : null;
+  if (preferredLanguage !== undefined) updates.preferredLanguage = String(preferredLanguage);
   if (isStaffRole(requesterRole)) {
     if (role !== undefined) updates.role = role;
     if (status !== undefined) updates.status = status;
