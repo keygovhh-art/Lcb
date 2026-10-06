@@ -81,10 +81,80 @@ const ROLE_LABELS: Record<string, string> = {
 function VolunteerCard({ vol }: { vol: any }) {
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [editForm, setEditForm] = useState({
+    location: vol.location ?? "",
+    availability: vol.availability ?? "weekends",
+    bio: vol.bio ?? "",
+    skills: Array.isArray(vol.skills) ? vol.skills.join(", ") : "",
+  });
+  const { user, isAuthenticated, isAdmin } = useAuth();
   const { toast } = useToast();
+  const qc = useQueryClient();
+  const canManage = !!user && (vol.userId === user.id || isAdmin);
 
-  const requestContact = async () => {
+  const openVolunteerEdit = () => {
+    setEditForm({
+      location: vol.location ?? "",
+      availability: vol.availability ?? "weekends",
+      bio: vol.bio ?? "",
+      skills: Array.isArray(vol.skills) ? vol.skills.join(", ") : "",
+    });
+    setEditOpen(true);
+  };
+
+  const saveVolunteerEdit = async () => {
+    if (!editForm.location.trim()) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/volunteers/${vol.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userName: vol.userName,
+          location: editForm.location.trim(),
+          availability: editForm.availability,
+          bio: editForm.bio.trim() || null,
+          skills: editForm.skills.split(",").map(x => x.trim()).filter(Boolean),
+        }),
+      });
+      if (!res.ok) throw new Error("update failed");
+      const updated = await res.json();
+      qc.setQueriesData({ queryKey: ["/api/volunteers"] }, (current: any) =>
+        Array.isArray(current) ? current.map((item: any) => item.id === vol.id ? updated : item) : current
+      );
+      void qc.invalidateQueries({ queryKey: ["/api/volunteers"] });
+      setEditOpen(false);
+      toast({ title: "Volunteer profile updated" });
+    } catch {
+      toast({ title: "Could not update volunteer profile", variant: "destructive" });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const deleteVolunteer = async () => {
+    if (!window.confirm("Remove your volunteer profile?")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/volunteers/${vol.id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("delete failed");
+      qc.setQueriesData({ queryKey: ["/api/volunteers"] }, (current: any) =>
+        Array.isArray(current) ? current.filter((item: any) => item.id !== vol.id) : current
+      );
+      void qc.invalidateQueries({ queryKey: getGetFeaturedVolunteersQueryKey() });
+      setOpen(false);
+      toast({ title: "Volunteer profile removed" });
+    } catch {
+      toast({ title: "Could not remove volunteer profile", variant: "destructive" });
+      setDeleting(false);
+    }
+  };
+
+    const requestContact = async () => {
     if (!isAuthenticated) {
       toast({ title: "Sign in to request contact", description: "Join Gavhah free to contact volunteers." });
       return;
@@ -161,6 +231,21 @@ function VolunteerCard({ vol }: { vol: any }) {
             <div className="bg-muted/40 rounded-lg p-3 text-sm text-muted-foreground">
               Contact is facilitated through Gavhah to protect privacy.
             </div>
+            {canManage && (
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" onClick={openVolunteerEdit} className="gap-2">
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  className="gap-2 text-destructive border-destructive/20"
+                  onClick={() => void deleteVolunteer()}
+                  disabled={deleting}
+                >
+                  <Trash2 className="h-4 w-4" /> {deleting ? "Removing..." : "Remove"}
+                </Button>
+              </div>
+            )}
             <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={requestContact} disabled={sending}>
               {sending ? "Sending..." : "Request Contact via Gavhah"}
             </Button>
@@ -175,11 +260,83 @@ function VolunteerCard({ vol }: { vol: any }) {
 function HelpRequestCard({ req }: { req: any }) {
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: req.name ?? "",
+    location: req.location ?? "",
+    needType: req.needType ?? "other",
+    description: req.description ?? "",
+    urgency: req.urgency ?? "medium",
+  });
+  const { user, isAuthenticated, isAdmin } = useAuth();
   const { toast } = useToast();
+  const qc = useQueryClient();
+  const canManage = !!user && (req.userId === user.id || isAdmin);
   const urgency = URGENCY_MAP[req.urgency] ?? URGENCY_MAP.medium;
 
-  const offerHelp = async () => {
+  const openHelpEdit = () => {
+    setEditForm({
+      name: req.name ?? "",
+      location: req.location ?? "",
+      needType: req.needType ?? "other",
+      description: req.description ?? "",
+      urgency: req.urgency ?? "medium",
+    });
+    setEditOpen(true);
+  };
+
+  const saveHelpEdit = async () => {
+    if (!editForm.name.trim() || !editForm.description.trim()) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/help-requests/${req.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editForm.name.trim(),
+          location: editForm.location.trim() || null,
+          needType: editForm.needType,
+          description: editForm.description.trim(),
+          urgency: editForm.urgency,
+        }),
+      });
+      if (!res.ok) throw new Error("update failed");
+      const updated = await res.json();
+      qc.setQueriesData({ queryKey: ["/api/help-requests"] }, (current: any) =>
+        Array.isArray(current) ? current.map((item: any) => item.id === req.id ? updated : item) : current
+      );
+      void qc.invalidateQueries({ queryKey: ["/api/help-requests"] });
+      setEditOpen(false);
+      toast({ title: "Help request updated" });
+    } catch {
+      toast({ title: "Could not update help request", variant: "destructive" });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const deleteHelpRequest = async () => {
+    if (!window.confirm("Delete this help request?")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/help-requests/${req.id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("delete failed");
+      qc.setQueriesData({ queryKey: ["/api/help-requests"] }, (current: any) =>
+        Array.isArray(current) ? current.filter((item: any) => item.id !== req.id) : current
+      );
+      void qc.invalidateQueries({ queryKey: getGetFeaturedRequestsQueryKey() });
+      setOpen(false);
+      toast({ title: "Help request deleted" });
+    } catch {
+      toast({ title: "Could not delete help request", variant: "destructive" });
+      setDeleting(false);
+    }
+  };
+
+    const offerHelp = async () => {
     if (!isAuthenticated) {
       toast({ title: "Sign in to offer help", description: "Join Gavhah free to respond to help requests." });
       return;
@@ -242,8 +399,63 @@ function HelpRequestCard({ req }: { req: any }) {
             <div className="bg-muted/40 rounded-lg p-4 text-sm text-muted-foreground">
               To maintain privacy, all contact is handled through Gavhah administrators.
             </div>
+            {canManage && (
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" onClick={openHelpEdit} className="gap-2">
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  className="gap-2 text-destructive border-destructive/20"
+                  onClick={() => void deleteHelpRequest()}
+                  disabled={deleting}
+                >
+                  <Trash2 className="h-4 w-4" /> {deleting ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
+            )}
             <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={offerHelp} disabled={sending}>
               {sending ? "Sending..." : "I Can Help With This"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Edit Help Request</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div><Label>Name</Label><Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></div>
+            <div><Label>Location</Label><Input value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} /></div>
+            <div>
+              <Label>Need Type</Label>
+              <Select value={editForm.needType} onValueChange={needType => setEditForm(f => ({ ...f, needType }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="medical">Medical</SelectItem>
+                  <SelectItem value="wedding">Wedding / Simcha</SelectItem>
+                  <SelectItem value="food">Food Assistance</SelectItem>
+                  <SelectItem value="housing">Housing</SelectItem>
+                  <SelectItem value="transportation">Transportation</SelectItem>
+                  <SelectItem value="financial">Financial</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Urgency</Label>
+              <Select value={editForm.urgency} onValueChange={urgency => setEditForm(f => ({ ...f, urgency }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Description</Label><Textarea className="min-h-28" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
+            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveHelpEdit()} disabled={savingEdit || !editForm.name.trim() || !editForm.description.trim()}>
+              {savingEdit ? "Saving..." : "Save Changes"}
             </Button>
           </div>
         </DialogContent>
