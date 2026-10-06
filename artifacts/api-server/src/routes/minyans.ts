@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, desc } from "drizzle-orm";
-import { db, minyansTable } from "@workspace/db";
+import { db, minyansTable, notificationsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 
@@ -67,8 +67,24 @@ router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const { synagogueName, shacharis, mincha, maariv, notes, status } = req.body;
-  const [minyan] = await db.update(minyansTable).set({ synagogueName, shacharis, mincha, maariv, notes, status }).where(eq(minyansTable.id, id)).returning();
+  const { community, city, country, address } = req.body;
+  const [minyan] = await db.update(minyansTable).set({
+    synagogueName, community, city, country, address, shacharis, mincha, maariv, notes, status,
+  }).where(eq(minyansTable.id, id)).returning();
   if (!minyan) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (status === "approved" || status === "rejected") {
+    await db.insert(notificationsTable).values({
+      userId: minyan.submittedByUserId,
+      type: "minyan_review",
+      message: status === "approved"
+        ? `Your minyan submission "${minyan.synagogueName}" was approved and is now public.`
+        : `Your minyan submission "${minyan.synagogueName}" was not approved.`,
+      linkUrl: status === "approved" ? "/minyans" : null,
+      isRead: false,
+    });
+  }
+
   res.json(minyan);
 });
 
