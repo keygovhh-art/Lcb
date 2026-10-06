@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, sql, and } from "drizzle-orm";
-import { db, groupsTable, groupMembersTable, groupPostsTable, usersTable } from "@workspace/db";
+import { eq, desc, sql, and, inArray } from "drizzle-orm";
+import { db, groupsTable, groupMembersTable, groupPostsTable, usersTable, entityLikesTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName } from "../lib/user-display";
@@ -75,6 +75,19 @@ router.delete("/groups/:id", requireAuth, async (req, res): Promise<void> => {
   if (existing.ownerId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
     res.status(403).json({ error: "Not allowed" }); return;
   }
+  const postIds = (await db.select({ id: groupPostsTable.id })
+    .from(groupPostsTable)
+    .where(eq(groupPostsTable.groupId, id)))
+    .map(row => row.id);
+
+  if (postIds.length > 0) {
+    await db.delete(entityLikesTable).where(and(
+      eq(entityLikesTable.entityType, "group_post"),
+      inArray(entityLikesTable.entityId, postIds),
+    ));
+  }
+  await db.delete(groupPostsTable).where(eq(groupPostsTable.groupId, id));
+  await db.delete(groupMembersTable).where(eq(groupMembersTable.groupId, id));
   await db.delete(groupsTable).where(eq(groupsTable.id, id));
   res.sendStatus(204);
 });
