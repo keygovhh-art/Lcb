@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Users, Lock, Globe, KeyRound, Heart, MessageCircle, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Users, Lock, Globe, KeyRound, Heart, MessageCircle, Pencil, Trash2, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
@@ -59,7 +59,9 @@ export default function GroupDetail() {
 
   const isOwner = !!user && group?.ownerId === user.id;
   const canManageGroup = !!user && (isOwner || isAdmin);
-  const isMember = !!user && (isOwner || (members ?? []).some((member: any) => member.userId === user.id && member.status === "approved"));
+  const ownMembership = !!user ? (members ?? []).find((member: any) => member.userId === user.id) : undefined;
+  const isPendingMember = ownMembership?.status === "pending";
+  const isMember = !!user && (isOwner || ownMembership?.status === "approved");
 
   const openGroupEdit = () => {
     if (!group) return;
@@ -118,10 +120,44 @@ export default function GroupDetail() {
     }
   };
 
-    const handleJoin = () => {
-    join.mutate({ id: numId }, {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getGetGroupQueryKey(numId) }),
+  const handleJoin = () => {
+    join.mutate(
+      { id: numId },
+      {
+        onSuccess: (member: any) => {
+          void qc.invalidateQueries({ queryKey: getListGroupMembersQueryKey(numId) });
+          void qc.invalidateQueries({ queryKey: getGetGroupQueryKey(numId) });
+          toast({
+            title: member.status === "pending" ? "Join request sent" : "Joined group",
+            description: member.status === "pending"
+              ? "The group owner will review your request."
+              : "You can now participate in the group.",
+          });
+        },
+        onError: () => toast({ title: "Could not join group", variant: "destructive" }),
+      }
+    );
+  };
+
+  const reviewMembership = async (memberId: number, status: "approved" | "rejected") => {
+    const res = await fetch(`/api/groups/${numId}/members/${memberId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
     });
+    if (!res.ok) {
+      toast({ title: "Could not review membership request", variant: "destructive" });
+      return;
+    }
+    const updated = await res.json();
+    qc.setQueryData(getListGroupMembersQueryKey(numId), (current: any) =>
+      Array.isArray(current)
+        ? current.map((member: any) => member.id === memberId ? updated : member)
+        : current
+    );
+    void qc.invalidateQueries({ queryKey: getGetGroupQueryKey(numId) });
+    toast({ title: status === "approved" ? "Member approved" : "Request rejected" });
   };
 
   const handlePost = (e: React.FormEvent) => {
@@ -256,6 +292,10 @@ export default function GroupDetail() {
                     <Button variant="outline" className="shrink-0" disabled>
                       <Users className="h-4 w-4 mr-2" /> {isOwner ? "Group Owner" : "Member"}
                     </Button>
+                  ) : isPendingMember ? (
+                    <Button variant="outline" className="shrink-0" disabled>
+                      <Clock className="h-4 w-4 mr-2" /> Request Pending
+                    </Button>
                   ) : (
                     <MemberGate action="join this group" compact>
                       <Button
@@ -264,7 +304,7 @@ export default function GroupDetail() {
                         disabled={join.isPending}
                       >
                         <Users className="h-4 w-4 mr-2" />
-                        {join.isPending ? "Joining..." : "Join Group"}
+                        {join.isPending ? "Joining..." : group.privacy === "private" ? "Request to Join" : "Join Group"}
                       </Button>
                     </MemberGate>
                   )}
@@ -407,15 +447,27 @@ export default function GroupDetail() {
 
               <TabsContent value="members">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {members?.map(member => (
+                  {members?.filter((member: any) => member.status !== "rejected").map((member: any) => (
                     <div key={member.id} className="bg-card border rounded-xl p-4 flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-serif font-bold text-lg">
-                        {member.userName[0]}
+                        {member.userName?.[0] ?? "?"}
                       </div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="font-semibold text-foreground">{member.userName}</div>
-                        <div className="text-xs text-muted-foreground capitalize">{member.role} · Joined {format(new Date(member.joinedAt), "MMM yyyy")}</div>
+                        <div className="text-xs text-muted-foreground capitalize">
+                          {member.status === "pending" ? "Membership request pending" : `${member.role} · Joined ${format(new Date(member.joinedAt), "MMM yyyy")}`}
+                        </div>
                       </div>
+                      {canManageGroup && member.status === "pending" && (
+                        <div className="flex gap-2 shrink-0">
+                          <Button size="sm" className="bg-secondary hover:bg-secondary/90 text-white" onClick={() => void reviewMembership(member.id, "approved")}>
+                            Approve
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-destructive border-destructive/20" onClick={() => void reviewMembership(member.id, "rejected")}>
+                            Reject
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                   {members?.length === 0 && (
