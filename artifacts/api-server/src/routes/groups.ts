@@ -360,7 +360,23 @@ router.post("/groups/:id/posts/:postId/like", requireAuth, async (req, res): Pro
     .where(and(eq(groupPostsTable.id, postId), eq(groupPostsTable.groupId, groupId)));
   if (!post) { res.status(404).json({ error: "Not found" }); return; }
 
-  const state = await setLikeState(getSessionUserId(req)!, "group_post", postId);
+  const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
+  if (!group) { res.status(404).json({ error: "Not found" }); return; }
+
+  const userId = getSessionUserId(req)!;
+  if (group.privacy === "private" && group.ownerId !== userId && !isStaffRole(getSessionUserRole(req))) {
+    const [membership] = await db.select().from(groupMembersTable).where(and(
+      eq(groupMembersTable.groupId, groupId),
+      eq(groupMembersTable.userId, userId),
+      eq(groupMembersTable.status, "approved"),
+    ));
+    if (!membership) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+  }
+
+  const state = await setLikeState(userId, "group_post", postId);
   let likes = post.likes;
   if (state.changed) {
     const [updated] = await db.update(groupPostsTable)
