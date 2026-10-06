@@ -22,11 +22,12 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   const userId = req.session.userId;
   if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (!user) {
+  if (!user || user.status === "banned" || user.status === "suspended") {
     req.session.destroy(() => {});
-    res.status(401).json({ error: "User not found" });
+    res.status(401).json({ error: "Account unavailable" });
     return;
   }
+  req.session.userRole = user.role;
   res.json(safeUser(user));
 });
 
@@ -50,6 +51,9 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) { res.status(401).json({ error: "Invalid credentials" }); return; }
 
+  await new Promise<void>((resolve, reject) => {
+    req.session.regenerate(err => err ? reject(err) : resolve());
+  });
   req.session.userId = user.id;
   req.session.userRole = user.role;
   res.json({ user: safeUser(user) });
