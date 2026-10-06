@@ -17,8 +17,10 @@ export const volunteerProfilesTable = pgTable("volunteer_profiles", {
 
 export const helpRequestsTable = pgTable("help_requests", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().default(1),
   name: text("name").notNull(),
   contactInfo: text("contact_info").notNull(),
+  location: text("location"),
   needType: text("need_type").notNull(),
   description: text("description").notNull(),
   urgency: text("urgency").notNull().default("medium"),
