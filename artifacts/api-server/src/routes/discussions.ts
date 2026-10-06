@@ -4,6 +4,8 @@ import { db, discussionsTable, commentsTable, entityLikesTable } from "@workspac
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName } from "../lib/user-display";
+import { logActivity } from "../lib/activity";
+import { notifyUser } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -41,6 +43,7 @@ router.post("/discussions", requireAuth, async (req, res): Promise<void> => {
     authorId: userId,
     authorName: safeAuthorName,
   }).returning();
+  await logActivity("discussion", `Started discussion "${disc.title}"`, safeAuthorName);
   res.status(201).json(disc);
 });
 
@@ -214,6 +217,28 @@ router.post("/discussions/:id/comments", requireAuth, async (req, res): Promise<
     authorId: userId,
     authorName: safeAuthorName,
   }).returning();
+
+  if (discussion.authorId !== userId) {
+    await notifyUser(
+      discussion.authorId,
+      "discussion_reply",
+      `${safeAuthorName} replied to your discussion "${discussion.title}".`,
+      `/forum/${discussionId}`,
+    );
+  }
+
+  if (parentId) {
+    const [parent] = await db.select().from(commentsTable).where(eq(commentsTable.id, parentId));
+    if (parent && parent.authorId !== userId && parent.authorId !== discussion.authorId) {
+      await notifyUser(
+        parent.authorId,
+        "comment_reply",
+        `${safeAuthorName} replied to your forum comment.`,
+        `/forum/${discussionId}`,
+      );
+    }
+  }
+
   await db.update(discussionsTable).set({ commentCount: sql`${discussionsTable.commentCount} + 1` }).where(eq(discussionsTable.id, discussionId));
   res.status(201).json(comment);
 });
