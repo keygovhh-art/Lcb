@@ -4,9 +4,9 @@ import session from "express-session";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
-
-const secret = process.env["SESSION_SECRET"];
-if (!secret) throw new Error("SESSION_SECRET environment variable is required");
+import { pool } from "@workspace/db";
+import { PostgresSessionStore } from "./lib/postgres-session-store";
+import { sessionOptions, usesPostgresSessions } from "./lib/session-options";
 
 const app: Express = express();
 
@@ -32,18 +32,21 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    secret,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: false,
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    },
+    ...sessionOptions(process.env),
+    ...(usesPostgresSessions(process.env) ? { store: new PostgresSessionStore(pool) } : {}),
   })
 );
 
 app.use("/api", router);
+// Unknown API paths must not fall through to the SPA.
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "API route not found" });
+});
+
+app.use(((err, req, res, next) => {
+  req.log.error({ err }, "Request failed");
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: "Internal server error" });
+}) as express.ErrorRequestHandler);
 
 export default app;

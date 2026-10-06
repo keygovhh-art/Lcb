@@ -3,15 +3,8 @@ name: Session auth setup
 description: How express-session is configured to work in Replit's reverse proxy environment.
 ---
 
-express-session configuration that works in Replit:
+Preserve the existing Replit session mode unless explicitly opting into persistent sessions. Vercel must use PostgreSQL sessions and secure cookies, with no fallback to memory.
 
-- app.set("trust proxy", 1) — required for proxy-aware secure cookies
-- cookie.secure = false — works for both HTTP and HTTPS through the proxy
-- cookie.sameSite = "lax" — required for same-origin cookie sending
-- SESSION_SECRET env var — already exists in this project's secrets
+**Why:** The user requested migration preparation without breaking the current Replit version or running risky database migrations. Switching storage cannot transfer existing in-memory logins; users must sign in again.
 
-Admin user (id=1): email moshe@gavhah.org, password seeded with Admin1234! via crypto.scrypt hash.
-
-**Why:** Replit serves over HTTPS via its reverse proxy, but the express process sees HTTP. trust proxy:1 tells express to trust the X-Forwarded-Proto header. secure:false means the cookie is sent regardless of protocol, which is simpler than dealing with proxy trust levels.
-
-**How to apply:** Any new API server that needs sessions should use this same configuration. Run codegen after any OpenAPI spec changes.
+**How to apply:** Prepare only additive session-table setup for manual execution against the chosen database. Do not run automatic schema synchronization, transfer data, or publish as part of migration preparation.

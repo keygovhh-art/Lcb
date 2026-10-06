@@ -47,3 +47,25 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local environment and credential files (at every directory depth).
+.env
+.env.*
+!.env.example
+.envrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+credentials.json
+credentials.*.json
+service-account*.json
+secrets.json
+secrets.*.json
+secrets.yaml
+secrets.yml
+secrets.toml
+*.dump
+*.backup
+.vercel/
