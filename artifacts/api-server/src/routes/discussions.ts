@@ -3,6 +3,7 @@ import { eq, desc, sql, and } from "drizzle-orm";
 import { db, discussionsTable, commentsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
+import { resolveMemberDisplayName } from "../lib/user-display";
 
 const router: IRouter = Router();
 
@@ -28,9 +29,14 @@ router.get("/discussions", async (req, res): Promise<void> => {
 router.post("/discussions", requireAuth, async (req, res): Promise<void> => {
   const { title, content, category, authorName } = req.body;
   if (!title || !content) { res.status(400).json({ error: "title and content required" }); return; }
+  const userId = getSessionUserId(req)!;
+  const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
   const [disc] = await db.insert(discussionsTable).values({
-    title, content, category: category || "general",
-    authorId: getSessionUserId(req)!, authorName: authorName || "Community Member",
+    title: String(title).trim(),
+    content: String(content).trim(),
+    category: category || "general",
+    authorId: userId,
+    authorName: safeAuthorName,
   }).returning();
   res.status(201).json(disc);
 });
@@ -130,9 +136,14 @@ router.post("/discussions/:id/comments", requireAuth, async (req, res): Promise<
   const discussionId = parseInt(raw, 10);
   const { content, parentId, authorName } = req.body;
   if (!content) { res.status(400).json({ error: "content required" }); return; }
+  const userId = getSessionUserId(req)!;
+  const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
   const [comment] = await db.insert(commentsTable).values({
-    content, discussionId, parentId: parentId ?? null,
-    authorId: getSessionUserId(req)!, authorName: authorName || "Community Member",
+    content: String(content).trim(),
+    discussionId,
+    parentId: parentId ?? null,
+    authorId: userId,
+    authorName: safeAuthorName,
   }).returning();
   await db.update(discussionsTable).set({ commentCount: sql`${discussionsTable.commentCount} + 1` }).where(eq(discussionsTable.id, discussionId));
   res.status(201).json(comment);
