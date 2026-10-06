@@ -113,8 +113,13 @@ function PostUpdateDialog() {
     createNews.mutate(
       { data: { ...form, authorName, deadline: form.deadline || undefined, organization: form.organization || undefined, summary: form.summary || undefined } },
       {
-        onSuccess: () => {
-          qc.invalidateQueries({ queryKey: getListNewsQueryKey({}) });
+        onSuccess: (article) => {
+          const listKey = getListNewsQueryKey({});
+          qc.setQueryData(listKey, (current: any) => {
+            const items = Array.isArray(current) ? current : [];
+            return [article, ...items.filter((item: any) => item.id !== article.id)];
+          });
+          void qc.invalidateQueries({ queryKey: listKey });
           setOpen(false);
           setForm({ title: "", content: "", summary: "", organization: "", category: "announcement", urgency: "normal", deadline: "" });
           toast({ title: "Update posted", description: "Your community update has been published." });
