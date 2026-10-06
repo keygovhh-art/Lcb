@@ -19,6 +19,7 @@ import {
   MessageSquare, HelpCircle, ChevronDown, ChevronUp, Send, AlertTriangle, Settings
 } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 const FAQ = [
   { q: "How do I submit a help request?", a: "Go to the Activists Directory, click the 'Help Requests' tab, and press 'Submit a Request'. Fill out the form and our team will connect you with appropriate volunteers." },
@@ -47,6 +48,8 @@ export default function SystemCenter() {
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
   const [supportForm, setSupportForm] = useState({ name: "", email: "", type: "", subject: "", message: "" });
+  const [supportSending, setSupportSending] = useState(false);
+  const { toast } = useToast();
   const { isAdmin } = useAuth();
 
   const { data: reports } = useListReports({}, { query: { queryKey: getListReportsQueryKey({}), enabled: isAdmin } });
@@ -61,6 +64,30 @@ export default function SystemCenter() {
 
   const pendingReports = reports?.filter(r => r.status === "pending") ?? [];
   const statusColor = (status: string) => status === "active" ? "default" : status === "suspended" ? "secondary" : "destructive";
+
+  const submitSupportMessage = async () => {
+    if (!supportForm.name || !supportForm.email || !supportForm.type || !supportForm.subject || !supportForm.message) {
+      toast({ title: "Please complete all fields", variant: "destructive" });
+      return;
+    }
+    setSupportSending(true);
+    try {
+      const res = await fetch("/api/support-messages", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(supportForm),
+      });
+      if (!res.ok) {
+        toast({ title: "Could not send message", variant: "destructive" });
+        return;
+      }
+      setSupportForm({ name: "", email: "", type: "", subject: "", message: "" });
+      toast({ title: "Message sent", description: "Your message is now in the Gavhah support inbox." });
+    } finally {
+      setSupportSending(false);
+    }
+  };
 
   const AdminOnly = ({ children }: { children: React.ReactNode }) => isAdmin ? <>{children}</> : (
     <div className="flex-1 flex items-center justify-center py-24">
@@ -138,8 +165,8 @@ export default function SystemCenter() {
                     <Label className="font-semibold">Message</Label>
                     <Textarea value={supportForm.message} onChange={e => setSupportForm(f => ({ ...f, message: e.target.value }))} placeholder="Describe your issue or feedback..." className="min-h-28 resize-none" />
                   </div>
-                  <Button className="w-full bg-secondary hover:bg-secondary/90 text-white gap-2 h-12" onClick={() => setSupportForm({ name: "", email: "", type: "", subject: "", message: "" })}>
-                    <Send className="h-4 w-4" /> Submit Message
+                  <Button className="w-full bg-secondary hover:bg-secondary/90 text-white gap-2 h-12" onClick={submitSupportMessage} disabled={supportSending}>
+                    <Send className="h-4 w-4" /> {supportSending ? "Sending..." : "Submit Message"}
                   </Button>
                 </div>
               </div>
