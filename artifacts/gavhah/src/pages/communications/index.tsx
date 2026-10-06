@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
 import { MemberGate } from "@/components/shared/member-gate";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,6 +26,60 @@ const SMS_LOG = [
 ];
 
 export default function Communications() {
+  const { isAdmin } = useAuth();
+  const { toast } = useToast();
+  const [broadcastForm, setBroadcastForm] = useState({
+    recipientGroup: "all",
+    subject: "",
+    message: "",
+  });
+  const [broadcasts, setBroadcasts] = useState<any[]>([]);
+  const [broadcastSending, setBroadcastSending] = useState(false);
+
+  const loadBroadcasts = async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch("/api/broadcasts", { credentials: "include" });
+      if (res.ok) setBroadcasts(await res.json());
+    } catch {}
+  };
+
+  useEffect(() => {
+    void loadBroadcasts();
+  }, [isAdmin]);
+
+  const sendWebsiteBroadcast = async () => {
+    if (!broadcastForm.subject.trim() || !broadcastForm.message.trim()) {
+      toast({ title: "Subject and message are required", variant: "destructive" });
+      return;
+    }
+    setBroadcastSending(true);
+    try {
+      const res = await fetch("/api/broadcasts", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientGroup: broadcastForm.recipientGroup,
+          channel: "website",
+          subject: broadcastForm.subject.trim(),
+          message: broadcastForm.message.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast({ title: "Could not send broadcast", description: body.error, variant: "destructive" });
+        return;
+      }
+      const sent = await res.json();
+      setBroadcasts(current => [sent, ...current.filter((b: any) => b.id !== sent.id)]);
+      setBroadcastForm({ recipientGroup: "all", subject: "", message: "" });
+      toast({ title: "Broadcast sent", description: `Delivered to ${sent.recipientCount} website notification inboxes.` });
+    } finally {
+      setBroadcastSending(false);
+    }
+  };
+
   return (
     <Layout>
       <div className="bg-gradient-to-br from-primary/5 to-secondary/5 border-b">
@@ -37,10 +93,10 @@ export default function Communications() {
           </p>
           <div className="ml-11 mt-4 flex flex-wrap gap-2">
             <Badge className="bg-green-100 text-green-800 border border-green-200 gap-1.5">
-              <CheckCircle className="h-3 w-3" /> System Operational
+              <CheckCircle className="h-3 w-3" /> Website Notifications Active
             </Badge>
             <Badge variant="outline" className="gap-1.5 text-muted-foreground">
-              <AlertCircle className="h-3 w-3" /> SMS Module: Pending Activation
+              <AlertCircle className="h-3 w-3" /> Phone / SMS Provider Not Connected
             </Badge>
           </div>
         </div>
@@ -187,58 +243,77 @@ export default function Communications() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label className="font-semibold">Recipient Group</Label>
-                    <Select>
-                      <SelectTrigger className="h-11"><SelectValue placeholder="Select group..." /></SelectTrigger>
+                    <Select value={broadcastForm.recipientGroup} onValueChange={v => setBroadcastForm(f => ({ ...f, recipientGroup: v }))}>
+                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Members</SelectItem>
                         <SelectItem value="volunteers">Volunteers Only</SelectItem>
-                        <SelectItem value="activists">Activists Only</SelectItem>
                         <SelectItem value="admins">Admins Only</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="font-semibold">Channel</Label>
-                    <Select>
-                      <SelectTrigger className="h-11"><SelectValue placeholder="Select channel..." /></SelectTrigger>
+                    <Select value="website">
+                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="website">Website Notification</SelectItem>
-                        <SelectItem value="email">Email</SelectItem>
-                        <SelectItem value="sms">SMS (pending)</SelectItem>
+                        <SelectItem value="email" disabled>Email — not connected</SelectItem>
+                        <SelectItem value="sms" disabled>SMS — not connected</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="font-semibold">Subject</Label>
-                  <Input className="h-11" placeholder="Message subject..." />
+                  <Input
+                    className="h-11"
+                    placeholder="Message subject..."
+                    value={broadcastForm.subject}
+                    onChange={e => setBroadcastForm(f => ({ ...f, subject: e.target.value }))}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="font-semibold">Message</Label>
-                  <Textarea placeholder="Your broadcast message..." className="min-h-28 resize-none" />
+                  <Textarea
+                    placeholder="Your broadcast message..."
+                    className="min-h-28 resize-none"
+                    value={broadcastForm.message}
+                    onChange={e => setBroadcastForm(f => ({ ...f, message: e.target.value }))}
+                  />
                 </div>
-                <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2">
-                  <Send className="h-4 w-4" /> Send Broadcast
+                <Button
+                  className="bg-secondary hover:bg-secondary/90 text-white gap-2"
+                  onClick={() => void sendWebsiteBroadcast()}
+                  disabled={!isAdmin || broadcastSending}
+                >
+                  <Send className="h-4 w-4" /> {broadcastSending ? "Sending..." : "Send Website Broadcast"}
                 </Button>
+                {!isAdmin && (
+                  <p className="text-xs text-muted-foreground">Only administrators can send platform-wide broadcasts.</p>
+                )}
               </div>
             </div>
             <div className="space-y-3">
               <h3 className="font-semibold text-foreground">Recent Broadcasts</h3>
-              {[
-                { title: "Weekly Community Update", sent: "3 days ago", recipients: 247, channel: "Email + Website" },
-                { title: "Urgent: Volunteer Needed — Boro Park Medical", sent: "5 days ago", recipients: 89, channel: "Website" },
-                { title: "New Group Created: Hachnosas Orchim Network", sent: "1 week ago", recipients: 312, channel: "Website" },
-              ].map((b, i) => (
-                <div key={i} className="bg-card border rounded-xl p-4 flex items-center justify-between gap-4">
+              {isAdmin && broadcasts.map((b: any) => (
+                <div key={b.id} className="bg-card border rounded-xl p-4 flex items-center justify-between gap-4">
                   <div>
-                    <p className="font-semibold text-foreground text-sm">{b.title}</p>
-                    <p className="text-xs text-muted-foreground">{b.sent} · {b.recipients} recipients · {b.channel}</p>
+                    <p className="font-semibold text-foreground text-sm">{b.subject}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(b.createdAt).toLocaleString()} · {b.recipientCount} recipients · Website
+                    </p>
                   </div>
                   <Badge variant="outline" className="shrink-0 text-xs gap-1">
                     <CheckCircle className="h-3 w-3 text-green-600" /> Delivered
                   </Badge>
                 </div>
               ))}
+              {isAdmin && broadcasts.length === 0 && (
+                <div className="bg-muted/20 border rounded-xl p-6 text-center text-sm text-muted-foreground">
+                  No website broadcasts sent yet.
+                </div>
+              )}
             </div>
           </TabsContent>
 
