@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const communityProjectsTable = pgTable("community_projects", {
   id: serial("id").primaryKey(),
+  ownerId: integer("owner_id").notNull().default(1),
   title: text("title").notNull(),
   description: text("description").notNull(),
   type: text("type").notNull().default("project"),
@@ -16,6 +17,7 @@ export const communityProjectsTable = pgTable("community_projects", {
 
 export const projectMembersTable = pgTable("project_members", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().default(1),
   projectId: integer("project_id").notNull(),
   name: text("name").notNull(),
   role: text("role").notNull().default("supporter"),
