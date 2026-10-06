@@ -278,9 +278,11 @@ export default function Minyans() {
           </div>
         )}
 
-        <div className="text-center py-4 text-sm text-muted-foreground">
-          Showing {minyans?.length ?? 0} minyanim · Know a minyan that's missing?{" "}
-          <button onClick={() => {}} className="text-secondary hover:underline font-medium">Add it here</button>
+        <div className="text-center py-4 text-sm text-muted-foreground space-y-3">
+          <p>Showing {minyans?.length ?? 0} minyanim · Know a minyan that's missing?</p>
+          <div className="flex justify-center">
+            <AddMinyanDialog onSuccess={refresh} />
+          </div>
         </div>
       </div>
     </Layout>
