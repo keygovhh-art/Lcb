@@ -45,11 +45,19 @@ export default function GroupsList() {
         imageUrl: createForm.imageUrl.trim() || null,
       } },
       {
-        onSuccess: () => {
+        onSuccess: (group) => {
           setCreateOpen(false);
           setCreateForm({ name: "", description: "", privacy: "public", imageUrl: "" });
-          void qc.invalidateQueries({ queryKey: getListGroupsQueryKey({}) });
-          toast({ title: "Group created", description: "Your new group is now live." });
+          qc.setQueryData(getListGroupsQueryKey(params), (current: any) => {
+            const items = Array.isArray(current) ? current : [];
+            const matchesSearch = !params.search || group.name.toLowerCase().includes(params.search.toLowerCase());
+            const matchesPrivacy = !params.privacy || group.privacy === params.privacy;
+            return matchesSearch && matchesPrivacy
+              ? [group, ...items.filter((item: any) => item.id !== group.id)]
+              : items;
+          });
+          void qc.invalidateQueries({ queryKey: ["/api/groups"] });
+          toast({ title: "Group created", description: "Your new group is live and you are its owner." });
         },
         onError: () => toast({ title: "Could not create group", variant: "destructive" }),
       }
