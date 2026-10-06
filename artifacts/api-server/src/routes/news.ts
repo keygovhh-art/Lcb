@@ -1,8 +1,13 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, newsTable } from "@workspace/db";
+import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 
 const router: IRouter = Router();
+
+function isStaffRole(role?: string) {
+  return role === "admin" || role === "moderator";
+}
 
 router.get("/news/featured", async (_req, res): Promise<void> => {
   const featured = await db.select().from(newsTable).where(eq(newsTable.isFeatured, true)).orderBy(desc(newsTable.createdAt)).limit(5);
@@ -22,7 +27,7 @@ router.get("/news", async (req, res): Promise<void> => {
   res.json(all);
 });
 
-router.post("/news", async (req, res): Promise<void> => {
+router.post("/news", requireAuth, async (req, res): Promise<void> => {
   const { title, content, summary, imageUrl, category, urgency, deadline, organization, isFeatured, authorName } = req.body;
   if (!title || !content) { res.status(400).json({ error: "title and content required" }); return; }
   const [article] = await db.insert(newsTable).values({
@@ -33,8 +38,8 @@ router.post("/news", async (req, res): Promise<void> => {
     urgency: urgency || "normal",
     deadline: deadline || null,
     organization: organization || null,
-    isFeatured: isFeatured ?? false,
-    authorId: 1,
+    isFeatured: isStaffRole(getSessionUserRole(req)) ? (isFeatured ?? false) : false,
+    authorId: getSessionUserId(req)!,
     authorName: authorName || "Community Member",
   }).returning();
   res.status(201).json(article);
@@ -48,7 +53,7 @@ router.get("/news/:id", async (req, res): Promise<void> => {
   res.json(article);
 });
 
-router.post("/news/:id/like", async (req, res): Promise<void> => {
+router.post("/news/:id/like", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const { liked } = req.body as { liked: boolean };
@@ -69,20 +74,30 @@ router.post("/news/:id/view", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
-router.patch("/news/:id", async (req, res): Promise<void> => {
+router.patch("/news/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  const [existing] = await db.select().from(newsTable).where(eq(newsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.authorId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
   const { title, content, summary, imageUrl, category, urgency, deadline, organization, isFeatured } = req.body;
   const [article] = await db.update(newsTable)
-    .set({ title, content, summary, imageUrl, category, urgency, deadline, organization, isFeatured })
+    .set({ title, content, summary, imageUrl, category, urgency, deadline, organization, isFeatured: isStaffRole(getSessionUserRole(req)) ? isFeatured : existing.isFeatured })
     .where(eq(newsTable.id, id)).returning();
   if (!article) { res.status(404).json({ error: "Not found" }); return; }
   res.json(article);
 });
 
-router.delete("/news/:id", async (req, res): Promise<void> => {
+router.delete("/news/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  const [existing] = await db.select().from(newsTable).where(eq(newsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.authorId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
   await db.delete(newsTable).where(eq(newsTable.id, id));
   res.sendStatus(204);
 });
