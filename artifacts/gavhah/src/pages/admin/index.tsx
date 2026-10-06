@@ -21,6 +21,7 @@ import {
   Lock, Sparkles, FolderKanban, HandHeart,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: number | string; sub?: string }) {
   return (
@@ -39,6 +40,7 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
 
 export default function FounderDashboard() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [, navigate] = useLocation();
   const { user, isLoaded, isAdmin } = useAuth();
   const [annTitle, setAnnTitle] = useState("");
@@ -722,8 +724,18 @@ export default function FounderDashboard() {
               <form className="space-y-4" onSubmit={e => {
                 e.preventDefault();
                 if (!annTitle || !annContent) return;
-                createAnn.mutate({ data: { title: annTitle, content: annContent } }, {
-                  onSuccess: () => { setAnnTitle(""); setAnnContent(""); qc.invalidateQueries({ queryKey: getListAnnouncementsQueryKey() }); }
+                createAnn.mutate({ data: { title: annTitle.trim(), content: annContent.trim() } }, {
+                  onSuccess: (announcement) => {
+                    setAnnTitle("");
+                    setAnnContent("");
+                    qc.setQueryData(getListAnnouncementsQueryKey(), (current: any) => {
+                      const items = Array.isArray(current) ? current : [];
+                      return [announcement, ...items.filter((item: any) => item.id !== announcement.id)];
+                    });
+                    void qc.invalidateQueries({ queryKey: ["/api/announcements"] });
+                    toast({ title: "Announcement published", description: "It is now live on the platform." });
+                  },
+                  onError: () => toast({ title: "Could not publish announcement", variant: "destructive" }),
                 });
               }}>
                 <Input value={annTitle} onChange={e => setAnnTitle(e.target.value)} placeholder="Announcement title" className="h-11" />
