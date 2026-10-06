@@ -174,6 +174,10 @@ router.delete("/groups/:id/posts/:postId", requireAuth, async (req, res): Promis
     res.status(403).json({ error: "Not allowed" }); return;
   }
 
+  await db.delete(entityLikesTable).where(and(
+    eq(entityLikesTable.entityType, "group_post"),
+    eq(entityLikesTable.entityId, postId),
+  ));
   await db.delete(groupPostsTable).where(eq(groupPostsTable.id, postId));
   await db.update(groupsTable)
     .set({ postCount: sql`GREATEST(0, ${groupsTable.postCount} - 1)` })
