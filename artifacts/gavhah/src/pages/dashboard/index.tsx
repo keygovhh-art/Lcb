@@ -37,7 +37,7 @@ export default function Dashboard() {
     { label: "Active Volunteers", value: stats?.activeVolunteers ?? 0, icon: <HandHeart className="h-6 w-6" />, link: "/directory", color: "text-accent bg-accent/10" },
     { label: "Community Groups", value: stats?.activeGroups ?? 0, icon: <Globe className="h-6 w-6" />, link: "/groups", color: "text-primary bg-primary/10" },
     { label: "People Helped", value: stats?.totalPeopleHelped ?? 0, icon: <Heart className="h-6 w-6" />, link: "/directory", color: "text-secondary bg-secondary/10" },
-    { label: "Donations Raised", value: `$${Number(stats?.donationsRaised ?? 0).toLocaleString()}`, icon: <Activity className="h-6 w-6" />, link: "/charity", color: "text-accent bg-accent/10" },
+    { label: "Recorded Donations", value: `$${Number(stats?.donationsRaised ?? 0).toLocaleString()}`, icon: <Activity className="h-6 w-6" />, link: "/charity", color: "text-accent bg-accent/10" },
   ];
 
   return (
@@ -97,7 +97,7 @@ export default function Dashboard() {
                   <Bar dataKey="discussions" name="Discussions" fill="hsl(214,70%,13%)" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="helpRequests" name="Help Requests" fill="hsl(345,57%,26%)" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="volunteers" name="Volunteers" fill="hsl(38,45%,55%)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="donations" name="Donations" fill="hsl(214,20%,40%)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="donations" name="Recorded Donations" fill="hsl(214,20%,40%)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
