@@ -92,9 +92,14 @@ router.patch("/api/askanus/cases/:id", requireAuth, async (req, res) => {
 router.delete("/api/askanus/cases/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const userId = getSessionUserId(req)!;
-  await db.delete(askanuscases).where(
+  const [owned] = await db.select({ id: askanuscases.id }).from(askanuscases).where(
     and(eq(askanuscases.id, id), eq(askanuscases.userId, userId))
   );
+  if (!owned) { res.status(404).json({ error: "Not found" }); return; }
+
+  await db.delete(caseActivityLog).where(eq(caseActivityLog.caseId, id));
+  await db.delete(caseFollowups).where(eq(caseFollowups.caseId, id));
+  await db.delete(askanuscases).where(eq(askanuscases.id, id));
   res.json({ ok: true });
 });
 
