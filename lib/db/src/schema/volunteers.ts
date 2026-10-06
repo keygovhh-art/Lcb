@@ -8,6 +8,7 @@ export const volunteerProfilesTable = pgTable("volunteer_profiles", {
   userName: text("user_name").notNull(),
   skills: text("skills").array().notNull().default([]),
   availability: text("availability").notNull(),
+  bio: text("bio"),
   location: text("location").notNull(),
   areasOfInterest: text("areas_of_interest").array().notNull().default([]),
   labels: text("labels").array().notNull().default([]),
