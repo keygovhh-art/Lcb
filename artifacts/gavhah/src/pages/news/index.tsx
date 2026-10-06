@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useLikeArticle } from "@/hooks/use-like-article";
+import { ImageUploadField } from "@/components/shared/image-upload-field";
 
 // --- Category config ---
 const CATEGORIES = [
@@ -161,17 +162,11 @@ function PostUpdateDialog() {
 
           <DisplayAsSelector value={displayAs} onChange={setDisplayAs} />
 
-          <div className="space-y-1.5">
-            <Label className="font-semibold">Image URL <span className="font-normal text-muted-foreground">(optional)</span></Label>
-            <Input
-              type="url"
-              value={form.imageUrl}
-              onChange={s("imageUrl")}
-              placeholder="https://..."
-              className="h-11"
-            />
-            <p className="text-xs text-muted-foreground">Paste a direct image link; the image will appear on the news card and article.</p>
-          </div>
+          <ImageUploadField
+            label="Image (optional)"
+            value={form.imageUrl}
+            onChange={imageUrl => setForm(f => ({ ...f, imageUrl }))}
+          />
 
           <div className="space-y-1.5">
             <Label className="font-semibold">
