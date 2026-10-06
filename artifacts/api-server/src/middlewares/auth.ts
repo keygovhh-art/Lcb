@@ -19,7 +19,7 @@ export function getSessionUserRole(req: Request): string | undefined {
   return identity(req).userRole;
 }
 
-async function currentSessionUser(req: Request) {
+export async function getCurrentSessionUser(req: Request) {
   const userId = getSessionUserId(req);
   if (!userId) return null;
 
@@ -39,7 +39,7 @@ async function currentSessionUser(req: Request) {
 
 export const requireAuth: RequestHandler = async (req, res, next) => {
   try {
-    const user = await currentSessionUser(req);
+    const user = await getCurrentSessionUser(req);
     if (!user) {
       res.status(401).json({ error: "Not authenticated" });
       return;
@@ -52,7 +52,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
 
 export const requireAdmin: RequestHandler = async (req, res, next) => {
   try {
-    const user = await currentSessionUser(req);
+    const user = await getCurrentSessionUser(req);
     if (!user || (user.role !== "admin" && user.role !== "moderator")) {
       res.status(403).json({ error: "Admin access required" });
       return;
