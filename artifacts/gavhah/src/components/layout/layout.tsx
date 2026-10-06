@@ -46,7 +46,8 @@ export function Layout({ children }: { children: ReactNode }) {
   const { data: unreadData } = useGetUnreadNotificationCount({
     query: {
       queryKey: getGetUnreadNotificationCountQueryKey(),
-      refetchInterval: 30_000,
+      enabled: isAuthenticated,
+      refetchInterval: isAuthenticated ? 30_000 : false,
     }
   });
   const unreadCount = unreadData?.count ?? 0;
