@@ -47,9 +47,10 @@ export default function SystemCenter() {
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
   const [supportForm, setSupportForm] = useState({ name: "", email: "", type: "", subject: "", message: "" });
+  const { isAdmin } = useAuth();
 
-  const { data: reports } = useListReports({}, { query: { queryKey: getListReportsQueryKey({}) } });
-  const { data: users } = useListUsers({}, { query: { queryKey: getListUsersQueryKey({}) } });
+  const { data: reports } = useListReports({}, { query: { queryKey: getListReportsQueryKey({}), enabled: isAdmin } });
+  const { data: users } = useListUsers({}, { query: { queryKey: getListUsersQueryKey({}), enabled: isAdmin } });
   const { data: announcements } = useListAnnouncements({ query: { queryKey: getListAnnouncementsQueryKey() } });
 
   const resolveReport = useResolveReport();
@@ -58,7 +59,6 @@ export default function SystemCenter() {
   const createAnn = useCreateAnnouncement();
   const deleteAnn = useDeleteAnnouncement();
 
-  const { isAdmin } = useAuth();
   const pendingReports = reports?.filter(r => r.status === "pending") ?? [];
   const statusColor = (status: string) => status === "active" ? "default" : status === "suspended" ? "secondary" : "destructive";
 
