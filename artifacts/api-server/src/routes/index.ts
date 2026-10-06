@@ -19,6 +19,7 @@ import adminRouter from "./admin";
 import reservationsRouter from "./reservations";
 import supportRouter from "./support";
 import likesRouter from "./likes";
+import mediaRouter from "./media";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(adminRouter);
 router.use(reservationsRouter);
 router.use(supportRouter);
 router.use(likesRouter);
+router.use(mediaRouter);
 
 export default router;
