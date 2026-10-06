@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
 
 const privacyIcon = (p: string) => {
   if (p === "private") return <Lock className="h-4 w-4" />;
@@ -26,7 +27,8 @@ export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const numId = parseInt(id ?? "0", 10);
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const [newPost, setNewPost] = useState("");
   const [displayAs, setDisplayAs] = useState<DisplayAs>("nickname");
 
@@ -59,6 +61,20 @@ export default function GroupDetail() {
         qc.invalidateQueries({ queryKey: getListGroupPostsQueryKey(numId) });
       },
     });
+  };
+
+  const handlePostLike = async (postId: number) => {
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to like posts", description: "Join Gavhah free to participate." });
+      return;
+    }
+    const res = await fetch(`/api/groups/${numId}/posts/${postId}/like`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (res.ok) {
+      void qc.invalidateQueries({ queryKey: getListGroupPostsQueryKey(numId) });
+    }
   };
 
   return (
@@ -159,7 +175,10 @@ export default function GroupDetail() {
                     </div>
                     <p className="text-foreground leading-relaxed whitespace-pre-wrap">{post.content}</p>
                     <div className="flex items-center gap-4 mt-4 pt-4 border-t text-sm text-muted-foreground">
-                      <button className="flex items-center gap-1 hover:text-secondary transition-colors">
+                      <button
+                        className="flex items-center gap-1 hover:text-secondary transition-colors"
+                        onClick={() => void handlePostLike(post.id)}
+                      >
                         <Heart className="h-4 w-4" /> {post.likes}
                       </button>
                     </div>
