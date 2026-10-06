@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, sql, and, inArray } from "drizzle-orm";
 import { db, groupsTable, groupMembersTable, groupPostsTable, usersTable, entityLikesTable } from "@workspace/db";
-import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
+import { requireAuth, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName } from "../lib/user-display";
 import { deleteManagedMediaUrl } from "../lib/media-cleanup";
@@ -205,7 +205,8 @@ router.get("/groups/:id/members", async (req, res): Promise<void> => {
     return;
   }
 
-  if (group.ownerId === userId || isStaffRole(getSessionUserRole(req))) {
+  const currentUser = await getCurrentSessionUser(req);
+  if (group.ownerId === userId || isStaffRole(currentUser?.role)) {
     const members = await db.select().from(groupMembersTable).where(eq(groupMembersTable.groupId, groupId));
     res.json(members);
     return;
@@ -298,7 +299,8 @@ router.get("/groups/:id/posts", async (req, res): Promise<void> => {
       eq(groupMembersTable.userId, userId),
       eq(groupMembersTable.status, "approved"),
     ));
-    if (!membership && group.ownerId !== userId && !isStaffRole(getSessionUserRole(req))) {
+    const currentUser = await getCurrentSessionUser(req);
+    if (!membership && group.ownerId !== userId && !isStaffRole(currentUser?.role)) {
       res.status(403).json({ error: "Private group" }); return;
     }
   }
