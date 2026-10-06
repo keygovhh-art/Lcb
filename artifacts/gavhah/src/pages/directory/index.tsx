@@ -152,6 +152,12 @@ function VolunteerCard({ vol }: { vol: any }) {
                 <div className="flex flex-wrap gap-2">{vol.skills.map((s: string, i: number) => <Badge key={i} variant="outline">{s}</Badge>)}</div>
               </div>
             )}
+            {vol.bio && (
+              <div>
+                <p className="font-semibold text-foreground text-sm mb-1">About</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{vol.bio}</p>
+              </div>
+            )}
             <div className="bg-muted/40 rounded-lg p-3 text-sm text-muted-foreground">
               Contact is facilitated through Gavhah to protect privacy.
             </div>
