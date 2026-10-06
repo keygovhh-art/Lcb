@@ -6,6 +6,7 @@ import {
 } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { resolveMemberDisplayName } from "../lib/user-display";
+import { logActivity } from "../lib/activity";
 
 const router: IRouter = Router();
 
@@ -29,6 +30,7 @@ router.post("/announcements", requireAdmin, async (req, res): Promise<void> => {
     authorId: userId,
     authorName,
   }).returning();
+  await logActivity("announcement", `Published announcement "${ann.title}"`, authorName);
   res.status(201).json(ann);
 });
 
