@@ -66,7 +66,7 @@ export default function Register() {
         });
         toast({ title: `Welcome, ${user.nickname}!`, description: "Your Gavhah membership is active." });
         if (loginRes.ok) {
-          window.location.assign("/");
+          window.location.replace(`/?auth=${Date.now()}`);
         } else {
           window.location.assign("/login");
         }
