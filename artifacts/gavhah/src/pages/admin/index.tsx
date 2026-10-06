@@ -753,7 +753,19 @@ export default function FounderDashboard() {
                   <p className="text-xs text-muted-foreground">By {ann.authorName} · {format(new Date(ann.createdAt), "MMM d, yyyy")}</p>
                 </div>
                 <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => deleteAnn.mutate({ id: ann.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListAnnouncementsQueryKey() }) })}>
+                  onClick={() => deleteAnn.mutate(
+                    { id: ann.id },
+                    {
+                      onSuccess: () => {
+                        qc.setQueryData(getListAnnouncementsQueryKey(), (current: any) =>
+                          Array.isArray(current) ? current.filter((item: any) => item.id !== ann.id) : current
+                        );
+                        void qc.invalidateQueries({ queryKey: ["/api/announcements"] });
+                        toast({ title: "Announcement deleted" });
+                      },
+                      onError: () => toast({ title: "Could not delete announcement", variant: "destructive" }),
+                    }
+                  )}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
