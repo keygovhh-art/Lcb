@@ -135,7 +135,12 @@ router.post("/discussions/:id/comments", requireAuth, async (req, res): Promise<
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const discussionId = parseInt(raw, 10);
   const { content, parentId, authorName } = req.body;
-  if (!content) { res.status(400).json({ error: "content required" }); return; }
+  if (!String(content || "").trim()) { res.status(400).json({ error: "content required" }); return; }
+
+  const [discussion] = await db.select().from(discussionsTable).where(eq(discussionsTable.id, discussionId));
+  if (!discussion) { res.status(404).json({ error: "Discussion not found" }); return; }
+  if (discussion.isLocked) { res.status(423).json({ error: "Discussion is locked" }); return; }
+
   const userId = getSessionUserId(req)!;
   const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
   const [comment] = await db.insert(commentsTable).values({
