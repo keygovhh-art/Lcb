@@ -5,6 +5,7 @@ import {
   featuredCausesTable,
   featuredCauseSupportersTable,
   causeSubmissionsTable,
+  notificationsTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { resolveMemberDisplayName } from "../lib/user-display";
@@ -189,6 +190,14 @@ router.post("/cause-submissions/:id/approve", requireAdmin, async (req, res): Pr
     .set({ status: "approved", adminNotes: req.body?.adminNotes ?? null })
     .where(eq(causeSubmissionsTable.id, id));
 
+  await db.insert(notificationsTable).values({
+    userId: submission.userId,
+    type: "cause_review",
+    message: `Your cause submission "${submission.title}" was approved and is now featured.`,
+    linkUrl: "/united",
+    isRead: false,
+  });
+
   res.json(cause);
 });
 
@@ -199,6 +208,15 @@ router.post("/cause-submissions/:id/reject", requireAdmin, async (req, res): Pro
     .where(eq(causeSubmissionsTable.id, id))
     .returning();
   if (!submission) { res.status(404).json({ error: "Not found" }); return; }
+
+  await db.insert(notificationsTable).values({
+    userId: submission.userId,
+    type: "cause_review",
+    message: `Your cause submission "${submission.title}" was reviewed and was not selected.`,
+    linkUrl: "/united",
+    isRead: false,
+  });
+
   res.json(submission);
 });
 
