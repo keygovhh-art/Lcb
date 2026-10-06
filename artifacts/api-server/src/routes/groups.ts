@@ -21,7 +21,14 @@ router.get("/groups", async (req, res): Promise<void> => {
 
 router.post("/groups", requireAuth, async (req, res): Promise<void> => {
   const { name, description, privacy, imageUrl } = req.body;
-  if (!name || !description) { res.status(400).json({ error: "name and description required" }); return; }
+  if (!String(name || "").trim() || !String(description || "").trim()) {
+    res.status(400).json({ error: "name and description required" });
+    return;
+  }
+  if (privacy && !["public", "private"].includes(privacy)) {
+    res.status(400).json({ error: "invalid privacy setting" });
+    return;
+  }
   const userId = getSessionUserId(req)!;
   const ownerName = await resolveMemberDisplayName(userId);
   const [group] = await db.insert(groupsTable).values({
