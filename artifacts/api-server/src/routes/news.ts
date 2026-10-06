@@ -31,7 +31,10 @@ router.get("/news", async (req, res): Promise<void> => {
 
 router.post("/news", requireAuth, async (req, res): Promise<void> => {
   const { title, content, summary, imageUrl, category, urgency, deadline, organization, isFeatured, authorName } = req.body;
-  if (!title || !content) { res.status(400).json({ error: "title and content required" }); return; }
+  if (!String(title || "").trim() || !String(content || "").trim()) {
+    res.status(400).json({ error: "title and content required" });
+    return;
+  }
   const userId = getSessionUserId(req)!;
   const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
   const [article] = await db.insert(newsTable).values({
