@@ -1,19 +1,28 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, charitiesTable, donationsTable } from "@workspace/db";
 import { requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { resolveMemberDisplayName } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
+import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 
 const router: IRouter = Router();
 
 router.get("/charity/today", async (_req, res): Promise<void> => {
-  const [charity] = await db.select().from(charitiesTable).where(eq(charitiesTable.isTodaysFeatured, true)).limit(1);
+  const [charity] = await db.select().from(charitiesTable).where(and(
+    eq(charitiesTable.isTodaysFeatured, true),
+    eq(charitiesTable.isActive, true),
+  )).limit(1);
   if (!charity) { res.status(404).json({ error: "No featured charity today" }); return; }
   res.json(charity);
 });
 
 router.get("/charity", async (_req, res): Promise<void> => {
+  const all = await db.select().from(charitiesTable).where(eq(charitiesTable.isActive, true));
+  res.json(all);
+});
+
+router.get("/admin/charity", requireAdmin, async (_req, res): Promise<void> => {
   const all = await db.select().from(charitiesTable);
   res.json(all);
 });
@@ -47,6 +56,7 @@ router.post("/charity", requireAdmin, async (req, res): Promise<void> => {
     goalAmount,
     raisedAmount: 0,
     isTodaysFeatured,
+    isActive: true,
   }).returning();
 
   const actorName = await resolveMemberDisplayName(getSessionUserId(req)!);
@@ -57,7 +67,10 @@ router.post("/charity", requireAdmin, async (req, res): Promise<void> => {
 router.get("/charity/:id", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
-  const [charity] = await db.select().from(charitiesTable).where(eq(charitiesTable.id, id));
+  const [charity] = await db.select().from(charitiesTable).where(and(
+    eq(charitiesTable.id, id),
+    eq(charitiesTable.isActive, true),
+  ));
   if (!charity) { res.status(404).json({ error: "Not found" }); return; }
   res.json(charity);
 });
@@ -68,7 +81,7 @@ router.patch("/charity/:id", requireAdmin, async (req, res): Promise<void> => {
   const [existing] = await db.select().from(charitiesTable).where(eq(charitiesTable.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
-  const { name, description, successStories, imageUrl, goalAmount, isTodaysFeatured } = req.body;
+  const { name, description, successStories, imageUrl, goalAmount, isTodaysFeatured, isActive } = req.body;
   const updates: Record<string, unknown> = {};
 
   if (name !== undefined) {
@@ -91,10 +104,21 @@ router.patch("/charity/:id", requireAdmin, async (req, res): Promise<void> => {
     }
     updates.goalAmount = goal;
   }
+  if (isActive !== undefined) {
+    const active = !!isActive;
+    updates.isActive = active;
+    if (!active) updates.isTodaysFeatured = false;
+  }
+
   if (isTodaysFeatured !== undefined) {
     const featured = !!isTodaysFeatured;
     if (featured) {
+      if (isActive === false) {
+        res.status(400).json({ error: "Archived charity cannot be featured" });
+        return;
+      }
       await db.update(charitiesTable).set({ isTodaysFeatured: false });
+      updates.isActive = true;
     }
     updates.isTodaysFeatured = featured;
   }
@@ -103,6 +127,19 @@ router.patch("/charity/:id", requireAdmin, async (req, res): Promise<void> => {
     .set(updates)
     .where(eq(charitiesTable.id, id))
     .returning();
+
+  if (imageUrl !== undefined && existing.imageUrl && existing.imageUrl !== charity.imageUrl) {
+    await deleteManagedMediaUrl(existing.imageUrl);
+  }
+
+  const actorName = await resolveMemberDisplayName(getSessionUserId(req)!);
+  if (isActive !== undefined && !!isActive !== existing.isActive) {
+    await logActivity(
+      "charity",
+      !!isActive ? `Reactivated charity spotlight "${charity.name}"` : `Archived charity spotlight "${charity.name}"`,
+      actorName,
+    );
+  }
 
   res.json(charity);
 });
