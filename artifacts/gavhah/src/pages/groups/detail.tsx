@@ -56,10 +56,20 @@ export default function GroupDetail() {
     if (!newPost.trim()) return;
     const authorName = getDisplayName(displayAs, user);
     createPost.mutate({ id: numId, data: { content: newPost, authorName } }, {
-      onSuccess: () => {
+      onSuccess: (post) => {
         setNewPost("");
-        qc.invalidateQueries({ queryKey: getListGroupPostsQueryKey(numId) });
+        qc.setQueryData(getListGroupPostsQueryKey(numId), (current: any) => {
+          const items = Array.isArray(current) ? current : [];
+          return [post, ...items.filter((item: any) => item.id !== post.id)];
+        });
+        void qc.invalidateQueries({ queryKey: getGetGroupQueryKey(numId) });
+        toast({ title: "Post published", description: "It is now live in the group." });
       },
+      onError: (error: any) => toast({
+        title: "Could not publish post",
+        description: error?.message?.includes("403") ? "Join this group before posting." : "Please try again.",
+        variant: "destructive",
+      }),
     });
   };
 
