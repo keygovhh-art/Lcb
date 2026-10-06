@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { User, UserMinus, Bookmark, BookmarkX, ArrowRight, UserPlus, BookmarkCheck, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/context/auth-context";
+import { MemberGate } from "@/components/shared/member-gate";
 
 const ENTITY_TYPE_LABEL: Record<string, string> = {
   volunteer: "Volunteer",
@@ -33,9 +35,10 @@ const CONTENT_TYPE_LABEL: Record<string, string> = {
 
 export default function ProfilePage() {
   const qc = useQueryClient();
+  const { user, isAuthenticated, isLoaded } = useAuth();
 
-  const { data: follows, isLoading: followsLoading } = useListFollows({ query: { queryKey: getListFollowsQueryKey() } });
-  const { data: saved, isLoading: savedLoading } = useListSavedItems({ query: { queryKey: getListSavedItemsQueryKey() } });
+  const { data: follows, isLoading: followsLoading } = useListFollows({ query: { queryKey: getListFollowsQueryKey(), enabled: isAuthenticated } });
+  const { data: saved, isLoading: savedLoading } = useListSavedItems({ query: { queryKey: getListSavedItemsQueryKey(), enabled: isAuthenticated } });
 
   const deleteFollow = useDeleteFollow();
   const deleteSaved = useDeleteSavedItem();
@@ -52,6 +55,16 @@ export default function ProfilePage() {
     });
   };
 
+  if (isLoaded && !isAuthenticated) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-16">
+          <MemberGate action="view your profile">{null}</MemberGate>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="bg-muted/30 border-b">
@@ -62,7 +75,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <h1 className="font-serif text-3xl font-bold text-primary">My Profile</h1>
-              <p className="text-muted-foreground font-serif italic">Community Member</p>
+              <p className="text-muted-foreground font-serif italic">{user?.nickname || user?.name || "Community Member"}</p>
             </div>
           </div>
         </div>
