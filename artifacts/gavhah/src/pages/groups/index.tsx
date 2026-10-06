@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
+import { ImageUploadField } from "@/components/shared/image-upload-field";
 
 export default function GroupsList() {
   const [search, setSearch] = useState("");
@@ -135,14 +136,11 @@ export default function GroupsList() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Image URL <span className="font-normal text-muted-foreground">(optional)</span></Label>
-              <Input
-                value={createForm.imageUrl}
-                onChange={e => setCreateForm(f => ({ ...f, imageUrl: e.target.value }))}
-                placeholder="https://..."
-              />
-            </div>
+            <ImageUploadField
+              label="Group image (optional)"
+              value={createForm.imageUrl}
+              onChange={imageUrl => setCreateForm(f => ({ ...f, imageUrl }))}
+            />
             <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white" disabled={create.isPending}>
               {create.isPending ? "Creating..." : "Create Group"}
             </Button>
