@@ -276,15 +276,23 @@ function RegisterVolunteerDialog() {
     createVol.mutate(
       { data: { userName: form.userName, location: form.location, availability: form.availability, bio: form.bio || undefined, skills: selectedSkills } },
       {
-        onSuccess: () => {
-          qc.invalidateQueries({ queryKey: getListVolunteersQueryKey({}) });
-          qc.invalidateQueries({ queryKey: getGetFeaturedVolunteersQueryKey() });
+        onSuccess: (volunteer) => {
+          qc.setQueryData(getListVolunteersQueryKey({}), (current: any) => {
+            const items = Array.isArray(current) ? current : [];
+            return [volunteer, ...items.filter((item: any) => item.id !== volunteer.id)];
+          });
+          void qc.invalidateQueries({ queryKey: ["/api/volunteers"] });
+          void qc.invalidateQueries({ queryKey: getGetFeaturedVolunteersQueryKey() });
           setOpen(false);
           setForm({ userName: nickname, location: "", availability: "weekends", bio: "" });
           setSelectedSkills([]);
           toast({ title: "Thank you!", description: "You have been registered as a volunteer." });
         },
-        onError: () => toast({ title: "Error", description: "Could not register.", variant: "destructive" }),
+        onError: (error: any) => toast({
+          title: "Could not register",
+          description: error?.message?.includes("409") ? "You are already registered as a volunteer." : "Please check the form and try again.",
+          variant: "destructive",
+        }),
       }
     );
   };
@@ -368,14 +376,18 @@ function SubmitRequestDialog() {
     createReq.mutate(
       { data: { name: form.name, description: form.description, needType: form.needType, urgency: form.urgency, location: form.location || undefined } },
       {
-        onSuccess: () => {
-          qc.invalidateQueries({ queryKey: getListHelpRequestsQueryKey({}) });
-          qc.invalidateQueries({ queryKey: getGetFeaturedRequestsQueryKey() });
+        onSuccess: (request) => {
+          qc.setQueryData(getListHelpRequestsQueryKey({}), (current: any) => {
+            const items = Array.isArray(current) ? current : [];
+            return [request, ...items.filter((item: any) => item.id !== request.id)];
+          });
+          void qc.invalidateQueries({ queryKey: ["/api/help-requests"] });
+          void qc.invalidateQueries({ queryKey: getGetFeaturedRequestsQueryKey() });
           setOpen(false);
           setForm({ name: "", description: "", needType: "medical", urgency: "medium", location: "" });
           toast({ title: "Request submitted", description: "Gavhah staff will be in touch to coordinate assistance." });
         },
-        onError: () => toast({ title: "Error", description: "Could not submit.", variant: "destructive" }),
+        onError: () => toast({ title: "Could not submit request", description: "Please check the form and try again.", variant: "destructive" }),
       }
     );
   };
@@ -470,8 +482,12 @@ function CreateProjectDialog() {
     createProject.mutate(
       { data: { title: form.title, description: form.description, type: form.type, organizerName: form.organizerName, location: form.location || undefined, goalDescription: form.goalDescription || undefined } },
       {
-        onSuccess: () => {
-          qc.invalidateQueries({ queryKey: getListCommunityProjectsQueryKey({}) });
+        onSuccess: (project) => {
+          qc.setQueryData(getListCommunityProjectsQueryKey({}), (current: any) => {
+            const items = Array.isArray(current) ? current : [];
+            return [project, ...items.filter((item: any) => item.id !== project.id)];
+          });
+          void qc.invalidateQueries({ queryKey: ["/api/community-projects"] });
           setOpen(false);
           setForm({ title: "", description: "", type: "project", organizerName: displayName, location: "", goalDescription: "" });
           toast({ title: "Project created", description: "Your project is now listed in the directory." });
