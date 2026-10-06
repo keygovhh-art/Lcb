@@ -305,12 +305,12 @@ export default function FounderDashboard() {
                   { label: "Askanim Forum", sub: "Discussion boards", active: true },
                   { label: "Activists Directory", sub: "Volunteer profiles and projects", active: true },
                   { label: "United In Kindness", sub: "Featured cause system", active: true },
-                  { label: "Today's Cause", sub: "Daily charity spotlight", active: true },
+                  { label: "Today's Cause", sub: "Charity spotlight active; online payments not connected", active: true },
                   { label: "Minyan Directory", sub: "Worldwide minyan times", active: true },
                   { label: "Group Center", sub: "Community groups and posts", active: true },
                   { label: "My Askanus", sub: "Case management system", active: true },
-                  { label: "Communications", sub: "Olam Hachesed broadcasts", active: true },
-                  { label: "Reservations", sub: "Office reservation system", active: false },
+                  { label: "Communications", sub: "Website broadcasts active; phone/SMS provider not connected", active: true },
+                  { label: "Reservations", sub: "Live office reservation system", active: true },
                 ].map(feat => (
                   <div key={feat.label} className="flex items-center justify-between p-3 rounded-lg border bg-muted/20">
                     <div>
