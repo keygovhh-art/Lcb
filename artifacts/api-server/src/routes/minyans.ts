@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, desc } from "drizzle-orm";
 import { db, minyansTable } from "@workspace/db";
-import { requireAuth, requireAdmin } from "../middlewares/auth";
+import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
+import { setLikeState } from "../lib/entity-likes";
 
 const router: IRouter = Router();
 
@@ -52,9 +53,19 @@ router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
 router.post("/minyans/:id/like", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
-  const [minyan] = await db.update(minyansTable).set({ likes: sql`${minyansTable.likes} + 1` }).where(eq(minyansTable.id, id)).returning();
-  if (!minyan) { res.status(404).json({ error: "Not found" }); return; }
-  res.json({ likes: minyan.likes });
+  const [existing] = await db.select({ id: minyansTable.id, likes: minyansTable.likes }).from(minyansTable).where(eq(minyansTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+  const state = await setLikeState(getSessionUserId(req)!, "minyan", id);
+  let likes = existing.likes;
+  if (state.changed) {
+    const [updated] = await db.update(minyansTable)
+      .set({ likes: sql`GREATEST(0, ${minyansTable.likes} + ${state.delta})` })
+      .where(eq(minyansTable.id, id))
+      .returning({ likes: minyansTable.likes });
+    likes = updated.likes;
+  }
+  res.json({ likes, liked: state.liked });
 });
 
 export default router;
