@@ -12,12 +12,12 @@ function publicHelpRequest<T extends { contactInfo?: unknown }>(request: T) {
 
 router.get("/featured/volunteers", async (_req, res): Promise<void> => {
   const featured = await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.isFeatured, true)).limit(4);
-  res.json(featured.map(publicHelpRequest));
+  res.json(featured);
 });
 
 router.get("/featured/requests", async (_req, res): Promise<void> => {
   const featured = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.isFeatured, true)).limit(4);
-  res.json(featured);
+  res.json(featured.map(publicHelpRequest));
 });
 
 router.get("/volunteers", async (req, res): Promise<void> => {
