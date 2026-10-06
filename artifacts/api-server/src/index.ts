@@ -1,25 +1,26 @@
-import app from "./app";
 import { logger } from "./lib/logger";
 
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
+  throw new Error("PORT environment variable is required but was not provided.");
 }
 
 const port = Number(rawPort);
 
-if (Number.isNaN(port) || port <= 0) {
+if (!Number.isFinite(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+logger.info({ port }, "Booting Gavhah API");
+const { default: app } = await import("./app");
+logger.info("Application modules loaded");
 
-  logger.info({ port }, "Server listening");
+const server = app.listen(port, "0.0.0.0", () => {
+  logger.info({ port, host: "0.0.0.0" }, "Server listening");
+});
+
+server.on("error", (err) => {
+  logger.error({ err }, "Server failed to listen");
+  process.exit(1);
 });
