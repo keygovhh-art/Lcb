@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Users, Lock, Globe, KeyRound, Heart, MessageCircle } from "lucide-react";
+import { ArrowLeft, Users, Lock, Globe, KeyRound, Heart, MessageCircle, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
@@ -31,6 +31,8 @@ export default function GroupDetail() {
   const { toast } = useToast();
   const [newPost, setNewPost] = useState("");
   const [displayAs, setDisplayAs] = useState<DisplayAs>("nickname");
+  const [editingPostId, setEditingPostId] = useState<number | null>(null);
+  const [editingPostContent, setEditingPostContent] = useState("");
 
   const { data: group, isLoading } = useGetGroup(numId, {
     query: { queryKey: getGetGroupQueryKey(numId), enabled: !!numId },
@@ -74,6 +76,45 @@ export default function GroupDetail() {
         variant: "destructive",
       }),
     });
+  };
+
+  const savePostEdit = async (postId: number) => {
+    const content = editingPostContent.trim();
+    if (!content) return;
+    const res = await fetch(`/api/groups/${numId}/posts/${postId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    });
+    if (!res.ok) {
+      toast({ title: "Could not update post", variant: "destructive" });
+      return;
+    }
+    const updated = await res.json();
+    qc.setQueryData(getListGroupPostsQueryKey(numId), (current: any) =>
+      Array.isArray(current) ? current.map((item: any) => item.id === postId ? updated : item) : current
+    );
+    setEditingPostId(null);
+    setEditingPostContent("");
+    toast({ title: "Post updated" });
+  };
+
+  const deletePost = async (postId: number) => {
+    if (!window.confirm("Delete this group post?")) return;
+    const res = await fetch(`/api/groups/${numId}/posts/${postId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      toast({ title: "Could not delete post", variant: "destructive" });
+      return;
+    }
+    qc.setQueryData(getListGroupPostsQueryKey(numId), (current: any) =>
+      Array.isArray(current) ? current.filter((item: any) => item.id !== postId) : current
+    );
+    void qc.invalidateQueries({ queryKey: getGetGroupQueryKey(numId) });
+    toast({ title: "Post deleted" });
   };
 
   const handlePostLike = async (postId: number) => {
@@ -192,13 +233,48 @@ export default function GroupDetail() {
 
                 {posts?.map(post => (
                   <div key={post.id} className="bg-card border rounded-xl p-6">
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between gap-3 mb-3">
                       <span className="font-semibold text-foreground">{post.authorName}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(post.createdAt), "MMM d, yyyy")}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(post.createdAt), "MMM d, yyyy")}
+                        </span>
+                        {!!user && (post.authorId === user.id || user.role === "admin" || user.role === "moderator") && (
+                          <>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => {
+                                setEditingPostId(post.id);
+                                setEditingPostContent(post.content);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-destructive"
+                              onClick={() => void deletePost(post.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-foreground leading-relaxed whitespace-pre-wrap">{post.content}</p>
+                    {editingPostId === post.id ? (
+                      <div className="space-y-2">
+                        <Textarea value={editingPostContent} onChange={e => setEditingPostContent(e.target.value)} className="min-h-24" />
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => void savePostEdit(post.id)} disabled={!editingPostContent.trim()}>Save</Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingPostId(null); setEditingPostContent(""); }}>Cancel</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-foreground leading-relaxed whitespace-pre-wrap">{post.content}</p>
+                    )}
                     <div className="flex items-center gap-4 mt-4 pt-4 border-t text-sm text-muted-foreground">
                       <button
                         className="flex items-center gap-1 hover:text-secondary transition-colors"
