@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { and, desc, eq, ne } from "drizzle-orm";
 import { db, reservationsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
+import { notifyUser } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -128,6 +129,18 @@ router.patch("/reservations/:id", requireAdmin, async (req, res): Promise<void> 
     .where(eq(reservationsTable.id, id))
     .returning();
   if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (status === "completed" || status === "cancelled") {
+    await notifyUser(
+      updated.userId,
+      "reservation",
+      status === "completed"
+        ? `Your reservation for ${updated.reservationDate} at ${updated.reservationTime} was marked completed.`
+        : `Your reservation for ${updated.reservationDate} at ${updated.reservationTime} was cancelled by Gavhah.`,
+      "/reservations",
+    );
+  }
+
   res.json(updated);
 });
 
