@@ -6,6 +6,7 @@ import {
   featuredCauseSupportersTable,
   causeSubmissionsTable,
 } from "@workspace/db";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -30,7 +31,7 @@ router.get("/featured-causes/active", async (_req, res): Promise<void> => {
 });
 
 // POST /featured-causes
-router.post("/featured-causes", async (req, res): Promise<void> => {
+router.post("/featured-causes", requireAdmin, async (req, res): Promise<void> => {
   const { title, description, organizerName, goalAmount, status, imageUrl, location, deadline } = req.body;
   if (!title || !description) { res.status(400).json({ error: "title and description required" }); return; }
   const [cause] = await db.insert(featuredCausesTable).values({
@@ -54,7 +55,7 @@ router.get("/featured-causes/:id", async (req, res): Promise<void> => {
 });
 
 // PATCH /featured-causes/:id
-router.patch("/featured-causes/:id", async (req, res): Promise<void> => {
+router.patch("/featured-causes/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const { title, description, organizerName, goalAmount, status, imageUrl, location, deadline } = req.body;
   const [cause] = await db.update(featuredCausesTable)
@@ -66,7 +67,7 @@ router.patch("/featured-causes/:id", async (req, res): Promise<void> => {
 });
 
 // POST /featured-causes/:id/join
-router.post("/featured-causes/:id/join", async (req, res): Promise<void> => {
+router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<void> => {
   const causeId = parseInt(req.params.id, 10);
   const { name, pledgeType, pledgeAmount, message, location } = req.body;
   if (!name || !pledgeType) { res.status(400).json({ error: "name and pledgeType required" }); return; }
@@ -107,7 +108,7 @@ router.get("/featured-causes/:id/supporters", async (req, res): Promise<void> =>
 });
 
 // POST /cause-submissions
-router.post("/cause-submissions", async (req, res): Promise<void> => {
+router.post("/cause-submissions", requireAuth, async (req, res): Promise<void> => {
   const { title, description, submittedBy, location, urgency } = req.body;
   if (!title || !description || !submittedBy) {
     res.status(400).json({ error: "title, description, and submittedBy required" });
@@ -122,7 +123,7 @@ router.post("/cause-submissions", async (req, res): Promise<void> => {
 });
 
 // GET /cause-submissions (admin)
-router.get("/cause-submissions", async (_req, res): Promise<void> => {
+router.get("/cause-submissions", requireAdmin, async (_req, res): Promise<void> => {
   const all = await db.select().from(causeSubmissionsTable).orderBy(desc(causeSubmissionsTable.createdAt));
   res.json(all);
 });
