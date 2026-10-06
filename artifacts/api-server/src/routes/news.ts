@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db, newsTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
+import { setLikeState } from "../lib/entity-likes";
 
 const router: IRouter = Router();
 
@@ -56,15 +57,25 @@ router.get("/news/:id", async (req, res): Promise<void> => {
 router.post("/news/:id/like", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
-  const { liked } = req.body as { liked: boolean };
-  const delta = liked ? 1 : -1;
-  const [updated] = await db
-    .update(newsTable)
-    .set({ likeCount: sql`GREATEST(0, ${newsTable.likeCount} + ${delta})` })
-    .where(eq(newsTable.id, id))
-    .returning({ likeCount: newsTable.likeCount });
-  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
-  res.json({ likeCount: updated.likeCount });
+  const { liked } = req.body as { liked?: boolean };
+
+  const [article] = await db.select({ id: newsTable.id }).from(newsTable).where(eq(newsTable.id, id));
+  if (!article) { res.status(404).json({ error: "Not found" }); return; }
+
+  const state = await setLikeState(getSessionUserId(req)!, "news", id, liked);
+  let likeCount: number;
+  if (state.changed) {
+    const [updated] = await db.update(newsTable)
+      .set({ likeCount: sql`GREATEST(0, ${newsTable.likeCount} + ${state.delta})` })
+      .where(eq(newsTable.id, id))
+      .returning({ likeCount: newsTable.likeCount });
+    likeCount = updated.likeCount;
+  } else {
+    const [current] = await db.select({ likeCount: newsTable.likeCount }).from(newsTable).where(eq(newsTable.id, id));
+    likeCount = current.likeCount;
+  }
+
+  res.json({ likeCount, liked: state.liked });
 });
 
 router.post("/news/:id/view", async (req, res): Promise<void> => {
