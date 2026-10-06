@@ -1,10 +1,13 @@
 import session from "express-session";
-import type { Pool } from "pg";
+type QueryResult<Row = Record<string, unknown>> = { rows: Row[] };
+type Queryable = {
+  query<Row = Record<string, unknown>>(text: string, values?: unknown[]): Promise<QueryResult<Row>>;
+};
 
 // No startup DDL, schema synchronization, timers, or fallback to memory.
 // Provision this dedicated table with scripts/sql/session-store.sql before opting in.
 export class PostgresSessionStore extends session.Store {
-  constructor(private readonly pool: Pick<Pool, "query">) {
+  constructor(private readonly pool: Queryable) {
     super();
   }
 
