@@ -80,6 +80,38 @@ const ROLE_LABELS: Record<string, string> = {
 // ---- Volunteer Card ----
 function VolunteerCard({ vol }: { vol: any }) {
   const [open, setOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
+
+  const requestContact = async () => {
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to request contact", description: "Join Gavhah free to contact volunteers." });
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await fetch("/api/member-requests", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "volunteer_contact",
+          subject: `Volunteer contact request: ${vol.userName}`,
+          message: `Member requested contact with volunteer #${vol.id} (${vol.userName}) in ${vol.location}.`,
+        }),
+      });
+      if (res.ok) {
+        setOpen(false);
+        toast({ title: "Request sent", description: "Gavhah administrators received your contact request." });
+      } else {
+        toast({ title: "Could not send request", variant: "destructive" });
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <>
       <div onClick={() => setOpen(true)} className="bg-card border rounded-xl p-5 hover:border-primary/30 hover:shadow-md transition-all cursor-pointer flex flex-col gap-3">
@@ -123,7 +155,9 @@ function VolunteerCard({ vol }: { vol: any }) {
             <div className="bg-muted/40 rounded-lg p-3 text-sm text-muted-foreground">
               Contact is facilitated through Gavhah to protect privacy.
             </div>
-            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white">Request Contact via Gavhah</Button>
+            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={requestContact} disabled={sending}>
+              {sending ? "Sending..." : "Request Contact via Gavhah"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -134,7 +168,39 @@ function VolunteerCard({ vol }: { vol: any }) {
 // ---- Help Request Card ----
 function HelpRequestCard({ req }: { req: any }) {
   const [open, setOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const urgency = URGENCY_MAP[req.urgency] ?? URGENCY_MAP.medium;
+
+  const offerHelp = async () => {
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to offer help", description: "Join Gavhah free to respond to help requests." });
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await fetch("/api/member-requests", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "help_offer",
+          subject: `Offer to help: ${req.name}`,
+          message: `Member offered help for request #${req.id}: ${req.description}`,
+        }),
+      });
+      if (res.ok) {
+        setOpen(false);
+        toast({ title: "Offer sent", description: "Gavhah administrators received your offer to help." });
+      } else {
+        toast({ title: "Could not send offer", variant: "destructive" });
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <>
       <div onClick={() => setOpen(true)} className="bg-card border rounded-xl p-5 hover:border-primary/30 hover:shadow-md transition-all cursor-pointer flex flex-col gap-3">
@@ -170,7 +236,9 @@ function HelpRequestCard({ req }: { req: any }) {
             <div className="bg-muted/40 rounded-lg p-4 text-sm text-muted-foreground">
               To maintain privacy, all contact is handled through Gavhah administrators.
             </div>
-            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white">I Can Help With This</Button>
+            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={offerHelp} disabled={sending}>
+              {sending ? "Sending..." : "I Can Help With This"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
