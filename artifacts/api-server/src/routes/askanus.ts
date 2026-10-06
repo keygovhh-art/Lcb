@@ -196,6 +196,7 @@ router.patch("/api/askanus/tasks/:id", requireAuth, async (req, res) => {
   const [updated] = await db.update(askanustasks).set(updates).where(
     and(eq(askanustasks.id, id), eq(askanustasks.userId, getSessionUserId(req)!))
   ).returning();
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
@@ -227,6 +228,7 @@ router.patch("/api/askanus/notes/:id", requireAuth, async (req, res) => {
   const [updated] = await db.update(askanusnotes).set({ title, content }).where(
     and(eq(askanusnotes.id, id), eq(askanusnotes.userId, getSessionUserId(req)!))
   ).returning();
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
