@@ -6,10 +6,11 @@ import {
   followsTable, savedItemsTable,
 } from "@workspace/db/schema";
 import { count, eq } from "drizzle-orm";
+import { requireAdmin } from "../middlewares/auth";
 
 const router = Router();
 
-router.get("/admin/stats", async (_req, res) => {
+router.get("/admin/stats", requireAdmin, async (_req, res) => {
   const [[members], [active], [volunteers], [projects], [causes], [discussions], [reports], [pending], [news], [groups], [follows], [saved]] =
     await Promise.all([
       db.select({ count: count() }).from(usersTable),
