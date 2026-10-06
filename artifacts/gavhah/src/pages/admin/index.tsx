@@ -3,9 +3,9 @@ import { useLocation } from "wouter";
 import {
   useListReports, useResolveReport, useDismissReport, useListUsers, useBanUser, useSuspendUser,
   useListAnnouncements, useCreateAnnouncement, useDeleteAnnouncement, useGetAdminStats,
-  useListFeaturedCauses, useListCommunityProjects, useListCauseSupporters, useUpdateMinyan,
+  useListFeaturedCauses, useListCommunityProjects, useUpdateMinyan,
   getListReportsQueryKey, getListUsersQueryKey, getListAnnouncementsQueryKey, getGetAdminStatsQueryKey,
-  getListFeaturedCausesQueryKey, getListCommunityProjectsQueryKey, getListCauseSupportersQueryKey,
+  getListFeaturedCausesQueryKey, getListCommunityProjectsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/auth-context";
@@ -48,6 +48,7 @@ export default function FounderDashboard() {
   const [supportMessages, setSupportMessages] = useState<any[]>([]);
   const [adminReservations, setAdminReservations] = useState<any[]>([]);
   const [adminHelpRequests, setAdminHelpRequests] = useState<any[]>([]);
+  const [causeActivity, setCauseActivity] = useState<any[]>([]);
 
   useEffect(() => {
     if (isLoaded && (!user || !isAdmin)) {
@@ -95,12 +96,21 @@ export default function FounderDashboard() {
     } catch {}
   };
 
+  const loadCauseActivity = async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch("/api/admin/cause-activity", { credentials: "include" });
+      if (res.ok) setCauseActivity(await res.json());
+    } catch {}
+  };
+
   useEffect(() => {
     void loadAdminMinyans();
     void loadCauseSubmissions();
     void loadSupportMessages();
     void loadAdminReservations();
     void loadAdminHelpRequests();
+    void loadCauseActivity();
   }, [isAdmin]);
 
   const { data: stats } = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey(), enabled: isAdmin } });
@@ -109,7 +119,6 @@ export default function FounderDashboard() {
   const { data: announcements } = useListAnnouncements({ query: { queryKey: getListAnnouncementsQueryKey() } });
   const { data: featuredCauses } = useListFeaturedCauses({}, { query: { queryKey: getListFeaturedCausesQueryKey({}), enabled: isAdmin } });
   const { data: projects } = useListCommunityProjects({}, { query: { queryKey: getListCommunityProjectsQueryKey({}), enabled: isAdmin } });
-  const { data: causeActivity } = useListCauseSupporters({}, { query: { queryKey: getListCauseSupportersQueryKey({}), enabled: isAdmin } });
 
   const resolveReport = useResolveReport();
   const dismissReport = useDismissReport();
