@@ -252,6 +252,32 @@ function VolunteerCard({ vol }: { vol: any }) {
           </div>
         </DialogContent>
       </Dialog>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Edit Volunteer Profile</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div><Label>City / Community *</Label><Input value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} /></div>
+            <div>
+              <Label>Availability</Label>
+              <Select value={editForm.availability} onValueChange={availability => setEditForm(f => ({ ...f, availability }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekdays">Weekdays</SelectItem>
+                  <SelectItem value="evenings">Evenings</SelectItem>
+                  <SelectItem value="weekends">Weekends</SelectItem>
+                  <SelectItem value="flexible">Flexible</SelectItem>
+                  <SelectItem value="on_call">On Call</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Skills</Label><Input value={editForm.skills} onChange={e => setEditForm(f => ({ ...f, skills: e.target.value }))} placeholder="Separate skills with commas" /></div>
+            <div><Label>About</Label><Textarea className="min-h-24" value={editForm.bio} onChange={e => setEditForm(f => ({ ...f, bio: e.target.value }))} /></div>
+            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveVolunteerEdit()} disabled={savingEdit || !editForm.location.trim()}>
+              {savingEdit ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
