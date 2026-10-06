@@ -1,14 +1,17 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes } from "@workspace/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
+import { requireAuth, getSessionUserId } from "../middlewares/auth";
 
 const router = Router();
 
 const TODAY = () => new Date().toISOString().slice(0, 10);
 
-async function getCaseWithDetails(id: number) {
-  const [c] = await db.select().from(askanuscases).where(eq(askanuscases.id, id));
+async function getCaseWithDetails(id: number, userId: number) {
+  const [c] = await db.select().from(askanuscases).where(
+    and(eq(askanuscases.id, id), eq(askanuscases.userId, userId))
+  );
   if (!c) return null;
   const activity = await db.select().from(caseActivityLog).where(eq(caseActivityLog.caseId, id)).orderBy(desc(caseActivityLog.createdAt));
   const followups = await db.select().from(caseFollowups).where(eq(caseFollowups.caseId, id)).orderBy(desc(caseFollowups.createdAt));
@@ -30,15 +33,20 @@ async function getCaseWithDetails(id: number) {
 
 // --- Cases ---
 
-router.get("/api/askanus/cases", async (req, res) => {
-  const cases = await db.select().from(askanuscases).orderBy(desc(askanuscases.lastUpdated));
-  const result = await Promise.all(cases.map(c => getCaseWithDetails(c.id)));
+router.get("/api/askanus/cases", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const cases = await db.select().from(askanuscases)
+    .where(eq(askanuscases.userId, userId))
+    .orderBy(desc(askanuscases.lastUpdated));
+  const result = await Promise.all(cases.map(c => getCaseWithDetails(c.id, userId)));
   res.json(result);
 });
 
-router.post("/api/askanus/cases", async (req, res) => {
+router.post("/api/askanus/cases", requireAuth, async (req, res) => {
   const { title, description, urgency, category, contactName, deadline, goalAmount, notes } = req.body;
+  const userId = getSessionUserId(req)!;
   const [created] = await db.insert(askanuscases).values({
+    userId,
     title,
     description: description ?? "",
     urgency: urgency ?? "medium",
@@ -51,12 +59,17 @@ router.post("/api/askanus/cases", async (req, res) => {
   // seed opening activity
   const today = TODAY();
   await db.insert(caseActivityLog).values({ caseId: created.id, date: today, type: "status_change", note: "Case opened" });
-  const full = await getCaseWithDetails(created.id);
+  const full = await getCaseWithDetails(created.id, userId);
   res.status(201).json(full);
 });
 
-router.patch("/api/askanus/cases/:id", async (req, res) => {
+router.patch("/api/askanus/cases/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  const [owned] = await db.select({ id: askanuscases.id }).from(askanuscases).where(
+    and(eq(askanuscases.id, id), eq(askanuscases.userId, userId))
+  );
+  if (!owned) { res.status(404).json({ error: "Not found" }); return; }
   const { status, urgency, goalAmount, fundsPromised, fundsReceived, notes } = req.body;
   const updates: Record<string, unknown> = { lastUpdated: new Date() };
   if (status !== undefined) updates.status = status;
@@ -65,24 +78,32 @@ router.patch("/api/askanus/cases/:id", async (req, res) => {
   if (fundsPromised !== undefined) updates.fundsPromised = String(fundsPromised);
   if (fundsReceived !== undefined) updates.fundsReceived = String(fundsReceived);
   if (notes !== undefined) updates.notes = notes;
-  await db.update(askanuscases).set(updates).where(eq(askanuscases.id, id));
-  const full = await getCaseWithDetails(id);
+  await db.update(askanuscases).set(updates).where(
+    and(eq(askanuscases.id, id), eq(askanuscases.userId, userId))
+  );
+  const full = await getCaseWithDetails(id, userId);
   res.json(full);
 });
 
-router.delete("/api/askanus/cases/:id", async (req, res) => {
+router.delete("/api/askanus/cases/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
-  await db.delete(askanuscases).where(eq(askanuscases.id, id));
+  const userId = getSessionUserId(req)!;
+  await db.delete(askanuscases).where(
+    and(eq(askanuscases.id, id), eq(askanuscases.userId, userId))
+  );
   res.json({ ok: true });
 });
 
 // Unified progress update — handles all UpdateProgressDialog actions atomically
-router.post("/api/askanus/cases/:id/progress", async (req, res) => {
+router.post("/api/askanus/cases/:id/progress", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
   const { action, amount, note, from, dueDate, status, goal } = req.body;
   const today = TODAY();
 
-  const [existing] = await db.select().from(askanuscases).where(eq(askanuscases.id, id));
+  const [existing] = await db.select().from(askanuscases).where(
+    and(eq(askanuscases.id, id), eq(askanuscases.userId, userId))
+  );
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
   const caseUpdates: Record<string, unknown> = { lastUpdated: new Date() };
@@ -125,36 +146,44 @@ router.post("/api/askanus/cases/:id/progress", async (req, res) => {
     await db.update(askanuscases).set(caseUpdates).where(eq(askanuscases.id, id));
   }
 
-  const full = await getCaseWithDetails(id);
+  const full = await getCaseWithDetails(id, userId);
   res.json(full);
 });
 
 // Toggle followup
-router.patch("/api/askanus/followups/:id/toggle", async (req, res) => {
+router.patch("/api/askanus/followups/:id/toggle", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const [existing] = await db.select().from(caseFollowups).where(eq(caseFollowups.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  const [ownedCase] = await db.select({ id: askanuscases.id }).from(askanuscases).where(
+    and(eq(askanuscases.id, existing.caseId), eq(askanuscases.userId, getSessionUserId(req)!))
+  );
+  if (!ownedCase) { res.status(404).json({ error: "Not found" }); return; }
   const [updated] = await db.update(caseFollowups).set({ completed: !existing.completed }).where(eq(caseFollowups.id, id)).returning();
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
 // --- Tasks ---
 
-router.get("/api/askanus/tasks", async (req, res) => {
-  const tasks = await db.select().from(askanustasks).orderBy(desc(askanustasks.createdAt));
+router.get("/api/askanus/tasks", requireAuth, async (req, res) => {
+  const tasks = await db.select().from(askanustasks)
+    .where(eq(askanustasks.userId, getSessionUserId(req)!))
+    .orderBy(desc(askanustasks.createdAt));
   res.json(tasks.map(t => ({ ...t, createdAt: t.createdAt.toISOString() })));
 });
 
-router.post("/api/askanus/tasks", async (req, res) => {
+router.post("/api/askanus/tasks", requireAuth, async (req, res) => {
   const { title, caseTitle, deadline, priority, notes } = req.body;
   const [created] = await db.insert(askanustasks).values({
+    userId: getSessionUserId(req)!,
     title, caseTitle: caseTitle ?? "", deadline: deadline ?? "",
     priority: priority ?? "medium", notes: notes ?? "",
   }).returning();
   res.status(201).json({ ...created, createdAt: created.createdAt.toISOString() });
 });
 
-router.patch("/api/askanus/tasks/:id", async (req, res) => {
+router.patch("/api/askanus/tasks/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const updates: Record<string, unknown> = {};
   const { title, caseTitle, deadline, completed, priority, notes } = req.body;
@@ -164,37 +193,47 @@ router.patch("/api/askanus/tasks/:id", async (req, res) => {
   if (completed !== undefined) updates.completed = completed;
   if (priority !== undefined) updates.priority = priority;
   if (notes !== undefined) updates.notes = notes;
-  const [updated] = await db.update(askanustasks).set(updates).where(eq(askanustasks.id, id)).returning();
+  const [updated] = await db.update(askanustasks).set(updates).where(
+    and(eq(askanustasks.id, id), eq(askanustasks.userId, getSessionUserId(req)!))
+  ).returning();
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
-router.delete("/api/askanus/tasks/:id", async (req, res) => {
-  await db.delete(askanustasks).where(eq(askanustasks.id, Number(req.params.id)));
+router.delete("/api/askanus/tasks/:id", requireAuth, async (req, res) => {
+  await db.delete(askanustasks).where(
+    and(eq(askanustasks.id, Number(req.params.id)), eq(askanustasks.userId, getSessionUserId(req)!))
+  );
   res.json({ ok: true });
 });
 
 // --- Notes ---
 
-router.get("/api/askanus/notes", async (req, res) => {
-  const notes = await db.select().from(askanusnotes).orderBy(desc(askanusnotes.createdAt));
+router.get("/api/askanus/notes", requireAuth, async (req, res) => {
+  const notes = await db.select().from(askanusnotes)
+    .where(eq(askanusnotes.userId, getSessionUserId(req)!))
+    .orderBy(desc(askanusnotes.createdAt));
   res.json(notes.map(n => ({ ...n, createdAt: n.createdAt.toISOString() })));
 });
 
-router.post("/api/askanus/notes", async (req, res) => {
+router.post("/api/askanus/notes", requireAuth, async (req, res) => {
   const { title, content } = req.body;
-  const [created] = await db.insert(askanusnotes).values({ title, content }).returning();
+  const [created] = await db.insert(askanusnotes).values({ userId: getSessionUserId(req)!, title, content }).returning();
   res.status(201).json({ ...created, createdAt: created.createdAt.toISOString() });
 });
 
-router.patch("/api/askanus/notes/:id", async (req, res) => {
+router.patch("/api/askanus/notes/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const { title, content } = req.body;
-  const [updated] = await db.update(askanusnotes).set({ title, content }).where(eq(askanusnotes.id, id)).returning();
+  const [updated] = await db.update(askanusnotes).set({ title, content }).where(
+    and(eq(askanusnotes.id, id), eq(askanusnotes.userId, getSessionUserId(req)!))
+  ).returning();
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
-router.delete("/api/askanus/notes/:id", async (req, res) => {
-  await db.delete(askanusnotes).where(eq(askanusnotes.id, Number(req.params.id)));
+router.delete("/api/askanus/notes/:id", requireAuth, async (req, res) => {
+  await db.delete(askanusnotes).where(
+    and(eq(askanusnotes.id, Number(req.params.id)), eq(askanusnotes.userId, getSessionUserId(req)!))
+  );
   res.json({ ok: true });
 });
 
