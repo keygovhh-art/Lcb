@@ -7,6 +7,7 @@ import {
   causeSubmissionsTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
+import { resolveMemberDisplayName } from "../lib/user-display";
 
 const router: IRouter = Router();
 
@@ -89,7 +90,7 @@ router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<
   const causeId = parseInt(req.params.id, 10);
   const userId = getSessionUserId(req)!;
   const { name, pledgeType, pledgeAmount, message, location } = req.body;
-  if (!name || !pledgeType) { res.status(400).json({ error: "name and pledgeType required" }); return; }
+  if (!pledgeType) { res.status(400).json({ error: "pledgeType required" }); return; }
 
   const [existing] = await db.select().from(featuredCauseSupportersTable).where(and(
     eq(featuredCauseSupportersTable.causeId, causeId),
@@ -100,10 +101,11 @@ router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<
     return;
   }
 
+  const safeName = await resolveMemberDisplayName(userId, name);
   const [supporter] = await db.insert(featuredCauseSupportersTable).values({
     userId,
     causeId,
-    name,
+    name: safeName,
     pledgeType,
     pledgeAmount: pledgeAmount ? String(pledgeAmount) : null,
     message: message || null,
@@ -136,16 +138,23 @@ router.get("/featured-causes/:id/supporters", async (req, res): Promise<void> =>
 
 // POST /cause-submissions
 router.post("/cause-submissions", requireAuth, async (req, res): Promise<void> => {
+  const userId = getSessionUserId(req)!;
   const { title, description, submittedBy, location, urgency } = req.body;
-  if (!title || !description || !submittedBy) {
-    res.status(400).json({ error: "title, description, and submittedBy required" });
+  if (!String(title || "").trim() || !String(description || "").trim()) {
+    res.status(400).json({ error: "title and description are required" });
     return;
   }
+
+  const safeSubmittedBy = await resolveMemberDisplayName(userId, submittedBy);
   const [submission] = await db.insert(causeSubmissionsTable).values({
-    title, description, submittedBy,
-    location: location || null,
+    userId,
+    title: String(title).trim(),
+    description: String(description).trim(),
+    submittedBy: safeSubmittedBy,
+    location: location ? String(location).trim() : null,
     urgency: urgency || "normal",
   }).returning();
+
   res.status(201).json(submission);
 });
 
