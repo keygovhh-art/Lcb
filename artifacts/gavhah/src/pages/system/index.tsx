@@ -26,7 +26,7 @@ const FAQ = [
   { q: "How do I volunteer?", a: "Visit the Activists Directory and click 'Register as Volunteer'. Fill in your skills, availability, and location." },
   { q: "How do I add a minyan?", a: "Go to the Minyan Directory and click 'Add Minyan'. Your submission is reviewed before appearing publicly." },
   { q: "What is My Askanus?", a: "My Askanus is your personal activism dashboard. It helps you track cases, manage tasks, log your impact, and stay organized in your chesed work." },
-  { q: "Who can create a group?", a: "Any registered member can create a group. Groups can be public, private, or password-protected." },
+  { q: "Who can create a group?", a: "Any registered member can create a group. Groups can be public or private." },
   { q: "How do I report inappropriate content?", a: "Every post, discussion, and listing has a report button. Click it, select a reason, and our moderation team will review it." },
 ];
 
