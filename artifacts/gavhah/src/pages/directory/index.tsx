@@ -623,16 +623,13 @@ function SubmitRequestDialog() {
     createReq.mutate(
       { data: { name: form.name, description: form.description, needType: form.needType, urgency: form.urgency, location: form.location || undefined } },
       {
-        onSuccess: (request) => {
-          qc.setQueryData(getListHelpRequestsQueryKey({}), (current: any) => {
-            const items = Array.isArray(current) ? current : [];
-            return [request, ...items.filter((item: any) => item.id !== request.id)];
-          });
-          void qc.invalidateQueries({ queryKey: ["/api/help-requests"] });
-          void qc.invalidateQueries({ queryKey: getGetFeaturedRequestsQueryKey() });
+        onSuccess: () => {
           setOpen(false);
           setForm({ name: "", description: "", needType: "medical", urgency: "medium", location: "" });
-          toast({ title: "Request submitted", description: "Gavhah staff will be in touch to coordinate assistance." });
+          toast({
+            title: "Request submitted for review",
+            description: "It is private until Gavhah staff approves it for the public directory.",
+          });
         },
         onError: () => toast({ title: "Could not submit request", description: "Please check the form and try again.", variant: "destructive" }),
       }
