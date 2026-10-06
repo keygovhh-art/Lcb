@@ -16,3 +16,4 @@ export * from "./reservations";
 export * from "./support";
 export * from "./likes";
 export * from "./broadcasts";
+export * from "./media";
