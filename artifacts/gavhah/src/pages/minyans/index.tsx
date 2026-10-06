@@ -20,6 +20,7 @@ const COMMUNITIES = ["", "Chassidish", "Yeshivish", "Modern Orthodox", "Sephardi
 
 function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
   const { isAuthenticated, isLoaded } = useAuth();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     synagogueName: "", community: "", city: "", country: "USA",
@@ -33,7 +34,23 @@ function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     create.mutate({ data: form as any }, {
-      onSuccess: () => { setOpen(false); onSuccess(); },
+      onSuccess: () => {
+        setOpen(false);
+        setForm({
+          synagogueName: "", community: "", city: "", country: "USA",
+          address: "", shacharis: "", mincha: "", maariv: "", notes: "",
+        });
+        onSuccess();
+        toast({
+          title: "Minyan submitted",
+          description: "It is pending review and will appear publicly after approval.",
+        });
+      },
+      onError: () => toast({
+        title: "Could not submit minyan",
+        description: "Please check the required fields and try again.",
+        variant: "destructive",
+      }),
     });
   };
 
