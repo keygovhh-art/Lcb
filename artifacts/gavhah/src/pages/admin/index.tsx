@@ -18,10 +18,16 @@ import { Badge } from "@/components/ui/badge";
 import {
   Shield, Users, Flag, Megaphone, CheckCircle, Ban, Clock, Trash2, Edit3, BarChart3,
   TrendingUp, Heart, MessageSquare, Globe, Star, AlertTriangle, UserCheck, BookmarkCheck, UserPlus,
-  Lock, Sparkles, FolderKanban, HandHeart,
+  Lock, Sparkles, FolderKanban, HandHeart, ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+
+function reportContentPath(type: string, id: number) {
+  if (type === "news") return `/news/${id}`;
+  if (type === "discussion") return `/forum/${id}`;
+  return null;
+}
 
 function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: number | string; sub?: string }) {
   return (
@@ -538,20 +544,32 @@ export default function FounderDashboard() {
                   {report.description && <p className="text-sm text-muted-foreground">{report.description}</p>}
                   <p className="text-xs text-muted-foreground mt-1">{format(new Date(report.createdAt), "MMM d, yyyy")}</p>
                 </div>
-                {report.status === "pending" && (
-                  <div className="flex gap-2 shrink-0">
-                    <Button size="sm" variant="outline" className="gap-2"
-                      onClick={() => resolveReport.mutate({ id: report.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) }) })}
-                      disabled={resolveReport.isPending}>
-                      <CheckCircle className="h-4 w-4 text-green-600" /> Resolve
+                <div className="flex gap-2 shrink-0 flex-wrap">
+                  {reportContentPath(report.contentType, report.contentId) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => navigate(reportContentPath(report.contentType, report.contentId)!)}
+                    >
+                      <ExternalLink className="h-4 w-4" /> View Content
                     </Button>
-                    <Button size="sm" variant="ghost" className="gap-2 text-muted-foreground"
-                      onClick={() => dismissReport.mutate({ id: report.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) }) })}
-                      disabled={dismissReport.isPending}>
-                      Dismiss
-                    </Button>
-                  </div>
-                )}
+                  )}
+                  {report.status === "pending" && (
+                    <>
+                      <Button size="sm" variant="outline" className="gap-2"
+                        onClick={() => resolveReport.mutate({ id: report.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) }) })}
+                        disabled={resolveReport.isPending}>
+                        <CheckCircle className="h-4 w-4 text-green-600" /> Resolve
+                      </Button>
+                      <Button size="sm" variant="ghost" className="gap-2 text-muted-foreground"
+                        onClick={() => dismissReport.mutate({ id: report.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) }) })}
+                        disabled={dismissReport.isPending}>
+                        Dismiss
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             ))}
           </TabsContent>
@@ -636,7 +654,7 @@ export default function FounderDashboard() {
           <TabsContent value="causes" className="space-y-4">
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary">Cause Activity</h2>
-              <p className="text-muted-foreground text-sm mt-1">Recent donations and cause support across the platform.</p>
+              <p className="text-muted-foreground text-sm mt-1">Recent supporter pledges and cause activity across the platform.</p>
             </div>
             <div className="space-y-3">
               {causeActivity?.map(cs => (
