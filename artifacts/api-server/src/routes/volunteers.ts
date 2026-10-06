@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable } from "@workspace/db";
-import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
+import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { getMemberIdentity, resolveMemberDisplayName } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
 
@@ -165,7 +165,8 @@ router.get("/help-requests/:id", async (req, res): Promise<void> => {
 
   if (request.status !== "open") {
     const userId = getSessionUserId(req);
-    if (userId !== request.userId && !isStaffRole(getSessionUserRole(req))) {
+    const currentUser = await getCurrentSessionUser(req);
+    if (userId !== request.userId && !isStaffRole(currentUser?.role)) {
       res.status(404).json({ error: "Not found" });
       return;
     }
