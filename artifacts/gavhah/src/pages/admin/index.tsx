@@ -45,6 +45,7 @@ export default function FounderDashboard() {
   const [annContent, setAnnContent] = useState("");
   const [adminMinyans, setAdminMinyans] = useState<any[]>([]);
   const [causeSubmissions, setCauseSubmissions] = useState<any[]>([]);
+  const [supportMessages, setSupportMessages] = useState<any[]>([]);
 
   useEffect(() => {
     if (isLoaded && (!user || !isAdmin)) {
@@ -68,9 +69,18 @@ export default function FounderDashboard() {
     } catch {}
   };
 
+  const loadSupportMessages = async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch("/api/admin/support-messages", { credentials: "include" });
+      if (res.ok) setSupportMessages(await res.json());
+    } catch {}
+  };
+
   useEffect(() => {
     void loadAdminMinyans();
     void loadCauseSubmissions();
+    void loadSupportMessages();
   }, [isAdmin]);
 
   const { data: stats } = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey(), enabled: isAdmin } });
@@ -143,6 +153,12 @@ export default function FounderDashboard() {
           <TabsList className="bg-muted/50 flex flex-wrap h-auto gap-1 p-1">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" /> Overview
+            </TabsTrigger>
+            <TabsTrigger value="support" className="gap-2">
+              <MessageSquare className="h-4 w-4" /> Support
+              {supportMessages.filter(m => m.status === "open").length > 0 && (
+                <span className="bg-destructive text-white text-xs rounded-full px-1.5 py-0.5">{supportMessages.filter(m => m.status === "open").length}</span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="reports" className="gap-2">
               <Flag className="h-4 w-4" /> Reports
@@ -230,6 +246,49 @@ export default function FounderDashboard() {
                 ))}
               </div>
             </div>
+          </TabsContent>
+
+          {/* ─── Support Inbox ─── */}
+          <TabsContent value="support" className="space-y-4">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-primary">Support Inbox</h2>
+              <p className="text-muted-foreground text-sm mt-1">Messages submitted through System Center.</p>
+            </div>
+            {supportMessages.map(msg => (
+              <div key={msg.id} className="bg-card border rounded-xl p-5">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-foreground">{msg.subject}</h3>
+                      <Badge variant={msg.status === "open" ? "destructive" : "secondary"} className="capitalize">{msg.status}</Badge>
+                      <Badge variant="outline" className="capitalize">{msg.type}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-3">{msg.message}</p>
+                    <p className="text-xs text-muted-foreground">{msg.name} · {msg.email} · {format(new Date(msg.createdAt), "MMM d, yyyy h:mm a")}</p>
+                  </div>
+                  {msg.status === "open" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        const res = await fetch(`/api/admin/support-messages/${msg.id}`, {
+                          method: "PATCH",
+                          credentials: "include",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ status: "resolved" }),
+                        });
+                        if (res.ok) await loadSupportMessages();
+                      }}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5 mr-1" /> Resolve
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {supportMessages.length === 0 && (
+              <div className="text-center py-12 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">No support messages yet.</div>
+            )}
           </TabsContent>
 
           {/* ─── Reports ─── */}
