@@ -111,6 +111,47 @@ router.get("/discussions/:id/comments", async (req, res): Promise<void> => {
   res.json(comments);
 });
 
+router.patch("/discussions/:id/comments/:commentId", requireAuth, async (req, res): Promise<void> => {
+  const discussionId = Number(req.params.id);
+  const commentId = Number(req.params.commentId);
+  const [comment] = await db.select().from(commentsTable).where(and(
+    eq(commentsTable.id, commentId),
+    eq(commentsTable.discussionId, discussionId),
+  ));
+  if (!comment) { res.status(404).json({ error: "Not found" }); return; }
+  if (comment.authorId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
+
+  const content = String(req.body?.content || "").trim();
+  if (!content) { res.status(400).json({ error: "content required" }); return; }
+
+  const [updated] = await db.update(commentsTable)
+    .set({ content })
+    .where(eq(commentsTable.id, commentId))
+    .returning();
+  res.json(updated);
+});
+
+router.delete("/discussions/:id/comments/:commentId", requireAuth, async (req, res): Promise<void> => {
+  const discussionId = Number(req.params.id);
+  const commentId = Number(req.params.commentId);
+  const [comment] = await db.select().from(commentsTable).where(and(
+    eq(commentsTable.id, commentId),
+    eq(commentsTable.discussionId, discussionId),
+  ));
+  if (!comment) { res.status(404).json({ error: "Not found" }); return; }
+  if (comment.authorId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
+
+  await db.delete(commentsTable).where(eq(commentsTable.id, commentId));
+  await db.update(discussionsTable)
+    .set({ commentCount: sql`GREATEST(0, ${discussionsTable.commentCount} - 1)` })
+    .where(eq(discussionsTable.id, discussionId));
+  res.sendStatus(204);
+});
+
 router.post("/discussions/:id/comments/:commentId/like", requireAuth, async (req, res): Promise<void> => {
   const discussionId = Number(req.params.id);
   const commentId = Number(req.params.commentId);
