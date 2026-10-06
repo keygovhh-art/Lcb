@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, desc } from "drizzle-orm";
 import { db, minyansTable, notificationsTable } from "@workspace/db";
-import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
+import { requireAuth, requireAdmin, getSessionUserId, getCurrentSessionUser } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { logActivity } from "../lib/activity";
 
@@ -55,7 +55,8 @@ router.get("/minyans/:id", async (req, res): Promise<void> => {
 
   if (minyan.status !== "approved") {
     const userId = getSessionUserId(req);
-    if (userId !== minyan.submittedByUserId && !isStaffRole(getSessionUserRole(req))) {
+    const currentUser = await getCurrentSessionUser(req);
+    if (userId !== minyan.submittedByUserId && !isStaffRole(currentUser?.role)) {
       res.status(404).json({ error: "Not found" });
       return;
     }
