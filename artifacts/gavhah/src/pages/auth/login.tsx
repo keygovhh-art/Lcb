@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,6 @@ import { Eye, EyeOff, LogIn } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 
 export default function Login() {
-  const [, navigate] = useLocation();
   const { login } = useAuth();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -24,7 +23,7 @@ export default function Login() {
     const result = await login(identifier.trim(), password);
     setLoading(false);
     if (result.ok) {
-      navigate("/");
+      window.location.assign("/");
     } else {
       setError(result.error ?? "Login failed. Please check your credentials.");
     }
