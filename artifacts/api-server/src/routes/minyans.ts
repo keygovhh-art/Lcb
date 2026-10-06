@@ -1,9 +1,14 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import { db, minyansTable } from "@workspace/db";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
+
+router.get("/admin/minyans", requireAdmin, async (_req, res): Promise<void> => {
+  const all = await db.select().from(minyansTable).orderBy(desc(minyansTable.createdAt));
+  res.json(all);
+});
 
 router.get("/minyans", async (req, res): Promise<void> => {
   const { city, country, community, synagogue } = req.query as Record<string, string>;
