@@ -3,6 +3,7 @@ import { eq, sql, desc } from "drizzle-orm";
 import { db, minyansTable, notificationsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
+import { logActivity } from "../lib/activity";
 
 const router: IRouter = Router();
 
@@ -96,6 +97,9 @@ router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
   const [minyan] = await db.update(minyansTable).set(updates).where(eq(minyansTable.id, id)).returning();
 
   if (existing.status === "pending" && (status === "approved" || status === "rejected")) {
+    if (status === "approved") {
+      await logActivity("minyan", `Approved minyan "${minyan.synagogueName}" in ${minyan.city}`, "Gavhah Administration");
+    }
     await db.insert(notificationsTable).values({
       userId: minyan.submittedByUserId,
       type: "minyan_review",
