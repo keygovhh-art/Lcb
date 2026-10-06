@@ -117,8 +117,15 @@ router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
 router.post("/minyans/:id/like", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
-  const [existing] = await db.select({ id: minyansTable.id, likes: minyansTable.likes }).from(minyansTable).where(eq(minyansTable.id, id));
-  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  const [existing] = await db.select({
+    id: minyansTable.id,
+    likes: minyansTable.likes,
+    status: minyansTable.status,
+  }).from(minyansTable).where(eq(minyansTable.id, id));
+  if (!existing || existing.status !== "approved") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
 
   const state = await setLikeState(getSessionUserId(req)!, "minyan", id);
   let likes = existing.likes;
