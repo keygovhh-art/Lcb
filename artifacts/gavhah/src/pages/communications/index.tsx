@@ -89,7 +89,7 @@ export default function Communications() {
             <h1 className="font-serif text-4xl font-bold text-primary">Olam Hachesed Communications</h1>
           </div>
           <p className="text-muted-foreground font-serif italic ml-11 max-w-xl">
-            Unified communications platform for chesed coordination — phone, SMS, voicemail, and broadcast messaging.
+            Website broadcasts are active. Phone, SMS, voicemail, and conference features will activate after a communications provider is connected.
           </p>
           <div className="ml-11 mt-4 flex flex-wrap gap-2">
             <Badge className="bg-green-100 text-green-800 border border-green-200 gap-1.5">
@@ -107,10 +107,10 @@ export default function Communications() {
         {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           {[
-            { label: "Calls Today", value: "24", sub: "3 missed", icon: <Phone className="h-5 w-5 text-primary" />, color: "bg-primary/10" },
-            { label: "SMS Messages", value: "47", sub: "2 unread", icon: <MessageSquare className="h-5 w-5 text-secondary" />, color: "bg-secondary/10" },
-            { label: "Voicemails", value: "6", sub: "4 new", icon: <Voicemail className="h-5 w-5 text-accent" />, color: "bg-accent/10" },
-            { label: "Broadcasts Sent", value: "3", sub: "this week", icon: <Megaphone className="h-5 w-5 text-primary" />, color: "bg-primary/10" },
+            { label: "Calls", value: "—", sub: "Provider not connected", icon: <Phone className="h-5 w-5 text-primary" />, color: "bg-primary/10" },
+            { label: "SMS", value: "—", sub: "Provider not connected", icon: <MessageSquare className="h-5 w-5 text-secondary" />, color: "bg-secondary/10" },
+            { label: "Voicemail", value: "—", sub: "Provider not connected", icon: <Voicemail className="h-5 w-5 text-accent" />, color: "bg-accent/10" },
+            { label: "Website Broadcasts", value: String(broadcasts.length), sub: "saved broadcasts", icon: <Megaphone className="h-5 w-5 text-primary" />, color: "bg-primary/10" },
           ].map((s, i) => (
             <div key={i} className="bg-card border rounded-xl p-5">
               <div className={`w-10 h-10 rounded-full ${s.color} flex items-center justify-center mb-3`}>{s.icon}</div>
@@ -121,13 +121,13 @@ export default function Communications() {
           ))}
         </div>
 
-        <Tabs defaultValue="calls" className="space-y-8">
+        <Tabs defaultValue="broadcast" className="space-y-8">
           <TabsList className="bg-muted/50 h-auto p-1 flex flex-wrap gap-1">
-            <TabsTrigger value="calls" className="gap-2"><Phone className="h-4 w-4" /> Call Log</TabsTrigger>
-            <TabsTrigger value="sms" className="gap-2"><MessageSquare className="h-4 w-4" /> SMS</TabsTrigger>
-            <TabsTrigger value="voicemail" className="gap-2"><Voicemail className="h-4 w-4" /> Voicemail</TabsTrigger>
+            <TabsTrigger value="calls" className="gap-2" disabled><Phone className="h-4 w-4" /> Calls — Not Connected</TabsTrigger>
+            <TabsTrigger value="sms" className="gap-2" disabled><MessageSquare className="h-4 w-4" /> SMS — Not Connected</TabsTrigger>
+            <TabsTrigger value="voicemail" className="gap-2" disabled><Voicemail className="h-4 w-4" /> Voicemail — Not Connected</TabsTrigger>
             <TabsTrigger value="broadcast" className="gap-2"><Megaphone className="h-4 w-4" /> Broadcast</TabsTrigger>
-            <TabsTrigger value="conference" className="gap-2"><Users className="h-4 w-4" /> Conference</TabsTrigger>
+            <TabsTrigger value="conference" className="gap-2" disabled><Users className="h-4 w-4" /> Conference — Not Connected</TabsTrigger>
           </TabsList>
 
           {/* Call Log */}
