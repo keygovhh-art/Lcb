@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Shield, Users, Flag, Megaphone, CheckCircle, Ban, Clock, Trash2,
+  Shield, Users, Flag, Megaphone, CheckCircle, Ban, Clock, Trash2, Edit3,
   MessageSquare, HelpCircle, ChevronDown, ChevronUp, Send, AlertTriangle, Settings
 } from "lucide-react";
 import { format } from "date-fns";
@@ -47,6 +47,10 @@ export default function SystemCenter() {
   const qc = useQueryClient();
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
+  const [editAnnId, setEditAnnId] = useState<number | null>(null);
+  const [editAnnTitle, setEditAnnTitle] = useState("");
+  const [editAnnContent, setEditAnnContent] = useState("");
+  const [savingAnnEdit, setSavingAnnEdit] = useState(false);
   const [supportForm, setSupportForm] = useState({ name: "", email: "", type: "", subject: "", message: "" });
   const [supportSending, setSupportSending] = useState(false);
   const { toast } = useToast();
@@ -61,6 +65,37 @@ export default function SystemCenter() {
   const suspendUser = useSuspendUser();
   const createAnn = useCreateAnnouncement();
   const deleteAnn = useDeleteAnnouncement();
+
+  const startAnnouncementEdit = (ann: any) => {
+    setEditAnnId(ann.id);
+    setEditAnnTitle(ann.title ?? "");
+    setEditAnnContent(ann.content ?? "");
+  };
+
+  const saveAnnouncementEdit = async () => {
+    if (!editAnnId || !editAnnTitle.trim() || !editAnnContent.trim()) return;
+    setSavingAnnEdit(true);
+    try {
+      const res = await fetch(`/api/announcements/${editAnnId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: editAnnTitle.trim(), content: editAnnContent.trim() }),
+      });
+      if (!res.ok) throw new Error("update failed");
+      const updated = await res.json();
+      qc.setQueryData(getListAnnouncementsQueryKey(), (current: any) =>
+        Array.isArray(current) ? current.map((item: any) => item.id === editAnnId ? updated : item) : current
+      );
+      void qc.invalidateQueries({ queryKey: ["/api/announcements"] });
+      setEditAnnId(null);
+      toast({ title: "Announcement updated" });
+    } catch {
+      toast({ title: "Could not update announcement", variant: "destructive" });
+    } finally {
+      setSavingAnnEdit(false);
+    }
+  };
 
   const pendingReports = reports?.filter(r => r.status === "pending") ?? [];
   const statusColor = (status: string) => status === "active" ? "default" : status === "suspended" ? "secondary" : "destructive";
@@ -306,12 +341,32 @@ export default function SystemCenter() {
               </form>
             </div>
             {announcements?.map(ann => (
-              <div key={ann.id} className="bg-card border rounded-xl p-6 flex gap-4">
-                <div className="flex-1">
-                  <h4 className="font-serif font-bold text-primary mb-1">{ann.title}</h4>
-                  <p className="text-muted-foreground text-sm mb-2">{ann.content}</p>
-                  <p className="text-xs text-muted-foreground">By {ann.authorName} · {format(new Date(ann.createdAt), "MMM d, yyyy")}</p>
+              <div key={ann.id} className="bg-card border rounded-xl p-6 flex gap-2 items-start">
+                <div className="flex-1 min-w-0">
+                  {editAnnId === ann.id ? (
+                    <div className="space-y-3">
+                      <Input value={editAnnTitle} onChange={e => setEditAnnTitle(e.target.value)} placeholder="Announcement title" className="h-10" />
+                      <Textarea value={editAnnContent} onChange={e => setEditAnnContent(e.target.value)} placeholder="Announcement content..." className="min-h-24 resize-none" />
+                      <div className="flex gap-2">
+                        <Button size="sm" className="bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveAnnouncementEdit()} disabled={savingAnnEdit || !editAnnTitle.trim() || !editAnnContent.trim()}>
+                          {savingAnnEdit ? "Saving..." : "Save Changes"}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditAnnId(null)}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <h4 className="font-serif font-bold text-primary mb-1">{ann.title}</h4>
+                      <p className="text-muted-foreground text-sm mb-2 whitespace-pre-wrap">{ann.content}</p>
+                      <p className="text-xs text-muted-foreground">By {ann.authorName} · {format(new Date(ann.createdAt), "MMM d, yyyy")}</p>
+                    </>
+                  )}
                 </div>
+                {editAnnId !== ann.id && (
+                  <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-primary" onClick={() => startAnnouncementEdit(ann)}>
+                    <Edit3 className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-destructive"
                   onClick={() => deleteAnn.mutate(
                     { id: ann.id },
