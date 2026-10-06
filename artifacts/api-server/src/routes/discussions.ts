@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, sql, and } from "drizzle-orm";
-import { db, discussionsTable, commentsTable } from "@workspace/db";
+import { eq, desc, sql, and, inArray } from "drizzle-orm";
+import { db, discussionsTable, commentsTable, entityLikesTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName } from "../lib/user-display";
@@ -72,6 +72,22 @@ router.delete("/discussions/:id", requireAuth, async (req, res): Promise<void> =
   if (existing.authorId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
     res.status(403).json({ error: "Not allowed" }); return;
   }
+  const commentIds = (await db.select({ id: commentsTable.id })
+    .from(commentsTable)
+    .where(eq(commentsTable.discussionId, id)))
+    .map(row => row.id);
+
+  if (commentIds.length > 0) {
+    await db.delete(entityLikesTable).where(and(
+      eq(entityLikesTable.entityType, "comment"),
+      inArray(entityLikesTable.entityId, commentIds),
+    ));
+  }
+  await db.delete(entityLikesTable).where(and(
+    eq(entityLikesTable.entityType, "discussion"),
+    eq(entityLikesTable.entityId, id),
+  ));
+  await db.delete(commentsTable).where(eq(commentsTable.discussionId, id));
   await db.delete(discussionsTable).where(eq(discussionsTable.id, id));
   res.sendStatus(204);
 });
