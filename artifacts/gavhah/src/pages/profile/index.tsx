@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import {
   useListFollows, useDeleteFollow, useListSavedItems, useDeleteSavedItem,
@@ -6,12 +7,17 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { User, UserMinus, Bookmark, BookmarkX, ArrowRight, UserPlus, BookmarkCheck, ExternalLink } from "lucide-react";
+import { User, UserMinus, Bookmark, BookmarkX, ArrowRight, UserPlus, BookmarkCheck, ExternalLink, Pencil, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
+import { useToast } from "@/hooks/use-toast";
 
 const ENTITY_TYPE_LABEL: Record<string, string> = {
   volunteer: "Volunteer",
@@ -35,7 +41,16 @@ const CONTENT_TYPE_LABEL: Record<string, string> = {
 
 export default function ProfilePage() {
   const qc = useQueryClient();
-  const { user, isAuthenticated, isLoaded } = useAuth();
+  const { user, isAuthenticated, isLoaded, refresh } = useAuth();
+  const { toast } = useToast();
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name ?? "",
+    nickname: user?.nickname ?? "",
+    bio: (user as any)?.bio ?? "",
+    location: (user as any)?.location ?? "",
+  });
 
   const { data: follows, isLoading: followsLoading } = useListFollows({ query: { queryKey: getListFollowsQueryKey(), enabled: isAuthenticated } });
   const { data: saved, isLoading: savedLoading } = useListSavedItems({ query: { queryKey: getListSavedItemsQueryKey(), enabled: isAuthenticated } });
@@ -55,6 +70,49 @@ export default function ProfilePage() {
     });
   };
 
+  const openProfileEdit = () => {
+    setProfileForm({
+      name: user?.name ?? "",
+      nickname: user?.nickname ?? "",
+      bio: (user as any)?.bio ?? "",
+      location: (user as any)?.location ?? "",
+    });
+    setEditOpen(true);
+  };
+
+  const saveProfile = async () => {
+    if (!user?.id || !profileForm.name.trim() || !profileForm.nickname.trim()) return;
+    setSavingProfile(true);
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: profileForm.name.trim(),
+          nickname: profileForm.nickname.trim(),
+          bio: profileForm.bio.trim(),
+          location: profileForm.location.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Could not save profile");
+      }
+      await refresh();
+      setEditOpen(false);
+      toast({ title: "Profile updated" });
+    } catch (err) {
+      toast({
+        title: "Could not update profile",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   if (isLoaded && !isAuthenticated) {
     return (
       <Layout>
@@ -68,15 +126,56 @@ export default function ProfilePage() {
   return (
     <Layout>
       <div className="bg-muted/30 border-b">
-        <div className="container mx-auto px-4 py-10">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <User className="h-8 w-8 text-primary" />
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Edit Profile</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Full Name</Label>
+              <Input value={profileForm.name} onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))} />
             </div>
             <div>
-              <h1 className="font-serif text-3xl font-bold text-primary">My Profile</h1>
-              <p className="text-muted-foreground font-serif italic">{user?.nickname || user?.name || "Community Member"}</p>
+              <Label>Nickname / Display Name</Label>
+              <Input value={profileForm.nickname} onChange={e => setProfileForm(f => ({ ...f, nickname: e.target.value }))} />
             </div>
+            <div>
+              <Label>Location</Label>
+              <Input value={profileForm.location} onChange={e => setProfileForm(f => ({ ...f, location: e.target.value }))} placeholder="City or community" />
+            </div>
+            <div>
+              <Label>About Me</Label>
+              <Textarea value={profileForm.bio} onChange={e => setProfileForm(f => ({ ...f, bio: e.target.value }))} className="min-h-28" placeholder="A short bio..." />
+            </div>
+            <Button
+              className="w-full bg-secondary hover:bg-secondary/90 text-white"
+              onClick={() => void saveProfile()}
+              disabled={savingProfile || !profileForm.name.trim() || !profileForm.nickname.trim()}
+            >
+              {savingProfile ? "Saving..." : "Save Profile"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="container mx-auto px-4 py-10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="h-8 w-8 text-primary" />
+              </div>
+              <div>
+                <h1 className="font-serif text-3xl font-bold text-primary">My Profile</h1>
+                <p className="text-muted-foreground font-serif italic">{user?.nickname || user?.name || "Community Member"}</p>
+                {(user as any)?.location && (
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    <MapPin className="h-3 w-3" /> {(user as any).location}
+                  </p>
+                )}
+              </div>
+            </div>
+            <Button variant="outline" className="gap-2" onClick={openProfileEdit}>
+              <Pencil className="h-4 w-4" /> Edit Profile
+            </Button>
           </div>
         </div>
       </div>
