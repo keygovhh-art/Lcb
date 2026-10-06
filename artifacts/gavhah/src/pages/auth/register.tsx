@@ -28,7 +28,7 @@ export default function Register() {
     if (!form.nickname.trim()) e.nickname = "Nickname is required";
     if (method === "email" && !form.email.includes("@")) e.contact = "A valid email address is required";
     if (method === "phone" && form.phone.replace(/\D/g, "").length < 7) e.contact = "A valid phone number is required";
-    if (form.password.length < 6) e.password = "Password must be at least 6 characters";
+    if (form.password.length < 8) e.password = "Password must be at least 8 characters";
     if (form.password !== form.confirm) e.confirm = "Passwords do not match";
     return e;
   };
@@ -82,8 +82,8 @@ export default function Register() {
   };
 
   const strength = form.password.length === 0 ? 0
-    : form.password.length < 6 ? 1
-    : form.password.length < 10 ? 2 : 3;
+    : form.password.length < 8 ? 1
+    : form.password.length < 12 ? 2 : 3;
   const strengthLabel = ["", "Weak", "Good", "Strong"];
   const strengthColor = ["", "bg-destructive", "bg-accent", "bg-green-500"];
 
@@ -178,7 +178,7 @@ export default function Register() {
                     type={showPw ? "text" : "password"}
                     value={form.password}
                     onChange={set("password")}
-                    placeholder="Minimum 6 characters"
+                    placeholder="Minimum 8 characters"
                     className="h-12 pr-11"
                     autoComplete="new-password"
                   />
