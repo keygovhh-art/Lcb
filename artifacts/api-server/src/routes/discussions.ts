@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import { db, discussionsTable, commentsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
+import { setLikeState } from "../lib/entity-likes";
 
 const router: IRouter = Router();
 
@@ -72,9 +73,21 @@ router.delete("/discussions/:id", requireAuth, async (req, res): Promise<void> =
 router.post("/discussions/:id/like", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
-  const [disc] = await db.update(discussionsTable).set({ likes: sql`${discussionsTable.likes} + 1` }).where(eq(discussionsTable.id, id)).returning();
-  if (!disc) { res.status(404).json({ error: "Not found" }); return; }
-  res.json({ likes: disc.likes });
+  const [existing] = await db.select({ id: discussionsTable.id }).from(discussionsTable).where(eq(discussionsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+  const state = await setLikeState(getSessionUserId(req)!, "discussion", id);
+  if (state.changed) {
+    const [disc] = await db.update(discussionsTable)
+      .set({ likes: sql`GREATEST(0, ${discussionsTable.likes} + ${state.delta})` })
+      .where(eq(discussionsTable.id, id))
+      .returning();
+    res.json({ likes: disc.likes, liked: state.liked });
+    return;
+  }
+
+  const [disc] = await db.select({ likes: discussionsTable.likes }).from(discussionsTable).where(eq(discussionsTable.id, id));
+  res.json({ likes: disc.likes, liked: state.liked });
 });
 
 router.post("/discussions/:id/lock", requireAdmin, async (req, res): Promise<void> => {
@@ -90,6 +103,26 @@ router.get("/discussions/:id/comments", async (req, res): Promise<void> => {
   const id = parseInt(raw, 10);
   const comments = await db.select().from(commentsTable).where(eq(commentsTable.discussionId, id)).orderBy(commentsTable.createdAt);
   res.json(comments);
+});
+
+router.post("/discussions/:id/comments/:commentId/like", requireAuth, async (req, res): Promise<void> => {
+  const discussionId = Number(req.params.id);
+  const commentId = Number(req.params.commentId);
+  const [comment] = await db.select({ id: commentsTable.id, likes: commentsTable.likes })
+    .from(commentsTable)
+    .where(and(eq(commentsTable.id, commentId), eq(commentsTable.discussionId, discussionId)));
+  if (!comment) { res.status(404).json({ error: "Not found" }); return; }
+
+  const state = await setLikeState(getSessionUserId(req)!, "comment", commentId);
+  let likes = comment.likes;
+  if (state.changed) {
+    const [updated] = await db.update(commentsTable)
+      .set({ likes: sql`GREATEST(0, ${commentsTable.likes} + ${state.delta})` })
+      .where(eq(commentsTable.id, commentId))
+      .returning({ likes: commentsTable.likes });
+    likes = updated.likes;
+  }
+  res.json({ likes, liked: state.liked });
 });
 
 router.post("/discussions/:id/comments", requireAuth, async (req, res): Promise<void> => {
