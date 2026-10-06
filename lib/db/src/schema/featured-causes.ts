@@ -31,6 +31,7 @@ export const featuredCauseSupportersTable = pgTable("featured_cause_supporters",
 
 export const causeSubmissionsTable = pgTable("cause_submissions", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().default(1),
   title: text("title").notNull(),
   description: text("description").notNull(),
   submittedBy: text("submitted_by").notNull(),
