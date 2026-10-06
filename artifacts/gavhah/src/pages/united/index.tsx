@@ -74,7 +74,7 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
           setForm({ name: "", pledgeType: "volunteer", pledgeAmount: "", message: "", location: "" });
           toast({ title: "Thank you for joining this cause", description: "Your commitment has been recorded. Gavhah will be in touch to coordinate." });
         },
-        onError: () => toast({ title: "Error", description: "Could not register. Please try again.", variant: "destructive" }),
+        onError: () => toast({ title: "Could not join", description: "You may already have joined this cause, or the request could not be saved.", variant: "destructive" }),
       }
     );
   };
@@ -361,7 +361,7 @@ export default function United() {
                 <div className="bg-muted/30 rounded-xl p-6 space-y-4">
                   <div className="flex items-center justify-between flex-wrap gap-4">
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Funds Raised</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Funds Pledged</p>
                       <p className="font-serif text-3xl font-bold text-secondary">${raised.toLocaleString()}</p>
                       {goal > 0 && (
                         <p className="text-sm text-muted-foreground">of ${goal.toLocaleString()} goal</p>
@@ -384,7 +384,7 @@ export default function United() {
                   {goal > 0 && (
                     <div className="space-y-1.5">
                       <Progress value={pct} className="h-3" />
-                      <p className="text-right text-xs text-muted-foreground">{pct}% of goal</p>
+                      <p className="text-right text-xs text-muted-foreground">{pct}% of goal pledged</p>
                     </div>
                   )}
                 </div>
