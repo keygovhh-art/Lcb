@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const minyansTable = pgTable("minyans", {
   id: serial("id").primaryKey(),
+  submittedByUserId: integer("submitted_by_user_id").notNull().default(1),
   synagogueName: text("synagogue_name").notNull(),
   community: text("community").notNull(),
   city: text("city").notNull(),
