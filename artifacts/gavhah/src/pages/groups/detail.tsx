@@ -20,6 +20,7 @@ import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
+import { ImageUploadField } from "@/components/shared/image-upload-field";
 
 const privacyIcon = (p: string) => {
   if (p === "private") return <Lock className="h-4 w-4" />;
@@ -294,7 +295,11 @@ export default function GroupDetail() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div><Label>Image URL</Label><Input type="url" value={editGroupForm.imageUrl} onChange={e => setEditGroupForm(f => ({ ...f, imageUrl: e.target.value }))} /></div>
+                  <ImageUploadField
+                    label="Group image"
+                    value={editGroupForm.imageUrl}
+                    onChange={imageUrl => setEditGroupForm(f => ({ ...f, imageUrl }))}
+                  />
                   <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveGroupEdit()} disabled={savingGroup || !editGroupForm.name.trim() || !editGroupForm.description.trim()}>
                     {savingGroup ? "Saving..." : "Save Changes"}
                   </Button>
