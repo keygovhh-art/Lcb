@@ -44,6 +44,7 @@ export default function FounderDashboard() {
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
   const [adminMinyans, setAdminMinyans] = useState<any[]>([]);
+  const [causeSubmissions, setCauseSubmissions] = useState<any[]>([]);
 
   useEffect(() => {
     if (isLoaded && (!user || !isAdmin)) {
@@ -59,8 +60,17 @@ export default function FounderDashboard() {
     } catch {}
   };
 
+  const loadCauseSubmissions = async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch("/api/cause-submissions", { credentials: "include" });
+      if (res.ok) setCauseSubmissions(await res.json());
+    } catch {}
+  };
+
   useEffect(() => {
     void loadAdminMinyans();
+    void loadCauseSubmissions();
   }, [isAdmin]);
 
   const { data: stats } = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey(), enabled: isAdmin } });
@@ -143,6 +153,12 @@ export default function FounderDashboard() {
             <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" /> Members</TabsTrigger>
             <TabsTrigger value="featured" className="gap-2"><Sparkles className="h-4 w-4" /> Featured</TabsTrigger>
             <TabsTrigger value="causes" className="gap-2"><HandHeart className="h-4 w-4" /> Causes</TabsTrigger>
+            <TabsTrigger value="submissions" className="gap-2">
+              <Star className="h-4 w-4" /> Cause Reviews
+              {causeSubmissions.filter(c => c.status === "pending").length > 0 && (
+                <span className="bg-destructive text-white text-xs rounded-full px-1.5 py-0.5">{causeSubmissions.filter(c => c.status === "pending").length}</span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="projects" className="gap-2"><FolderKanban className="h-4 w-4" /> Projects</TabsTrigger>
             <TabsTrigger value="minyans" className="gap-2">
               <Clock className="h-4 w-4" /> Minyans
@@ -356,6 +372,72 @@ export default function FounderDashboard() {
             </div>
             {causeActivity?.length === 0 && (
               <div className="text-center py-12 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">No cause activity yet.</div>
+            )}
+          </TabsContent>
+
+          {/* ─── Cause Submission Reviews ─── */}
+          <TabsContent value="submissions" className="space-y-4">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-primary">Cause Submissions</h2>
+              <p className="text-muted-foreground text-sm mt-1">Review member suggestions and promote an approved submission to the active featured cause.</p>
+            </div>
+            {causeSubmissions.map(cs => (
+              <div key={cs.id} className="bg-card border rounded-xl p-5">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <h3 className="font-serif font-bold text-primary">{cs.title}</h3>
+                      <Badge variant={cs.status === "approved" ? "default" : cs.status === "rejected" ? "destructive" : "secondary"} className="capitalize">
+                        {cs.status}
+                      </Badge>
+                      <Badge variant="outline" className="capitalize">{cs.urgency}</Badge>
+                    </div>
+                    <p className="text-sm text-foreground mb-2">{cs.description}</p>
+                    <p className="text-xs text-muted-foreground">Submitted by {cs.submittedBy}{cs.location ? ` · ${cs.location}` : ""}</p>
+                  </div>
+                  {cs.status === "pending" && (
+                    <div className="flex flex-wrap gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        className="bg-secondary hover:bg-secondary/90 text-white"
+                        onClick={async () => {
+                          const res = await fetch(`/api/cause-submissions/${cs.id}/approve`, {
+                            method: "POST",
+                            credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({}),
+                          });
+                          if (res.ok) {
+                            await loadCauseSubmissions();
+                            void qc.invalidateQueries({ queryKey: getListFeaturedCausesQueryKey({}) });
+                          }
+                        }}
+                      >
+                        <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve as Featured
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive border-destructive/20"
+                        onClick={async () => {
+                          const res = await fetch(`/api/cause-submissions/${cs.id}/reject`, {
+                            method: "POST",
+                            credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({}),
+                          });
+                          if (res.ok) await loadCauseSubmissions();
+                        }}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {causeSubmissions.length === 0 && (
+              <div className="text-center py-12 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">No cause submissions yet.</div>
             )}
           </TabsContent>
 
