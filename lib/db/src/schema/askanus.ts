@@ -7,6 +7,7 @@ export const taskPriorityEnum = pgEnum("task_priority", ["low", "medium", "high"
 
 export const askanuscases = pgTable("askanus_cases", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().default(1),
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
   status: askanusStatusEnum("status").notNull().default("open"),
@@ -44,6 +45,7 @@ export const caseFollowups = pgTable("case_followups", {
 
 export const askanustasks = pgTable("askanus_tasks", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().default(1),
   title: text("title").notNull(),
   caseTitle: text("case_title").notNull().default(""),
   deadline: text("deadline").notNull().default(""),
@@ -55,6 +57,7 @@ export const askanustasks = pgTable("askanus_tasks", {
 
 export const askanusnotes = pgTable("askanus_notes", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().default(1),
   title: text("title").notNull(),
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
