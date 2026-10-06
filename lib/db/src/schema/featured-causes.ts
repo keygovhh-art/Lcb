@@ -19,6 +19,7 @@ export const featuredCausesTable = pgTable("featured_causes", {
 
 export const featuredCauseSupportersTable = pgTable("featured_cause_supporters", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().default(1),
   causeId: integer("cause_id").notNull(),
   name: text("name").notNull(),
   pledgeType: text("pledge_type").notNull().default("volunteer"),
