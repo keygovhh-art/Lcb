@@ -50,13 +50,13 @@ export default function FounderDashboard() {
     }
   }, [isLoaded, user, isAdmin, navigate]);
 
-  const { data: stats } = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey() } });
-  const { data: reports } = useListReports({}, { query: { queryKey: getListReportsQueryKey({}) } });
-  const { data: users } = useListUsers({}, { query: { queryKey: getListUsersQueryKey({}) } });
+  const { data: stats } = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey(), enabled: isAdmin } });
+  const { data: reports } = useListReports({}, { query: { queryKey: getListReportsQueryKey({}), enabled: isAdmin } });
+  const { data: users } = useListUsers({}, { query: { queryKey: getListUsersQueryKey({}), enabled: isAdmin } });
   const { data: announcements } = useListAnnouncements({ query: { queryKey: getListAnnouncementsQueryKey() } });
-  const { data: featuredCauses } = useListFeaturedCauses({}, { query: { queryKey: getListFeaturedCausesQueryKey({}) } });
-  const { data: projects } = useListCommunityProjects({}, { query: { queryKey: getListCommunityProjectsQueryKey({}) } });
-  const { data: causeActivity } = useListCauseSupporters({}, { query: { queryKey: getListCauseSupportersQueryKey({}) } });
+  const { data: featuredCauses } = useListFeaturedCauses({}, { query: { queryKey: getListFeaturedCausesQueryKey({}), enabled: isAdmin } });
+  const { data: projects } = useListCommunityProjects({}, { query: { queryKey: getListCommunityProjectsQueryKey({}), enabled: isAdmin } });
+  const { data: causeActivity } = useListCauseSupporters({}, { query: { queryKey: getListCauseSupportersQueryKey({}), enabled: isAdmin } });
 
   const resolveReport = useResolveReport();
   const dismissReport = useDismissReport();
