@@ -1,11 +1,16 @@
 import { useParams, Link, useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useGetNews, getGetNewsQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Calendar, User, Eye, Share2, Heart } from "lucide-react";
+import { ArrowLeft, Calendar, User, Eye, Share2, Heart, Pencil, Trash2 } from "lucide-react";
 import { SaveButton } from "@/components/shared/save-button";
 import { ReportButton } from "@/components/shared/report-button";
 import { format } from "date-fns";
@@ -73,9 +78,88 @@ export default function NewsDetail() {
 
 function ArticleBody({ article }: { article: any }) {
   const { isLiked, likeCount, toggle, pending } = useLikeArticle(article.id, article.likeCount ?? 0);
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isAdmin } = useAuth();
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [, setLocation] = useLocation();
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: article.title ?? "",
+    content: article.content ?? "",
+    summary: article.summary ?? "",
+    imageUrl: article.imageUrl ?? "",
+    category: article.category ?? "announcement",
+    urgency: article.urgency ?? "normal",
+    deadline: article.deadline ?? "",
+    organization: article.organization ?? "",
+  });
+
+  const canManage = !!user && (article.authorId === user.id || isAdmin);
+
+  const openEdit = () => {
+    setEditForm({
+      title: article.title ?? "",
+      content: article.content ?? "",
+      summary: article.summary ?? "",
+      imageUrl: article.imageUrl ?? "",
+      category: article.category ?? "announcement",
+      urgency: article.urgency ?? "normal",
+      deadline: article.deadline ?? "",
+      organization: article.organization ?? "",
+    });
+    setEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!editForm.title.trim() || !editForm.content.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/news/${article.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...editForm,
+          title: editForm.title.trim(),
+          content: editForm.content.trim(),
+          summary: editForm.summary.trim() || null,
+          imageUrl: editForm.imageUrl.trim() || null,
+          organization: editForm.organization.trim() || null,
+          deadline: editForm.deadline || null,
+        }),
+      });
+      if (!res.ok) throw new Error("update failed");
+      const updated = await res.json();
+      qc.setQueryData(getGetNewsQueryKey(article.id), updated);
+      void qc.invalidateQueries({ queryKey: ["/api/news"] });
+      setEditOpen(false);
+      toast({ title: "Update saved", description: "The published story has been updated." });
+    } catch {
+      toast({ title: "Could not save changes", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteArticle = async () => {
+    if (!window.confirm("Delete this published update?")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/news/${article.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("delete failed");
+      void qc.invalidateQueries({ queryKey: ["/api/news"] });
+      toast({ title: "Update deleted" });
+      setLocation("/news");
+    } catch {
+      toast({ title: "Could not delete update", variant: "destructive" });
+      setDeleting(false);
+    }
+  };
 
   const handleLike = (e: React.MouseEvent) => {
     if (!isAuthenticated) {
@@ -128,6 +212,22 @@ function ArticleBody({ article }: { article: any }) {
                 </span>
               )}
             </button>
+            {canManage && (
+              <>
+                <Button variant="outline" size="sm" className="gap-2" onClick={openEdit}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 text-destructive border-destructive/20"
+                  onClick={() => void deleteArticle()}
+                  disabled={deleting}
+                >
+                  <Trash2 className="h-4 w-4" /> {deleting ? "Deleting..." : "Delete"}
+                </Button>
+              </>
+            )}
             <SaveButton
               contentType="news"
               contentId={article.id}
@@ -166,6 +266,22 @@ function ArticleBody({ article }: { article: any }) {
           <p key={i}>{para}</p>
         ))}
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Published Update</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div><Label>Title</Label><Input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} /></div>
+            <div><Label>Content</Label><Textarea className="min-h-40" value={editForm.content} onChange={e => setEditForm(f => ({ ...f, content: e.target.value }))} /></div>
+            <div><Label>Summary</Label><Textarea value={editForm.summary} onChange={e => setEditForm(f => ({ ...f, summary: e.target.value }))} /></div>
+            <div><Label>Image URL</Label><Input type="url" value={editForm.imageUrl} onChange={e => setEditForm(f => ({ ...f, imageUrl: e.target.value }))} /></div>
+            <div><Label>Organization</Label><Input value={editForm.organization} onChange={e => setEditForm(f => ({ ...f, organization: e.target.value }))} /></div>
+            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveEdit()} disabled={saving || !editForm.title.trim() || !editForm.content.trim()}>
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Footer */}
       <div className="mt-12 pt-8 border-t flex flex-col sm:flex-row items-start sm:items-center gap-6">
