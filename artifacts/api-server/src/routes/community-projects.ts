@@ -1,9 +1,14 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { db, communityProjectsTable, projectMembersTable } from "@workspace/db";
-import { requireAuth, requireAdmin } from "../middlewares/auth";
+import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
+import { resolveMemberDisplayName } from "../lib/user-display";
 
 const router: IRouter = Router();
+
+function isStaffRole(role?: string) {
+  return role === "admin" || role === "moderator";
+}
 
 // GET /community-projects
 router.get("/community-projects", async (req, res): Promise<void> => {
@@ -16,18 +21,33 @@ router.get("/community-projects", async (req, res): Promise<void> => {
 
 // POST /community-projects
 router.post("/community-projects", requireAuth, async (req, res): Promise<void> => {
+  const userId = getSessionUserId(req)!;
   const { title, description, type, organizerName, location, goalDescription } = req.body;
-  if (!title || !description || !organizerName) {
-    res.status(400).json({ error: "title, description, and organizerName required" });
+  if (!String(title || "").trim() || !String(description || "").trim()) {
+    res.status(400).json({ error: "title and description are required" });
     return;
   }
+
+  const safeOrganizerName = await resolveMemberDisplayName(userId, organizerName);
   const [project] = await db.insert(communityProjectsTable).values({
-    title, description,
+    ownerId: userId,
+    title: String(title).trim(),
+    description: String(description).trim(),
     type: type || "project",
-    organizerName,
-    location: location || null,
-    goalDescription: goalDescription || null,
+    organizerName: safeOrganizerName,
+    location: location ? String(location).trim() : null,
+    goalDescription: goalDescription ? String(goalDescription).trim() : null,
+    status: "active",
   }).returning();
+
+  await db.insert(projectMembersTable).values({
+    userId,
+    projectId: project.id,
+    name: safeOrganizerName,
+    role: "organizer",
+    message: null,
+  }).onConflictDoNothing();
+
   res.status(201).json(project);
 });
 
@@ -40,8 +60,13 @@ router.get("/community-projects/:id", async (req, res): Promise<void> => {
 });
 
 // PATCH /community-projects/:id
-router.patch("/community-projects/:id", requireAdmin, async (req, res): Promise<void> => {
+router.patch("/community-projects/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
+  const [existing] = await db.select().from(communityProjectsTable).where(eq(communityProjectsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.ownerId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
   const { title, description, type, organizerName, location, goalDescription, status } = req.body;
   const [project] = await db.update(communityProjectsTable)
     .set({ title, description, type, organizerName, location, goalDescription, status })
@@ -52,8 +77,14 @@ router.patch("/community-projects/:id", requireAdmin, async (req, res): Promise<
 });
 
 // DELETE /community-projects/:id
-router.delete("/community-projects/:id", requireAdmin, async (req, res): Promise<void> => {
+router.delete("/community-projects/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
+  const [existing] = await db.select().from(communityProjectsTable).where(eq(communityProjectsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.ownerId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" }); return;
+  }
+  await db.delete(projectMembersTable).where(eq(projectMembersTable.projectId, id));
   await db.delete(communityProjectsTable).where(eq(communityProjectsTable.id, id));
   res.sendStatus(204);
 });
@@ -61,14 +92,28 @@ router.delete("/community-projects/:id", requireAdmin, async (req, res): Promise
 // POST /community-projects/:id/join
 router.post("/community-projects/:id/join", requireAuth, async (req, res): Promise<void> => {
   const projectId = parseInt(req.params.id, 10);
+  const userId = getSessionUserId(req)!;
   const { name, role, message } = req.body;
-  if (!name || !role) { res.status(400).json({ error: "name and role required" }); return; }
+  if (!role) { res.status(400).json({ error: "role required" }); return; }
+
+  const [project] = await db.select().from(communityProjectsTable).where(eq(communityProjectsTable.id, projectId));
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  const [existing] = await db.select().from(projectMembersTable).where(and(
+    eq(projectMembersTable.projectId, projectId),
+    eq(projectMembersTable.userId, userId),
+  ));
+  if (existing) { res.json(existing); return; }
+
+  const safeName = await resolveMemberDisplayName(userId, name);
   const [member] = await db.insert(projectMembersTable).values({
+    userId,
     projectId,
-    name,
+    name: safeName,
     role,
-    message: message || null,
+    message: message ? String(message).trim() : null,
   }).returning();
+
   res.status(201).json(member);
 });
 
