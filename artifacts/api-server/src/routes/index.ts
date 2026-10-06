@@ -18,6 +18,7 @@ import socialRouter from "./social";
 import adminRouter from "./admin";
 import reservationsRouter from "./reservations";
 import supportRouter from "./support";
+import likesRouter from "./likes";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(socialRouter);
 router.use(adminRouter);
 router.use(reservationsRouter);
 router.use(supportRouter);
+router.use(likesRouter);
 
 export default router;
