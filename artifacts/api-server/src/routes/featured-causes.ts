@@ -1,14 +1,32 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import {
   db,
   featuredCausesTable,
   featuredCauseSupportersTable,
   causeSubmissionsTable,
 } from "@workspace/db";
-import { requireAuth, requireAdmin } from "../middlewares/auth";
+import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 
 const router: IRouter = Router();
+
+router.get("/admin/cause-activity", requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db.select({
+    id: featuredCauseSupportersTable.id,
+    causeId: featuredCauseSupportersTable.causeId,
+    causeType: featuredCausesTable.title,
+    name: featuredCauseSupportersTable.name,
+    pledgeType: featuredCauseSupportersTable.pledgeType,
+    pledgeAmount: featuredCauseSupportersTable.pledgeAmount,
+    message: featuredCauseSupportersTable.message,
+    location: featuredCauseSupportersTable.location,
+    createdAt: featuredCauseSupportersTable.createdAt,
+  })
+    .from(featuredCauseSupportersTable)
+    .innerJoin(featuredCausesTable, eq(featuredCauseSupportersTable.causeId, featuredCausesTable.id))
+    .orderBy(desc(featuredCauseSupportersTable.createdAt));
+  res.json(rows);
+});
 
 // GET /featured-causes
 router.get("/featured-causes", async (req, res): Promise<void> => {
@@ -69,10 +87,21 @@ router.patch("/featured-causes/:id", requireAdmin, async (req, res): Promise<voi
 // POST /featured-causes/:id/join
 router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<void> => {
   const causeId = parseInt(req.params.id, 10);
+  const userId = getSessionUserId(req)!;
   const { name, pledgeType, pledgeAmount, message, location } = req.body;
   if (!name || !pledgeType) { res.status(400).json({ error: "name and pledgeType required" }); return; }
 
+  const [existing] = await db.select().from(featuredCauseSupportersTable).where(and(
+    eq(featuredCauseSupportersTable.causeId, causeId),
+    eq(featuredCauseSupportersTable.userId, userId),
+  ));
+  if (existing) {
+    res.status(409).json({ error: "You already joined this cause" });
+    return;
+  }
+
   const [supporter] = await db.insert(featuredCauseSupportersTable).values({
+    userId,
     causeId,
     name,
     pledgeType,
@@ -81,12 +110,10 @@ router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<
     location: location || null,
   }).returning();
 
-  // Increment supporter count
   await db.update(featuredCausesTable)
     .set({ supporterCount: sql`${featuredCausesTable.supporterCount} + 1` })
     .where(eq(featuredCausesTable.id, causeId));
 
-  // If financial pledge, add to amountRaised
   if (pledgeAmount && (pledgeType === "financial" || pledgeType === "both")) {
     await db.update(featuredCausesTable)
       .set({ amountRaised: sql`${featuredCausesTable.amountRaised} + ${pledgeAmount}` })
