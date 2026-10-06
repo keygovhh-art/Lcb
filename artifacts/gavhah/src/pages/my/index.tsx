@@ -97,6 +97,7 @@ const ACT_ICONS: Record<string, React.ReactNode> = {
 
 function NewCaseDialog({ onAdded }: { onAdded: () => void }) {
   const [open, setOpen] = useState(false);
+  const qc = useQueryClient();
   const create = useCreateAskanusCase();
   const { toast } = useToast();
   const [form, setForm] = useState({ title: "", description: "", urgency: "medium", category: "General", contactName: "", deadline: "", goalAmount: "", notes: "" });
@@ -107,12 +108,17 @@ function NewCaseDialog({ onAdded }: { onAdded: () => void }) {
     create.mutate(
       { data: { title: form.title, description: form.description, urgency: form.urgency, category: form.category, contactName: form.contactName, deadline: form.deadline, goalAmount: Number(form.goalAmount) || 0, notes: form.notes } },
       {
-        onSuccess: () => {
-          onAdded();
+        onSuccess: (created) => {
+          qc.setQueryData(getListAskanuscasesQueryKey(), (current: any) => {
+            const items = Array.isArray(current) ? current : [];
+            return [created, ...items.filter((item: any) => item.id !== created.id)];
+          });
+          void onAdded();
           setOpen(false);
           setForm({ title: "", description: "", urgency: "medium", category: "General", contactName: "", deadline: "", goalAmount: "", notes: "" });
-          toast({ title: "Case opened" });
-        }
+          toast({ title: "Case opened", description: "The case is saved and visible now." });
+        },
+        onError: () => toast({ title: "Could not open case", variant: "destructive" }),
       }
     );
   };
@@ -474,6 +480,7 @@ function CaseCard({ c, onUpdated }: { c: AskanusCase; onUpdated: () => void }) {
 
 function NewTaskDialog({ onAdded }: { onAdded: () => void }) {
   const [open, setOpen] = useState(false);
+  const qc = useQueryClient();
   const create = useCreateAskanusTask();
   const { toast } = useToast();
   const [form, setForm] = useState({ title: "", caseTitle: "", deadline: "", priority: "medium", notes: "" });
@@ -484,12 +491,17 @@ function NewTaskDialog({ onAdded }: { onAdded: () => void }) {
     create.mutate(
       { data: { title: form.title, caseTitle: form.caseTitle, deadline: form.deadline, priority: form.priority, notes: form.notes } },
       {
-        onSuccess: () => {
-          onAdded();
+        onSuccess: (created) => {
+          qc.setQueryData(getListAskanustasksQueryKey(), (current: any) => {
+            const items = Array.isArray(current) ? current : [];
+            return [created, ...items.filter((item: any) => item.id !== created.id)];
+          });
+          void onAdded();
           setOpen(false);
           setForm({ title: "", caseTitle: "", deadline: "", priority: "medium", notes: "" });
-          toast({ title: "Task added" });
-        }
+          toast({ title: "Task added", description: "It is visible in your task list now." });
+        },
+        onError: () => toast({ title: "Could not add task", variant: "destructive" }),
       }
     );
   };
@@ -619,26 +631,84 @@ export default function MyAskanus() {
   const filteredCases = caseFilter === "all" ? cases : cases.filter(c => c.status === caseFilter);
 
   const toggleTask = (id: number, completed: boolean) =>
-    updateTask.mutate({ id, data: { completed: !completed } }, { onSuccess: invalidateTasks });
+    updateTask.mutate(
+      { id, data: { completed: !completed } },
+      {
+        onSuccess: (updated) => {
+          qc.setQueryData(getListAskanustasksQueryKey(), (current: any) =>
+            Array.isArray(current) ? current.map((item: any) => item.id === id ? updated : item) : current
+          );
+          void invalidateTasks();
+        },
+        onError: () => toast({ title: "Could not update task", variant: "destructive" }),
+      }
+    );
 
   const handleDeleteTask = (id: number) =>
-    deleteTask.mutate({ id }, { onSuccess: invalidateTasks });
+    deleteTask.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          qc.setQueryData(getListAskanustasksQueryKey(), (current: any) =>
+            Array.isArray(current) ? current.filter((item: any) => item.id !== id) : current
+          );
+          void invalidateTasks();
+        },
+        onError: () => toast({ title: "Could not delete task", variant: "destructive" }),
+      }
+    );
 
   const saveNote = () => {
-    if (!newNote.title || !newNote.content) return;
+    if (!newNote.title.trim() || !newNote.content.trim()) return;
     if (editNoteId) {
-      updateNote.mutate({ id: editNoteId, data: { title: newNote.title, content: newNote.content } }, {
-        onSuccess: () => { invalidateNotes(); setEditNoteId(null); setNewNote({ title: "", content: "" }); }
-      });
+      updateNote.mutate(
+        { id: editNoteId, data: { title: newNote.title.trim(), content: newNote.content.trim() } },
+        {
+          onSuccess: (updated) => {
+            qc.setQueryData(getListAskanusNotesQueryKey(), (current: any) =>
+              Array.isArray(current) ? current.map((item: any) => item.id === editNoteId ? updated : item) : current
+            );
+            void invalidateNotes();
+            setEditNoteId(null);
+            setNewNote({ title: "", content: "" });
+            toast({ title: "Note updated" });
+          },
+          onError: () => toast({ title: "Could not update note", variant: "destructive" }),
+        }
+      );
     } else {
-      createNote.mutate({ data: { title: newNote.title, content: newNote.content } }, {
-        onSuccess: () => { invalidateNotes(); setNewNote({ title: "", content: "" }); toast({ title: "Note saved" }); }
-      });
+      createNote.mutate(
+        { data: { title: newNote.title.trim(), content: newNote.content.trim() } },
+        {
+          onSuccess: (created) => {
+            qc.setQueryData(getListAskanusNotesQueryKey(), (current: any) => {
+              const items = Array.isArray(current) ? current : [];
+              return [created, ...items.filter((item: any) => item.id !== created.id)];
+            });
+            void invalidateNotes();
+            setNewNote({ title: "", content: "" });
+            toast({ title: "Note saved", description: "It is visible now." });
+          },
+          onError: () => toast({ title: "Could not save note", variant: "destructive" }),
+        }
+      );
     }
   };
 
   const handleDeleteNote = (id: number) =>
-    deleteNote.mutate({ id }, { onSuccess: invalidateNotes });
+    deleteNote.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          qc.setQueryData(getListAskanusNotesQueryKey(), (current: any) =>
+            Array.isArray(current) ? current.filter((item: any) => item.id !== id) : current
+          );
+          void invalidateNotes();
+          toast({ title: "Note deleted" });
+        },
+        onError: () => toast({ title: "Could not delete note", variant: "destructive" }),
+      }
+    );
 
   return (
     <Layout>
