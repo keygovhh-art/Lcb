@@ -5,9 +5,14 @@ import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth
 
 const router: IRouter = Router();
 
+function publicHelpRequest<T extends { contactInfo?: unknown }>(request: T) {
+  const { contactInfo: _contactInfo, ...safe } = request as T & { contactInfo?: unknown };
+  return safe;
+}
+
 router.get("/featured/volunteers", async (_req, res): Promise<void> => {
   const featured = await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.isFeatured, true)).limit(4);
-  res.json(featured);
+  res.json(featured.map(publicHelpRequest));
 });
 
 router.get("/featured/requests", async (_req, res): Promise<void> => {
@@ -46,12 +51,17 @@ router.get("/volunteers/:id", async (req, res): Promise<void> => {
   res.json(vol);
 });
 
+router.get("/admin/help-requests", requireAdmin, async (_req, res): Promise<void> => {
+  const all = await db.select().from(helpRequestsTable);
+  res.json(all);
+});
+
 router.get("/help-requests", async (req, res): Promise<void> => {
   const { type, urgency } = req.query as Record<string, string>;
   let all = await db.select().from(helpRequestsTable);
   if (type) all = all.filter(r => r.needType === type);
   if (urgency) all = all.filter(r => r.urgency === urgency);
-  res.json(all);
+  res.json(all.map(publicHelpRequest));
 });
 
 router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
@@ -63,7 +73,7 @@ router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
     name, contactInfo, needType, description, urgency: urgency || "medium",
     isFeatured: false, status: "open",
   }).returning();
-  res.status(201).json(request);
+  res.status(201).json(publicHelpRequest(request));
 });
 
 router.get("/help-requests/:id", async (req, res): Promise<void> => {
@@ -71,7 +81,7 @@ router.get("/help-requests/:id", async (req, res): Promise<void> => {
   const id = parseInt(raw, 10);
   const [request] = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.id, id));
   if (!request) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(request);
+  res.json(publicHelpRequest(request));
 });
 
 router.patch("/help-requests/:id", requireAdmin, async (req, res): Promise<void> => {
