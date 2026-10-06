@@ -45,6 +45,9 @@ export default function GroupDetail() {
   const join = useJoinGroup();
   const createPost = useCreateGroupPost();
 
+  const isOwner = !!user && group?.ownerId === user.id;
+  const isMember = !!user && (isOwner || (members ?? []).some((member: any) => member.userId === user.id && member.status === "approved"));
+
   const handleJoin = () => {
     join.mutate({ id: numId }, {
       onSuccess: () => qc.invalidateQueries({ queryKey: getGetGroupQueryKey(numId) }),
@@ -124,16 +127,22 @@ export default function GroupDetail() {
                     <h1 className="font-serif text-3xl font-bold text-primary">{group.name}</h1>
                     <p className="text-muted-foreground mt-2">Created by {group.ownerName}</p>
                   </div>
-                  <MemberGate action="join this group" compact>
-                    <Button
-                      onClick={handleJoin}
-                      className="bg-secondary hover:bg-secondary/90 text-white shrink-0"
-                      disabled={join.isPending}
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      {join.isPending ? "Joining..." : "Join Group"}
+                  {isMember ? (
+                    <Button variant="outline" className="shrink-0" disabled>
+                      <Users className="h-4 w-4 mr-2" /> {isOwner ? "Group Owner" : "Member"}
                     </Button>
-                  </MemberGate>
+                  ) : (
+                    <MemberGate action="join this group" compact>
+                      <Button
+                        onClick={handleJoin}
+                        className="bg-secondary hover:bg-secondary/90 text-white shrink-0"
+                        disabled={join.isPending}
+                      >
+                        <Users className="h-4 w-4 mr-2" />
+                        {join.isPending ? "Joining..." : "Join Group"}
+                      </Button>
+                    </MemberGate>
+                  )}
                 </div>
                 <p className="text-foreground mt-4 leading-relaxed">{group.description}</p>
                 <div className="flex gap-6 mt-6 pt-6 border-t text-sm text-muted-foreground">
@@ -152,27 +161,33 @@ export default function GroupDetail() {
 
               <TabsContent value="posts" className="space-y-6">
                 <MemberGate action="post in this group" compact>
-                  <div className="bg-card border rounded-xl p-6">
-                    <h3 className="font-semibold text-foreground mb-4">Share with the group</h3>
-                    <form onSubmit={handlePost} className="space-y-4">
-                      <Textarea
-                        value={newPost}
-                        onChange={e => setNewPost(e.target.value)}
-                        placeholder="Write a post..."
-                        className="min-h-24 resize-none"
-                      />
-                      <DisplayAsSelector value={displayAs} onChange={setDisplayAs} />
-                      <div className="flex justify-end">
-                        <Button
-                          type="submit"
-                          className="bg-secondary hover:bg-secondary/90 text-white"
-                          disabled={createPost.isPending || !newPost.trim()}
-                        >
-                          Post
-                        </Button>
-                      </div>
-                    </form>
-                  </div>
+                  {isMember ? (
+                    <div className="bg-card border rounded-xl p-6">
+                      <h3 className="font-semibold text-foreground mb-4">Share with the group</h3>
+                      <form onSubmit={handlePost} className="space-y-4">
+                        <Textarea
+                          value={newPost}
+                          onChange={e => setNewPost(e.target.value)}
+                          placeholder="Write a post..."
+                          className="min-h-24 resize-none"
+                        />
+                        <DisplayAsSelector value={displayAs} onChange={setDisplayAs} />
+                        <div className="flex justify-end">
+                          <Button
+                            type="submit"
+                            className="bg-secondary hover:bg-secondary/90 text-white"
+                            disabled={createPost.isPending || !newPost.trim()}
+                          >
+                            {createPost.isPending ? "Posting..." : "Post"}
+                          </Button>
+                        </div>
+                      </form>
+                    </div>
+                  ) : (
+                    <div className="bg-muted/30 border rounded-xl p-5 text-sm text-muted-foreground">
+                      Join this group before posting.
+                    </div>
+                  )}
                 </MemberGate>
 
                 {posts?.map(post => (
