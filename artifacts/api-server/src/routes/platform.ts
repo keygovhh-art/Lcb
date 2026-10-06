@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and } from "drizzle-orm";
 import { db, announcementsTable, reportsTable, notificationsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
+import { resolveMemberDisplayName } from "../lib/user-display";
 
 const router: IRouter = Router();
 
@@ -14,7 +15,14 @@ router.get("/announcements", async (_req, res): Promise<void> => {
 router.post("/announcements", requireAdmin, async (req, res): Promise<void> => {
   const { title, content } = req.body;
   if (!title || !content) { res.status(400).json({ error: "title and content required" }); return; }
-  const [ann] = await db.insert(announcementsTable).values({ title, content, authorId: getSessionUserId(req)!, authorName: "Admin" }).returning();
+  const userId = getSessionUserId(req)!;
+  const authorName = await resolveMemberDisplayName(userId);
+  const [ann] = await db.insert(announcementsTable).values({
+    title: String(title).trim(),
+    content: String(content).trim(),
+    authorId: userId,
+    authorName,
+  }).returning();
   res.status(201).json(ann);
 });
 
