@@ -23,7 +23,7 @@ export default function Login() {
     const result = await login(identifier.trim(), password);
     setLoading(false);
     if (result.ok) {
-      window.location.assign("/");
+      window.location.replace(`/?auth=${Date.now()}`);
     } else {
       setError(result.error ?? "Login failed. Please check your credentials.");
     }
