@@ -168,6 +168,7 @@ function NewCaseDialog({ onAdded }: { onAdded: () => void }) {
 
 function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () => void }) {
   const [open, setOpen] = useState(false);
+  const qc = useQueryClient();
   const [tab, setTab] = useState<"received" | "promised" | "goal" | "note" | "followup">("received");
   const [received, setReceived] = useState({ amount: "", note: "" });
   const [promised, setPromised] = useState({ amount: "", from: "" });
@@ -188,16 +189,20 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
     progress.mutate(
       { id: c.id, data: body as any },
       {
-        onSuccess: () => {
-          onUpdated();
+        onSuccess: (updated) => {
+          qc.setQueryData(getListAskanuscasesQueryKey(), (current: any) =>
+            Array.isArray(current) ? current.map((item: any) => item.id === c.id ? updated : item) : current
+          );
+          void onUpdated();
           setOpen(false);
           setReceived({ amount: "", note: "" });
           setPromised({ amount: "", from: "" });
           setGoal(String(c.goalAmount || ""));
           setNote("");
           setFollowup({ note: "", dueDate: "" });
-          toast({ title: "Progress updated" });
-        }
+          toast({ title: "Progress updated", description: "The case totals and history are updated now." });
+        },
+        onError: () => toast({ title: "Could not update progress", variant: "destructive" }),
       }
     );
   };
@@ -296,6 +301,7 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
 
 function CaseCard({ c, onUpdated }: { c: AskanusCase; onUpdated: () => void }) {
   const [expanded, setExpanded] = useState(false);
+  const qc = useQueryClient();
   const updateCase = useUpdateAskanusCase();
   const deleteCase = useDeleteAskanusCase();
   const progressMutation = useUpdateAskanuscaseProgress();
@@ -312,21 +318,50 @@ function CaseCard({ c, onUpdated }: { c: AskanusCase; onUpdated: () => void }) {
 
   const openFollowups = c.followUpNotes.filter(f => !f.completed);
 
+  const replaceCaseInCache = (updated: any) => {
+    qc.setQueryData(getListAskanuscasesQueryKey(), (current: any) =>
+      Array.isArray(current) ? current.map((item: any) => item.id === c.id ? updated : item) : current
+    );
+  };
+
   const handleToggleFollowup = (id: number) => {
-    toggleFollowup.mutate({ id }, { onSuccess: onUpdated });
+    toggleFollowup.mutate(
+      { id },
+      {
+        onSuccess: () => { void onUpdated(); },
+        onError: () => toast({ title: "Could not update follow-up", variant: "destructive" }),
+      }
+    );
   };
 
   const setStatus = (status: string) => {
     progressMutation.mutate(
       { id: c.id, data: { action: "status", status } as any },
-      { onSuccess: onUpdated }
+      {
+        onSuccess: (updated) => {
+          replaceCaseInCache(updated);
+          void onUpdated();
+        },
+        onError: () => toast({ title: "Could not change case status", variant: "destructive" }),
+      }
     );
   };
 
   const handleDelete = () => {
-    deleteCase.mutate({ id: c.id }, {
-      onSuccess: () => { onUpdated(); toast({ title: "Case deleted" }); }
-    });
+    if (!window.confirm("Delete this case and its activity history?")) return;
+    deleteCase.mutate(
+      { id: c.id },
+      {
+        onSuccess: () => {
+          qc.setQueryData(getListAskanuscasesQueryKey(), (current: any) =>
+            Array.isArray(current) ? current.filter((item: any) => item.id !== c.id) : current
+          );
+          void onUpdated();
+          toast({ title: "Case deleted" });
+        },
+        onError: () => toast({ title: "Could not delete case", variant: "destructive" }),
+      }
+    );
   };
 
   return (
