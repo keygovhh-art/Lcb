@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, volunteerProfilesTable, helpRequestsTable } from "@workspace/db";
+import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { getMemberIdentity, resolveMemberDisplayName } from "../lib/user-display";
 
@@ -121,6 +121,17 @@ router.patch("/help-requests/:id", requireAdmin, async (req, res): Promise<void>
   const { status, isFeatured } = req.body;
   const [request] = await db.update(helpRequestsTable).set({ status, isFeatured }).where(eq(helpRequestsTable.id, id)).returning();
   if (!request) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (status === "resolved") {
+    await db.insert(notificationsTable).values({
+      userId: request.userId,
+      type: "help_request",
+      message: `Your help request "${request.name}" was marked resolved.`,
+      linkUrl: "/directory",
+      isRead: false,
+    });
+  }
+
   res.json(request);
 });
 
