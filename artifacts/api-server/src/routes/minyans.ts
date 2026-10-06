@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, minyansTable } from "@workspace/db";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -14,7 +15,7 @@ router.get("/minyans", async (req, res): Promise<void> => {
   res.json(all);
 });
 
-router.post("/minyans", async (req, res): Promise<void> => {
+router.post("/minyans", requireAuth, async (req, res): Promise<void> => {
   const { synagogueName, community, city, country, address, shacharis, mincha, maariv, notes } = req.body;
   if (!synagogueName || !city || !country || !shacharis || !mincha || !maariv) {
     res.status(400).json({ error: "Required fields missing" }); return;
@@ -34,7 +35,7 @@ router.get("/minyans/:id", async (req, res): Promise<void> => {
   res.json(minyan);
 });
 
-router.patch("/minyans/:id", async (req, res): Promise<void> => {
+router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const { synagogueName, shacharis, mincha, maariv, notes, status } = req.body;
@@ -43,7 +44,7 @@ router.patch("/minyans/:id", async (req, res): Promise<void> => {
   res.json(minyan);
 });
 
-router.post("/minyans/:id/like", async (req, res): Promise<void> => {
+router.post("/minyans/:id/like", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const [minyan] = await db.update(minyansTable).set({ likes: sql`${minyansTable.likes} + 1` }).where(eq(minyansTable.id, id)).returning();
