@@ -3,10 +3,20 @@ import { eq } from "drizzle-orm";
 import { db, usersTable, discussionsTable, helpRequestsTable } from "@workspace/db";
 import { count } from "drizzle-orm";
 import { hashPassword } from "../lib/crypto";
+import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-router.get("/users", async (req, res): Promise<void> => {
+function safeUser<T extends { passwordHash?: unknown }>(user: T) {
+  const { passwordHash: _passwordHash, ...safe } = user as T & { passwordHash?: unknown };
+  return safe;
+}
+
+function isStaffRole(role?: string) {
+  return role === "admin" || role === "moderator";
+}
+
+router.get("/users", requireAdmin, async (req, res): Promise<void> => {
   const { role, search } = req.query as Record<string, string>;
   let query = db.select().from(usersTable).$dynamic();
   if (role) query = query.where(eq(usersTable.role, role));
@@ -18,7 +28,7 @@ router.get("/users", async (req, res): Promise<void> => {
         (u.nickname ?? "").toLowerCase().includes(search.toLowerCase())
       )
     : users;
-  res.json(filtered);
+  res.json(filtered.map(safeUser));
 });
 
 router.post("/users", async (req, res): Promise<void> => {
@@ -58,60 +68,79 @@ router.post("/users", async (req, res): Promise<void> => {
     bio: bio?.trim() || null,
   }).returning();
 
-  res.status(201).json(user);
+  res.status(201).json(safeUser(user));
 });
 
-router.get("/users/me", async (req, res): Promise<void> => {
-  const userId = req.session.userId;
-  if (userId) {
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-    if (user) { res.json(user); return; }
-  }
-  const [user] = await db.select().from(usersTable).limit(1);
-  if (!user) { res.status(404).json({ error: "No user found" }); return; }
-  res.json(user);
+router.get("/users/me", requireAuth, async (req, res): Promise<void> => {
+  const userId = getSessionUserId(req)!;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  res.json(safeUser(user));
 });
 
-router.get("/users/:id", async (req, res): Promise<void> => {
+router.get("/users/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  res.json(user);
+  res.json(safeUser(user));
 });
 
-router.patch("/users/:id", async (req, res): Promise<void> => {
+router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
+  const requesterId = getSessionUserId(req)!;
+  const requesterRole = getSessionUserRole(req);
+  if (requesterId !== id && !isStaffRole(requesterRole)) {
+    res.status(403).json({ error: "Not allowed" });
+    return;
+  }
+
   const { name, nickname, bio, location, role, status, preferredLanguage } = req.body;
+  const updates: Record<string, unknown> = {};
+  if (name !== undefined) updates.name = name;
+  if (nickname !== undefined) updates.nickname = nickname;
+  if (bio !== undefined) updates.bio = bio;
+  if (location !== undefined) updates.location = location;
+  if (preferredLanguage !== undefined) updates.preferredLanguage = preferredLanguage;
+  if (isStaffRole(requesterRole)) {
+    if (role !== undefined) updates.role = role;
+    if (status !== undefined) updates.status = status;
+  }
+
   const [user] = await db.update(usersTable)
-    .set({ name, nickname, bio, location, role, status, preferredLanguage })
+    .set(updates)
     .where(eq(usersTable.id, id))
     .returning();
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  res.json(user);
+  res.json(safeUser(user));
 });
 
-router.delete("/users/:id", async (req, res): Promise<void> => {
+router.delete("/users/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   await db.delete(usersTable).where(eq(usersTable.id, id));
   res.sendStatus(204);
 });
 
-router.post("/users/:id/ban", async (req, res): Promise<void> => {
+router.post("/users/:id/ban", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const [user] = await db.update(usersTable).set({ status: "banned" }).where(eq(usersTable.id, id)).returning();
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  res.json(user);
+  res.json(safeUser(user));
 });
 
-router.post("/users/:id/suspend", async (req, res): Promise<void> => {
+router.post("/users/:id/suspend", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const [user] = await db.update(usersTable).set({ status: "suspended" }).where(eq(usersTable.id, id)).returning();
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  res.json(user);
+  res.json(safeUser(user));
 });
 
-router.get("/users/:id/dashboard", async (req, res): Promise<void> => {
+router.get("/users/:id/dashboard", requireAuth, async (req, res): Promise<void> => {
   const userId = parseInt(req.params.id as string, 10);
+  const requesterId = getSessionUserId(req)!;
+  if (requesterId !== userId && !isStaffRole(getSessionUserRole(req))) {
+    res.status(403).json({ error: "Not allowed" });
+    return;
+  }
   const [discCount] = await db.select({ count: count() }).from(discussionsTable).where(eq(discussionsTable.authorId, userId));
   const [reqCount] = await db.select({ count: count() }).from(helpRequestsTable);
   res.json({
