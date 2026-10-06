@@ -21,7 +21,10 @@ router.get("/featured/volunteers", async (_req, res): Promise<void> => {
 });
 
 router.get("/featured/requests", async (_req, res): Promise<void> => {
-  const featured = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.isFeatured, true)).limit(4);
+  const featured = await db.select().from(helpRequestsTable).where(and(
+    eq(helpRequestsTable.isFeatured, true),
+    eq(helpRequestsTable.status, "open"),
+  )).limit(4);
   res.json(featured.map(publicHelpRequest));
 });
 
@@ -118,7 +121,7 @@ router.get("/admin/help-requests", requireAdmin, async (_req, res): Promise<void
 
 router.get("/help-requests", async (req, res): Promise<void> => {
   const { type, urgency } = req.query as Record<string, string>;
-  let all = await db.select().from(helpRequestsTable);
+  let all = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.status, "open"));
   if (type) all = all.filter(r => r.needType === type);
   if (urgency) all = all.filter(r => r.urgency === urgency);
   res.json(all.map(publicHelpRequest));
@@ -146,7 +149,7 @@ router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
     description: String(description).trim(),
     urgency: urgency || "medium",
     isFeatured: false,
-    status: "open",
+    status: "pending",
   }).returning();
 
   res.status(201).json(publicHelpRequest(request));
@@ -157,6 +160,15 @@ router.get("/help-requests/:id", async (req, res): Promise<void> => {
   const id = parseInt(raw, 10);
   const [request] = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.id, id));
   if (!request) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (request.status !== "open") {
+    const userId = getSessionUserId(req);
+    if (userId !== request.userId && !isStaffRole(getSessionUserRole(req))) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+  }
+
   res.json(publicHelpRequest(request));
 });
 
@@ -195,14 +207,22 @@ router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> 
     .where(eq(helpRequestsTable.id, id))
     .returning();
 
-  if (isStaffRole(role) && status === "resolved" && existing.status !== "resolved") {
-    await db.insert(notificationsTable).values({
-      userId: request.userId,
-      type: "help_request",
-      message: `Your help request "${request.name}" was marked resolved.`,
-      linkUrl: "/directory",
-      isRead: false,
-    });
+  if (isStaffRole(role) && status !== undefined && status !== existing.status) {
+    const decisionMessage =
+      status === "open" ? `Your help request "${request.name}" was approved and is now public.` :
+      status === "rejected" ? `Your help request "${request.name}" was not approved for public listing.` :
+      status === "resolved" ? `Your help request "${request.name}" was marked resolved.` :
+      null;
+
+    if (decisionMessage) {
+      await db.insert(notificationsTable).values({
+        userId: request.userId,
+        type: "help_request",
+        message: decisionMessage,
+        linkUrl: "/directory",
+        isRead: false,
+      });
+    }
   }
 
   res.json(isStaffRole(role) ? request : publicHelpRequest(request));
