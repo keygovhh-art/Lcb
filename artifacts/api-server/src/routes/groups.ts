@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { db, groupsTable, groupMembersTable, groupPostsTable, usersTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
+import { setLikeState } from "../lib/entity-likes";
 
 const router: IRouter = Router();
 
@@ -98,6 +99,26 @@ router.get("/groups/:id/posts", async (req, res): Promise<void> => {
   const id = parseInt(raw, 10);
   const posts = await db.select().from(groupPostsTable).where(eq(groupPostsTable.groupId, id)).orderBy(desc(groupPostsTable.createdAt));
   res.json(posts);
+});
+
+router.post("/groups/:id/posts/:postId/like", requireAuth, async (req, res): Promise<void> => {
+  const groupId = Number(req.params.id);
+  const postId = Number(req.params.postId);
+  const [post] = await db.select({ id: groupPostsTable.id, likes: groupPostsTable.likes })
+    .from(groupPostsTable)
+    .where(and(eq(groupPostsTable.id, postId), eq(groupPostsTable.groupId, groupId)));
+  if (!post) { res.status(404).json({ error: "Not found" }); return; }
+
+  const state = await setLikeState(getSessionUserId(req)!, "group_post", postId);
+  let likes = post.likes;
+  if (state.changed) {
+    const [updated] = await db.update(groupPostsTable)
+      .set({ likes: sql`GREATEST(0, ${groupPostsTable.likes} + ${state.delta})` })
+      .where(eq(groupPostsTable.id, postId))
+      .returning({ likes: groupPostsTable.likes });
+    likes = updated.likes;
+  }
+  res.json({ likes, liked: state.liked });
 });
 
 router.post("/groups/:id/posts", requireAuth, async (req, res): Promise<void> => {
