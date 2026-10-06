@@ -475,21 +475,44 @@ export default function FounderDashboard() {
                   </p>
                   {r.notes && <p className="text-xs text-muted-foreground mt-1">{r.notes}</p>}
                 </div>
-                {r.status !== "cancelled" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-destructive border-destructive/20"
-                    onClick={async () => {
-                      const res = await fetch(`/api/reservations/${r.id}`, {
-                        method: "DELETE",
-                        credentials: "include",
-                      });
-                      if (res.ok) await loadAdminReservations();
-                    }}
-                  >
-                    Cancel
-                  </Button>
+                {r.status === "confirmed" && (
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      className="bg-secondary hover:bg-secondary/90 text-white"
+                      onClick={async () => {
+                        const res = await fetch(`/api/reservations/${r.id}`, {
+                          method: "PATCH",
+                          credentials: "include",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ status: "completed" }),
+                        });
+                        if (res.ok) {
+                          await loadAdminReservations();
+                          toast({ title: "Reservation marked completed" });
+                        }
+                      }}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5 mr-1" /> Complete
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive border-destructive/20"
+                      onClick={async () => {
+                        const res = await fetch(`/api/reservations/${r.id}`, {
+                          method: "DELETE",
+                          credentials: "include",
+                        });
+                        if (res.ok) {
+                          await loadAdminReservations();
+                          toast({ title: "Reservation cancelled" });
+                        }
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 )}
               </div>
             ))}
