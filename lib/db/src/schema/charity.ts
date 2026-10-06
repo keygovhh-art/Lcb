@@ -11,6 +11,7 @@ export const charitiesTable = pgTable("charities", {
   goalAmount: integer("goal_amount").notNull().default(0),
   raisedAmount: integer("raised_amount").notNull().default(0),
   isTodaysFeatured: boolean("is_todays_featured").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
