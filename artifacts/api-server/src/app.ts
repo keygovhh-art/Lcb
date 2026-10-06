@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import { join, resolve } from "node:path";
 import cors from "cors";
 import session from "express-session";
 import pinoHttp from "pino-http";
@@ -42,6 +43,19 @@ app.use("/api", router);
 app.use("/api", (_req, res) => {
   res.status(404).json({ error: "API route not found" });
 });
+
+if (process.env.NODE_ENV === "production") {
+  const staticDir = resolve(process.cwd(), "artifacts/gavhah/dist/public");
+
+  app.use(express.static(staticDir));
+  app.use((req, res, next) => {
+    if (req.method === "GET") {
+      res.sendFile(join(staticDir, "index.html"));
+      return;
+    }
+    next();
+  });
+}
 
 app.use(((err, req, res, next) => {
   req.log.error({ err }, "Request failed");
