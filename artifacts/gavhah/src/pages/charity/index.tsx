@@ -1,104 +1,21 @@
-import { useState } from "react";
-import { useGetTodaysCharity, useListCharities, useDonateToCharity, getGetTodaysCharityQueryKey, getListCharitiesQueryKey } from "@workspace/api-client-react";
+import { useGetTodaysCharity, useListCharities, getGetTodaysCharityQueryKey, getListCharitiesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Heart, Star, TrendingUp, Users } from "lucide-react";
-import { useAuth } from "@/context/auth-context";
-import { MemberGate } from "@/components/shared/member-gate";
 
-function DonateDialog({ charityId, charityName, onSuccess }: { charityId: number; charityName: string; onSuccess: () => void }) {
-  const { isAuthenticated, isLoaded } = useAuth();
-  const [amount, setAmount] = useState("");
-  const [donorName, setDonorName] = useState("");
-  const [open, setOpen] = useState(false);
-  const donate = useDonateToCharity();
-
-  const presets = [18, 36, 54, 100, 180, 360];
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!amount || isNaN(Number(amount))) return;
-    donate.mutate(
-      { id: charityId, data: { amount: Number(amount), donorName: donorName || "Anonymous" } },
-      {
-        onSuccess: () => {
-          setOpen(false);
-          setAmount("");
-          setDonorName("");
-          onSuccess();
-        },
-      }
-    );
-  };
-
-  if (isLoaded && !isAuthenticated) {
-    return <MemberGate compact action="donate to this campaign">{null}</MemberGate>;
-  }
-
+function DonateDialog({ charityName }: { charityId: number; charityName: string; onSuccess: () => void }) {
   return (
-    <>
-      <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 h-12 px-8 text-base" onClick={() => setOpen(true)}>
-        <Heart className="h-5 w-5" /> Donate Now
+    <div className="w-full max-w-xs space-y-2">
+      <Button className="w-full h-12 gap-2" variant="outline" disabled>
+        <Heart className="h-5 w-5" /> Online Donations Not Connected
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-serif text-2xl text-primary">Donate to {charityName}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-5 pt-2">
-            <div className="space-y-2">
-              <Label className="font-semibold">Select or enter an amount ($)</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {presets.map(p => (
-                  <Button
-                    key={p}
-                    type="button"
-                    variant={amount === String(p) ? "default" : "outline"}
-                    className="h-10"
-                    onClick={() => setAmount(String(p))}
-                  >
-                    ${p}
-                  </Button>
-                ))}
-              </div>
-              <Input
-                type="number"
-                min="1"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder="Or enter custom amount..."
-                className="h-11"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="font-semibold">Your name (optional)</Label>
-              <Input
-                value={donorName}
-                onChange={e => setDonorName(e.target.value)}
-                placeholder="Anonymous"
-                className="h-11"
-              />
-            </div>
-            <Button
-              type="submit"
-              className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 text-base font-semibold"
-              disabled={donate.isPending || !amount}
-            >
-              {donate.isPending ? "Processing..." : `Donate $${amount || "..."}`}
-            </Button>
-            <p className="text-xs text-center text-muted-foreground">
-              Every donation goes directly to the cause. Tizku l'mitzvos.
-            </p>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+      <p className="text-xs text-center text-muted-foreground">
+        No card or bank payment will be collected here until a verified payment processor is connected for {charityName}.
+      </p>
+    </div>
   );
 }
 
