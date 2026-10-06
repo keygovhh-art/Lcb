@@ -1,6 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and } from "drizzle-orm";
-import { db, announcementsTable, reportsTable, notificationsTable } from "@workspace/db";
+import {
+  db, announcementsTable, reportsTable, notificationsTable,
+  broadcastsTable, usersTable, volunteerProfilesTable,
+} from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { resolveMemberDisplayName } from "../lib/user-display";
 
@@ -64,6 +67,77 @@ router.post("/reports/:id/dismiss", requireAdmin, async (req, res): Promise<void
   const [report] = await db.update(reportsTable).set({ status: "dismissed" }).where(eq(reportsTable.id, id)).returning();
   if (!report) { res.status(404).json({ error: "Not found" }); return; }
   res.json(report);
+});
+
+// Website broadcasts
+router.get("/broadcasts", requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db.select().from(broadcastsTable).orderBy(desc(broadcastsTable.createdAt)).limit(50);
+  res.json(rows);
+});
+
+router.post("/broadcasts", requireAdmin, async (req, res): Promise<void> => {
+  const authorId = getSessionUserId(req)!;
+  const { recipientGroup, channel, subject, message } = req.body;
+
+  if (!String(subject || "").trim() || !String(message || "").trim()) {
+    res.status(400).json({ error: "subject and message are required" });
+    return;
+  }
+  if (channel !== "website") {
+    res.status(400).json({ error: "Only website notifications are active right now" });
+    return;
+  }
+
+  const users = await db.select({
+    id: usersTable.id,
+    role: usersTable.role,
+    status: usersTable.status,
+  }).from(usersTable);
+
+  let recipientIds = users
+    .filter(u => u.status === "active")
+    .map(u => u.id);
+
+  if (recipientGroup === "admins") {
+    recipientIds = users
+      .filter(u => u.status === "active" && (u.role === "admin" || u.role === "moderator"))
+      .map(u => u.id);
+  } else if (recipientGroup === "volunteers") {
+    const volunteerRows = await db.select({ userId: volunteerProfilesTable.userId }).from(volunteerProfilesTable);
+    const volunteers = new Set(volunteerRows.map(v => v.userId));
+    recipientIds = users
+      .filter(u => u.status === "active" && volunteers.has(u.id))
+      .map(u => u.id);
+  } else if (recipientGroup !== "all") {
+    res.status(400).json({ error: "Unsupported recipient group" });
+    return;
+  }
+
+  const cleanSubject = String(subject).trim();
+  const cleanMessage = String(message).trim();
+
+  if (recipientIds.length > 0) {
+    await db.insert(notificationsTable).values(
+      recipientIds.map(userId => ({
+        userId,
+        type: "broadcast",
+        message: `${cleanSubject} — ${cleanMessage}`,
+        linkUrl: "/notifications",
+        isRead: false,
+      }))
+    );
+  }
+
+  const [broadcast] = await db.insert(broadcastsTable).values({
+    authorId,
+    subject: cleanSubject,
+    message: cleanMessage,
+    recipientGroup,
+    channel: "website",
+    recipientCount: recipientIds.length,
+  }).returning();
+
+  res.status(201).json(broadcast);
 });
 
 // Notifications
