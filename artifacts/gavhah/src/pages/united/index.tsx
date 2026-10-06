@@ -42,6 +42,8 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
   const { user } = useAuth();
   const joinCause = useJoinFeaturedCause();
   const [form, setForm] = useState({ name: "", pledgeType: "volunteer", pledgeAmount: "", message: "", location: "" });
+  const accountName = (user as any)?.nickname || user?.name || "";
+  const joinName = form.name || accountName;
   const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
@@ -54,12 +56,12 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name) return;
+    if (!joinName) return;
     joinCause.mutate(
       {
         id: causeId,
         data: {
-          name: form.name,
+          name: joinName,
           pledgeType: form.pledgeType,
           pledgeAmount: form.pledgeAmount ? Number(form.pledgeAmount) : undefined,
           message: form.message || undefined,
@@ -89,7 +91,7 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-1.5">
             <Label className="font-semibold">Your Name *</Label>
-            <Input value={form.name} onChange={s("name")} placeholder="First name or nickname" className="h-11" required />
+            <Input value={joinName} onChange={s("name")} placeholder="First name or nickname" className="h-11" required />
           </div>
           <div className="space-y-1.5">
             <Label className="font-semibold">Location <span className="font-normal text-muted-foreground">(optional)</span></Label>
@@ -137,11 +139,13 @@ function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
+  const submittedByValue = form.submittedBy || ((user as any)?.nickname || user?.name || "");
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title || !form.description || !form.submittedBy) return;
+    if (!form.title.trim() || !form.description.trim() || !submittedByValue) return;
     submitCause.mutate(
-      { data: { title: form.title, description: form.description, submittedBy: form.submittedBy, location: form.location || undefined, urgency: form.urgency } },
+      { data: { title: form.title.trim(), description: form.description.trim(), submittedBy: submittedByValue, location: form.location || undefined, urgency: form.urgency } },
       {
         onSuccess: () => {
           onClose();
@@ -152,9 +156,6 @@ function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => vo
       }
     );
   };
-
-  // Pre-fill submittedBy from user nickname
-  const submittedByValue = form.submittedBy || ((user as any)?.nickname || user?.name || "");
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
