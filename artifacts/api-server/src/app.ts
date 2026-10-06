@@ -28,7 +28,7 @@ app.use(
 );
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "3mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
