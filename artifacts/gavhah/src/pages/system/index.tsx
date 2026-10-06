@@ -284,8 +284,18 @@ export default function SystemCenter() {
               <form className="space-y-4" onSubmit={e => {
                 e.preventDefault();
                 if (!annTitle || !annContent) return;
-                createAnn.mutate({ data: { title: annTitle, content: annContent } }, {
-                  onSuccess: () => { setAnnTitle(""); setAnnContent(""); qc.invalidateQueries({ queryKey: getListAnnouncementsQueryKey() }); }
+                createAnn.mutate({ data: { title: annTitle.trim(), content: annContent.trim() } }, {
+                  onSuccess: (announcement) => {
+                    setAnnTitle("");
+                    setAnnContent("");
+                    qc.setQueryData(getListAnnouncementsQueryKey(), (current: any) => {
+                      const items = Array.isArray(current) ? current : [];
+                      return [announcement, ...items.filter((item: any) => item.id !== announcement.id)];
+                    });
+                    void qc.invalidateQueries({ queryKey: ["/api/announcements"] });
+                    toast({ title: "Announcement published", description: "It is now live on the platform." });
+                  },
+                  onError: () => toast({ title: "Could not publish announcement", variant: "destructive" }),
                 });
               }}>
                 <Input value={annTitle} onChange={e => setAnnTitle(e.target.value)} placeholder="Announcement title" className="h-11" />
@@ -303,7 +313,19 @@ export default function SystemCenter() {
                   <p className="text-xs text-muted-foreground">By {ann.authorName} · {format(new Date(ann.createdAt), "MMM d, yyyy")}</p>
                 </div>
                 <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => deleteAnn.mutate({ id: ann.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListAnnouncementsQueryKey() }) })}
+                  onClick={() => deleteAnn.mutate(
+                    { id: ann.id },
+                    {
+                      onSuccess: () => {
+                        qc.setQueryData(getListAnnouncementsQueryKey(), (current: any) =>
+                          Array.isArray(current) ? current.filter((item: any) => item.id !== ann.id) : current
+                        );
+                        void qc.invalidateQueries({ queryKey: ["/api/announcements"] });
+                        toast({ title: "Announcement deleted" });
+                      },
+                      onError: () => toast({ title: "Could not delete announcement", variant: "destructive" }),
+                    }
+                  )}
                 ><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
