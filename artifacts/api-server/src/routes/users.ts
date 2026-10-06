@@ -94,8 +94,20 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   const requesterId = getSessionUserId(req)!;
   const requesterRole = getSessionUserRole(req);
-  if (requesterId !== id && !isStaffRole(requesterRole)) {
+
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  if (!target) { res.status(404).json({ error: "User not found" }); return; }
+
+  const isSelf = requesterId === id;
+  const isAdmin = requesterRole === "admin";
+  const isModerator = requesterRole === "moderator";
+
+  if (!isSelf && !isAdmin && !isModerator) {
     res.status(403).json({ error: "Not allowed" });
+    return;
+  }
+  if (!isSelf && isModerator && target.role === "admin") {
+    res.status(403).json({ error: "Moderators cannot manage administrators" });
     return;
   }
 
@@ -103,48 +115,113 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
   const updates: Record<string, unknown> = {};
 
   if (name !== undefined) {
+    if (!isSelf && !isAdmin) { res.status(403).json({ error: "Not allowed" }); return; }
     const cleanName = String(name).trim();
     if (!cleanName) { res.status(400).json({ error: "name cannot be empty" }); return; }
     updates.name = cleanName;
   }
   if (nickname !== undefined) {
+    if (!isSelf && !isAdmin) { res.status(403).json({ error: "Not allowed" }); return; }
     const cleanNickname = String(nickname).trim();
     if (!cleanNickname) { res.status(400).json({ error: "nickname cannot be empty" }); return; }
     updates.nickname = cleanNickname;
   }
-  if (bio !== undefined) updates.bio = bio ? String(bio).trim() : null;
-  if (location !== undefined) updates.location = location ? String(location).trim() : null;
-  if (preferredLanguage !== undefined) updates.preferredLanguage = String(preferredLanguage);
-  if (isStaffRole(requesterRole)) {
-    if (role !== undefined) updates.role = role;
-    if (status !== undefined) updates.status = status;
+  if (bio !== undefined) {
+    if (!isSelf && !isAdmin) { res.status(403).json({ error: "Not allowed" }); return; }
+    updates.bio = bio ? String(bio).trim() : null;
+  }
+  if (location !== undefined) {
+    if (!isSelf && !isAdmin) { res.status(403).json({ error: "Not allowed" }); return; }
+    updates.location = location ? String(location).trim() : null;
+  }
+  if (preferredLanguage !== undefined) {
+    if (!isSelf && !isAdmin) { res.status(403).json({ error: "Not allowed" }); return; }
+    updates.preferredLanguage = String(preferredLanguage);
+  }
+
+  if (role !== undefined) {
+    if (!isAdmin) {
+      res.status(403).json({ error: "Only administrators can change roles" });
+      return;
+    }
+    if (!["member", "moderator", "admin"].includes(String(role))) {
+      res.status(400).json({ error: "Invalid role" });
+      return;
+    }
+    if (isSelf && role !== target.role) {
+      res.status(400).json({ error: "You cannot change your own admin role here" });
+      return;
+    }
+    updates.role = role;
+  }
+
+  if (status !== undefined) {
+    if (!isAdmin && !isModerator) {
+      res.status(403).json({ error: "Only staff can change account status" });
+      return;
+    }
+    if (isSelf && status !== target.status) {
+      res.status(400).json({ error: "You cannot suspend or ban your own account" });
+      return;
+    }
+    if (!["active", "suspended", "banned"].includes(String(status))) {
+      res.status(400).json({ error: "Invalid status" });
+      return;
+    }
+    updates.status = status;
   }
 
   const [user] = await db.update(usersTable)
     .set(updates)
     .where(eq(usersTable.id, id))
     .returning();
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
   res.json(safeUser(user));
 });
 
 router.delete("/users/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
+  if (id === getSessionUserId(req)) {
+    res.status(400).json({ error: "You cannot delete your own admin account" });
+    return;
+  }
   await db.delete(usersTable).where(eq(usersTable.id, id));
   res.sendStatus(204);
 });
 
 router.post("/users/:id/ban", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
+  const requesterId = getSessionUserId(req)!;
+  const requesterRole = getSessionUserRole(req);
+  if (id === requesterId) {
+    res.status(400).json({ error: "You cannot ban your own account" });
+    return;
+  }
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  if (!target) { res.status(404).json({ error: "User not found" }); return; }
+  if (requesterRole === "moderator" && target.role === "admin") {
+    res.status(403).json({ error: "Moderators cannot manage administrators" });
+    return;
+  }
   const [user] = await db.update(usersTable).set({ status: "banned" }).where(eq(usersTable.id, id)).returning();
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
   res.json(safeUser(user));
 });
 
 router.post("/users/:id/suspend", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
+  const requesterId = getSessionUserId(req)!;
+  const requesterRole = getSessionUserRole(req);
+  if (id === requesterId) {
+    res.status(400).json({ error: "You cannot suspend your own account" });
+    return;
+  }
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  if (!target) { res.status(404).json({ error: "User not found" }); return; }
+  if (requesterRole === "moderator" && target.role === "admin") {
+    res.status(403).json({ error: "Moderators cannot manage administrators" });
+    return;
+  }
   const [user] = await db.update(usersTable).set({ status: "suspended" }).where(eq(usersTable.id, id)).returning();
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
   res.json(safeUser(user));
 });
 
