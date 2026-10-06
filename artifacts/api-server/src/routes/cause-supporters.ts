@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { desc } from "drizzle-orm";
 import { db, causeSupportersTable } from "@workspace/db";
+import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -11,7 +12,7 @@ router.get("/cause-supporters", async (req, res): Promise<void> => {
   res.json(all);
 });
 
-router.post("/cause-supporters", async (req, res): Promise<void> => {
+router.post("/cause-supporters", requireAuth, async (req, res): Promise<void> => {
   const { causeType, name, pledgeType, pledgeAmount, message, location } = req.body;
   if (!causeType || !name || !pledgeType) {
     res.status(400).json({ error: "causeType, name, and pledgeType are required" });
