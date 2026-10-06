@@ -3,6 +3,8 @@ import { eq, desc, and } from "drizzle-orm";
 import { db, communityProjectsTable, projectMembersTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { resolveMemberDisplayName } from "../lib/user-display";
+import { logActivity } from "../lib/activity";
+import { notifyUser } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -48,6 +50,7 @@ router.post("/community-projects", requireAuth, async (req, res): Promise<void> 
     message: null,
   }).onConflictDoNothing();
 
+  await logActivity("project", `Created community project "${project.title}"`, safeOrganizerName);
   res.status(201).json(project);
 });
 
@@ -113,6 +116,15 @@ router.post("/community-projects/:id/join", requireAuth, async (req, res): Promi
     role,
     message: message ? String(message).trim() : null,
   }).returning();
+
+  if (project.ownerId !== userId) {
+    await notifyUser(
+      project.ownerId,
+      "project_join",
+      `${safeName} joined your project "${project.title}".`,
+      "/directory",
+    );
+  }
 
   res.status(201).json(member);
 });
