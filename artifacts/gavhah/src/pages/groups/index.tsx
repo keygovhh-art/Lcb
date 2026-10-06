@@ -6,7 +6,7 @@ import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Plus, Users, Lock, Globe, KeyRound, MessageCircle } from "lucide-react";
+import { Search, Plus, Users, Lock, Globe, MessageCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,7 +67,6 @@ export default function GroupsList() {
 
   const privacyIcon = (p: string) => {
     if (p === "private") return <Lock className="h-4 w-4 text-muted-foreground" />;
-    if (p === "password_protected") return <KeyRound className="h-4 w-4 text-muted-foreground" />;
     return <Globe className="h-4 w-4 text-muted-foreground" />;
   };
 
@@ -218,12 +217,30 @@ export default function GroupsList() {
                     </Link>
                     <Button
                       className="flex-1 text-sm bg-secondary hover:bg-secondary/90 text-white"
-                      onClick={() => join.mutate({ id: group.id }, {
-                        onSuccess: () => qc.invalidateQueries({ queryKey: getListGroupsQueryKey(params) })
-                      })}
+                      onClick={() => {
+                        if (!isAuthenticated) {
+                          toast({ title: "Sign in to join groups", description: "Join Gavhah free to participate." });
+                          return;
+                        }
+                        join.mutate(
+                          { id: group.id },
+                          {
+                            onSuccess: (member: any) => {
+                              void qc.invalidateQueries({ queryKey: getListGroupsQueryKey(params) });
+                              toast({
+                                title: member.status === "pending" ? "Join request sent" : "Joined group",
+                                description: member.status === "pending"
+                                  ? "The group owner will review your request."
+                                  : "You are now a member.",
+                              });
+                            },
+                            onError: () => toast({ title: "Could not join group", variant: "destructive" }),
+                          }
+                        );
+                      }}
                       disabled={join.isPending}
                     >
-                      Join
+                      {group.privacy === "private" ? "Request to Join" : "Join"}
                     </Button>
                   </div>
                 </div>
