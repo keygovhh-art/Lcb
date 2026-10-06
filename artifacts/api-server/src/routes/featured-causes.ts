@@ -169,8 +169,8 @@ router.post("/cause-submissions/:id/approve", requireAdmin, async (req, res): Pr
   const id = parseInt(req.params.id, 10);
   const [submission] = await db.select().from(causeSubmissionsTable).where(eq(causeSubmissionsTable.id, id));
   if (!submission) { res.status(404).json({ error: "Not found" }); return; }
-  if (submission.status === "approved") {
-    res.status(409).json({ error: "Already approved" });
+  if (submission.status !== "pending") {
+    res.status(409).json({ error: "This submission has already been reviewed" });
     return;
   }
 
@@ -203,11 +203,17 @@ router.post("/cause-submissions/:id/approve", requireAdmin, async (req, res): Pr
 
 router.post("/cause-submissions/:id/reject", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
+  const [existing] = await db.select().from(causeSubmissionsTable).where(eq(causeSubmissionsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.status !== "pending") {
+    res.status(409).json({ error: "This submission has already been reviewed" });
+    return;
+  }
+
   const [submission] = await db.update(causeSubmissionsTable)
     .set({ status: "rejected", adminNotes: req.body?.adminNotes ?? null })
     .where(eq(causeSubmissionsTable.id, id))
     .returning();
-  if (!submission) { res.status(404).json({ error: "Not found" }); return; }
 
   await db.insert(notificationsTable).values({
     userId: submission.userId,
