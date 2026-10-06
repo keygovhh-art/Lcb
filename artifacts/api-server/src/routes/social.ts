@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { followsTable, savedItemsTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
+import { requireAuth, getSessionUserId } from "../middlewares/auth";
 
 const router = Router();
 
@@ -10,25 +11,26 @@ const fmtS = (r: typeof savedItemsTable.$inferSelect) => ({ ...r, createdAt: r.c
 
 // --- Follows ---
 
-router.get("/follows", async (_req, res) => {
-  const rows = await db.select().from(followsTable).where(eq(followsTable.userId, 1));
+router.get("/follows", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const rows = await db.select().from(followsTable).where(eq(followsTable.userId, userId));
   res.json(rows.map(fmt));
 });
 
-router.get("/follows/check", async (req, res) => {
+router.get("/follows/check", requireAuth, async (req, res) => {
   const entityType = String(req.query.entityType ?? "");
   const entityId = Number(req.query.entityId ?? 0);
   const [row] = await db.select().from(followsTable).where(
-    and(eq(followsTable.userId, 1), eq(followsTable.entityType, entityType), eq(followsTable.entityId, entityId))
+    and(eq(followsTable.userId, getSessionUserId(req)!), eq(followsTable.entityType, entityType), eq(followsTable.entityId, entityId))
   );
   res.json({ following: !!row, followId: row?.id ?? null });
 });
 
-router.post("/follows", async (req, res) => {
+router.post("/follows", requireAuth, async (req, res) => {
   const { entityType, entityId, entityTitle, entityUrl } = req.body;
   try {
     const [row] = await db.insert(followsTable).values({
-      userId: 1, entityType, entityId, entityTitle: entityTitle ?? "", entityUrl: entityUrl ?? "",
+      userId: getSessionUserId(req)!, entityType, entityId, entityTitle: entityTitle ?? "", entityUrl: entityUrl ?? "",
     }).onConflictDoNothing().returning();
     if (row) { res.status(201).json(fmt(row)); return; }
     const [existing] = await db.select().from(followsTable).where(
@@ -40,32 +42,33 @@ router.post("/follows", async (req, res) => {
   }
 });
 
-router.delete("/follows/:id", async (req, res) => {
-  await db.delete(followsTable).where(and(eq(followsTable.id, Number(req.params.id)), eq(followsTable.userId, 1)));
+router.delete("/follows/:id", requireAuth, async (req, res) => {
+  await db.delete(followsTable).where(and(eq(followsTable.id, Number(req.params.id)), eq(followsTable.userId, getSessionUserId(req)!)));
   res.json({ ok: true });
 });
 
 // --- Saved Items ---
 
-router.get("/saved", async (_req, res) => {
-  const rows = await db.select().from(savedItemsTable).where(eq(savedItemsTable.userId, 1));
+router.get("/saved", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const rows = await db.select().from(savedItemsTable).where(eq(savedItemsTable.userId, userId));
   res.json(rows.map(fmtS));
 });
 
-router.get("/saved/check", async (req, res) => {
+router.get("/saved/check", requireAuth, async (req, res) => {
   const contentType = String(req.query.contentType ?? "");
   const contentId = Number(req.query.contentId ?? 0);
   const [row] = await db.select().from(savedItemsTable).where(
-    and(eq(savedItemsTable.userId, 1), eq(savedItemsTable.contentType, contentType), eq(savedItemsTable.contentId, contentId))
+    and(eq(savedItemsTable.userId, getSessionUserId(req)!), eq(savedItemsTable.contentType, contentType), eq(savedItemsTable.contentId, contentId))
   );
   res.json({ saved: !!row, savedId: row?.id ?? null });
 });
 
-router.post("/saved", async (req, res) => {
+router.post("/saved", requireAuth, async (req, res) => {
   const { contentType, contentId, contentTitle, contentUrl } = req.body;
   try {
     const [row] = await db.insert(savedItemsTable).values({
-      userId: 1, contentType, contentId, contentTitle: contentTitle ?? "", contentUrl: contentUrl ?? "",
+      userId: getSessionUserId(req)!, contentType, contentId, contentTitle: contentTitle ?? "", contentUrl: contentUrl ?? "",
     }).onConflictDoNothing().returning();
     if (row) { res.status(201).json(fmtS(row)); return; }
     const [existing] = await db.select().from(savedItemsTable).where(
@@ -77,8 +80,8 @@ router.post("/saved", async (req, res) => {
   }
 });
 
-router.delete("/saved/:id", async (req, res) => {
-  await db.delete(savedItemsTable).where(and(eq(savedItemsTable.id, Number(req.params.id)), eq(savedItemsTable.userId, 1)));
+router.delete("/saved/:id", requireAuth, async (req, res) => {
+  await db.delete(savedItemsTable).where(and(eq(savedItemsTable.id, Number(req.params.id)), eq(savedItemsTable.userId, getSessionUserId(req)!)));
   res.json({ ok: true });
 });
 
