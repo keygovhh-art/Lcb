@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { resolveMemberDisplayName } from "../lib/user-display";
+import { logActivity } from "../lib/activity";
 
 const router: IRouter = Router();
 
@@ -189,6 +190,8 @@ router.post("/cause-submissions/:id/approve", requireAdmin, async (req, res): Pr
   await db.update(causeSubmissionsTable)
     .set({ status: "approved", adminNotes: req.body?.adminNotes ?? null })
     .where(eq(causeSubmissionsTable.id, id));
+
+  await logActivity("cause", `Featured cause "${cause.title}" was approved`, submission.submittedBy);
 
   await db.insert(notificationsTable).values({
     userId: submission.userId,
