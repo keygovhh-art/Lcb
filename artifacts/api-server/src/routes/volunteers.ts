@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { getMemberIdentity, resolveMemberDisplayName } from "../lib/user-display";
+import { logActivity } from "../lib/activity";
 
 const router: IRouter = Router();
 
@@ -62,6 +63,7 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
     labels: [],
     isFeatured: false,
   }).returning();
+  await logActivity("volunteer", `${safeUserName} registered as a volunteer`, safeUserName);
   res.status(201).json(vol);
 });
 
@@ -213,6 +215,10 @@ router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> 
       status === "rejected" ? `Your help request "${request.name}" was not approved for public listing.` :
       status === "resolved" ? `Your help request "${request.name}" was marked resolved.` :
       null;
+
+    if (status === "open" && existing.status === "pending") {
+      await logActivity("help_request", "A new help request was approved for the directory", request.name);
+    }
 
     if (decisionMessage) {
       await db.insert(notificationsTable).values({
