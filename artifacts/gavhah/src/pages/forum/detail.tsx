@@ -70,11 +70,21 @@ export default function ForumDetail() {
     e.preventDefault();
     if (!reply.trim()) return;
     const authorName = getDisplayName(displayAs, user);
-    addComment.mutate({ id: numId, data: { content: reply, authorName } }, {
-      onSuccess: () => {
+    addComment.mutate({ id: numId, data: { content: reply.trim(), authorName } }, {
+      onSuccess: (comment) => {
         setReply("");
-        qc.invalidateQueries({ queryKey: getListDiscussionCommentsQueryKey(numId) });
+        qc.setQueryData(getListDiscussionCommentsQueryKey(numId), (current: any) => {
+          const items = Array.isArray(current) ? current : [];
+          return [...items.filter((item: any) => item.id !== comment.id), comment];
+        });
+        void qc.invalidateQueries({ queryKey: getGetDiscussionQueryKey(numId) });
+        toast({ title: "Reply posted", description: "Your reply is now live." });
       },
+      onError: () => toast({
+        title: "Could not post reply",
+        description: "Please try again.",
+        variant: "destructive",
+      }),
     });
   };
 
