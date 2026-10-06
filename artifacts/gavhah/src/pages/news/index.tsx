@@ -21,6 +21,7 @@ import {
   AlertTriangle, Clock, Building2, Megaphone, HandHeart, Siren
 } from "lucide-react";
 import { format } from "date-fns";
+import { useLikeArticle } from "@/hooks/use-like-article";
 
 // --- Category config ---
 const CATEGORIES = [
@@ -63,25 +64,6 @@ const URGENCY_STYLE: Record<string, { badge: string; card: string; label: string
   normal: { badge: "", card: "", label: "" },
   low: { badge: "", card: "", label: "" },
 };
-
-function useLikeArticle(id: number, initialCount: number) {
-  const { isAuthenticated } = useAuth();
-  const { toast } = useToast();
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(initialCount);
-  const toggle = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
-    if (!isAuthenticated) {
-      toast({ title: "Sign in to like stories", description: "Join Gavhah free to show appreciation for chesed stories." });
-      return;
-    }
-    const next = !isLiked;
-    setIsLiked(next);
-    setLikeCount(c => next ? c + 1 : c - 1);
-    fetch(`/api/news/${id}/like`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ liked: next }) });
-  };
-  return { isLiked, likeCount, toggle };
-}
 
 function PostUpdateDialog() {
   const qc = useQueryClient();
