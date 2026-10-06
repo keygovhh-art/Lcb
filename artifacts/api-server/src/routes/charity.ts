@@ -33,7 +33,7 @@ router.patch("/charity/:id", requireAdmin, async (req, res): Promise<void> => {
   res.json(charity);
 });
 
-router.post("/charity/:id/donate", requireAuth, async (req, res): Promise<void> => {
+router.post("/charity/:id/donate", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const charityId = parseInt(raw, 10);
   const { amount, donorName } = req.body;
