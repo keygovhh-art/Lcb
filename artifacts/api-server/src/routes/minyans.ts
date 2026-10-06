@@ -1,10 +1,14 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, desc } from "drizzle-orm";
 import { db, minyansTable } from "@workspace/db";
-import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
+import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 
 const router: IRouter = Router();
+
+function isStaffRole(role?: string) {
+  return role === "admin" || role === "moderator";
+}
 
 router.get("/admin/minyans", requireAdmin, async (_req, res): Promise<void> => {
   const all = await db.select().from(minyansTable).orderBy(desc(minyansTable.createdAt));
@@ -27,7 +31,16 @@ router.post("/minyans", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "Required fields missing" }); return;
   }
   const [minyan] = await db.insert(minyansTable).values({
-    synagogueName, community: community || "", city, country, address, shacharis, mincha, maariv, notes,
+    submittedByUserId: getSessionUserId(req)!,
+    synagogueName: String(synagogueName).trim(),
+    community: community || "",
+    city: String(city).trim(),
+    country: String(country).trim(),
+    address: address ? String(address).trim() : null,
+    shacharis: String(shacharis).trim(),
+    mincha: String(mincha).trim(),
+    maariv: String(maariv).trim(),
+    notes: notes ? String(notes).trim() : null,
     status: "pending",
   }).returning();
   res.status(201).json(minyan);
@@ -38,6 +51,15 @@ router.get("/minyans/:id", async (req, res): Promise<void> => {
   const id = parseInt(raw, 10);
   const [minyan] = await db.select().from(minyansTable).where(eq(minyansTable.id, id));
   if (!minyan) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (minyan.status !== "approved") {
+    const userId = getSessionUserId(req);
+    if (userId !== minyan.submittedByUserId && !isStaffRole(getSessionUserRole(req))) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+  }
+
   res.json(minyan);
 });
 
