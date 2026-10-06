@@ -41,6 +41,8 @@ export default function ForumDetail() {
   const [editCategory, setEditCategory] = useState("general");
   const [savingEdit, setSavingEdit] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingCommentContent, setEditingCommentContent] = useState("");
   const [displayAs, setDisplayAs] = useState<DisplayAs>("nickname");
 
   const { data: discussion, isLoading } = useGetDiscussion(numId, {
@@ -60,6 +62,45 @@ export default function ForumDetail() {
     like.mutate({ id: numId }, {
       onSuccess: () => qc.invalidateQueries({ queryKey: getGetDiscussionQueryKey(numId) }),
     });
+  };
+
+  const saveCommentEdit = async (commentId: number) => {
+    const content = editingCommentContent.trim();
+    if (!content) return;
+    const res = await fetch(`/api/discussions/${numId}/comments/${commentId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    });
+    if (!res.ok) {
+      toast({ title: "Could not update reply", variant: "destructive" });
+      return;
+    }
+    const updated = await res.json();
+    qc.setQueryData(getListDiscussionCommentsQueryKey(numId), (current: any) =>
+      Array.isArray(current) ? current.map((item: any) => item.id === commentId ? updated : item) : current
+    );
+    setEditingCommentId(null);
+    setEditingCommentContent("");
+    toast({ title: "Reply updated" });
+  };
+
+  const deleteComment = async (commentId: number) => {
+    if (!window.confirm("Delete this reply?")) return;
+    const res = await fetch(`/api/discussions/${numId}/comments/${commentId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      toast({ title: "Could not delete reply", variant: "destructive" });
+      return;
+    }
+    qc.setQueryData(getListDiscussionCommentsQueryKey(numId), (current: any) =>
+      Array.isArray(current) ? current.filter((item: any) => item.id !== commentId) : current
+    );
+    void qc.invalidateQueries({ queryKey: getGetDiscussionQueryKey(numId) });
+    toast({ title: "Reply deleted" });
   };
 
   const handleCommentLike = async (commentId: number) => {
@@ -261,13 +302,48 @@ export default function ForumDetail() {
               </h2>
               {comments?.map(comment => (
                 <div key={comment.id} className="bg-card border rounded-xl p-6">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between gap-3 mb-3">
                     <span className="font-semibold text-foreground text-sm">{comment.authorName}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(comment.createdAt), "MMM d, yyyy 'at' h:mm a")}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(comment.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                      </span>
+                      {!!user && (comment.authorId === user.id || isAdmin) && (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => {
+                              setEditingCommentId(comment.id);
+                              setEditingCommentContent(comment.content);
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive"
+                            onClick={() => void deleteComment(comment.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-foreground leading-relaxed">{comment.content}</p>
+                  {editingCommentId === comment.id ? (
+                    <div className="space-y-2">
+                      <Textarea value={editingCommentContent} onChange={e => setEditingCommentContent(e.target.value)} className="min-h-24" />
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => void saveCommentEdit(comment.id)} disabled={!editingCommentContent.trim()}>Save</Button>
+                        <Button size="sm" variant="outline" onClick={() => { setEditingCommentId(null); setEditingCommentContent(""); }}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-foreground leading-relaxed">{comment.content}</p>
+                  )}
                   <div className="flex items-center gap-4 mt-3 pt-3 border-t text-xs text-muted-foreground">
                     <button
                       className="flex items-center gap-1 hover:text-secondary transition-colors"
