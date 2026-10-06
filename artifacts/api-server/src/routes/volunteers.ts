@@ -31,7 +31,7 @@ router.get("/volunteers", async (req, res): Promise<void> => {
 
 router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   const userId = getSessionUserId(req)!;
-  const { userName, skills, availability, location, areasOfInterest } = req.body;
+  const { userName, skills, availability, location, bio, areasOfInterest } = req.body;
   if (!availability || !String(location || "").trim()) {
     res.status(400).json({ error: "availability and location required" });
     return;
@@ -49,6 +49,7 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
     userName: safeUserName,
     skills: Array.isArray(skills) ? skills : [],
     availability: String(availability),
+    bio: bio ? String(bio).trim() : null,
     location: String(location).trim(),
     areasOfInterest: Array.isArray(areasOfInterest) ? areasOfInterest : [],
     labels: [],
