@@ -98,8 +98,28 @@ router.patch("/news/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Not allowed" }); return;
   }
   const { title, content, summary, imageUrl, category, urgency, deadline, organization, isFeatured } = req.body;
+  const updates: Record<string, unknown> = {};
+
+  if (title !== undefined) {
+    const cleanTitle = String(title).trim();
+    if (!cleanTitle) { res.status(400).json({ error: "title required" }); return; }
+    updates.title = cleanTitle;
+  }
+  if (content !== undefined) {
+    const cleanContent = String(content).trim();
+    if (!cleanContent) { res.status(400).json({ error: "content required" }); return; }
+    updates.content = cleanContent;
+  }
+  if (summary !== undefined) updates.summary = summary ? String(summary).trim() : null;
+  if (imageUrl !== undefined) updates.imageUrl = imageUrl ? String(imageUrl).trim() : null;
+  if (category !== undefined) updates.category = category;
+  if (urgency !== undefined) updates.urgency = urgency;
+  if (deadline !== undefined) updates.deadline = deadline || null;
+  if (organization !== undefined) updates.organization = organization ? String(organization).trim() : null;
+  if (isStaffRole(getSessionUserRole(req)) && isFeatured !== undefined) updates.isFeatured = !!isFeatured;
+
   const [article] = await db.update(newsTable)
-    .set({ title, content, summary, imageUrl, category, urgency, deadline, organization, isFeatured: isStaffRole(getSessionUserRole(req)) ? isFeatured : existing.isFeatured })
+    .set(updates)
     .where(eq(newsTable.id, id)).returning();
   if (!article) { res.status(404).json({ error: "Not found" }); return; }
   res.json(article);
