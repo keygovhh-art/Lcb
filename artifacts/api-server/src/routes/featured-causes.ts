@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, ne } from "drizzle-orm";
 import {
   db,
   featuredCausesTable,
@@ -10,6 +10,7 @@ import {
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { resolveMemberDisplayName } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
+import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 
 const router: IRouter = Router();
 
@@ -34,8 +35,17 @@ router.get("/admin/cause-activity", requireAdmin, async (_req, res): Promise<voi
 // GET /featured-causes
 router.get("/featured-causes", async (req, res): Promise<void> => {
   const { status } = req.query as Record<string, string>;
-  let all = await db.select().from(featuredCausesTable).orderBy(desc(featuredCausesTable.createdAt));
-  if (status) all = all.filter(c => c.status === status);
+  if (status && !["active", "completed"].includes(status)) {
+    res.status(400).json({ error: "Only public cause statuses can be requested" });
+    return;
+  }
+
+  const all = await db.select().from(featuredCausesTable).orderBy(desc(featuredCausesTable.createdAt));
+  res.json(all.filter(c => c.status !== "pending" && (!status || c.status === status)));
+});
+
+router.get("/admin/featured-causes", requireAdmin, async (_req, res): Promise<void> => {
+  const all = await db.select().from(featuredCausesTable).orderBy(desc(featuredCausesTable.createdAt));
   res.json(all);
 });
 
@@ -53,24 +63,59 @@ router.get("/featured-causes/active", async (_req, res): Promise<void> => {
 
 // POST /featured-causes
 router.post("/featured-causes", requireAdmin, async (req, res): Promise<void> => {
-  const { title, description, organizerName, goalAmount, status, imageUrl, location, deadline } = req.body;
-  if (!title || !description) { res.status(400).json({ error: "title and description required" }); return; }
+  const title = String(req.body?.title || "").trim();
+  const description = String(req.body?.description || "").trim();
+  const organizerName = req.body?.organizerName ? String(req.body.organizerName).trim() : null;
+  const imageUrl = req.body?.imageUrl ? String(req.body.imageUrl).trim() : null;
+  const location = req.body?.location ? String(req.body.location).trim() : null;
+  const deadline = req.body?.deadline ? String(req.body.deadline).trim() : null;
+  const status = String(req.body?.status || "pending");
+  const goalAmount = req.body?.goalAmount === null || req.body?.goalAmount === undefined || req.body?.goalAmount === ""
+    ? null
+    : Number(req.body.goalAmount);
+
+  if (!title || !description) {
+    res.status(400).json({ error: "title and description required" });
+    return;
+  }
+  if (!["pending", "active", "completed"].includes(status)) {
+    res.status(400).json({ error: "Invalid cause status" });
+    return;
+  }
+  if (goalAmount !== null && (!Number.isFinite(goalAmount) || goalAmount < 0)) {
+    res.status(400).json({ error: "goalAmount must be zero or greater" });
+    return;
+  }
+
+  if (status === "active") {
+    await db.update(featuredCausesTable)
+      .set({ status: "completed" })
+      .where(eq(featuredCausesTable.status, "active"));
+  }
+
   const [cause] = await db.insert(featuredCausesTable).values({
-    title, description,
-    organizerName: organizerName || null,
-    goalAmount: goalAmount ? String(goalAmount) : null,
-    status: status || "pending",
-    imageUrl: imageUrl || null,
-    location: location || null,
-    deadline: deadline || null,
+    title,
+    description,
+    organizerName,
+    goalAmount: goalAmount === null ? null : String(goalAmount),
+    status,
+    imageUrl,
+    location,
+    deadline,
   }).returning();
+
+  const actorName = await resolveMemberDisplayName(getSessionUserId(req)!);
+  await logActivity("cause", `Created featured cause "${cause.title}"`, actorName);
   res.status(201).json(cause);
 });
 
 // GET /featured-causes/:id
 router.get("/featured-causes/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
-  const [cause] = await db.select().from(featuredCausesTable).where(eq(featuredCausesTable.id, id));
+  const [cause] = await db.select().from(featuredCausesTable).where(and(
+    eq(featuredCausesTable.id, id),
+    ne(featuredCausesTable.status, "pending"),
+  ));
   if (!cause) { res.status(404).json({ error: "Not found" }); return; }
   res.json(cause);
 });
@@ -78,12 +123,59 @@ router.get("/featured-causes/:id", async (req, res): Promise<void> => {
 // PATCH /featured-causes/:id
 router.patch("/featured-causes/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
+  const [existing] = await db.select().from(featuredCausesTable).where(eq(featuredCausesTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+
+  const updates: Record<string, unknown> = {};
   const { title, description, organizerName, goalAmount, status, imageUrl, location, deadline } = req.body;
+
+  if (title !== undefined) {
+    const clean = String(title).trim();
+    if (!clean) { res.status(400).json({ error: "title required" }); return; }
+    updates.title = clean;
+  }
+  if (description !== undefined) {
+    const clean = String(description).trim();
+    if (!clean) { res.status(400).json({ error: "description required" }); return; }
+    updates.description = clean;
+  }
+  if (organizerName !== undefined) updates.organizerName = organizerName ? String(organizerName).trim() : null;
+  if (imageUrl !== undefined) updates.imageUrl = imageUrl ? String(imageUrl).trim() : null;
+  if (location !== undefined) updates.location = location ? String(location).trim() : null;
+  if (deadline !== undefined) updates.deadline = deadline ? String(deadline).trim() : null;
+
+  if (goalAmount !== undefined) {
+    const goal = goalAmount === null || goalAmount === "" ? null : Number(goalAmount);
+    if (goal !== null && (!Number.isFinite(goal) || goal < 0)) {
+      res.status(400).json({ error: "goalAmount must be zero or greater" });
+      return;
+    }
+    updates.goalAmount = goal === null ? null : String(goal);
+  }
+
+  if (status !== undefined) {
+    const cleanStatus = String(status);
+    if (!["pending", "active", "completed"].includes(cleanStatus)) {
+      res.status(400).json({ error: "Invalid cause status" });
+      return;
+    }
+    if (cleanStatus === "active") {
+      await db.update(featuredCausesTable)
+        .set({ status: "completed" })
+        .where(and(eq(featuredCausesTable.status, "active"), ne(featuredCausesTable.id, id)));
+    }
+    updates.status = cleanStatus;
+  }
+
   const [cause] = await db.update(featuredCausesTable)
-    .set({ title, description, organizerName, goalAmount: goalAmount ? String(goalAmount) : undefined, status, imageUrl, location, deadline })
+    .set(updates)
     .where(eq(featuredCausesTable.id, id))
     .returning();
-  if (!cause) { res.status(404).json({ error: "Not found" }); return; }
+
+  if (imageUrl !== undefined && existing.imageUrl && existing.imageUrl !== cause.imageUrl) {
+    await deleteManagedMediaUrl(existing.imageUrl);
+  }
+
   res.json(cause);
 });
 
@@ -91,8 +183,31 @@ router.patch("/featured-causes/:id", requireAdmin, async (req, res): Promise<voi
 router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<void> => {
   const causeId = parseInt(req.params.id, 10);
   const userId = getSessionUserId(req)!;
-  const { name, pledgeType, pledgeAmount, message, location } = req.body;
-  if (!pledgeType) { res.status(400).json({ error: "pledgeType required" }); return; }
+  const [cause] = await db.select().from(featuredCausesTable).where(eq(featuredCausesTable.id, causeId));
+  if (!cause || cause.status !== "active") {
+    res.status(404).json({ error: "Active cause not found" });
+    return;
+  }
+
+  const pledgeType = String(req.body?.pledgeType || "");
+  const allowedPledgeTypes = ["financial", "volunteer", "both", "items", "coordination"];
+  if (!allowedPledgeTypes.includes(pledgeType)) {
+    res.status(400).json({ error: "Invalid pledge type" });
+    return;
+  }
+
+  const rawPledgeAmount = req.body?.pledgeAmount;
+  let pledgeAmount: number | null = null;
+  if (pledgeType === "financial" || pledgeType === "both") {
+    if (rawPledgeAmount !== undefined && rawPledgeAmount !== null && rawPledgeAmount !== "") {
+      const parsed = Number(rawPledgeAmount);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        res.status(400).json({ error: "Pledge amount must be greater than zero" });
+        return;
+      }
+      pledgeAmount = parsed;
+    }
+  }
 
   const [existing] = await db.select().from(featuredCauseSupportersTable).where(and(
     eq(featuredCauseSupportersTable.causeId, causeId),
@@ -103,22 +218,25 @@ router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<
     return;
   }
 
-  const safeName = await resolveMemberDisplayName(userId, name);
+  const safeName = await resolveMemberDisplayName(userId, req.body?.name);
+  const message = req.body?.message ? String(req.body.message).trim().slice(0, 1500) : null;
+  const location = req.body?.location ? String(req.body.location).trim().slice(0, 200) : null;
+
   const [supporter] = await db.insert(featuredCauseSupportersTable).values({
     userId,
     causeId,
     name: safeName,
     pledgeType,
-    pledgeAmount: pledgeAmount ? String(pledgeAmount) : null,
-    message: message || null,
-    location: location || null,
+    pledgeAmount: pledgeAmount === null ? null : String(pledgeAmount),
+    message,
+    location,
   }).returning();
 
   await db.update(featuredCausesTable)
     .set({ supporterCount: sql`${featuredCausesTable.supporterCount} + 1` })
     .where(eq(featuredCausesTable.id, causeId));
 
-  if (pledgeAmount && (pledgeType === "financial" || pledgeType === "both")) {
+  if (pledgeAmount !== null) {
     await db.update(featuredCausesTable)
       .set({ amountRaised: sql`${featuredCausesTable.amountRaised} + ${pledgeAmount}` })
       .where(eq(featuredCausesTable.id, causeId));
@@ -147,14 +265,20 @@ router.post("/cause-submissions", requireAuth, async (req, res): Promise<void> =
     return;
   }
 
+  const cleanUrgency = String(urgency || "normal");
+  if (!["normal", "high", "urgent"].includes(cleanUrgency)) {
+    res.status(400).json({ error: "Invalid urgency" });
+    return;
+  }
+
   const safeSubmittedBy = await resolveMemberDisplayName(userId, submittedBy);
   const [submission] = await db.insert(causeSubmissionsTable).values({
     userId,
-    title: String(title).trim(),
-    description: String(description).trim(),
+    title: String(title).trim().slice(0, 200),
+    description: String(description).trim().slice(0, 5000),
     submittedBy: safeSubmittedBy,
-    location: location ? String(location).trim() : null,
-    urgency: urgency || "normal",
+    location: location ? String(location).trim().slice(0, 200) : null,
+    urgency: cleanUrgency,
   }).returning();
 
   res.status(201).json(submission);
