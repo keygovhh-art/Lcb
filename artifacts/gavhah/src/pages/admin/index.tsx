@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { CharityManagement } from "@/components/admin/charity-management";
 
 function reportContentPath(type: string, id: number) {
   if (type === "news") return `/news/${id}`;
@@ -251,6 +252,7 @@ export default function FounderDashboard() {
               )}
             </TabsTrigger>
             <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" /> Members</TabsTrigger>
+            <TabsTrigger value="charity" className="gap-2"><Heart className="h-4 w-4" /> Charity</TabsTrigger>
             <TabsTrigger value="featured" className="gap-2"><Sparkles className="h-4 w-4" /> Featured</TabsTrigger>
             <TabsTrigger value="causes" className="gap-2"><HandHeart className="h-4 w-4" /> Causes</TabsTrigger>
             <TabsTrigger value="submissions" className="gap-2">
@@ -663,6 +665,11 @@ export default function FounderDashboard() {
             {users?.length === 0 && (
               <div className="text-center py-8 text-muted-foreground font-serif italic border rounded-xl bg-muted/20">No members yet.</div>
             )}
+          </TabsContent>
+
+          {/* ─── Charity Management ─── */}
+          <TabsContent value="charity">
+            <CharityManagement />
           </TabsContent>
 
           {/* ─── Featured Content ─── */}
