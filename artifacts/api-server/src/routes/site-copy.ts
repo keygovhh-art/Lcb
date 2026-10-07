@@ -1,8 +1,25 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
 import { pool } from "@workspace/db";
 import { requireAdmin, getSessionUserId, getCurrentSessionUser } from "../middlewares/auth";
 
 const router: IRouter = Router();
+
+const requireSameOrigin: RequestHandler = (req, res, next) => {
+  const origin = req.get("origin");
+  if (!origin) { next(); return; }
+  try {
+    const parsed = new URL(origin);
+    const host = req.get("x-forwarded-host") || req.get("host");
+    if (parsed.host !== host) {
+      res.status(403).json({ error: "Invalid request origin" });
+      return;
+    }
+    next();
+  } catch {
+    res.status(403).json({ error: "Invalid request origin" });
+  }
+};
+
 let schemaPromise: Promise<void> | null = null;
 
 function ensureSchema(): Promise<void> {
@@ -121,7 +138,7 @@ router.get("/admin/site-copy", requireAdmin, async (req, res, next): Promise<voi
   } catch (err) { next(err); }
 });
 
-router.put("/admin/site-copy", requireAdmin, async (req, res, next): Promise<void> => {
+router.put("/admin/site-copy", requireSameOrigin, requireAdmin, async (req, res, next): Promise<void> => {
   try {
     const key = validateKey(req.body);
     const value = validateValue(req.body?.value);
@@ -140,7 +157,7 @@ router.put("/admin/site-copy", requireAdmin, async (req, res, next): Promise<voi
   } catch (err) { next(err); }
 });
 
-router.post("/admin/site-copy/publish", requireAdmin, async (req, res, next): Promise<void> => {
+router.post("/admin/site-copy/publish", requireSameOrigin, requireAdmin, async (req, res, next): Promise<void> => {
   try {
     const actor = await requirePublisher(req, res);
     if (!actor) return;
@@ -195,7 +212,7 @@ router.get("/admin/site-copy/history/:id", requireAdmin, async (req, res, next):
   } catch (err) { next(err); }
 });
 
-router.post("/admin/site-copy/restore", requireAdmin, async (req, res, next): Promise<void> => {
+router.post("/admin/site-copy/restore", requireSameOrigin, requireAdmin, async (req, res, next): Promise<void> => {
   try {
     const actor = await requirePublisher(req, res);
     if (!actor) return;
@@ -231,7 +248,7 @@ router.post("/admin/site-copy/restore", requireAdmin, async (req, res, next): Pr
   } catch (err) { next(err); }
 });
 
-router.post("/admin/site-copy/reset", requireAdmin, async (req, res, next): Promise<void> => {
+router.post("/admin/site-copy/reset", requireSameOrigin, requireAdmin, async (req, res, next): Promise<void> => {
   try {
     const actor = await requirePublisher(req, res);
     if (!actor) return;
