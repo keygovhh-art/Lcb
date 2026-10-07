@@ -12,6 +12,10 @@ function isStaffRole(role?: string) {
   return role === "admin" || role === "moderator";
 }
 
+const PROJECT_TYPES = new Set(["project", "campaign", "initiative", "program"]);
+const PROJECT_STATUSES = new Set(["active", "completed"]);
+const PROJECT_MEMBER_ROLES = new Set(["volunteer", "supporter", "organizer", "donor"]);
+
 // GET /community-projects
 router.get("/community-projects", async (req, res): Promise<void> => {
   const { type, status } = req.query as Record<string, string>;
@@ -25,20 +29,27 @@ router.get("/community-projects", async (req, res): Promise<void> => {
 router.post("/community-projects", requireAuth, async (req, res): Promise<void> => {
   const userId = getSessionUserId(req)!;
   const { title, description, type, organizerName, location, goalDescription } = req.body;
-  if (!String(title || "").trim() || !String(description || "").trim()) {
+  const cleanTitle = String(title || "").trim();
+  const cleanDescription = String(description || "").trim();
+  const cleanType = String(type || "project");
+  if (!cleanTitle || !cleanDescription) {
     res.status(400).json({ error: "title and description are required" });
+    return;
+  }
+  if (!PROJECT_TYPES.has(cleanType)) {
+    res.status(400).json({ error: "invalid project type" });
     return;
   }
 
   const safeOrganizerName = await resolveMemberDisplayName(userId, organizerName);
   const [project] = await db.insert(communityProjectsTable).values({
     ownerId: userId,
-    title: String(title).trim(),
-    description: String(description).trim(),
-    type: type || "project",
+    title: cleanTitle.slice(0, 240),
+    description: cleanDescription.slice(0, 5000),
+    type: cleanType,
     organizerName: safeOrganizerName,
-    location: location ? String(location).trim() : null,
-    goalDescription: goalDescription ? String(goalDescription).trim() : null,
+    location: location ? String(location).trim().slice(0, 200) : null,
+    goalDescription: goalDescription ? String(goalDescription).trim().slice(0, 1000) : null,
     status: "active",
   }).returning();
 
@@ -71,8 +82,36 @@ router.patch("/community-projects/:id", requireAuth, async (req, res): Promise<v
     res.status(403).json({ error: "Not allowed" }); return;
   }
   const { title, description, type, organizerName, location, goalDescription, status } = req.body;
+  const updates: Record<string, unknown> = {};
+
+  if (title !== undefined) {
+    const clean = String(title).trim();
+    if (!clean) { res.status(400).json({ error: "title required" }); return; }
+    updates.title = clean.slice(0, 240);
+  }
+  if (description !== undefined) {
+    const clean = String(description).trim();
+    if (!clean) { res.status(400).json({ error: "description required" }); return; }
+    updates.description = clean.slice(0, 5000);
+  }
+  if (type !== undefined) {
+    const clean = String(type);
+    if (!PROJECT_TYPES.has(clean)) { res.status(400).json({ error: "invalid project type" }); return; }
+    updates.type = clean;
+  }
+  if (organizerName !== undefined) {
+    updates.organizerName = await resolveMemberDisplayName(existing.ownerId, organizerName);
+  }
+  if (location !== undefined) updates.location = location ? String(location).trim().slice(0, 200) : null;
+  if (goalDescription !== undefined) updates.goalDescription = goalDescription ? String(goalDescription).trim().slice(0, 1000) : null;
+  if (status !== undefined) {
+    const clean = String(status);
+    if (!PROJECT_STATUSES.has(clean)) { res.status(400).json({ error: "invalid project status" }); return; }
+    updates.status = clean;
+  }
+
   const [project] = await db.update(communityProjectsTable)
-    .set({ title, description, type, organizerName, location, goalDescription, status })
+    .set(updates)
     .where(eq(communityProjectsTable.id, id))
     .returning();
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
@@ -97,10 +136,17 @@ router.post("/community-projects/:id/join", requireAuth, async (req, res): Promi
   const projectId = parseInt(req.params.id, 10);
   const userId = getSessionUserId(req)!;
   const { name, role, message } = req.body;
-  if (!role) { res.status(400).json({ error: "role required" }); return; }
+  const cleanRole = String(role || "");
+  if (!PROJECT_MEMBER_ROLES.has(cleanRole)) {
+    res.status(400).json({ error: "valid role required" });
+    return;
+  }
 
   const [project] = await db.select().from(communityProjectsTable).where(eq(communityProjectsTable.id, projectId));
-  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+  if (!project || project.status !== "active") {
+    res.status(404).json({ error: "Active project not found" });
+    return;
+  }
 
   const [existing] = await db.select().from(projectMembersTable).where(and(
     eq(projectMembersTable.projectId, projectId),
@@ -113,8 +159,8 @@ router.post("/community-projects/:id/join", requireAuth, async (req, res): Promi
     userId,
     projectId,
     name: safeName,
-    role,
-    message: message ? String(message).trim() : null,
+    role: cleanRole,
+    message: message ? String(message).trim().slice(0, 1500) : null,
   }).returning();
 
   if (project.ownerId !== userId) {
