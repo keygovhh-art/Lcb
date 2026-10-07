@@ -3,6 +3,7 @@ import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "../lib/crypto";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
+import { createRateLimiter } from "../middlewares/rate-limit";
 
 declare module "express-session" {
   interface SessionData {
@@ -12,6 +13,13 @@ declare module "express-session" {
 }
 
 const router = Router();
+
+const loginLimiter = createRateLimiter({
+  name: "login",
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: "Too many sign-in attempts. Please wait a few minutes and try again.",
+});
 
 function safeUser<T extends { passwordHash?: unknown }>(user: T) {
   const { passwordHash: _passwordHash, ...safe } = user as T & { passwordHash?: unknown };
@@ -31,7 +39,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   res.json(safeUser(user));
 });
 
-router.post("/auth/login", async (req, res): Promise<void> => {
+router.post("/auth/login", loginLimiter, async (req, res): Promise<void> => {
   const { identifier, password } = req.body as { identifier: string; password: string };
   if (!identifier || !password) {
     res.status(400).json({ error: "Email/phone and password are required" });
