@@ -57,7 +57,7 @@ async function getCaseWithDetails(id: number, userId: number) {
 
 // --- Cases ---
 
-router.get("/api/askanus/cases", requireAuth, async (req, res) => {
+router.get("/askanus/cases", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
   const cases = await db.select().from(askanuscases)
     .where(eq(askanuscases.userId, userId))
@@ -66,7 +66,7 @@ router.get("/api/askanus/cases", requireAuth, async (req, res) => {
   res.json(result);
 });
 
-router.post("/api/askanus/cases", requireAuth, async (req, res) => {
+router.post("/askanus/cases", requireAuth, async (req, res) => {
   const { title, description, urgency, category, contactName, deadline, goalAmount, notes } = req.body;
   const cleanTitle = String(title || "").trim();
   const cleanUrgency = String(urgency ?? "medium");
@@ -112,7 +112,7 @@ router.post("/api/askanus/cases", requireAuth, async (req, res) => {
   res.status(201).json(full);
 });
 
-router.patch("/api/askanus/cases/:id", requireAuth, async (req, res) => {
+router.patch("/askanus/cases/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const userId = getSessionUserId(req)!;
   const [owned] = await db.select({ id: askanuscases.id }).from(askanuscases).where(
@@ -152,7 +152,7 @@ router.patch("/api/askanus/cases/:id", requireAuth, async (req, res) => {
   res.json(full);
 });
 
-router.delete("/api/askanus/cases/:id", requireAuth, async (req, res) => {
+router.delete("/askanus/cases/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const userId = getSessionUserId(req)!;
   const [owned] = await db.select({ id: askanuscases.id }).from(askanuscases).where(
@@ -167,7 +167,7 @@ router.delete("/api/askanus/cases/:id", requireAuth, async (req, res) => {
 });
 
 // Unified progress update — handles all UpdateProgressDialog actions atomically
-router.post("/api/askanus/cases/:id/progress", requireAuth, async (req, res) => {
+router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const userId = getSessionUserId(req)!;
   const { action, amount, note, from, dueDate, status, goal } = req.body;
@@ -248,7 +248,7 @@ router.post("/api/askanus/cases/:id/progress", requireAuth, async (req, res) => 
 });
 
 // Toggle followup
-router.patch("/api/askanus/followups/:id/toggle", requireAuth, async (req, res) => {
+router.patch("/askanus/followups/:id/toggle", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const [existing] = await db.select().from(caseFollowups).where(eq(caseFollowups.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
@@ -263,14 +263,14 @@ router.patch("/api/askanus/followups/:id/toggle", requireAuth, async (req, res) 
 
 // --- Tasks ---
 
-router.get("/api/askanus/tasks", requireAuth, async (req, res) => {
+router.get("/askanus/tasks", requireAuth, async (req, res) => {
   const tasks = await db.select().from(askanustasks)
     .where(eq(askanustasks.userId, getSessionUserId(req)!))
     .orderBy(desc(askanustasks.createdAt));
   res.json(tasks.map(t => ({ ...t, createdAt: t.createdAt.toISOString() })));
 });
 
-router.post("/api/askanus/tasks", requireAuth, async (req, res) => {
+router.post("/askanus/tasks", requireAuth, async (req, res) => {
   const { title, caseTitle, deadline, priority, notes } = req.body;
   const cleanTitle = String(title || "").trim();
   const cleanPriority = String(priority ?? "medium");
@@ -297,7 +297,7 @@ router.post("/api/askanus/tasks", requireAuth, async (req, res) => {
   res.status(201).json({ ...created, createdAt: created.createdAt.toISOString() });
 });
 
-router.patch("/api/askanus/tasks/:id", requireAuth, async (req, res) => {
+router.patch("/askanus/tasks/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const updates: Record<string, unknown> = {};
   const { title, caseTitle, deadline, completed, priority, notes } = req.body;
@@ -328,7 +328,7 @@ router.patch("/api/askanus/tasks/:id", requireAuth, async (req, res) => {
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
-router.delete("/api/askanus/tasks/:id", requireAuth, async (req, res) => {
+router.delete("/askanus/tasks/:id", requireAuth, async (req, res) => {
   await db.delete(askanustasks).where(
     and(eq(askanustasks.id, Number(req.params.id)), eq(askanustasks.userId, getSessionUserId(req)!))
   );
@@ -337,14 +337,14 @@ router.delete("/api/askanus/tasks/:id", requireAuth, async (req, res) => {
 
 // --- Notes ---
 
-router.get("/api/askanus/notes", requireAuth, async (req, res) => {
+router.get("/askanus/notes", requireAuth, async (req, res) => {
   const notes = await db.select().from(askanusnotes)
     .where(eq(askanusnotes.userId, getSessionUserId(req)!))
     .orderBy(desc(askanusnotes.createdAt));
   res.json(notes.map(n => ({ ...n, createdAt: n.createdAt.toISOString() })));
 });
 
-router.post("/api/askanus/notes", requireAuth, async (req, res) => {
+router.post("/askanus/notes", requireAuth, async (req, res) => {
   const { title, content } = req.body;
   if (!String(title || "").trim() || !String(content || "").trim()) {
     res.status(400).json({ error: "title and content are required" });
@@ -358,7 +358,7 @@ router.post("/api/askanus/notes", requireAuth, async (req, res) => {
   res.status(201).json({ ...created, createdAt: created.createdAt.toISOString() });
 });
 
-router.patch("/api/askanus/notes/:id", requireAuth, async (req, res) => {
+router.patch("/askanus/notes/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const title = String(req.body?.title || "").trim();
   const content = String(req.body?.content || "").trim();
@@ -376,7 +376,7 @@ router.patch("/api/askanus/notes/:id", requireAuth, async (req, res) => {
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
-router.delete("/api/askanus/notes/:id", requireAuth, async (req, res) => {
+router.delete("/askanus/notes/:id", requireAuth, async (req, res) => {
   await db.delete(askanusnotes).where(
     and(eq(askanusnotes.id, Number(req.params.id)), eq(askanusnotes.userId, getSessionUserId(req)!))
   );
