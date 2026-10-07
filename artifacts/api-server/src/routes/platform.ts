@@ -5,10 +5,17 @@ import {
   broadcastsTable, usersTable, volunteerProfilesTable, newsTable, discussionsTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
+import { createRateLimiter } from "../middlewares/rate-limit";
 import { resolveMemberDisplayName } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
 
 const router: IRouter = Router();
+
+const reportLimiter = createRateLimiter({
+  name: "reports",
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+});
 
 // Announcements
 router.get("/announcements", async (_req, res): Promise<void> => {
@@ -69,7 +76,7 @@ router.get("/reports", requireAdmin, async (req, res): Promise<void> => {
   res.json(all);
 });
 
-router.post("/reports", requireAuth, async (req, res): Promise<void> => {
+router.post("/reports", requireAuth, reportLimiter, async (req, res): Promise<void> => {
   const contentType = String(req.body?.contentType || "");
   const contentId = Number(req.body?.contentId);
   const reason = String(req.body?.reason || "");
