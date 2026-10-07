@@ -6,6 +6,7 @@ import { Link } from "wouter";
 import { Users, MessageSquare, HandHeart, Heart, Globe, BarChart3, Activity, Clock, Newspaper, FolderKanban, Star } from "lucide-react";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useAuth } from "@/context/auth-context";
 
 const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
   volunteer: <Users className="h-4 w-4 text-secondary" />,
@@ -21,6 +22,7 @@ const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
 };
 
 export default function Dashboard() {
+  const { isAdmin } = useAuth();
   const { data: stats, isLoading: statsLoading } = useGetCommunityStats({
     query: { queryKey: getGetCommunityStatsQueryKey() },
   });
@@ -120,7 +122,7 @@ export default function Dashboard() {
               { label: "Minyan Center", href: "/minyans", icon: <Clock className="h-5 w-5" /> },
               { label: "Group Center", href: "/groups", icon: <Globe className="h-5 w-5" /> },
               { label: "My Gavhah", href: "/my", icon: <Users className="h-5 w-5" /> },
-              { label: "Administration", href: "/founder", icon: <BarChart3 className="h-5 w-5" /> },
+              ...(isAdmin ? [{ label: "Administration", href: "/founder", icon: <BarChart3 className="h-5 w-5" /> }] : []),
             ].map((dept, i) => (
               <Link key={i} href={dept.href}>
                 <div className="bg-card border rounded-xl p-4 hover:border-primary/20 hover:shadow-sm transition-all cursor-pointer flex flex-col items-center text-center gap-3">
