@@ -64,8 +64,8 @@ function validateValue(value: unknown): string | null {
 
 async function requirePublisher(req: any, res: any): Promise<number | null> {
   const user = await getCurrentSessionUser(req);
-  if (!user || user.role !== "admin") {
-    res.status(403).json({ error: "Only administrators can publish or restore changes" });
+  if (!user || (user.role !== "admin" && user.role !== "moderator")) {
+    res.status(403).json({ error: "Admin or staff access required to publish or restore changes" });
     return null;
   }
   return user.id;
