@@ -179,9 +179,8 @@ router.get("/help-requests/:id", async (req, res): Promise<void> => {
   if (!request) { res.status(404).json({ error: "Not found" }); return; }
 
   if (request.status !== "open") {
-    const userId = getSessionUserId(req);
     const currentUser = await getCurrentSessionUser(req);
-    if (userId !== request.userId && !isStaffRole(currentUser?.role)) {
+    if (!currentUser || (currentUser.id !== request.userId && !isStaffRole(currentUser.role))) {
       res.status(404).json({ error: "Not found" });
       return;
     }
