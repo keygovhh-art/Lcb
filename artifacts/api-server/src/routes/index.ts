@@ -21,6 +21,7 @@ import supportRouter from "./support";
 import likesRouter from "./likes";
 import mediaRouter from "./media";
 import searchRouter from "./search";
+import siteCopyRouter from "./site-copy";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(supportRouter);
 router.use(likesRouter);
 router.use(mediaRouter);
 router.use(searchRouter);
+router.use(siteCopyRouter);
 
 export default router;
