@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
   Search as SearchIcon, Newspaper, MessageSquare, Users, Clock, HandHeart,
@@ -17,7 +17,7 @@ type SearchResult = {
   url: string;
 };
 
-const ICONS: Record<string, React.ReactNode> = {
+const ICONS: Record<string, ReactNode> = {
   news: <Newspaper className="h-4 w-4" />,
   discussion: <MessageSquare className="h-4 w-4" />,
   group: <Users className="h-4 w-4" />,
