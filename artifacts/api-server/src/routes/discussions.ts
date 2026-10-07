@@ -249,7 +249,7 @@ router.post("/discussions/:id/comments", requireAuth, async (req, res): Promise<
 
   const userId = getSessionUserId(req)!;
 
-  let parent = null;
+  let parent: typeof commentsTable.$inferSelect | null = null;
   if (parentId !== undefined && parentId !== null) {
     const parsedParentId = Number(parentId);
     if (!Number.isInteger(parsedParentId)) {
