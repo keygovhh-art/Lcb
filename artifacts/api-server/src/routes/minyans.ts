@@ -28,20 +28,26 @@ router.get("/minyans", async (req, res): Promise<void> => {
 
 router.post("/minyans", requireAuth, async (req, res): Promise<void> => {
   const { synagogueName, community, city, country, address, shacharis, mincha, maariv, notes } = req.body;
-  if (!synagogueName || !city || !country || !shacharis || !mincha || !maariv) {
-    res.status(400).json({ error: "Required fields missing" }); return;
+  const cleanName = String(synagogueName || "").trim();
+  const cleanCity = String(city || "").trim();
+  const cleanCountry = String(country || "").trim();
+  const cleanShacharis = String(shacharis || "").trim();
+  const cleanMincha = String(mincha || "").trim();
+  const cleanMaariv = String(maariv || "").trim();
+  if (!cleanName || !cleanCity || !cleanCountry || !cleanShacharis || !cleanMincha || !cleanMaariv) {
+    res.status(400).json({ error: "Synagogue, city, country, and all three minyan times are required" }); return;
   }
   const [minyan] = await db.insert(minyansTable).values({
     submittedByUserId: getSessionUserId(req)!,
-    synagogueName: String(synagogueName).trim(),
-    community: community || "",
-    city: String(city).trim(),
-    country: String(country).trim(),
-    address: address ? String(address).trim() : null,
-    shacharis: String(shacharis).trim(),
-    mincha: String(mincha).trim(),
-    maariv: String(maariv).trim(),
-    notes: notes ? String(notes).trim() : null,
+    synagogueName: cleanName.slice(0, 240),
+    community: community ? String(community).trim().slice(0, 200) : "",
+    city: cleanCity.slice(0, 160),
+    country: cleanCountry.slice(0, 160),
+    address: address ? String(address).trim().slice(0, 300) : null,
+    shacharis: cleanShacharis.slice(0, 160),
+    mincha: cleanMincha.slice(0, 160),
+    maariv: cleanMaariv.slice(0, 160),
+    notes: notes ? String(notes).trim().slice(0, 3000) : null,
     status: "pending",
   }).returning();
   res.status(201).json(minyan);
@@ -73,15 +79,39 @@ router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
 
   const { synagogueName, shacharis, mincha, maariv, notes, status, community, city, country, address } = req.body;
   const updates: Record<string, unknown> = {};
-  if (synagogueName !== undefined) updates.synagogueName = String(synagogueName).trim();
-  if (community !== undefined) updates.community = String(community);
-  if (city !== undefined) updates.city = String(city).trim();
-  if (country !== undefined) updates.country = String(country).trim();
-  if (address !== undefined) updates.address = address ? String(address).trim() : null;
-  if (shacharis !== undefined) updates.shacharis = String(shacharis).trim();
-  if (mincha !== undefined) updates.mincha = String(mincha).trim();
-  if (maariv !== undefined) updates.maariv = String(maariv).trim();
-  if (notes !== undefined) updates.notes = notes ? String(notes).trim() : null;
+  if (synagogueName !== undefined) {
+    const clean = String(synagogueName).trim();
+    if (!clean) { res.status(400).json({ error: "synagogueName required" }); return; }
+    updates.synagogueName = clean.slice(0, 240);
+  }
+  if (community !== undefined) updates.community = String(community ?? "").trim().slice(0, 200);
+  if (city !== undefined) {
+    const clean = String(city).trim();
+    if (!clean) { res.status(400).json({ error: "city required" }); return; }
+    updates.city = clean.slice(0, 160);
+  }
+  if (country !== undefined) {
+    const clean = String(country).trim();
+    if (!clean) { res.status(400).json({ error: "country required" }); return; }
+    updates.country = clean.slice(0, 160);
+  }
+  if (address !== undefined) updates.address = address ? String(address).trim().slice(0, 300) : null;
+  if (shacharis !== undefined) {
+    const clean = String(shacharis).trim();
+    if (!clean) { res.status(400).json({ error: "shacharis required" }); return; }
+    updates.shacharis = clean.slice(0, 160);
+  }
+  if (mincha !== undefined) {
+    const clean = String(mincha).trim();
+    if (!clean) { res.status(400).json({ error: "mincha required" }); return; }
+    updates.mincha = clean.slice(0, 160);
+  }
+  if (maariv !== undefined) {
+    const clean = String(maariv).trim();
+    if (!clean) { res.status(400).json({ error: "maariv required" }); return; }
+    updates.maariv = clean.slice(0, 160);
+  }
+  if (notes !== undefined) updates.notes = notes ? String(notes).trim().slice(0, 3000) : null;
 
   if (status !== undefined) {
     if (!["pending", "approved", "rejected"].includes(status)) {
