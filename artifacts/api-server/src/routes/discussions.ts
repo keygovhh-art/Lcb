@@ -13,6 +13,10 @@ function isStaffRole(role?: string) {
   return role === "admin" || role === "moderator";
 }
 
+const DISCUSSION_CATEGORIES = new Set([
+  "medical", "shidduchim", "livelihood", "education", "charity", "community", "general",
+]);
+
 router.get("/discussions/trending", async (_req, res): Promise<void> => {
   const trending = await db.select().from(discussionsTable)
     .orderBy(desc(discussionsTable.views), desc(discussionsTable.likes))
@@ -30,16 +34,23 @@ router.get("/discussions", async (req, res): Promise<void> => {
 
 router.post("/discussions", requireAuth, async (req, res): Promise<void> => {
   const { title, content, category, authorName } = req.body;
-  if (!String(title || "").trim() || !String(content || "").trim()) {
+  const cleanTitle = String(title || "").trim();
+  const cleanContent = String(content || "").trim();
+  const cleanCategory = String(category || "general");
+  if (!cleanTitle || !cleanContent) {
     res.status(400).json({ error: "title and content required" });
+    return;
+  }
+  if (!DISCUSSION_CATEGORIES.has(cleanCategory)) {
+    res.status(400).json({ error: "invalid category" });
     return;
   }
   const userId = getSessionUserId(req)!;
   const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
   const [disc] = await db.insert(discussionsTable).values({
-    title: String(title).trim(),
-    content: String(content).trim(),
-    category: category || "general",
+    title: cleanTitle.slice(0, 300),
+    content: cleanContent.slice(0, 30000),
+    category: cleanCategory,
     authorId: userId,
     authorName: safeAuthorName,
   }).returning();
@@ -65,7 +76,32 @@ router.patch("/discussions/:id", requireAuth, async (req, res): Promise<void> =>
     res.status(403).json({ error: "Not allowed" }); return;
   }
   const { title, content, category, isPinned } = req.body;
-  const [disc] = await db.update(discussionsTable).set({ title, content, category, isPinned, updatedAt: new Date() }).where(eq(discussionsTable.id, id)).returning();
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+  if (title !== undefined) {
+    const clean = String(title).trim();
+    if (!clean) { res.status(400).json({ error: "title required" }); return; }
+    updates.title = clean.slice(0, 300);
+  }
+  if (content !== undefined) {
+    const clean = String(content).trim();
+    if (!clean) { res.status(400).json({ error: "content required" }); return; }
+    updates.content = clean.slice(0, 30000);
+  }
+  if (category !== undefined) {
+    const clean = String(category);
+    if (!DISCUSSION_CATEGORIES.has(clean)) { res.status(400).json({ error: "invalid category" }); return; }
+    updates.category = clean;
+  }
+  if (isPinned !== undefined) {
+    if (!isStaffRole(getSessionUserRole(req))) {
+      res.status(403).json({ error: "Only staff can pin discussions" });
+      return;
+    }
+    updates.isPinned = !!isPinned;
+  }
+
+  const [disc] = await db.update(discussionsTable).set(updates).where(eq(discussionsTable.id, id)).returning();
   if (!disc) { res.status(404).json({ error: "Not found" }); return; }
   res.json(disc);
 });
@@ -147,6 +183,7 @@ router.patch("/discussions/:id/comments/:commentId", requireAuth, async (req, re
 
   const content = String(req.body?.content || "").trim();
   if (!content) { res.status(400).json({ error: "content required" }); return; }
+  if (content.length > 10000) { res.status(400).json({ error: "comment is too long" }); return; }
 
   const [updated] = await db.update(commentsTable)
     .set({ content })
@@ -202,18 +239,38 @@ router.post("/discussions/:id/comments", requireAuth, async (req, res): Promise<
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const discussionId = parseInt(raw, 10);
   const { content, parentId, authorName } = req.body;
-  if (!String(content || "").trim()) { res.status(400).json({ error: "content required" }); return; }
+  const cleanContent = String(content || "").trim();
+  if (!cleanContent) { res.status(400).json({ error: "content required" }); return; }
+  if (cleanContent.length > 10000) { res.status(400).json({ error: "comment is too long" }); return; }
 
   const [discussion] = await db.select().from(discussionsTable).where(eq(discussionsTable.id, discussionId));
   if (!discussion) { res.status(404).json({ error: "Discussion not found" }); return; }
   if (discussion.isLocked) { res.status(423).json({ error: "Discussion is locked" }); return; }
 
   const userId = getSessionUserId(req)!;
+
+  let parent = null;
+  if (parentId !== undefined && parentId !== null) {
+    const parsedParentId = Number(parentId);
+    if (!Number.isInteger(parsedParentId)) {
+      res.status(400).json({ error: "invalid parent comment" });
+      return;
+    }
+    [parent] = await db.select().from(commentsTable).where(and(
+      eq(commentsTable.id, parsedParentId),
+      eq(commentsTable.discussionId, discussionId),
+    ));
+    if (!parent) {
+      res.status(400).json({ error: "parent comment does not belong to this discussion" });
+      return;
+    }
+  }
+
   const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
   const [comment] = await db.insert(commentsTable).values({
-    content: String(content).trim(),
+    content: cleanContent,
     discussionId,
-    parentId: parentId ?? null,
+    parentId: parent?.id ?? null,
     authorId: userId,
     authorName: safeAuthorName,
   }).returning();
@@ -227,9 +284,8 @@ router.post("/discussions/:id/comments", requireAuth, async (req, res): Promise<
     );
   }
 
-  if (parentId) {
-    const [parent] = await db.select().from(commentsTable).where(eq(commentsTable.id, parentId));
-    if (parent && parent.authorId !== userId && parent.authorId !== discussion.authorId) {
+  if (parent) {
+    if (parent.authorId !== userId && parent.authorId !== discussion.authorId) {
       await notifyUser(
         parent.authorId,
         "comment_reply",
