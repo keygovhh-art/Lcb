@@ -1,0 +1,18 @@
+{
+  "name": "Gavhah — Global Chesed Community",
+  "short_name": "Gavhah",
+  "description": "A global community platform for chesed, volunteering, coordination, groups, minyanim, and community news.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fdfbf7",
+  "theme_color": "#0a2139",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
