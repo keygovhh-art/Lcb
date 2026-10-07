@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and } from "drizzle-orm";
 import {
   db, announcementsTable, reportsTable, notificationsTable,
-  broadcastsTable, usersTable, volunteerProfilesTable,
+  broadcastsTable, usersTable, volunteerProfilesTable, newsTable, discussionsTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { resolveMemberDisplayName } from "../lib/user-display";
@@ -25,8 +25,8 @@ router.post("/announcements", requireAdmin, async (req, res): Promise<void> => {
   const userId = getSessionUserId(req)!;
   const authorName = await resolveMemberDisplayName(userId);
   const [ann] = await db.insert(announcementsTable).values({
-    title: String(title).trim(),
-    content: String(content).trim(),
+    title: String(title).trim().slice(0, 240),
+    content: String(content).trim().slice(0, 10000),
     authorId: userId,
     authorName,
   }).returning();
@@ -46,7 +46,7 @@ router.patch("/announcements/:id", requireAdmin, async (req, res): Promise<void>
   }
 
   const [announcement] = await db.update(announcementsTable)
-    .set({ title, content })
+    .set({ title: title.slice(0, 240), content: content.slice(0, 10000) })
     .where(eq(announcementsTable.id, id))
     .returning();
 
@@ -70,10 +70,48 @@ router.get("/reports", requireAdmin, async (req, res): Promise<void> => {
 });
 
 router.post("/reports", requireAuth, async (req, res): Promise<void> => {
-  const { contentType, contentId, reason, description } = req.body;
-  if (!contentType || !contentId || !reason) { res.status(400).json({ error: "Required fields missing" }); return; }
+  const contentType = String(req.body?.contentType || "");
+  const contentId = Number(req.body?.contentId);
+  const reason = String(req.body?.reason || "");
+  const description = req.body?.description ? String(req.body.description).trim().slice(0, 2000) : null;
+  const reporterId = getSessionUserId(req)!;
+
+  if (!["news", "discussion"].includes(contentType) || !Number.isInteger(contentId) || contentId <= 0) {
+    res.status(400).json({ error: "Invalid report target" });
+    return;
+  }
+  if (!["spam", "inappropriate", "misinformation", "harassment", "other"].includes(reason)) {
+    res.status(400).json({ error: "Invalid report reason" });
+    return;
+  }
+
+  const targetExists = contentType === "news"
+    ? (await db.select({ id: newsTable.id }).from(newsTable).where(eq(newsTable.id, contentId)))[0]
+    : (await db.select({ id: discussionsTable.id }).from(discussionsTable).where(eq(discussionsTable.id, contentId)))[0];
+
+  if (!targetExists) {
+    res.status(404).json({ error: "Content not found" });
+    return;
+  }
+
+  const [existing] = await db.select({ id: reportsTable.id }).from(reportsTable).where(and(
+    eq(reportsTable.contentType, contentType),
+    eq(reportsTable.contentId, contentId),
+    eq(reportsTable.reporterId, reporterId),
+    eq(reportsTable.status, "pending"),
+  ));
+  if (existing) {
+    res.status(409).json({ error: "You already have a pending report for this content" });
+    return;
+  }
+
   const [report] = await db.insert(reportsTable).values({
-    contentType, contentId, reason, description, reporterId: getSessionUserId(req)!, status: "pending"
+    contentType,
+    contentId,
+    reason,
+    description,
+    reporterId,
+    status: "pending",
   }).returning();
   res.status(201).json(report);
 });
@@ -81,16 +119,20 @@ router.post("/reports", requireAuth, async (req, res): Promise<void> => {
 router.post("/reports/:id/resolve", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  const [existing] = await db.select().from(reportsTable).where(eq(reportsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.status !== "pending") { res.status(409).json({ error: "Report already reviewed" }); return; }
   const [report] = await db.update(reportsTable).set({ status: "resolved" }).where(eq(reportsTable.id, id)).returning();
-  if (!report) { res.status(404).json({ error: "Not found" }); return; }
   res.json(report);
 });
 
 router.post("/reports/:id/dismiss", requireAdmin, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+  const [existing] = await db.select().from(reportsTable).where(eq(reportsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.status !== "pending") { res.status(409).json({ error: "Report already reviewed" }); return; }
   const [report] = await db.update(reportsTable).set({ status: "dismissed" }).where(eq(reportsTable.id, id)).returning();
-  if (!report) { res.status(404).json({ error: "Not found" }); return; }
   res.json(report);
 });
 
@@ -138,8 +180,8 @@ router.post("/broadcasts", requireAdmin, async (req, res): Promise<void> => {
     return;
   }
 
-  const cleanSubject = String(subject).trim();
-  const cleanMessage = String(message).trim();
+  const cleanSubject = String(subject).trim().slice(0, 240);
+  const cleanMessage = String(message).trim().slice(0, 5000);
 
   if (recipientIds.length > 0) {
     await db.insert(notificationsTable).values(
@@ -180,10 +222,25 @@ router.get("/notifications/unread-count", requireAuth, async (req, res): Promise
 });
 
 router.post("/notifications", requireAdmin, async (req, res): Promise<void> => {
-  const { userId, type, message, linkUrl } = req.body;
-  if (!message || !type) { res.status(400).json({ error: "message and type required" }); return; }
+  const userId = Number(req.body?.userId);
+  const type = String(req.body?.type || "").trim();
+  const message = String(req.body?.message || "").trim();
+  const linkUrl = req.body?.linkUrl ? String(req.body.linkUrl).trim().slice(0, 1000) : null;
+
+  if (!Number.isInteger(userId) || userId <= 0 || !message || !type) {
+    res.status(400).json({ error: "valid userId, message, and type required" });
+    return;
+  }
+
+  const [target] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!target) { res.status(404).json({ error: "User not found" }); return; }
+
   const [notif] = await db.insert(notificationsTable).values({
-    userId: userId ?? 1, type, message, linkUrl: linkUrl ?? null, isRead: false,
+    userId,
+    type: type.slice(0, 80),
+    message: message.slice(0, 5000),
+    linkUrl,
+    isRead: false,
   }).returning();
   res.status(201).json(notif);
 });
