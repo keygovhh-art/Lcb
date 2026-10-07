@@ -14,6 +14,10 @@ import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 
 const router: IRouter = Router();
 
+function routeId(value: string | string[]) {
+  return Number.parseInt(Array.isArray(value) ? value[0] : value, 10);
+}
+
 router.get("/admin/cause-activity", requireAdmin, async (_req, res): Promise<void> => {
   const rows = await db.select({
     id: featuredCauseSupportersTable.id,
@@ -111,7 +115,7 @@ router.post("/featured-causes", requireAdmin, async (req, res): Promise<void> =>
 
 // GET /featured-causes/:id
 router.get("/featured-causes/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = routeId(req.params.id);
   const [cause] = await db.select().from(featuredCausesTable).where(and(
     eq(featuredCausesTable.id, id),
     ne(featuredCausesTable.status, "pending"),
@@ -122,7 +126,7 @@ router.get("/featured-causes/:id", async (req, res): Promise<void> => {
 
 // PATCH /featured-causes/:id
 router.patch("/featured-causes/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = routeId(req.params.id);
   const [existing] = await db.select().from(featuredCausesTable).where(eq(featuredCausesTable.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
@@ -181,7 +185,7 @@ router.patch("/featured-causes/:id", requireAdmin, async (req, res): Promise<voi
 
 // POST /featured-causes/:id/join
 router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<void> => {
-  const causeId = parseInt(req.params.id, 10);
+  const causeId = routeId(req.params.id);
   const userId = getSessionUserId(req)!;
   const [cause] = await db.select().from(featuredCausesTable).where(eq(featuredCausesTable.id, causeId));
   if (!cause || cause.status !== "active") {
@@ -247,7 +251,7 @@ router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<
 
 // GET /featured-causes/:id/supporters
 router.get("/featured-causes/:id/supporters", async (req, res): Promise<void> => {
-  const causeId = parseInt(req.params.id, 10);
+  const causeId = routeId(req.params.id);
   const supporters = await db
     .select()
     .from(featuredCauseSupportersTable)
@@ -291,7 +295,7 @@ router.get("/cause-submissions", requireAdmin, async (_req, res): Promise<void> 
 });
 
 router.post("/cause-submissions/:id/approve", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = routeId(req.params.id);
   const [submission] = await db.select().from(causeSubmissionsTable).where(eq(causeSubmissionsTable.id, id));
   if (!submission) { res.status(404).json({ error: "Not found" }); return; }
   if (submission.status !== "pending") {
@@ -329,7 +333,7 @@ router.post("/cause-submissions/:id/approve", requireAdmin, async (req, res): Pr
 });
 
 router.post("/cause-submissions/:id/reject", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = routeId(req.params.id);
   const [existing] = await db.select().from(causeSubmissionsTable).where(eq(causeSubmissionsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
   if (existing.status !== "pending") {
