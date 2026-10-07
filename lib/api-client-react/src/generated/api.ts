@@ -7399,7 +7399,7 @@ export const getListAskanuscasesUrl = () => {
 
 
 
-  return `/api/api/askanus/cases`
+  return `/api/askanus/cases`
 }
 
 /**
@@ -7422,7 +7422,7 @@ export const listAskanuscases = async ( options?: RequestInit): Promise<AskanusC
 
 export const getListAskanuscasesQueryKey = () => {
     return [
-    `/api/api/askanus/cases`
+    `/api/askanus/cases`
     ] as const;
     }
 
@@ -7476,7 +7476,7 @@ export const getCreateAskanusCaseUrl = () => {
 
 
 
-  return `/api/api/askanus/cases`
+  return `/api/askanus/cases`
 }
 
 /**
@@ -7547,7 +7547,7 @@ export const getUpdateAskanusCaseUrl = (id: number,) => {
 
 
 
-  return `/api/api/askanus/cases/${id}`
+  return `/api/askanus/cases/${id}`
 }
 
 /**
@@ -7619,7 +7619,7 @@ export const getDeleteAskanusCaseUrl = (id: number,) => {
 
 
 
-  return `/api/api/askanus/cases/${id}`
+  return `/api/askanus/cases/${id}`
 }
 
 /**
@@ -7689,7 +7689,7 @@ export const getUpdateAskanuscaseProgressUrl = (id: number,) => {
 
 
 
-  return `/api/api/askanus/cases/${id}/progress`
+  return `/api/askanus/cases/${id}/progress`
 }
 
 /**
@@ -7761,7 +7761,7 @@ export const getToggleCaseFollowupUrl = (id: number,) => {
 
 
 
-  return `/api/api/askanus/followups/${id}/toggle`
+  return `/api/askanus/followups/${id}/toggle`
 }
 
 /**
@@ -7831,7 +7831,7 @@ export const getListAskanustasksUrl = () => {
 
 
 
-  return `/api/api/askanus/tasks`
+  return `/api/askanus/tasks`
 }
 
 /**
@@ -7854,7 +7854,7 @@ export const listAskanustasks = async ( options?: RequestInit): Promise<AskanusT
 
 export const getListAskanustasksQueryKey = () => {
     return [
-    `/api/api/askanus/tasks`
+    `/api/askanus/tasks`
     ] as const;
     }
 
@@ -7908,7 +7908,7 @@ export const getCreateAskanusTaskUrl = () => {
 
 
 
-  return `/api/api/askanus/tasks`
+  return `/api/askanus/tasks`
 }
 
 /**
@@ -7979,7 +7979,7 @@ export const getUpdateAskanusTaskUrl = (id: number,) => {
 
 
 
-  return `/api/api/askanus/tasks/${id}`
+  return `/api/askanus/tasks/${id}`
 }
 
 /**
@@ -8051,7 +8051,7 @@ export const getDeleteAskanusTaskUrl = (id: number,) => {
 
 
 
-  return `/api/api/askanus/tasks/${id}`
+  return `/api/askanus/tasks/${id}`
 }
 
 /**
@@ -8121,7 +8121,7 @@ export const getListAskanusNotesUrl = () => {
 
 
 
-  return `/api/api/askanus/notes`
+  return `/api/askanus/notes`
 }
 
 /**
@@ -8144,7 +8144,7 @@ export const listAskanusNotes = async ( options?: RequestInit): Promise<AskanusN
 
 export const getListAskanusNotesQueryKey = () => {
     return [
-    `/api/api/askanus/notes`
+    `/api/askanus/notes`
     ] as const;
     }
 
@@ -8198,7 +8198,7 @@ export const getCreateAskanusNoteUrl = () => {
 
 
 
-  return `/api/api/askanus/notes`
+  return `/api/askanus/notes`
 }
 
 /**
@@ -8269,7 +8269,7 @@ export const getUpdateAskanusNoteUrl = (id: number,) => {
 
 
 
-  return `/api/api/askanus/notes/${id}`
+  return `/api/askanus/notes/${id}`
 }
 
 /**
@@ -8341,7 +8341,7 @@ export const getDeleteAskanusNoteUrl = (id: number,) => {
 
 
 
-  return `/api/api/askanus/notes/${id}`
+  return `/api/askanus/notes/${id}`
 }
 
 /**
