@@ -515,7 +515,7 @@ function translateText(raw: string): string {
 function shouldSkip(el: Element | null) {
   if (!el) return true;
   const tag = el.tagName.toLowerCase();
-  return tag === "script" || tag === "style" || tag === "code" || tag === "pre" || !!el.closest("[data-no-yiddish], [data-site-copy-ui]");
+  return tag === "script" || tag === "style" || tag === "code" || tag === "pre" || !!el.closest("[data-no-yiddish], [data-site-copy-ui], [data-site-copy-applied]");
 }
 
 function translateElement(root: ParentNode) {
