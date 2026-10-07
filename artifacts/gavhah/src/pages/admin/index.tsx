@@ -23,6 +23,7 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { CharityManagement } from "@/components/admin/charity-management";
+import { FeaturedCauseManagement } from "@/components/admin/featured-cause-management";
 
 function reportContentPath(type: string, id: number) {
   if (type === "news") return `/news/${id}`;
@@ -673,41 +674,8 @@ export default function FounderDashboard() {
           </TabsContent>
 
           {/* ─── Featured Content ─── */}
-          <TabsContent value="featured" className="space-y-4">
-            <div>
-              <h2 className="font-serif text-2xl font-bold text-primary">Featured Content</h2>
-              <p className="text-muted-foreground text-sm mt-1">Manage what appears as featured causes on the platform.</p>
-            </div>
-            {featuredCauses?.map(fc => (
-              <div key={fc.id} className="bg-card border rounded-xl p-6">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <h3 className="font-serif font-bold text-primary">{fc.title}</h3>
-                      <Badge variant={fc.status === "active" ? "default" : "secondary"} className={fc.status === "active" ? "bg-green-100 text-green-800 border-green-200" : ""}>{fc.status}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-3">{fc.description}</p>
-                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                      <span>{fc.supporterCount} supporters</span>
-                      {fc.goalAmount != null && (
-                        <span>Goal: ${fc.goalAmount.toLocaleString()}</span>
-                      )}
-                      <span>Raised: ${fc.amountRaised.toLocaleString()}</span>
-                      {fc.location && <span>{fc.location}</span>}
-                      {fc.deadline && (
-                        <span>Deadline: {format(new Date(fc.deadline), "MMM d, yyyy")}</span>
-                      )}
-                    </div>
-                  </div>
-                  {fc.imageUrl && (
-                    <img src={fc.imageUrl} alt={fc.title} className="w-24 h-16 object-cover rounded-lg border shrink-0" />
-                  )}
-                </div>
-              </div>
-            ))}
-            {featuredCauses?.length === 0 && (
-              <div className="text-center py-12 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">No featured causes at this time.</div>
-            )}
+          <TabsContent value="featured">
+            <FeaturedCauseManagement />
           </TabsContent>
 
           {/* ─── Cause Activity ─── */}
