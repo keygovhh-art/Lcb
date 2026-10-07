@@ -1936,7 +1936,7 @@ paths:
                   count:
                     type: integer
 
-  /api/askanus/cases:
+  /askanus/cases:
     get:
       operationId: listAskanuscases
       tags: [askanus]
@@ -1968,7 +1968,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/AskanusCase"
 
-  /api/askanus/cases/{id}:
+  /askanus/cases/{id}:
     patch:
       operationId: updateAskanusCase
       tags: [askanus]
@@ -2014,7 +2014,7 @@ paths:
                   ok:
                     type: boolean
 
-  /api/askanus/cases/{id}/progress:
+  /askanus/cases/{id}/progress:
     post:
       operationId: updateAskanuscaseProgress
       tags: [askanus]
@@ -2039,7 +2039,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/AskanusCase"
 
-  /api/askanus/followups/{id}/toggle:
+  /askanus/followups/{id}/toggle:
     patch:
       operationId: toggleCaseFollowup
       tags: [askanus]
@@ -2058,7 +2058,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/CaseFollowup"
 
-  /api/askanus/tasks:
+  /askanus/tasks:
     get:
       operationId: listAskanustasks
       tags: [askanus]
@@ -2090,7 +2090,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/AskanusTask"
 
-  /api/askanus/tasks/{id}:
+  /askanus/tasks/{id}:
     patch:
       operationId: updateAskanusTask
       tags: [askanus]
@@ -2136,7 +2136,7 @@ paths:
                   ok:
                     type: boolean
 
-  /api/askanus/notes:
+  /askanus/notes:
     get:
       operationId: listAskanusNotes
       tags: [askanus]
@@ -2168,7 +2168,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/AskanusNote"
 
-  /api/askanus/notes/{id}:
+  /askanus/notes/{id}:
     patch:
       operationId: updateAskanusNote
       tags: [askanus]
