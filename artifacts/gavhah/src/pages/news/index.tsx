@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
@@ -311,6 +311,11 @@ export default function NewsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const priorityRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+  }, []);
 
   const { data: articles, isLoading } = useListNews({}, { query: { queryKey: getListNewsQueryKey({}) } });
 
@@ -361,6 +366,24 @@ export default function NewsPage() {
       </div>
 
       <div className="container mx-auto px-4 py-10">
+        {/* Priority shortcut */}
+        {!search && activeCategory === "all" && (breaking.length > 0 || important.length > 0) && (
+          <div className="mb-5">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto rounded-xl border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold gap-2 shadow-sm"
+              onClick={() => priorityRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            >
+              <span className="text-base">📌</span>
+              Important / Critical News
+              <span className="ml-1 rounded-full bg-amber-200 text-amber-900 px-2 py-0.5 text-xs">
+                {breaking.length + important.length}
+              </span>
+            </Button>
+          </div>
+        )}
+
         {/* Category filter */}
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
           {CATEGORIES.map(cat => (
@@ -392,79 +415,87 @@ export default function NewsPage() {
         ) : (
           <div className="space-y-12">
 
-            {/* Breaking news — top priority */}
-            {breaking.length > 0 && !search && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Siren className="h-5 w-5 text-red-600" />
-                  <h2 className="font-serif text-xl font-bold text-red-800">Breaking Alerts</h2>
-                  <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">{breaking.length}</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {breaking.map(a => <NewsCard key={a.id} article={a} large />)}
-                </div>
+            {/* Latest first — always land on the newest material */}
+            <div className="space-y-4">
+              {(!search && activeCategory === "all") && (
+                <h2 className="font-serif text-xl font-bold text-primary">Latest Updates</h2>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filtered.map(a => (
+                  <NewsCard key={a.id} article={a} />
+                ))}
               </div>
-            )}
+            </div>
 
-            {/* Important / high urgency */}
-            {important.length > 0 && !search && activeCategory === "all" && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-orange-500" />
-                  <h2 className="font-serif text-xl font-bold text-primary">Important Updates</h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {important.map(a => <NewsCard key={a.id} article={a} />)}
-                </div>
-              </div>
-            )}
+            {/* Priority area — reached from the pinned button above */}
+            {!search && activeCategory === "all" && (breaking.length > 0 || important.length > 0 || withDeadlines.length > 0 || featured.length > 0) && (
+              <div ref={priorityRef} className="scroll-mt-24 space-y-10 border-t pt-10">
 
-            {/* Deadlines strip */}
-            {withDeadlines.length > 0 && !search && activeCategory === "all" && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-amber-700" />
-                  <h3 className="font-semibold text-amber-800 text-sm uppercase tracking-wide">Upcoming Deadlines</h3>
-                </div>
-                <div className="space-y-2">
-                  {withDeadlines.slice(0, 5).map(a => (
-                    <Link key={a.id} href={`/news/${a.id}`}>
-                      <div className="flex items-center justify-between gap-4 text-sm hover:bg-amber-100/60 rounded-lg px-2 py-1.5 transition-colors cursor-pointer">
-                        <span className="font-medium text-amber-900 line-clamp-1">{a.title}</span>
-                        <span className="text-amber-700 font-semibold shrink-0 flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" /> {a.deadline}
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Featured */}
-            {featured.length > 0 && !search && activeCategory === "all" && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Star className="h-5 w-5 text-accent fill-accent" />
-                  <h2 className="font-serif text-xl font-bold text-primary">Featured</h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {featured.slice(0, 2).map(a => <NewsCard key={a.id} article={a} large />)}
-                </div>
-              </div>
-            )}
-
-            {/* Main grid */}
-            {regular.length > 0 && (
-              <div className="space-y-4">
-                {(!search && activeCategory === "all") && (
-                  <h2 className="font-serif text-xl font-bold text-primary">Latest Updates</h2>
+                {(breaking.length > 0 || important.length > 0) && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">📌</span>
+                    <h2 className="font-serif text-2xl font-bold text-primary">Important / Critical News</h2>
+                  </div>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {(search || activeCategory !== "all" ? filtered : regular).map(a => (
-                    <NewsCard key={a.id} article={a} />
-                  ))}
-                </div>
+
+                {breaking.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Siren className="h-5 w-5 text-red-600" />
+                      <h3 className="font-serif text-xl font-bold text-red-800">Critical / Breaking</h3>
+                      <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">{breaking.length}</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {breaking.map(a => <NewsCard key={a.id} article={a} large />)}
+                    </div>
+                  </div>
+                )}
+
+                {important.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-orange-500" />
+                      <h3 className="font-serif text-xl font-bold text-primary">Important News</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {important.map(a => <NewsCard key={a.id} article={a} />)}
+                    </div>
+                  </div>
+                )}
+
+                {withDeadlines.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-amber-700" />
+                      <h3 className="font-semibold text-amber-800 text-sm uppercase tracking-wide">Upcoming Deadlines</h3>
+                    </div>
+                    <div className="space-y-2">
+                      {withDeadlines.slice(0, 5).map(a => (
+                        <Link key={a.id} href={`/news/${a.id}`}>
+                          <div className="flex items-center justify-between gap-4 text-sm hover:bg-amber-100/60 rounded-lg px-2 py-1.5 transition-colors cursor-pointer">
+                            <span className="font-medium text-amber-900 line-clamp-1">{a.title}</span>
+                            <span className="text-amber-700 font-semibold shrink-0 flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5" /> {a.deadline}
+                            </span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {featured.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Star className="h-5 w-5 text-accent fill-accent" />
+                      <h3 className="font-serif text-xl font-bold text-primary">Featured</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {featured.slice(0, 2).map(a => <NewsCard key={a.id} article={a} large />)}
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
 
