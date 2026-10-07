@@ -118,7 +118,7 @@ function VolunteerCard({ vol }: { vol: any }) {
           location: editForm.location.trim(),
           availability: editForm.availability,
           bio: editForm.bio.trim() || null,
-          skills: editForm.skills.split(",").map(x => x.trim()).filter(Boolean),
+          skills: editForm.skills.split(",").map((x: string) => x.trim()).filter(Boolean),
         }),
       });
       if (!res.ok) throw new Error("update failed");
