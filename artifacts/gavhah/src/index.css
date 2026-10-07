@@ -149,3 +149,26 @@
     @apply font-serif tracking-tight;
   }
 }
+
+
+/* Yiddish mirror RTL */
+html[lang="yi"] body {
+  direction: rtl;
+  text-align: right;
+  font-family: Arial, "Noto Sans Hebrew", sans-serif;
+}
+html[lang="yi"] h1,
+html[lang="yi"] h2,
+html[lang="yi"] h3,
+html[lang="yi"] h4,
+html[lang="yi"] h5,
+html[lang="yi"] h6,
+html[lang="yi"] .font-serif {
+  font-family: Arial, "Noto Sans Hebrew", sans-serif;
+}
+html[lang="yi"] input,
+html[lang="yi"] textarea,
+html[lang="yi"] select {
+  direction: rtl;
+  text-align: right;
+}
