@@ -7,6 +7,8 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/auth-context";
+import { useLocation } from "wouter";
 
 interface FollowButtonProps {
   entityType: string;
@@ -20,12 +22,14 @@ interface FollowButtonProps {
 export function FollowButton({ entityType, entityId, entityTitle, entityUrl = "", variant = "outline", size = "sm" }: FollowButtonProps) {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { isAuthenticated, isLoaded } = useAuth();
+  const [, setLocation] = useLocation();
   const [followId, setFollowId] = useState<number | null>(null);
   const [following, setFollowing] = useState(false);
 
   const { data } = useCheckFollow(
     { entityType, entityId },
-    { query: { queryKey: getCheckFollowQueryKey({ entityType, entityId }) } }
+    { query: { queryKey: getCheckFollowQueryKey({ entityType, entityId }), enabled: isAuthenticated } }
   );
 
   useEffect(() => {
@@ -39,6 +43,11 @@ export function FollowButton({ entityType, entityId, entityTitle, entityUrl = ""
   const deleteFollow = useDeleteFollow();
 
   const handleToggle = () => {
+    if (!isAuthenticated) {
+      toast({ title: "Sign in to follow", description: "Join Gavhah free to follow community activity." });
+      setLocation("/login");
+      return;
+    }
     if (following && followId !== null) {
       deleteFollow.mutate({ id: followId }, {
         onSuccess: () => {
@@ -62,6 +71,8 @@ export function FollowButton({ entityType, entityId, entityTitle, entityUrl = ""
       );
     }
   };
+
+  if (!isLoaded) return null;
 
   const isPending = createFollow.isPending || deleteFollow.isPending;
 
