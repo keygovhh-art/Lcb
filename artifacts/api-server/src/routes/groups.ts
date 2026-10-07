@@ -35,8 +35,8 @@ router.post("/groups", requireAuth, async (req, res): Promise<void> => {
   const userId = getSessionUserId(req)!;
   const ownerName = await resolveMemberDisplayName(userId);
   const [group] = await db.insert(groupsTable).values({
-    name: String(name).trim(),
-    description: String(description).trim(),
+    name: String(name).trim().slice(0, 200),
+    description: String(description).trim().slice(0, 5000),
     privacy: privacy || "public",
     imageUrl: imageUrl || null,
     ownerId: userId,
@@ -77,12 +77,12 @@ router.patch("/groups/:id", requireAuth, async (req, res): Promise<void> => {
   if (name !== undefined) {
     const cleanName = String(name).trim();
     if (!cleanName) { res.status(400).json({ error: "name required" }); return; }
-    updates.name = cleanName;
+    updates.name = cleanName.slice(0, 200);
   }
   if (description !== undefined) {
     const cleanDescription = String(description).trim();
     if (!cleanDescription) { res.status(400).json({ error: "description required" }); return; }
-    updates.description = cleanDescription;
+    updates.description = cleanDescription.slice(0, 5000);
   }
   if (privacy !== undefined) {
     if (!["public", "private"].includes(privacy)) {
@@ -97,6 +97,31 @@ router.patch("/groups/:id", requireAuth, async (req, res): Promise<void> => {
 
   if (imageUrl !== undefined && existing.imageUrl && existing.imageUrl !== group.imageUrl) {
     await deleteManagedMediaUrl(existing.imageUrl);
+  }
+
+  if (privacy !== undefined && existing.privacy === "private" && group.privacy === "public") {
+    const approvedNow = await db.update(groupMembersTable)
+      .set({ status: "approved" })
+      .where(and(
+        eq(groupMembersTable.groupId, id),
+        eq(groupMembersTable.status, "pending"),
+      ))
+      .returning();
+
+    if (approvedNow.length > 0) {
+      await db.update(groupsTable)
+        .set({ memberCount: sql`${groupsTable.memberCount} + ${approvedNow.length}` })
+        .where(eq(groupsTable.id, id));
+
+      for (const member of approvedNow) {
+        await notifyUser(
+          member.userId,
+          "group_membership_review",
+          `Your request to join "${group.name}" was approved because the group is now public.`,
+          `/groups/${id}`,
+        );
+      }
+    }
   }
 
   res.json(group);
@@ -141,7 +166,11 @@ router.post("/groups/:id/join", requireAuth, async (req, res): Promise<void> => 
     and(eq(groupMembersTable.groupId, groupId), eq(groupMembersTable.userId, userId))
   );
 
-  if (existing && existing.status !== "rejected") {
+  if (existing && existing.status === "approved") {
+    res.json(existing);
+    return;
+  }
+  if (existing && existing.status === "pending" && desiredStatus === "pending") {
     res.json(existing);
     return;
   }
@@ -149,7 +178,7 @@ router.post("/groups/:id/join", requireAuth, async (req, res): Promise<void> => 
   const userName = await resolveMemberDisplayName(userId);
   let member;
 
-  if (existing?.status === "rejected") {
+  if (existing) {
     [member] = await db.update(groupMembersTable)
       .set({ status: desiredStatus, role: "member", userName })
       .where(eq(groupMembersTable.id, existing.id))
@@ -323,6 +352,7 @@ router.patch("/groups/:id/posts/:postId", requireAuth, async (req, res): Promise
 
   const content = String(req.body?.content || "").trim();
   if (!content) { res.status(400).json({ error: "content required" }); return; }
+  if (content.length > 10000) { res.status(400).json({ error: "content is too long" }); return; }
 
   const [updated] = await db.update(groupPostsTable)
     .set({ content })
@@ -395,7 +425,9 @@ router.post("/groups/:id/posts", requireAuth, async (req, res): Promise<void> =>
   const groupId = parseInt(raw, 10);
   const userId = getSessionUserId(req)!;
   const { content, authorName } = req.body;
-  if (!String(content || "").trim()) { res.status(400).json({ error: "content required" }); return; }
+  const cleanContent = String(content || "").trim();
+  if (!cleanContent) { res.status(400).json({ error: "content required" }); return; }
+  if (cleanContent.length > 10000) { res.status(400).json({ error: "content is too long" }); return; }
 
   const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
   if (!group) { res.status(404).json({ error: "Group not found" }); return; }
@@ -412,7 +444,7 @@ router.post("/groups/:id/posts", requireAuth, async (req, res): Promise<void> =>
 
   const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
   const [post] = await db.insert(groupPostsTable).values({
-    content: String(content).trim(),
+    content: cleanContent,
     groupId,
     authorId: userId,
     authorName: safeAuthorName,
