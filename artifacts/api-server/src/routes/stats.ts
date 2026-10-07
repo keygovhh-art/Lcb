@@ -5,10 +5,10 @@ import { desc, count, sum, sql, eq } from "drizzle-orm";
 const router: IRouter = Router();
 
 router.get("/stats/community", async (_req, res): Promise<void> => {
-  const [userCount] = await db.select({ count: count() }).from(usersTable);
+  const [userCount] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.status, "active"));
   const [discCount] = await db.select({ count: count() }).from(discussionsTable);
   const [volCount] = await db.select({ count: count() }).from(volunteerProfilesTable);
-  const [reqCount] = await db.select({ count: count() }).from(helpRequestsTable);
+  const [reqCount] = await db.select({ count: count() }).from(helpRequestsTable).where(eq(helpRequestsTable.status, "open"));
   const [helpedCount] = await db.select({ count: count() }).from(helpRequestsTable).where(eq(helpRequestsTable.status, "resolved"));
   const [groupCount] = await db.select({ count: count() }).from(groupsTable);
   const [donationSum] = await db.select({ total: sum(donationsTable.amount) }).from(donationsTable);
@@ -76,35 +76,35 @@ router.get("/stats/activity", async (req, res): Promise<void> => {
     return;
   }
 
-  // Weekly: Sun=0 … Sat=6, but we label Mon–Sun
+  // Weekly activity over the last 7 days, grouped by weekday (Sun=0 … Sat=6).
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Shabbos"];
 
   const discByDay = await db.select({
     dow: sql<number>`EXTRACT(DOW FROM created_at)::int`,
     count: count(),
   }).from(discussionsTable)
-    .where(sql`created_at > NOW() - INTERVAL '28 days'`)
+    .where(sql`created_at > NOW() - INTERVAL '7 days'`)
     .groupBy(sql`EXTRACT(DOW FROM created_at)`);
 
   const reqByDay = await db.select({
     dow: sql<number>`EXTRACT(DOW FROM created_at)::int`,
     count: count(),
   }).from(helpRequestsTable)
-    .where(sql`created_at > NOW() - INTERVAL '28 days'`)
+    .where(sql`created_at > NOW() - INTERVAL '7 days'`)
     .groupBy(sql`EXTRACT(DOW FROM created_at)`);
 
   const donationsByDay = await db.select({
     dow: sql<number>`EXTRACT(DOW FROM created_at)::int`,
     count: count(),
   }).from(donationsTable)
-    .where(sql`created_at > NOW() - INTERVAL '28 days'`)
+    .where(sql`created_at > NOW() - INTERVAL '7 days'`)
     .groupBy(sql`EXTRACT(DOW FROM created_at)`);
 
   const volunteersByDay = await db.select({
     dow: sql<number>`EXTRACT(DOW FROM created_at)::int`,
     count: count(),
   }).from(volunteerProfilesTable)
-    .where(sql`created_at > NOW() - INTERVAL '28 days'`)
+    .where(sql`created_at > NOW() - INTERVAL '7 days'`)
     .groupBy(sql`EXTRACT(DOW FROM created_at)`);
 
   const data = DAYS.map((label, idx) => ({
