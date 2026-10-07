@@ -235,7 +235,12 @@ router.get("/groups/:id/members", async (req, res): Promise<void> => {
   }
 
   const currentUser = await getCurrentSessionUser(req);
-  if (group.ownerId === userId || isStaffRole(currentUser?.role)) {
+  if (!currentUser) {
+    res.json([]);
+    return;
+  }
+
+  if (group.ownerId === currentUser.id || isStaffRole(currentUser.role)) {
     const members = await db.select().from(groupMembersTable).where(eq(groupMembersTable.groupId, groupId));
     res.json(members);
     return;
@@ -323,13 +328,16 @@ router.get("/groups/:id/posts", async (req, res): Promise<void> => {
   if (group.privacy !== "public") {
     const userId = getSessionUserId(req);
     if (!userId) { res.status(401).json({ error: "Sign in required" }); return; }
+
+    const currentUser = await getCurrentSessionUser(req);
+    if (!currentUser) { res.status(401).json({ error: "Sign in required" }); return; }
+
     const [membership] = await db.select().from(groupMembersTable).where(and(
       eq(groupMembersTable.groupId, id),
-      eq(groupMembersTable.userId, userId),
+      eq(groupMembersTable.userId, currentUser.id),
       eq(groupMembersTable.status, "approved"),
     ));
-    const currentUser = await getCurrentSessionUser(req);
-    if (!membership && group.ownerId !== userId && !isStaffRole(currentUser?.role)) {
+    if (!membership && group.ownerId !== currentUser.id && !isStaffRole(currentUser.role)) {
       res.status(403).json({ error: "Private group" }); return;
     }
   }
