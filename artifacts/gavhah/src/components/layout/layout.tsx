@@ -149,9 +149,11 @@ export function Layout({ children }: { children: ReactNode }) {
 
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0">
-            <Button variant="ghost" size="icon" className="hidden md:flex h-8 w-8">
-              <Search className="h-4 w-4" />
-            </Button>
+            <Link href="/search">
+              <Button variant="ghost" size="icon" className="hidden md:flex h-8 w-8" title="Search">
+                <Search className="h-4 w-4" />
+              </Button>
+            </Link>
 
             {/* Language toggle */}
             <button
@@ -313,7 +315,16 @@ export function Layout({ children }: { children: ReactNode }) {
                 )}
               </nav>
               <div className="border-t mt-3 pt-3 px-2 space-y-0.5">
-                <Link href="/notifications">
+                <Link href="/search">
+                  <div onClick={() => setMobileOpen(false)} className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${isActive("/search") ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-foreground"}`}>
+                    <div className="flex items-center gap-3">
+                      <Search className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">Search</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 opacity-40" />
+                  </div>
+                </Link>
+              <Link href="/notifications">
                   <div onClick={() => setMobileOpen(false)} className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${isActive("/notifications") ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-foreground"}`}>
                     <div className="flex items-center gap-3">
                       <Bell className="h-4 w-4 text-muted-foreground" />
@@ -405,8 +416,8 @@ export function Layout({ children }: { children: ReactNode }) {
             <p>&copy; {new Date().getFullYear()} Gavhah Global Community Platform. All rights reserved.</p>
             <div className="flex gap-4">
               <Link href="/system" className="hover:text-accent transition-colors">Support</Link>
-              <span className="hover:text-accent transition-colors cursor-pointer">Privacy</span>
-              <span className="hover:text-accent transition-colors cursor-pointer">Terms</span>
+              <Link href="/privacy" className="hover:text-accent transition-colors">Privacy</Link>
+              <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>
             </div>
           </div>
         </div>
