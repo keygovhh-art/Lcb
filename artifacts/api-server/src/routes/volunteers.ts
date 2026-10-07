@@ -11,6 +11,11 @@ function isStaffRole(role?: string) {
   return role === "admin" || role === "moderator";
 }
 
+const HELP_TYPES = new Set(["medical", "wedding", "food", "housing", "transportation", "financial", "other"]);
+const HELP_URGENCIES = new Set(["low", "medium", "high", "critical"]);
+const HELP_STATUSES = new Set(["pending", "open", "rejected", "resolved"]);
+const VOLUNTEER_AVAILABILITY = new Set(["weekdays", "evenings", "weekends", "flexible", "on_call", "anytime", "by_appointment"]);
+
 function publicHelpRequest<T extends { contactInfo?: unknown }>(request: T) {
   const { contactInfo: _contactInfo, ...safe } = request as T & { contactInfo?: unknown };
   return safe;
@@ -40,8 +45,10 @@ router.get("/volunteers", async (req, res): Promise<void> => {
 router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   const userId = getSessionUserId(req)!;
   const { userName, skills, availability, location, bio, areasOfInterest } = req.body;
-  if (!availability || !String(location || "").trim()) {
-    res.status(400).json({ error: "availability and location required" });
+  const cleanAvailability = String(availability || "");
+  const cleanLocation = String(location || "").trim();
+  if (!VOLUNTEER_AVAILABILITY.has(cleanAvailability) || !cleanLocation) {
+    res.status(400).json({ error: "valid availability and location required" });
     return;
   }
 
@@ -55,11 +62,11 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   const [vol] = await db.insert(volunteerProfilesTable).values({
     userId,
     userName: safeUserName,
-    skills: Array.isArray(skills) ? skills : [],
-    availability: String(availability),
-    bio: bio ? String(bio).trim() : null,
-    location: String(location).trim(),
-    areasOfInterest: Array.isArray(areasOfInterest) ? areasOfInterest : [],
+    skills: Array.isArray(skills) ? skills.slice(0, 30).map(v => String(v).slice(0, 100)) : [],
+    availability: cleanAvailability,
+    bio: bio ? String(bio).trim().slice(0, 3000) : null,
+    location: cleanLocation.slice(0, 200),
+    areasOfInterest: Array.isArray(areasOfInterest) ? areasOfInterest.slice(0, 30).map(v => String(v).slice(0, 100)) : [],
     labels: [],
     isFeatured: false,
   }).returning();
@@ -132,8 +139,16 @@ router.get("/help-requests", async (req, res): Promise<void> => {
 router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
   const userId = getSessionUserId(req)!;
   const { name, needType, description, urgency, location } = req.body;
-  if (!String(name || "").trim() || !needType || !String(description || "").trim()) {
-    res.status(400).json({ error: "name, needType, and description are required" });
+  const cleanName = String(name || "").trim();
+  const cleanNeedType = String(needType || "");
+  const cleanDescription = String(description || "").trim();
+  const cleanUrgency = String(urgency || "medium");
+  if (!cleanName || !cleanDescription || !HELP_TYPES.has(cleanNeedType)) {
+    res.status(400).json({ error: "name, valid needType, and description are required" });
+    return;
+  }
+  if (!HELP_URGENCIES.has(cleanUrgency)) {
+    res.status(400).json({ error: "invalid urgency" });
     return;
   }
 
@@ -144,12 +159,12 @@ router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
 
   const [request] = await db.insert(helpRequestsTable).values({
     userId,
-    name: String(name).trim(),
+    name: cleanName.slice(0, 200),
     contactInfo,
-    location: location ? String(location).trim() : null,
-    needType,
-    description: String(description).trim(),
-    urgency: urgency || "medium",
+    location: location ? String(location).trim().slice(0, 200) : null,
+    needType: cleanNeedType,
+    description: cleanDescription.slice(0, 5000),
+    urgency: cleanUrgency,
     isFeatured: false,
     status: "pending",
   }).returning();
@@ -192,16 +207,28 @@ router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> 
     if (!String(name).trim()) { res.status(400).json({ error: "name required" }); return; }
     updates.name = String(name).trim();
   }
-  if (location !== undefined) updates.location = location ? String(location).trim() : null;
-  if (needType !== undefined) updates.needType = needType;
+  if (location !== undefined) updates.location = location ? String(location).trim().slice(0, 200) : null;
+  if (needType !== undefined) {
+    const clean = String(needType);
+    if (!HELP_TYPES.has(clean)) { res.status(400).json({ error: "invalid needType" }); return; }
+    updates.needType = clean;
+  }
   if (description !== undefined) {
     if (!String(description).trim()) { res.status(400).json({ error: "description required" }); return; }
-    updates.description = String(description).trim();
+    updates.description = String(description).trim().slice(0, 5000);
   }
-  if (urgency !== undefined) updates.urgency = urgency;
+  if (urgency !== undefined) {
+    const clean = String(urgency);
+    if (!HELP_URGENCIES.has(clean)) { res.status(400).json({ error: "invalid urgency" }); return; }
+    updates.urgency = clean;
+  }
 
   if (isStaffRole(role)) {
-    if (status !== undefined) updates.status = status;
+    if (status !== undefined) {
+      const clean = String(status);
+      if (!HELP_STATUSES.has(clean)) { res.status(400).json({ error: "invalid status" }); return; }
+      updates.status = clean;
+    }
     if (isFeatured !== undefined) updates.isFeatured = !!isFeatured;
   }
 
