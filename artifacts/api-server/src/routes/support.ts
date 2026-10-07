@@ -2,8 +2,15 @@ import { Router, type IRouter } from "express";
 import { desc, eq } from "drizzle-orm";
 import { db, supportMessagesTable, usersTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
+import { createRateLimiter } from "../middlewares/rate-limit";
 
 const router: IRouter = Router();
+
+const publicSupportLimiter = createRateLimiter({
+  name: "support",
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+});
 
 const SUPPORT_TYPES = new Set(["support", "feedback", "suggestion", "report", "other"]);
 const MEMBER_REQUEST_TYPES = new Set(["volunteer_contact", "help_offer"]);
@@ -16,7 +23,7 @@ function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-router.post("/support-messages", async (req, res): Promise<void> => {
+router.post("/support-messages", publicSupportLimiter, async (req, res): Promise<void> => {
   const name = cleanText(req.body?.name, 120);
   const email = cleanText(req.body?.email, 200).toLowerCase();
   const type = cleanText(req.body?.type, 40);
