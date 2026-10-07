@@ -16,6 +16,10 @@ const PROJECT_TYPES = new Set(["project", "campaign", "initiative", "program"]);
 const PROJECT_STATUSES = new Set(["active", "completed"]);
 const PROJECT_MEMBER_ROLES = new Set(["volunteer", "supporter", "organizer", "donor"]);
 
+function routeId(value: string | string[]) {
+  return Number.parseInt(Array.isArray(value) ? value[0] : value, 10);
+}
+
 // GET /community-projects
 router.get("/community-projects", async (req, res): Promise<void> => {
   const { type, status } = req.query as Record<string, string>;
@@ -67,7 +71,7 @@ router.post("/community-projects", requireAuth, async (req, res): Promise<void> 
 
 // GET /community-projects/:id
 router.get("/community-projects/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = routeId(req.params.id);
   const [project] = await db.select().from(communityProjectsTable).where(eq(communityProjectsTable.id, id));
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
   res.json(project);
@@ -75,7 +79,7 @@ router.get("/community-projects/:id", async (req, res): Promise<void> => {
 
 // PATCH /community-projects/:id
 router.patch("/community-projects/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = routeId(req.params.id);
   const [existing] = await db.select().from(communityProjectsTable).where(eq(communityProjectsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
   if (existing.ownerId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
@@ -120,7 +124,7 @@ router.patch("/community-projects/:id", requireAuth, async (req, res): Promise<v
 
 // DELETE /community-projects/:id
 router.delete("/community-projects/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = routeId(req.params.id);
   const [existing] = await db.select().from(communityProjectsTable).where(eq(communityProjectsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
   if (existing.ownerId !== getSessionUserId(req)! && !isStaffRole(getSessionUserRole(req))) {
@@ -133,7 +137,7 @@ router.delete("/community-projects/:id", requireAuth, async (req, res): Promise<
 
 // POST /community-projects/:id/join
 router.post("/community-projects/:id/join", requireAuth, async (req, res): Promise<void> => {
-  const projectId = parseInt(req.params.id, 10);
+  const projectId = routeId(req.params.id);
   const userId = getSessionUserId(req)!;
   const { name, role, message } = req.body;
   const cleanRole = String(role || "");
@@ -177,7 +181,7 @@ router.post("/community-projects/:id/join", requireAuth, async (req, res): Promi
 
 // GET /community-projects/:id/members
 router.get("/community-projects/:id/members", async (req, res): Promise<void> => {
-  const projectId = parseInt(req.params.id, 10);
+  const projectId = routeId(req.params.id);
   const members = await db
     .select()
     .from(projectMembersTable)
