@@ -164,7 +164,7 @@ export default function SystemCenter() {
             </TabsTrigger>
             <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" /> Users</TabsTrigger>
             <TabsTrigger value="announcements" className="gap-2"><Megaphone className="h-4 w-4" /> Announcements</TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2"><Settings className="h-4 w-4" /> Settings</TabsTrigger>
+            <TabsTrigger value="settings" className="gap-2"><Settings className="h-4 w-4" /> Platform Status</TabsTrigger>
           </TabsList>
 
           {/* Contact & Support */}
@@ -398,7 +398,7 @@ export default function SystemCenter() {
           {/* Settings */}
           <TabsContent value="settings" className="space-y-6">
             <AdminOnly>
-            <h2 className="font-serif text-2xl font-bold text-primary">Platform Settings</h2>
+            <h2 className="font-serif text-2xl font-bold text-primary">Platform Status</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[
                 { title: "User Registration", desc: "Allow new users to register", status: "enabled" },
