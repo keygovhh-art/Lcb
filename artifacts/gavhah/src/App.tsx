@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/context/language-context";
 import { AuthProvider } from "@/context/auth-context";
 import { YiddishMirror } from "@/components/shared/yiddish-mirror";
+import { SiteCopyLayer } from "@/components/shared/site-copy-layer";
 import NotFound from "@/pages/not-found";
 
 import Home from "@/pages/home";
@@ -147,6 +148,7 @@ function App() {
           <YiddishMirror active={isYiddishMirror}>
             <TooltipProvider>
               <WouterRouter base={routerBase}>
+                <SiteCopyLayer />
                 <Router />
               </WouterRouter>
               <Toaster />
