@@ -13,6 +13,16 @@ function isStaffRole(role?: string) {
   return role === "admin" || role === "moderator";
 }
 
+const NEWS_CATEGORIES = new Set([
+  "emergency_appeal", "fundraising", "announcement", "volunteer_call",
+  "alert", "org_update", "bikur_cholim", "community", "medical", "wedding",
+]);
+const NEWS_URGENCIES = new Set(["normal", "high", "breaking"]);
+
+function validOptionalDate(value: unknown) {
+  return value === undefined || value === null || value === "" || /^\d{4}-\d{2}-\d{2}$/.test(String(value));
+}
+
 router.get("/news/featured", async (_req, res): Promise<void> => {
   const featured = await db.select().from(newsTable).where(eq(newsTable.isFeatured, true)).orderBy(desc(newsTable.createdAt)).limit(5);
   res.json(featured);
@@ -33,21 +43,37 @@ router.get("/news", async (req, res): Promise<void> => {
 
 router.post("/news", requireAuth, async (req, res): Promise<void> => {
   const { title, content, summary, imageUrl, category, urgency, deadline, organization, isFeatured, authorName } = req.body;
-  if (!String(title || "").trim() || !String(content || "").trim()) {
+  const cleanTitle = String(title || "").trim();
+  const cleanContent = String(content || "").trim();
+  const cleanCategory = String(category || "announcement");
+  const cleanUrgency = String(urgency || "normal");
+  if (!cleanTitle || !cleanContent) {
     res.status(400).json({ error: "title and content required" });
+    return;
+  }
+  if (!NEWS_CATEGORIES.has(cleanCategory)) {
+    res.status(400).json({ error: "invalid category" });
+    return;
+  }
+  if (!NEWS_URGENCIES.has(cleanUrgency)) {
+    res.status(400).json({ error: "invalid urgency" });
+    return;
+  }
+  if (!validOptionalDate(deadline)) {
+    res.status(400).json({ error: "invalid deadline" });
     return;
   }
   const userId = getSessionUserId(req)!;
   const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
   const [article] = await db.insert(newsTable).values({
-    title: String(title).trim(),
-    content: String(content).trim(),
-    summary: summary ? String(summary).trim() : null,
-    imageUrl: imageUrl ? String(imageUrl).trim() : null,
-    category: category || "announcement",
-    urgency: urgency || "normal",
-    deadline: deadline || null,
-    organization: organization ? String(organization).trim() : null,
+    title: cleanTitle.slice(0, 300),
+    content: cleanContent.slice(0, 30000),
+    summary: summary ? String(summary).trim().slice(0, 1500) : null,
+    imageUrl: imageUrl ? String(imageUrl).trim().slice(0, 2000) : null,
+    category: cleanCategory,
+    urgency: cleanUrgency,
+    deadline: deadline ? String(deadline) : null,
+    organization: organization ? String(organization).trim().slice(0, 240) : null,
     isFeatured: isStaffRole(getSessionUserRole(req)) ? (isFeatured ?? false) : false,
     authorId: userId,
     authorName: safeAuthorName,
@@ -91,7 +117,11 @@ router.post("/news/:id/like", requireAuth, async (req, res): Promise<void> => {
 router.post("/news/:id/view", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
-  await db.update(newsTable).set({ viewCount: sql`${newsTable.viewCount} + 1` }).where(eq(newsTable.id, id));
+  const [updated] = await db.update(newsTable)
+    .set({ viewCount: sql`${newsTable.viewCount} + 1` })
+    .where(eq(newsTable.id, id))
+    .returning({ id: newsTable.id });
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ ok: true });
 });
 
@@ -109,19 +139,30 @@ router.patch("/news/:id", requireAuth, async (req, res): Promise<void> => {
   if (title !== undefined) {
     const cleanTitle = String(title).trim();
     if (!cleanTitle) { res.status(400).json({ error: "title required" }); return; }
-    updates.title = cleanTitle;
+    updates.title = cleanTitle.slice(0, 300);
   }
   if (content !== undefined) {
     const cleanContent = String(content).trim();
     if (!cleanContent) { res.status(400).json({ error: "content required" }); return; }
-    updates.content = cleanContent;
+    updates.content = cleanContent.slice(0, 30000);
   }
-  if (summary !== undefined) updates.summary = summary ? String(summary).trim() : null;
-  if (imageUrl !== undefined) updates.imageUrl = imageUrl ? String(imageUrl).trim() : null;
-  if (category !== undefined) updates.category = category;
-  if (urgency !== undefined) updates.urgency = urgency;
-  if (deadline !== undefined) updates.deadline = deadline || null;
-  if (organization !== undefined) updates.organization = organization ? String(organization).trim() : null;
+  if (summary !== undefined) updates.summary = summary ? String(summary).trim().slice(0, 1500) : null;
+  if (imageUrl !== undefined) updates.imageUrl = imageUrl ? String(imageUrl).trim().slice(0, 2000) : null;
+  if (category !== undefined) {
+    const clean = String(category);
+    if (!NEWS_CATEGORIES.has(clean)) { res.status(400).json({ error: "invalid category" }); return; }
+    updates.category = clean;
+  }
+  if (urgency !== undefined) {
+    const clean = String(urgency);
+    if (!NEWS_URGENCIES.has(clean)) { res.status(400).json({ error: "invalid urgency" }); return; }
+    updates.urgency = clean;
+  }
+  if (deadline !== undefined) {
+    if (!validOptionalDate(deadline)) { res.status(400).json({ error: "invalid deadline" }); return; }
+    updates.deadline = deadline ? String(deadline) : null;
+  }
+  if (organization !== undefined) updates.organization = organization ? String(organization).trim().slice(0, 240) : null;
   if (isStaffRole(getSessionUserRole(req)) && isFeatured !== undefined) updates.isFeatured = !!isFeatured;
 
   const [article] = await db.update(newsTable)
