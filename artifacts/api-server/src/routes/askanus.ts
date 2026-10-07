@@ -98,7 +98,7 @@ router.post("/askanus/cases", requireAuth, async (req, res) => {
     userId,
     title: cleanTitle.slice(0, 240),
     description: description ? String(description).trim().slice(0, 5000) : "",
-    urgency: cleanUrgency,
+    urgency: cleanUrgency as "low" | "medium" | "high" | "critical",
     category: cleanCategory,
     contactName: contactName ? String(contactName).trim().slice(0, 240) : "",
     deadline: deadline ? String(deadline) : "",
@@ -291,7 +291,7 @@ router.post("/askanus/tasks", requireAuth, async (req, res) => {
     title: cleanTitle.slice(0, 240),
     caseTitle: caseTitle ? String(caseTitle).trim().slice(0, 240) : "",
     deadline: deadline ? String(deadline) : "",
-    priority: cleanPriority,
+    priority: cleanPriority as "low" | "medium" | "high",
     notes: notes ? String(notes).trim().slice(0, 3000) : "",
   }).returning();
   res.status(201).json({ ...created, createdAt: created.createdAt.toISOString() });
