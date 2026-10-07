@@ -4,8 +4,16 @@ import { db, usersTable, discussionsTable, helpRequestsTable } from "@workspace/
 import { count } from "drizzle-orm";
 import { hashPassword } from "../lib/crypto";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
+import { createRateLimiter } from "../middlewares/rate-limit";
 
 const router: IRouter = Router();
+
+const registrationLimiter = createRateLimiter({
+  name: "registration",
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: "Too many account registrations from this network. Please try again later.",
+});
 
 function safeUser<T extends { passwordHash?: unknown }>(user: T) {
   const { passwordHash: _passwordHash, ...safe } = user as T & { passwordHash?: unknown };
@@ -31,7 +39,7 @@ router.get("/users", requireAdmin, async (req, res): Promise<void> => {
   res.json(filtered.map(safeUser));
 });
 
-router.post("/users", async (req, res): Promise<void> => {
+router.post("/users", registrationLimiter, async (req, res): Promise<void> => {
   const { name, nickname, email, phone, password, location, bio } = req.body as Record<string, string>;
 
   if (!nickname) {
