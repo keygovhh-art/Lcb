@@ -6,7 +6,6 @@ import {
   Radio, CalendarDays, Star, User, LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useLanguage } from "@/context/language-context";
 import { useAuth } from "@/context/auth-context";
 import {
   useGetUnreadNotificationCount,
@@ -39,7 +38,6 @@ export function Layout({ children }: { children: ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [location] = useLocation();
-  const { lang, setLang } = useLanguage();
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -155,15 +153,6 @@ export function Layout({ children }: { children: ReactNode }) {
               </Button>
             </Link>
 
-            {/* Language toggle */}
-            <button
-              onClick={() => setLang(lang === "en" ? "yi" : "en")}
-              className="hidden md:flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border border-muted hover:border-primary/40 text-muted-foreground hover:text-primary transition-colors"
-              title={lang === "en" ? "Switch to Yiddish" : "Switch to English"}
-            >
-              {lang === "en" ? "עי" : "EN"}
-            </button>
-
             {/* Bell */}
             <Link href="/notifications">
               <Button variant="ghost" size="icon" className="relative h-8 w-8">
@@ -197,7 +186,7 @@ export function Layout({ children }: { children: ReactNode }) {
                       { label: "My Profile", href: "/profile" },
                       { label: "My Askanus", href: "/my" },
                       { label: "Notifications", href: "/notifications" },
-                      { label: "Settings", href: "/system" },
+                      { label: "Help & Support", href: "/system" },
                     ].map(item => (
                       <Link key={item.href} href={item.href}>
                         <div onClick={() => setUserOpen(false)} className="px-4 py-2 text-sm hover:bg-muted/50 cursor-pointer text-foreground">
