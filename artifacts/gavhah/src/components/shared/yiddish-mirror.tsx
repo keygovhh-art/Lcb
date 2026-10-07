@@ -350,7 +350,78 @@ const EXACT: Record<string, string> = {
   "Causes": "צוועקן",
   "Charity": "צדקה",
   "Moderation": "מאדעראציע",
-  "Suggestion": "פארשלאג"
+  "Suggestion": "פארשלאג",
+  "Members Only": "נאר פאר מיטגלידער",
+  "Join Free": "שליס זיך אן אומזיסט",
+  "join free": "שליס זיך אן אומזיסט",
+  "participate": "אנטיילנעמען",
+  "Anonymous": "אנאנים",
+  "Nickname": "צונאמען",
+  "Display As": "ווייז נאמען אלס",
+  "Your community nickname": "דיין קהילה־צונאמען",
+  "No name shown": "קיין נאמען ווערט נישט געוויזן",
+  "Image": "בילד",
+  "Replace": "טויש אויס",
+  "Remove": "נעם אראפ",
+  "Uploading image...": "בילד ווערט ארויפגעלאדן...",
+  "Choose image from phone": "קלויב א בילד פונעם טעלעפאן",
+  "Or paste an image URL": "אדער לייג אריין א בילד־לינק",
+  "Images are compressed automatically. Maximum stored size: 1.5 MB.": "בילדער ווערן אויטאמאטיש צאמגעדריקט. מאקסימום אפגעהיטענע גרויס: 1.5 MB.",
+  "Could not upload image": "מען האט נישט געקענט ארויפלאדן דעם בילד",
+  "Could not read image": "מען האט נישט געקענט לייענען דעם בילד",
+  "Could not open image": "מען האט נישט געקענט עפענען דעם בילד",
+  "Please choose an image file": "ביטע קלויב א בילד־פייל",
+  "Image processing is not supported on this device": "בילד־פארארבעטונג ווערט נישט געשטיצט אויף דעם דעווייס",
+  "Could not compress image": "מען האט נישט געקענט צאמדריקן דעם בילד",
+  "Image is still too large after compression": "דער בילד איז נאך אלץ צו גרויס נאך צאמדרוקן",
+  "Image upload failed": "בילד־ארויפלאד איז דורכגעפאלן",
+  "Sign in to follow": "לאג אריין צו נאכפאלגן",
+  "Join Gavhah free to follow community activity.": "שליס זיך אן אומזיסט צו גבהה כדי נאכצופאלגן קהילה־אקטיוויטעט.",
+  "Unfollowed": "נישט מער נאכגעפאלגט",
+  "Following": "נאכפאלגנדיג",
+  "Follow": "פאלג נאך",
+  "Sign in to save": "לאג אריין צו אפהיטן",
+  "Join Gavhah free to save articles and resources.": "שליס זיך אן אומזיסט צו גבהה כדי אפצוהיטן ארטיקלען און רעסורסן.",
+  "Removed from saved": "אראפגענומען פון אפגעהיטענע",
+  "Saved": "אפגעהיטן",
+  "Remove from saved": "נעם אראפ פון אפגעהיטענע",
+  "Report": "באריכט",
+  "Submit a Report": "שיק אריין א באריכט",
+  "Reason": "סיבה",
+  "Spam or irrelevant": "ספאם אדער נישט שייך",
+  "Inappropriate content": "אומפאסיגע אינהאלט",
+  "Misinformation": "פאלשע אינפארמאציע",
+  "Harassment or abuse": "באדערונג אדער מיסברויך",
+  "Additional details (optional)": "נאך דעטאלן (אויב געוואונטשן)",
+  "Describe the issue...": "באשרייב דעם פראבלעם...",
+  "Submitting...": "שיקט אריין...",
+  "Submit Report": "שיק אריין באריכט",
+  "Sign in to report content": "לאג אריין כדי צו באריכטן אינהאלט",
+  "Join Gavhah free to help moderate the community.": "שליס זיך אן אומזיסט צו גבהה כדי צו העלפן האלטן סדר אין דער קהילה.",
+  "Report submitted": "באריכט אריינגעשיקט",
+  "Our moderation team will review this.": "אונזער מאדעראציע־מאנשאפט וועט דאס איבערקוקן.",
+  "Your Message": "דיין מעסעדזש",
+  "Brief subject": "קורצער נושא",
+  "Describe your issue or feedback...": "באשרייב דיין פראבלעם אדער פידבעק...",
+  "Your request will be reviewed by Gavhah staff. All information is handled with full discretion.": "דיין בקשה וועט ווערן איבערגעקוקט דורך גבהה שטאב. אלע אינפארמאציע ווערט באהאנדלט מיט פולער דיסקרעציע.",
+  "All relevant information, context, and action items...": "אלע שייכותדיקע אינפארמאציע, קאנטעקסט און וואס דארף געטון ווערן...",
+  "Any details we should know...": "סיי וועלכע דעטאלן וואס מיר דארפן וויסן...",
+  "Optional notes...": "אויב געוואונטשן, נאטיצן...",
+  "Any starting notes...": "סיי וועלכע אנהייב־נאטיצן...",
+  "What happened? What was done?": "וואס איז געשען? וואס איז געטון געווארן?",
+  "What needs to be done?": "וואס דארף געטון ווערן?",
+  "What needs to be followed up on?": "אויף וואס דארף מען נאכפאלגן?",
+  "Write your note here...": "שרייב דיין נאטיץ דא...",
+  "Note title...": "נאטיץ טיטל...",
+  "Brief case title": "קורצער קעיס־טיטל",
+  "Case details...": "קעיס דעטאלן...",
+  "What is this group for?": "פאר וואס איז די גרופע?",
+  "What is this project about? Who does it help? What is the plan?": "וועגן וואס איז דער פראיעקט? וועמען העלפט עס? וואס איז דער פלאן?",
+  "Clear, descriptive project name": "קלארער באשרייבנדיקער פראיעקט־נאמען",
+  "Clear, descriptive headline": "קלארע באשרייבנדיקע קעפל",
+  "One sentence — what is this update about?": "איין זאץ — וועגן וואס איז דער אפדעיט?",
+  "Your broadcast message...": "דיין בראדקאסט מעסעדזש...",
+  "Message subject...": "מעסעדזש נושא..."
 };
 
 const WORDS: Record<string, string> = {
@@ -404,13 +475,36 @@ function translateText(raw: string): string {
   if (/^https?:\/\//i.test(core) || /^mailto:/i.test(core) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(core)) return raw;
 
   let out = EXACT[core] ?? core;
-  if (out === core && core.length <= 120) {
-    const keys = Object.keys(WORDS).sort((a, b) => b.length - a.length);
-    for (const key of keys) {
-      const rx = new RegExp("\\b" + escapeRegExp(key) + "\\b", "gi");
-      out = out.replace(rx, WORDS[key]);
+
+  if (out === core) {
+    const dynamicRules: Array<[RegExp, string | ((...args: string[]) => string)]> = [
+      [/^Join the Gavhah community to .+\. Membership is free and open to all\.$/, "שליס זיך אן צו דער גבהה קהילה כדי אנטיילצונעמען. מיטגלידערשאפט איז אומזיסט און אפן פאר אלעמען."],
+      [/^You are no longer following (.+)\.$/, (_m, title) => `דו פאלגסט מער נישט נאך ${title}.`],
+      [/^You are now following (.+)\.$/, (_m, title) => `דו פאלגסט יעצט נאך ${title}.`],
+      [/^(.+) added to your saved items\.$/, (_m, title) => `${title} איז צוגעלייגט צו דיינע אפגעהיטענע זאכן.`],
+      [/^Delivered to ([0-9,]+) website notification inboxes\.$/, (_m, count) => `דעליווערט צו ${count} וועבסייט מעלדונג־אינבאקסן.`],
+    ];
+
+    for (const [pattern, replacement] of dynamicRules) {
+      if (pattern.test(core)) {
+        out = typeof replacement === "string" ? core.replace(pattern, replacement) : core.replace(pattern, replacement as any);
+        break;
+      }
     }
   }
+
+  if (out === core && core.length <= 48) {
+    const alphaWords = core.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g) ?? [];
+    const allKnown = alphaWords.length > 0 && alphaWords.every(word => Object.prototype.hasOwnProperty.call(WORDS, word));
+    if (allKnown) {
+      const keys = Object.keys(WORDS).sort((a, b) => b.length - a.length);
+      for (const key of keys) {
+        const rx = new RegExp("\\b" + escapeRegExp(key) + "\\b", "gi");
+        out = out.replace(rx, WORDS[key]);
+      }
+    }
+  }
+
   return leading + out + trailing;
 }
 
