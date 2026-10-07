@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 
 export type Language = "en" | "yi";
 
@@ -16,10 +16,17 @@ const LanguageContext = createContext<LanguageContextValue>({
   isRTL: false,
 });
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
+export function LanguageProvider({ children, forceLanguage }: { children: ReactNode; forceLanguage?: Language }) {
   const [lang, setLangState] = useState<Language>(() => {
+    if (forceLanguage) return forceLanguage;
     try { return (localStorage.getItem("gavhah:lang") as Language) || "en"; } catch { return "en"; }
   });
+  const activeLang = forceLanguage ?? lang;
+
+  useEffect(() => {
+    document.documentElement.dir = activeLang === "yi" ? "rtl" : "ltr";
+    document.documentElement.lang = activeLang === "yi" ? "yi" : "en";
+  }, [activeLang]);
 
   const setLang = useCallback((l: Language) => {
     setLangState(l);
@@ -29,12 +36,12 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const t = useCallback((en: string, yi?: string) => {
-    if (lang === "yi" && yi) return yi;
+    if (activeLang === "yi" && yi) return yi;
     return en;
-  }, [lang]);
+  }, [activeLang]);
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t, isRTL: lang === "yi" }}>
+    <LanguageContext.Provider value={{ lang: activeLang, setLang, t, isRTL: activeLang === "yi" }}>
       {children}
     </LanguageContext.Provider>
   );
