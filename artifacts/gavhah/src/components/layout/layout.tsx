@@ -69,6 +69,12 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const displayName = user?.nickname || user?.name || "Account";
 
+  const browserPath = typeof window !== "undefined" ? window.location.pathname : "/";
+  const isYiddish = browserPath === "/yi" || browserPath.startsWith("/yi/");
+  const englishPath = isYiddish ? (browserPath.replace(/^\/yi(?=\/|$)/, "") || "/") : browserPath;
+  const yiddishPath = isYiddish ? browserPath : `/yi${browserPath === "/" ? "" : browserPath}`;
+  const browserSuffix = typeof window !== "undefined" ? window.location.search + window.location.hash : "";
+
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
       {/* Header */}
@@ -147,6 +153,25 @@ export function Layout({ children }: { children: ReactNode }) {
 
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0">
+            <div className="hidden sm:flex items-center rounded-md border border-border overflow-hidden text-[11px] font-semibold" data-no-yiddish>
+              <a
+                href={englishPath + browserSuffix}
+                className={`px-2.5 py-1.5 transition-colors ${!isYiddish ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-muted-foreground"}`}
+                lang="en"
+                dir="ltr"
+              >
+                English
+              </a>
+              <a
+                href={yiddishPath + browserSuffix}
+                className={`px-2.5 py-1.5 transition-colors ${isYiddish ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-muted-foreground"}`}
+                lang="yi"
+                dir="rtl"
+              >
+                אידיש
+              </a>
+            </div>
+
             <Link href="/search">
               <Button variant="ghost" size="icon" className="hidden md:flex h-8 w-8" title="Search">
                 <Search className="h-4 w-4" />
@@ -278,6 +303,24 @@ export function Layout({ children }: { children: ReactNode }) {
                   <ChevronRight className="h-4 w-4 opacity-40" />
                 </div>
               </Link>
+              <div className="mx-4 mt-3 mb-2 flex items-center rounded-md border border-border overflow-hidden text-xs font-semibold" data-no-yiddish>
+                <a
+                  href={englishPath + browserSuffix}
+                  className={`flex-1 text-center px-3 py-2 transition-colors ${!isYiddish ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-muted-foreground"}`}
+                  lang="en"
+                  dir="ltr"
+                >
+                  English
+                </a>
+                <a
+                  href={yiddishPath + browserSuffix}
+                  className={`flex-1 text-center px-3 py-2 transition-colors ${isYiddish ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-muted-foreground"}`}
+                  lang="yi"
+                  dir="rtl"
+                >
+                  אידיש
+                </a>
+              </div>
               <p className="px-4 pt-4 pb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Departments</p>
               <nav className="space-y-0.5 px-2">
                 {ALL_PUBLIC_DEPTS.map((d) => (
