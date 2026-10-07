@@ -24,6 +24,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { CharityManagement } from "@/components/admin/charity-management";
 import { FeaturedCauseManagement } from "@/components/admin/featured-cause-management";
+import { SiteCopyManagement } from "@/components/admin/site-copy-management";
 
 function reportContentPath(type: string, id: number) {
   if (type === "news") return `/news/${id}`;
@@ -228,6 +229,9 @@ export default function FounderDashboard() {
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" /> Overview
             </TabsTrigger>
+            <TabsTrigger value="site-copy" className="gap-2">
+              <Edit3 className="h-4 w-4" /> Live Site Editor
+            </TabsTrigger>
             <TabsTrigger value="support" className="gap-2">
               <MessageSquare className="h-4 w-4" /> Support
               {supportMessages.filter(m => m.status === "open").length > 0 && (
@@ -333,6 +337,11 @@ export default function FounderDashboard() {
                 ))}
               </div>
             </div>
+          </TabsContent>
+
+          {/* ─── Live Site Editor ─── */}
+          <TabsContent value="site-copy" className="space-y-6">
+            <SiteCopyManagement />
           </TabsContent>
 
           {/* ─── Support Inbox ─── */}
