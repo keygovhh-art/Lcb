@@ -60,9 +60,8 @@ router.get("/minyans/:id", async (req, res): Promise<void> => {
   if (!minyan) { res.status(404).json({ error: "Not found" }); return; }
 
   if (minyan.status !== "approved") {
-    const userId = getSessionUserId(req);
     const currentUser = await getCurrentSessionUser(req);
-    if (userId !== minyan.submittedByUserId && !isStaffRole(currentUser?.role)) {
+    if (!currentUser || (currentUser.id !== minyan.submittedByUserId && !isStaffRole(currentUser.role))) {
       res.status(404).json({ error: "Not found" });
       return;
     }
