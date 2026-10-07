@@ -28,6 +28,9 @@ import Register from "@/pages/auth/register";
 import FounderDashboard from "@/pages/admin/index";
 import NotificationsPage from "@/pages/notifications/index";
 import ProfilePage from "@/pages/profile/index";
+import SearchPage from "@/pages/search/index";
+import PrivacyPage from "@/pages/privacy";
+import TermsPage from "@/pages/terms";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -89,6 +92,9 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/notifications" component={NotificationsPage} />
       <Route path="/profile" component={ProfilePage} />
+      <Route path="/search" component={SearchPage} />
+      <Route path="/privacy" component={PrivacyPage} />
+      <Route path="/terms" component={TermsPage} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route component={NotFound} />
