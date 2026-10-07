@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/context/language-context";
 import { AuthProvider } from "@/context/auth-context";
+import { YiddishMirror } from "@/components/shared/yiddish-mirror";
 import NotFound from "@/pages/not-found";
 
 import Home from "@/pages/home";
@@ -103,16 +104,23 @@ function Router() {
 }
 
 function App() {
+  const baseRoot = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const isYiddishMirror = typeof window !== "undefined" &&
+    (window.location.pathname === "/yi" || window.location.pathname.startsWith("/yi/"));
+  const routerBase = `${baseRoot}${isYiddishMirror ? "/yi" : ""}`;
+
   return (
     <QueryClientProvider client={queryClient}>
-      <LanguageProvider>
+      <LanguageProvider forceLanguage={isYiddishMirror ? "yi" : undefined}>
         <AuthProvider>
-          <TooltipProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-            <Toaster />
-          </TooltipProvider>
+          <YiddishMirror active={isYiddishMirror}>
+            <TooltipProvider>
+              <WouterRouter base={routerBase}>
+                <Router />
+              </WouterRouter>
+              <Toaster />
+            </TooltipProvider>
+          </YiddishMirror>
         </AuthProvider>
       </LanguageProvider>
     </QueryClientProvider>
