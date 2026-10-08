@@ -168,7 +168,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
       key: `support:${m.id}`,
       kind: m.type === "volunteer_contact" || m.type === "help_offer" ? "member_connection" : m.type,
       id: m.id,
-      priority: m.type === "report" ? "high" : "normal",
+      priority: m.type === "report" || m.type === "system_error" ? "high" : "normal",
       title: m.subject,
       summary: m.message,
       createdAt: m.createdAt,
