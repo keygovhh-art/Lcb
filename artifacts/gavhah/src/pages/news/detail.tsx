@@ -194,10 +194,12 @@ function ArticleBody({ article }: { article: any }) {
             <User className="h-4 w-4" />
             <span>By {article.authorName}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Eye className="h-4 w-4" />
-            <span>{(article.viewCount ?? 0).toLocaleString()} {article.viewCount === 1 ? "view" : "views"}</span>
-          </div>
+          {newsEngagement.showViews && (
+            <div className="flex items-center gap-1.5">
+              <Eye className="h-4 w-4" />
+              <span>{(article.viewCount ?? 0).toLocaleString()} {article.viewCount === 1 ? "view" : "views"}</span>
+            </div>
+          )}
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={handleLike}
