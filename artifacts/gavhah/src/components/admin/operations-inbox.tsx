@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, CheckCircle2, Clock, Flag, HandHeart, Inbox, RefreshCcw, Search, Users, X } from "lucide-react";
+import { AlertTriangle, CalendarClock, Check, CheckCircle2, Clock, Flag, HandHeart, Inbox, MessageSquareText, RefreshCcw, Search, UserCog, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/context/language-context";
 import { useToast } from "@/hooks/use-toast";
+
+type WorkflowState = {
+  assignedTo: number | null;
+  workflowStatus: "new" | "in_review" | "waiting";
+  dueAt: string | null;
+  notes: Array<{ text: string; authorId: number; createdAt: string }>;
+  updatedAt: string | null;
+  updatedBy: number | null;
+};
 
 type OperationItem = {
   key: string;
@@ -15,6 +24,18 @@ type OperationItem = {
   summary: string;
   createdAt: string;
   meta: Record<string, any>;
+  workflow: WorkflowState;
+  overdue: boolean;
+  escalated: boolean;
+  ageHours: number;
+};
+
+type StaffMember = {
+  id: number;
+  name: string;
+  nickname: string | null;
+  role: string;
+  status: string;
 };
 
 type InboxResponse = {
@@ -56,6 +77,7 @@ function labelForKind(kind: string, yi: boolean) {
     support: "Support",
     feedback: "Feedback",
     suggestion: "Suggestion",
+    system_error: "System Error",
   };
   const yid: Record<string, string> = {
     report: "רעפארט",
@@ -76,6 +98,7 @@ function labelForKind(kind: string, yi: boolean) {
     support: "הילף",
     feedback: "הערה",
     suggestion: "עצה",
+    system_error: "סיסטעם־פראבלעם",
   };
   return (yi ? yid : en)[kind] || kind.replaceAll("_", " ");
 }
@@ -84,6 +107,14 @@ function priorityBadge(priority: string, yi: boolean) {
   if (priority === "critical") return yi ? "קריטיש" : "Critical";
   if (priority === "high") return yi ? "וויכטיג" : "High";
   return yi ? "נארמאל" : "Normal";
+}
+
+function localDateTime(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
 }
 
 export function OperationsInbox() {
@@ -95,13 +126,24 @@ export function OperationsInbox() {
   const [busy, setBusy] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/operations-inbox", { credentials: "include", cache: "no-store" });
+      const [res, usersRes] = await Promise.all([
+        fetch("/api/admin/operations-inbox", { credentials: "include", cache: "no-store" }),
+        fetch("/api/users", { credentials: "include", cache: "no-store" }),
+      ]);
       if (!res.ok) throw new Error("Could not load management inbox");
       setData(await res.json());
+      if (usersRes.ok) {
+        const allUsers = await usersRes.json() as StaffMember[];
+        setStaff(allUsers.filter(user =>
+          user.status === "active" && ["moderator", "admin", "super_admin"].includes(user.role)
+        ));
+      }
     } catch (error) {
       toast({
         title: yi ? "מען האט נישט געקענט לאדן דעם אינבאקס" : "Could not load Operations Inbox",
@@ -163,6 +205,23 @@ export function OperationsInbox() {
     } catch (error) {
       toast({
         title: yi ? "די אקציע איז נישט דורכגעגאנגען" : "Action failed",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const updateWorkflow = async (item: OperationItem, patch: Record<string, unknown>) => {
+    setBusy(item.key + ":workflow");
+    try {
+      await request("/api/admin/operations-workflow", "PATCH", { key: item.key, ...patch });
+      toast({ title: yi ? "אפגעהיטן" : "Workflow saved" });
+      await load();
+    } catch (error) {
+      toast({
+        title: yi ? "מען האט נישט געקענט אפהיטן" : "Could not save workflow",
         description: error instanceof Error ? error.message : undefined,
         variant: "destructive",
       });
@@ -245,6 +304,7 @@ export function OperationsInbox() {
             ["help_request", yi ? "נצרכים" : "Help"],
             ["group_join", yi ? "גרופעס" : "Groups"],
             ["member_connection", yi ? "פארבינדונגען" : "Connections"],
+            ["system_error", yi ? "טעכנישע פראבלעמען" : "System Errors"],
           ].map(([value, label]) => (
             <Button
               key={value}
@@ -281,6 +341,19 @@ export function OperationsInbox() {
                         {priorityBadge(item.priority, yi)}
                       </Badge>
                     )}
+                    {item.escalated && (
+                      <Badge className="bg-red-600 text-white border-red-700">
+                        {item.overdue ? (yi ? "איבער די צייט" : "Overdue") : (yi ? "ווארט צו לאנג" : "Waiting too long")}
+                      </Badge>
+                    )}
+                    {item.workflow.assignedTo && (
+                      <Badge variant="secondary" className="gap-1">
+                        <UserCog className="h-3 w-3" />
+                        {staff.find(s => s.id === item.workflow.assignedTo)?.nickname ||
+                         staff.find(s => s.id === item.workflow.assignedTo)?.name ||
+                         `#${item.workflow.assignedTo}`}
+                      </Badge>
+                    )}
                     <span className="text-[11px] text-muted-foreground">
                       {new Date(item.createdAt).toLocaleString()}
                     </span>
@@ -289,6 +362,87 @@ export function OperationsInbox() {
                   <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap break-words">{item.summary}</p>
                   {item.meta?.location && <p className="text-xs text-muted-foreground mt-2">{yi ? "ארט:" : "Location:"} {item.meta.location}</p>}
                   {item.meta?.contact && <p className="text-xs text-muted-foreground mt-1">{yi ? "קאנטאקט:" : "Contact:"} {item.meta.contact}</p>}
+
+                  <div className="mt-4 rounded-xl border bg-muted/15 p-3 space-y-3">
+                    <div className="grid sm:grid-cols-3 gap-2">
+                      <label className="text-[11px] text-muted-foreground">
+                        <span className="mb-1 flex items-center gap-1"><UserCog className="h-3 w-3" /> {yi ? "ווער האנדלט עס" : "Assigned to"}</span>
+                        <select
+                          value={item.workflow.assignedTo ?? ""}
+                          disabled={busy !== null}
+                          onChange={e => void updateWorkflow(item, { assignedTo: e.target.value ? Number(e.target.value) : null })}
+                          className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                        >
+                          <option value="">{yi ? "נאך קיינער" : "Unassigned"}</option>
+                          {staff.map(member => (
+                            <option key={member.id} value={member.id}>
+                              {member.nickname || member.name} — {member.role}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="text-[11px] text-muted-foreground">
+                        <span className="mb-1 flex items-center gap-1"><Clock className="h-3 w-3" /> {yi ? "מצב" : "Status"}</span>
+                        <select
+                          value={item.workflow.workflowStatus}
+                          disabled={busy !== null}
+                          onChange={e => void updateWorkflow(item, { workflowStatus: e.target.value })}
+                          className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                        >
+                          <option value="new">{yi ? "ניי" : "New"}</option>
+                          <option value="in_review">{yi ? "מען ארבעט דערויף" : "In Review"}</option>
+                          <option value="waiting">{yi ? "ווארט אויף ענטפער" : "Waiting"}</option>
+                        </select>
+                      </label>
+
+                      <label className="text-[11px] text-muted-foreground">
+                        <span className="mb-1 flex items-center gap-1"><CalendarClock className="h-3 w-3" /> {yi ? "ביז ווען" : "Due"}</span>
+                        <input
+                          type="datetime-local"
+                          value={localDateTime(item.workflow.dueAt)}
+                          disabled={busy !== null}
+                          onChange={e => void updateWorkflow(item, { dueAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                          className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Input
+                        value={noteDrafts[item.key] || ""}
+                        onChange={e => setNoteDrafts(prev => ({ ...prev, [item.key]: e.target.value }))}
+                        placeholder={yi ? "אינערליכע נאטיץ פארן טיעם..." : "Internal note for the team..."}
+                        className="h-9"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy !== null || !(noteDrafts[item.key] || "").trim()}
+                        onClick={() => {
+                          const note = (noteDrafts[item.key] || "").trim();
+                          if (!note) return;
+                          setNoteDrafts(prev => ({ ...prev, [item.key]: "" }));
+                          void updateWorkflow(item, { note });
+                        }}
+                        className="gap-1.5 shrink-0"
+                      >
+                        <MessageSquareText className="h-3.5 w-3.5" />
+                        {yi ? "לייג צו" : "Add Note"}
+                      </Button>
+                    </div>
+
+                    {item.workflow.notes.length > 0 && (
+                      <div className="space-y-1">
+                        {item.workflow.notes.slice(-2).reverse().map((note, index) => (
+                          <div key={index} className="text-xs rounded-md bg-background border px-2.5 py-2">
+                            <span className="text-muted-foreground">#{note.authorId} · {new Date(note.createdAt).toLocaleString()} — </span>
+                            {note.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2 lg:justify-end">
