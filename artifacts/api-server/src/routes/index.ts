@@ -23,6 +23,7 @@ import mediaRouter from "./media";
 import searchRouter from "./search";
 import siteCopyRouter from "./site-copy";
 import systemErrorsRouter from "./system-errors";
+import engagementRouter from "./engagement";
 
 const router: IRouter = Router();
 
