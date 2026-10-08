@@ -96,7 +96,7 @@ router.post("/member-requests", requireAuth, async (req, res): Promise<void> => 
 
 router.get("/admin/support-messages", requireAdmin, async (_req, res): Promise<void> => {
   const rows = await db.select().from(supportMessagesTable).orderBy(desc(supportMessagesTable.createdAt));
-  res.json(rows.filter(row => !String(row.type).startsWith("__site_copy_")));
+  res.json(rows.filter(row => !String(row.type).startsWith("__")));
 });
 
 router.patch("/admin/support-messages/:id", requireAdmin, async (req, res): Promise<void> => {
@@ -104,6 +104,13 @@ router.patch("/admin/support-messages/:id", requireAdmin, async (req, res): Prom
   const status = String(req.body?.status || "");
   if (!["open", "resolved"].includes(status)) {
     res.status(400).json({ error: "Invalid support status" });
+    return;
+  }
+
+  const [existing] = await db.select().from(supportMessagesTable).where(eq(supportMessagesTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (String(existing.type).startsWith("__")) {
+    res.status(403).json({ error: "Internal system records must be managed through their dedicated admin controls" });
     return;
   }
 
