@@ -10,11 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Calendar, User, Eye, Share2, Heart, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar, User, Eye, Share2, Pencil, Trash2 } from "lucide-react";
 import { SaveButton } from "@/components/shared/save-button";
 import { ReportButton } from "@/components/shared/report-button";
 import { format } from "date-fns";
 import { useLikeArticle } from "@/hooks/use-like-article";
+import { UpvoteButton } from "@/components/shared/upvote-button";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
@@ -168,7 +169,7 @@ function ArticleBody({ article }: { article: any }) {
   const handleLike = (e: React.MouseEvent) => {
     if (!isAuthenticated) {
       e.preventDefault();
-      toast({ title: "Sign in to like stories", description: "Join Gavhah free to show appreciation for chesed stories." });
+      toast({ title: "Sign in to upvote stories", description: "Join Gavhah free to upvote community updates." });
       setLocation("/login");
       return;
     }
@@ -201,23 +202,14 @@ function ArticleBody({ article }: { article: any }) {
             </div>
           )}
           <div className="ml-auto flex items-center gap-2">
-            <button
+            <UpvoteButton
+              active={isLiked}
+              count={likeCount}
+              pending={pending}
               onClick={handleLike}
-              disabled={pending}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full border font-medium text-sm transition-all ${
-                isLiked
-                  ? "bg-rose-50 border-rose-300 text-rose-600"
-                  : "border-border text-muted-foreground hover:border-rose-300 hover:text-rose-500"
-              }`}
-            >
-              <Heart className={`h-4 w-4 transition-all ${isLiked ? "fill-rose-500 text-rose-500" : ""}`} />
-              {isLiked ? "Liked" : "Like this story"}
-              {likeCount > 0 && (
-                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${isLiked ? "bg-rose-100 text-rose-700" : "bg-muted text-muted-foreground"}`}>
-                  {likeCount.toLocaleString()}
-                </span>
-              )}
-            </button>
+              label="upvotes"
+              title={isLiked ? "Remove upvote" : "Upvote story"}
+            />
             {canManage && (
               <>
                 <Button variant="outline" size="sm" className="gap-2" onClick={openEdit}>
@@ -303,7 +295,7 @@ function ArticleBody({ article }: { article: any }) {
         </div>
         {likeCount > 0 && (
           <div className="text-sm text-muted-foreground font-serif italic">
-            {likeCount.toLocaleString()} {likeCount === 1 ? "person appreciated" : "people appreciated"} this story
+            {likeCount.toLocaleString()} {likeCount === 1 ? "upvote" : "upvotes"}
           </div>
         )}
         <Link href="/news">
