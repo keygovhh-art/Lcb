@@ -441,10 +441,12 @@ export default function ForumDetail() {
                   <Heart className="h-4 w-4" />
                   <span>{discussion.likes} likes</span>
                 </button>
-                <div className="flex items-center gap-2">
-                  <Eye className="h-4 w-4" />
-                  <span>{discussion.views} views</span>
-                </div>
+                {forumEngagement.showViews && (
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    <span>{discussion.views} views</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <MessageCircle className="h-4 w-4" />
                   <span>{discussion.commentCount} comments</span>
@@ -456,60 +458,7 @@ export default function ForumDetail() {
               <h2 className="font-serif text-2xl font-bold text-primary">
                 Comments ({comments?.length ?? 0})
               </h2>
-              {comments?.map(comment => (
-                <div key={comment.id} className="bg-card border rounded-xl p-6">
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <span className="font-semibold text-foreground text-sm">{comment.authorName}</span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(comment.createdAt), "MMM d, yyyy 'at' h:mm a")}
-                      </span>
-                      {!!user && (comment.authorId === user.id || isAdmin) && (
-                        <>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => {
-                              setEditingCommentId(comment.id);
-                              setEditingCommentContent(comment.content);
-                            }}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => void deleteComment(comment.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  {editingCommentId === comment.id ? (
-                    <div className="space-y-2">
-                      <Textarea value={editingCommentContent} onChange={e => setEditingCommentContent(e.target.value)} className="min-h-24" />
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => void saveCommentEdit(comment.id)} disabled={!editingCommentContent.trim()}>Save</Button>
-                        <Button size="sm" variant="outline" onClick={() => { setEditingCommentId(null); setEditingCommentContent(""); }}>Cancel</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-foreground leading-relaxed">{comment.content}</p>
-                  )}
-                  <div className="flex items-center gap-4 mt-3 pt-3 border-t text-xs text-muted-foreground">
-                    <button
-                      className="flex items-center gap-1 hover:text-secondary transition-colors"
-                      onClick={() => void handleCommentLike(comment.id)}
-                    >
-                      <Heart className="h-3 w-3" /> {comment.likes}
-                    </button>
-                  </div>
-                </div>
-              ))}
+              {commentTree.map(comment => renderComment(comment))}
               {(comments?.length === 0) && (
                 <div className="text-center py-8 text-muted-foreground font-serif italic border rounded-xl bg-muted/20">
                   No comments yet. Be the first to respond.
@@ -517,15 +466,20 @@ export default function ForumDetail() {
               )}
             </div>
 
-            {!discussion.isLocked && (
+            {!discussion.isLocked && forumEngagement.replyMode !== "off" && (
               <MemberGate action="leave a reply" compact={!user}>
                 <div className="bg-card border rounded-xl p-6 shadow-sm">
-                  <h3 className="font-serif font-bold text-primary mb-4">Leave a Reply</h3>
+                  <h3 className="font-serif font-bold text-primary mb-2">Leave a Reply</h3>
+                  {forumEngagement.replyMode === "review" && (
+                    <p className="text-xs text-amber-700 mb-4">
+                      Replies in this section are reviewed by the team before they appear publicly.
+                    </p>
+                  )}
                   <form onSubmit={handleComment} className="space-y-4">
                     <Textarea
                       value={reply}
                       onChange={e => setReply(e.target.value)}
-                      placeholder="Share your thoughts or advice..."
+                      placeholder={forumEngagement.replyMode === "review" ? "Share your thoughts — this will wait for review..." : "Share your thoughts or advice..."}
                       className="min-h-28 resize-none"
                     />
                     <DisplayAsSelector value={displayAs} onChange={setDisplayAs} />
@@ -533,14 +487,19 @@ export default function ForumDetail() {
                       <Button
                         type="submit"
                         className="bg-secondary hover:bg-secondary/90 text-white"
-                        disabled={addComment.isPending || !reply.trim()}
+                        disabled={postingComment || !reply.trim()}
                       >
-                        {addComment.isPending ? "Posting..." : "Post Reply"}
+                        {postingComment ? "Sending..." : forumEngagement.replyMode === "review" ? "Send for Review" : "Post Reply"}
                       </Button>
                     </div>
                   </form>
                 </div>
               </MemberGate>
+            )}
+            {!discussion.isLocked && forumEngagement.replyMode === "off" && (
+              <div className="rounded-xl border bg-muted/20 p-5 text-center text-sm text-muted-foreground">
+                Replies are currently turned off for this section.
+              </div>
             )}
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
               <DialogContent className="sm:max-w-lg">
