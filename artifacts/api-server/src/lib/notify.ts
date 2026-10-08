@@ -28,7 +28,7 @@ export async function notifyStaff(
   }).from(usersTable);
 
   const staffIds = users
-    .filter(user => user.status === "active" && (user.role === "admin" || user.role === "moderator"))
+    .filter(user => user.status === "active" && (user.role === "admin" || user.role === "moderator" || user.role === "super_admin"))
     .map(user => user.id);
 
   if (staffIds.length === 0) return;
