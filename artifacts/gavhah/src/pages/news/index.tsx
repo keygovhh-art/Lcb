@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useLikeArticle } from "@/hooks/use-like-article";
+import { UpvoteButton } from "@/components/shared/upvote-button";
 import { ImageUploadField } from "@/components/shared/image-upload-field";
 
 // --- Category config ---
@@ -289,18 +290,12 @@ function NewsCard({ article, large = false }: { article: any; large?: boolean })
             <div className="flex items-center text-accent font-semibold text-xs group-hover:gap-2 transition-all">
               Read Full Update <ChevronRight className="h-3.5 w-3.5 ml-1" />
             </div>
-            <button
+            <UpvoteButton
+              active={isLiked}
+              count={likeCount}
               onClick={toggle}
-              className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full transition-all ${
-                isLiked
-                  ? "bg-rose-50 text-rose-600 border border-rose-200"
-                  : "text-muted-foreground border border-transparent hover:bg-muted hover:text-rose-500"
-              }`}
-              aria-label={isLiked ? "Unlike" : "Like"}
-            >
-              <Heart className={`h-3.5 w-3.5 transition-all ${isLiked ? "fill-rose-500 text-rose-500 scale-110" : ""}`} />
-              {likeCount > 0 && <span>{likeCount.toLocaleString()}</span>}
-            </button>
+              title={isLiked ? "Remove upvote" : "Upvote"}
+            />
           </div>
         </div>
       </article>
