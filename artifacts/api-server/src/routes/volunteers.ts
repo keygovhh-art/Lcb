@@ -4,6 +4,7 @@ import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable, supp
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { getMemberIdentity, resolveMemberDisplayName } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
+import { notifyStaff } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -88,6 +89,7 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
     ].filter(Boolean).join("\n"),
     status: "open",
   });
+  await notifyStaff(`New volunteer registration: ${safeUserName}`, "/founder", "admin_volunteer");
 
   res.status(201).json(vol);
 });
@@ -187,6 +189,11 @@ router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
     status: "pending",
   }).returning();
 
+  await notifyStaff(
+    `New help request: ${request.name} — ${request.urgency} ${request.needType}`,
+    "/founder",
+    "admin_help_request",
+  );
   res.status(201).json(publicHelpRequest(request));
 });
 
