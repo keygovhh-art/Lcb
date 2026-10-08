@@ -121,7 +121,7 @@ export default function ForumList() {
                         </div>
                         <div className="flex flex-col items-end gap-2 text-xs text-muted-foreground shrink-0">
                           <div className="flex items-center gap-1"><Heart className="h-3 w-3" /> {disc.likes}</div>
-                          <div className="flex items-center gap-1"><Eye className="h-3 w-3" /> {disc.views}</div>
+                          {forumEngagement.showViews && <div className="flex items-center gap-1"><Eye className="h-3 w-3" /> {disc.views}</div>}
                           <div className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {disc.commentCount}</div>
                         </div>
                       </div>
@@ -157,7 +157,7 @@ export default function ForumList() {
                         <p className="text-sm font-semibold text-foreground group-hover:text-secondary transition-colors line-clamp-2">
                           {disc.title}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{disc.views} views</p>
+                        {forumEngagement.showViews && <p className="text-xs text-muted-foreground mt-0.5">{disc.views} views</p>}
                       </div>
                     </div>
                   </Link>
