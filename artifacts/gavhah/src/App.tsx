@@ -7,6 +7,7 @@ import { LanguageProvider } from "@/context/language-context";
 import { AuthProvider } from "@/context/auth-context";
 import { YiddishMirror } from "@/components/shared/yiddish-mirror";
 import { SiteCopyLayer } from "@/components/shared/site-copy-layer";
+import { AppErrorBoundary } from "@/components/shared/app-error-boundary";
 import NotFound from "@/pages/not-found";
 
 import Home from "@/pages/home";
@@ -142,21 +143,23 @@ function App() {
   const routerBase = `${baseRoot}${isYiddishMirror ? "/yi" : ""}`;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <LanguageProvider forceLanguage={isYiddishMirror ? "yi" : undefined}>
-        <AuthProvider>
-          <YiddishMirror active={isYiddishMirror}>
-            <TooltipProvider>
-              <WouterRouter base={routerBase}>
-                <SiteCopyLayer />
-                <Router />
-              </WouterRouter>
-              <Toaster />
-            </TooltipProvider>
-          </YiddishMirror>
-        </AuthProvider>
-      </LanguageProvider>
-    </QueryClientProvider>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <LanguageProvider forceLanguage={isYiddishMirror ? "yi" : undefined}>
+          <AuthProvider>
+            <YiddishMirror active={isYiddishMirror}>
+              <TooltipProvider>
+                <WouterRouter base={routerBase}>
+                  <SiteCopyLayer />
+                  <Router />
+                </WouterRouter>
+                <Toaster />
+              </TooltipProvider>
+            </YiddishMirror>
+          </AuthProvider>
+        </LanguageProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 }
 
