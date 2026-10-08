@@ -3,6 +3,7 @@ import { desc } from "drizzle-orm";
 import { db, causeSupportersTable, supportMessagesTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
+import { notifyStaff } from "../lib/notify";
 
 const router: IRouter = Router();
 
