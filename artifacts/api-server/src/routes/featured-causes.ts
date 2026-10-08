@@ -6,9 +6,10 @@ import {
   featuredCauseSupportersTable,
   causeSubmissionsTable,
   notificationsTable,
+  supportMessagesTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
-import { resolveMemberDisplayName } from "../lib/user-display";
+import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
 import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 
@@ -245,6 +246,23 @@ router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<
       .set({ amountRaised: sql`${featuredCausesTable.amountRaised} + ${pledgeAmount}` })
       .where(eq(featuredCausesTable.id, causeId));
   }
+
+  const joiningUser = await getMemberIdentity(userId);
+  await db.insert(supportMessagesTable).values({
+    userId,
+    name: safeName,
+    email: joiningUser?.email || joiningUser?.phone || "Gavhah member",
+    type: "cause_join",
+    subject: `Cause participation: ${cause.title}`,
+    message: [
+      `Member: ${safeName}`,
+      `Pledge type: ${pledgeType}`,
+      pledgeAmount !== null ? `Amount: ${pledgeAmount}` : "",
+      location ? `Location: ${location}` : "",
+      message ? `Message: ${message}` : "",
+    ].filter(Boolean).join("\n"),
+    status: "open",
+  });
 
   res.status(201).json(supporter);
 });
