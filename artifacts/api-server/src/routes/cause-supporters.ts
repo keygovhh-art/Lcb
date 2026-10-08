@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { desc } from "drizzle-orm";
-import { db, causeSupportersTable } from "@workspace/db";
+import { db, causeSupportersTable, supportMessagesTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
-import { resolveMemberDisplayName } from "../lib/user-display";
+import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
 
 const router: IRouter = Router();
 
@@ -41,14 +41,33 @@ router.post("/cause-supporters", requireAuth, async (req, res): Promise<void> =>
 
   const userId = getSessionUserId(req)!;
   const safeName = await resolveMemberDisplayName(userId, req.body?.name);
+  const supporterMessage = req.body?.message ? String(req.body.message).trim().slice(0, 1500) : null;
+  const supporterLocation = req.body?.location ? String(req.body.location).trim().slice(0, 200) : null;
   const [supporter] = await db.insert(causeSupportersTable).values({
     causeType,
     name: safeName,
     pledgeType,
     pledgeAmount: pledgeAmount === null ? null : String(pledgeAmount),
-    message: req.body?.message ? String(req.body.message).trim().slice(0, 1500) : null,
-    location: req.body?.location ? String(req.body.location).trim().slice(0, 200) : null,
+    message: supporterMessage,
+    location: supporterLocation,
   }).returning();
+
+  const joiningUser = await getMemberIdentity(userId);
+  await db.insert(supportMessagesTable).values({
+    userId,
+    name: safeName,
+    email: joiningUser?.email || joiningUser?.phone || "Gavhah member",
+    type: "cause_support",
+    subject: `Cause response: ${causeType}`,
+    message: [
+      `Member: ${safeName}`,
+      `Pledge type: ${pledgeType}`,
+      pledgeAmount !== null ? `Amount: ${pledgeAmount}` : "",
+      supporterLocation ? `Location: ${supporterLocation}` : "",
+      supporterMessage ? `Message: ${supporterMessage}` : "",
+    ].filter(Boolean).join("\n"),
+    status: "open",
+  });
 
   res.status(201).json(supporter);
 });
