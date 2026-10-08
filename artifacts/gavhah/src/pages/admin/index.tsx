@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
+import { Link } from "wouter";
 import {
   useListReports, useResolveReport, useDismissReport, useListUsers, useBanUser, useSuspendUser,
   useListAnnouncements, useCreateAnnouncement, useDeleteAnnouncement, useGetAdminStats,
@@ -50,7 +50,6 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
 export default function FounderDashboard() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [, navigate] = useLocation();
   const { user, isLoaded, isAdmin } = useAuth();
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
@@ -65,11 +64,6 @@ export default function FounderDashboard() {
   const [adminHelpRequests, setAdminHelpRequests] = useState<any[]>([]);
   const [causeActivity, setCauseActivity] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (isLoaded && (!user || !isAdmin)) {
-      navigate("/");
-    }
-  }, [isLoaded, user, isAdmin, navigate]);
 
   const loadAdminMinyans = async () => {
     if (!isAdmin) return;
@@ -195,14 +189,39 @@ export default function FounderDashboard() {
     );
   }
 
-  if (!user || !isAdmin) {
+  if (!user) {
     return (
       <Layout>
-        <div className="flex-1 flex items-center justify-center py-24">
-          <div className="text-center">
+        <div className="flex-1 flex items-center justify-center py-24 px-4">
+          <div className="text-center max-w-md">
+            <Lock className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+            <h2 className="font-serif text-2xl font-bold text-primary mb-2">Administrator Sign In</h2>
+            <p className="text-muted-foreground mb-5">Sign in with a staff account to open the management center.</p>
+            <Link href="/login?return=%2Ffounder">
+              <Button>Sign In to Administration</Button>
+            </Link>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <Layout>
+        <div className="flex-1 flex items-center justify-center py-24 px-4">
+          <div className="text-center max-w-lg">
             <Lock className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
             <h2 className="font-serif text-2xl font-bold text-primary mb-2">Access Restricted</h2>
-            <p className="text-muted-foreground">This area is for founders and administrators only.</p>
+            <p className="text-muted-foreground">
+              You are signed in, but this account does not currently have staff access.
+            </p>
+            <div className="mt-4 rounded-lg border bg-muted/20 px-4 py-3 text-sm">
+              Current role: <span className="font-semibold">{user.role}</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Administration requires an admin or moderator role. You are no longer redirected away silently.
+            </p>
           </div>
         </div>
       </Layout>
