@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Plus, Heart, Eye, MessageCircle, Lock, TrendingUp, Pin } from "lucide-react";
 import { format } from "date-fns";
+import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
 
 const CATEGORIES = [
   { value: "", label: "All Topics" },
@@ -20,6 +21,8 @@ const CATEGORIES = [
 ];
 
 export default function ForumList() {
+  const { data: engagementSettings } = useEngagementSettings();
+  const forumEngagement = settingFor(engagementSettings, "forum");
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
 
