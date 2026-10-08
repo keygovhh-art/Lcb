@@ -5,6 +5,7 @@ import { count } from "drizzle-orm";
 import { hashPassword } from "../lib/crypto";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { createRateLimiter } from "../middlewares/rate-limit";
+import { queueStaffReview } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -75,6 +76,22 @@ router.post("/users", registrationLimiter, async (req, res): Promise<void> => {
     location: location?.trim() || null,
     bio: bio?.trim() || null,
   }).returning();
+
+  await queueStaffReview({
+    userId: user.id,
+    name: user.nickname || user.name,
+    contact: user.email || user.phone,
+    type: "member_registration",
+    subject: `New member registration: ${user.nickname || user.name}`,
+    message: [
+      `Member ID: ${user.id}`,
+      user.location ? `Location: ${user.location}` : "",
+      user.email ? `Email: ${user.email}` : "",
+      user.phone ? `Phone: ${user.phone}` : "",
+      user.bio ? `Bio: ${user.bio}` : "",
+    ].filter(Boolean).join("\n"),
+    notificationType: "admin_member_registration",
+  });
 
   res.status(201).json(safeUser(user));
 });
