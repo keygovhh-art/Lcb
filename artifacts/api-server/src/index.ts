@@ -1,4 +1,5 @@
 import { logger } from "./lib/logger";
+import { ensureReservedSuperAdmin } from "./lib/super-admin";
 
 const rawPort = process.env["PORT"];
 
@@ -13,6 +14,7 @@ if (!Number.isFinite(port) || port <= 0) {
 }
 
 logger.info({ port }, "Booting Gavhah API");
+await ensureReservedSuperAdmin();
 const { default: app } = await import("./app");
 logger.info("Application modules loaded");
 
