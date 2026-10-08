@@ -4,7 +4,7 @@ import { db, communityProjectsTable, projectMembersTable, supportMessagesTable }
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
-import { notifyUser, notifyStaff } from "../lib/notify";
+import { notifyUser, notifyStaff, queueStaffReview } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -66,6 +66,21 @@ router.post("/community-projects", requireAuth, async (req, res): Promise<void> 
   }).onConflictDoNothing();
 
   await logActivity("project", `Created community project "${project.title}"`, safeOrganizerName);
+  const creator = await getMemberIdentity(userId);
+  await queueStaffReview({
+    userId,
+    name: safeOrganizerName,
+    contact: creator?.email || creator?.phone,
+    type: "project_creation",
+    subject: `New community project: ${project.title}`,
+    message: [
+      `Organizer: ${safeOrganizerName}`,
+      `Type: ${project.type}`,
+      project.location ? `Location: ${project.location}` : "",
+      `Description: ${project.description}`,
+    ].filter(Boolean).join("\n"),
+    notificationType: "admin_project_creation",
+  });
   res.status(201).json(project);
 });
 
