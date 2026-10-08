@@ -97,7 +97,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     groups,
     causeSubmissions,
     minyans,
-    supportMessages,
+    supportRows,
     reservations,
     workflowRows,
   ] = await Promise.all([
@@ -113,6 +113,9 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
   ]);
 
   const groupNames = new Map(groups.map(g => [g.id, g.name]));
+  const pendingComments = supportRows.filter(m => m.type === "__pending_comment__");
+  const supportMessages = supportRows.filter(m => !String(m.type).startsWith("__"));
+
   const rawItems = [
     ...reports.map(r => ({
       key: `report:${r.id}`,
@@ -164,6 +167,25 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
       createdAt: m.createdAt,
       meta: { userId: m.submittedByUserId },
     })),
+    ...pendingComments.map(m => {
+      let payload: any = {};
+      try { payload = JSON.parse(m.message); } catch {}
+      return {
+        key: `comment_review:${m.id}`,
+        kind: "comment_review",
+        id: m.id,
+        priority: "normal",
+        title: `Reply awaiting review: ${payload.authorName || m.name}`,
+        summary: String(payload.content || "Pending forum reply"),
+        createdAt: m.createdAt,
+        meta: {
+          discussionId: Number(payload.discussionId) || null,
+          parentId: payload.parentId ?? null,
+          authorId: Number(payload.authorId) || m.userId,
+          authorName: payload.authorName || m.name,
+        },
+      };
+    }),
     ...supportMessages.map(m => ({
       key: `support:${m.id}`,
       kind: m.type === "volunteer_contact" || m.type === "help_offer" ? "member_connection" : m.type,
@@ -213,6 +235,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
       minyans: minyans.length,
       support: supportMessages.length,
       reservations: reservations.length,
+      pendingComments: pendingComments.length,
     },
     items,
   });
