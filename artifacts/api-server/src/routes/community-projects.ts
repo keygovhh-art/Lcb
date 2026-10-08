@@ -4,7 +4,7 @@ import { db, communityProjectsTable, projectMembersTable, supportMessagesTable }
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
-import { notifyUser } from "../lib/notify";
+import { notifyUser, notifyStaff } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -190,6 +190,7 @@ router.post("/community-projects/:id/join", requireAuth, async (req, res): Promi
     ].filter(Boolean).join("\n"),
     status: "open",
   });
+  await notifyStaff(`New project participation: ${safeName} → ${project.title}`, "/founder", "admin_project_join");
 
   res.status(201).json(member);
 });
