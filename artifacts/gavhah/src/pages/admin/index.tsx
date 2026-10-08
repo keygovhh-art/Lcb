@@ -26,6 +26,7 @@ import { CharityManagement } from "@/components/admin/charity-management";
 import { FeaturedCauseManagement } from "@/components/admin/featured-cause-management";
 import { SiteCopyManagement } from "@/components/admin/site-copy-management";
 import { OperationsInbox } from "@/components/admin/operations-inbox";
+import { EngagementManagement } from "@/components/admin/engagement-management";
 
 function reportContentPath(type: string, id: number) {
   if (type === "news") return `/news/${id}`;
@@ -252,6 +253,9 @@ export default function FounderDashboard() {
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" /> Overview
             </TabsTrigger>
+            <TabsTrigger value="engagement" className="gap-2">
+              <MessageSquare className="h-4 w-4" /> Comments & Views
+            </TabsTrigger>
             <TabsTrigger value="site-copy" className="gap-2">
               <Edit3 className="h-4 w-4" /> Live Site Editor
             </TabsTrigger>
@@ -302,6 +306,11 @@ export default function FounderDashboard() {
           {/* ─── Operations Inbox ─── */}
           <TabsContent value="operations" className="space-y-6">
             <OperationsInbox />
+          </TabsContent>
+
+          {/* ─── Comments, Replies & Views ─── */}
+          <TabsContent value="engagement" className="space-y-6">
+            <EngagementManagement />
           </TabsContent>
 
           {/* ─── Overview ─── */}
