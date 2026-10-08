@@ -48,12 +48,13 @@ type InboxResponse = {
     minyans: number;
     support: number;
     reservations: number;
+    pendingComments: number;
   };
   items: OperationItem[];
 };
 
 const EMPTY: InboxResponse = {
-  counts: { total: 0, reports: 0, helpRequests: 0, groupJoins: 0, causeSubmissions: 0, minyans: 0, support: 0, reservations: 0 },
+  counts: { total: 0, reports: 0, helpRequests: 0, groupJoins: 0, causeSubmissions: 0, minyans: 0, support: 0, reservations: 0, pendingComments: 0 },
   items: [],
 };
 
@@ -78,6 +79,7 @@ function labelForKind(kind: string, yi: boolean) {
     feedback: "Feedback",
     suggestion: "Suggestion",
     system_error: "System Error",
+    comment_review: "Reply Review",
   };
   const yid: Record<string, string> = {
     report: "רעפארט",
@@ -99,6 +101,7 @@ function labelForKind(kind: string, yi: boolean) {
     feedback: "הערה",
     suggestion: "עצה",
     system_error: "סיסטעם־פראבלעם",
+    comment_review: "ריפליי־ריוויו",
   };
   return (yi ? yid : en)[kind] || kind.replaceAll("_", " ");
 }
@@ -196,6 +199,8 @@ export function OperationsInbox() {
         await request(`/api/minyans/${item.id}`, "PATCH", { status: action === "approve" ? "approved" : "rejected" });
       } else if (item.kind === "reservation") {
         await request(`/api/reservations/${item.id}`, "PATCH", { status: action === "approve" ? "completed" : "cancelled" });
+      } else if (item.kind === "comment_review") {
+        await request(`/api/admin/pending-comments/${item.id}/${action === "approve" ? "approve" : "reject"}`);
       } else {
         await request(`/api/admin/support-messages/${item.id}`, "PATCH", { status: "resolved" });
       }
@@ -231,14 +236,14 @@ export function OperationsInbox() {
   };
 
   const reviewOnly = (item: OperationItem) => ![
-    "report", "help_request", "group_join", "cause_submission", "minyan_submission", "reservation",
+    "report", "help_request", "group_join", "cause_submission", "minyan_submission", "reservation", "comment_review",
   ].includes(item.kind);
 
   const statCards = [
     { label: yi ? "אלעס אפן" : "Open Now", value: data.counts.total, icon: <Inbox className="h-4 w-4" /> },
     { label: yi ? "רעפארטס" : "Reports", value: data.counts.reports, icon: <Flag className="h-4 w-4" /> },
     { label: yi ? "הילף־בקשות" : "Help Requests", value: data.counts.helpRequests, icon: <HandHeart className="h-4 w-4" /> },
-    { label: yi ? "אנשליס־בקשות" : "Join Requests", value: data.counts.groupJoins + data.counts.causeSubmissions, icon: <Users className="h-4 w-4" /> },
+    { label: yi ? "ווארט אויף ריוויו" : "Reply Reviews", value: data.counts.pendingComments, icon: <MessageSquareText className="h-4 w-4" /> },
   ];
 
   return (
@@ -305,6 +310,7 @@ export function OperationsInbox() {
             ["group_join", yi ? "גרופעס" : "Groups"],
             ["member_connection", yi ? "פארבינדונגען" : "Connections"],
             ["system_error", yi ? "טעכנישע פראבלעמען" : "System Errors"],
+            ["comment_review", yi ? "ריפליי־ריוויו" : "Reply Reviews"],
           ].map(([value, label]) => (
             <Button
               key={value}
@@ -480,8 +486,8 @@ export function OperationsInbox() {
         <Clock className="h-4 w-4 shrink-0 mt-0.5" />
         <p>
           {yi
-            ? "דער יעצטיגער אינבאקס ניצט די עקזיסטירנדע statuses פונעם סייט. דער נעקסטער שטאפל איז assignment צו שטאב, אינערליכע נאטיצן, due dates און escalation פאר זאכן וואס ווארטן צו לאנג."
-            : "This first version uses the site's existing statuses. The next layer is staff assignment, internal notes, due dates, and escalation for requests waiting too long."}
+            ? "יעדע אפענע זאך קען ווערן צוגעטיילט צו א טיעם־מענטש, באקומען א מצב, due date און אינערליכע נאטיצן. זאכן וואס ווארטן צו לאנג ווערן אויטאמאטיש ארויסגעהויבן."
+            : "Every open item can be assigned to staff, given a workflow status, due date, and internal notes. Items waiting too long are automatically escalated."}
         </p>
       </div>
     </div>
