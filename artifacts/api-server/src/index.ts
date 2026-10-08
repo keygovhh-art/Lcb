@@ -14,7 +14,11 @@ if (!Number.isFinite(port) || port <= 0) {
 }
 
 logger.info({ port }, "Booting Gavhah API");
-await ensureReservedSuperAdmin();
+try {
+  await ensureReservedSuperAdmin();
+} catch (err) {
+  logger.error({ err }, "Super-admin bootstrap failed; continuing server startup");
+}
 const { default: app } = await import("./app");
 logger.info("Application modules loaded");
 
