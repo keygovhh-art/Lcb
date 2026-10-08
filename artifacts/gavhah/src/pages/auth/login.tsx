@@ -23,7 +23,11 @@ export default function Login() {
     const result = await login(identifier.trim(), password);
     setLoading(false);
     if (result.ok) {
-      window.location.replace(`/?auth=${Date.now()}`);
+      const params = new URLSearchParams(window.location.search);
+      const requested = params.get("return") || "/";
+      const safeReturn = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
+      const separator = safeReturn.includes("?") ? "&" : "?";
+      window.location.replace(`${safeReturn}${separator}auth=${Date.now()}`);
     } else {
       setError(result.error ?? "Login failed. Please check your credentials.");
     }
