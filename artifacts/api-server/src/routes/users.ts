@@ -6,7 +6,7 @@ import { hashPassword } from "../lib/crypto";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { createRateLimiter } from "../middlewares/rate-limit";
 import { queueStaffReview } from "../lib/notify";
-import { RESERVED_SUPER_ADMIN_NAME, isReservedSuperAdminName } from "../lib/super-admin";
+import { isReservedSuperAdminName } from "../lib/super-admin";
 
 const router: IRouter = Router();
 
