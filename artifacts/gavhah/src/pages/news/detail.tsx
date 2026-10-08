@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { useLikeArticle } from "@/hooks/use-like-article";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
+import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
 import { ImageUploadField } from "@/components/shared/image-upload-field";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -81,6 +82,8 @@ function ArticleBody({ article }: { article: any }) {
   const { isLiked, likeCount, toggle, pending } = useLikeArticle(article.id, article.likeCount ?? 0);
   const { user, isAuthenticated, isAdmin } = useAuth();
   const { toast } = useToast();
+  const { data: engagementSettings } = useEngagementSettings();
+  const newsEngagement = settingFor(engagementSettings, "news");
   const qc = useQueryClient();
   const [, setLocation] = useLocation();
   const [editOpen, setEditOpen] = useState(false);
