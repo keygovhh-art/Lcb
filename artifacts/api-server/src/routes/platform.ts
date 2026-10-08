@@ -8,6 +8,7 @@ import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth
 import { createRateLimiter } from "../middlewares/rate-limit";
 import { resolveMemberDisplayName } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
+import { notifyStaff } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -120,6 +121,7 @@ router.post("/reports", requireAuth, reportLimiter, async (req, res): Promise<vo
     reporterId,
     status: "pending",
   }).returning();
+  await notifyStaff(`New content report: ${contentType} #${contentId} — ${reason}`, "/founder", "admin_report");
   res.status(201).json(report);
 });
 
