@@ -53,7 +53,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
 export const requireAdmin: RequestHandler = async (req, res, next) => {
   try {
     const user = await getCurrentSessionUser(req);
-    if (!user || (user.role !== "admin" && user.role !== "moderator")) {
+    if (!user || (user.role !== "admin" && user.role !== "moderator" && user.role !== "super_admin")) {
       res.status(403).json({ error: "Admin access required" });
       return;
     }
