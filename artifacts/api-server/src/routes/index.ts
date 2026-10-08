@@ -22,6 +22,7 @@ import likesRouter from "./likes";
 import mediaRouter from "./media";
 import searchRouter from "./search";
 import siteCopyRouter from "./site-copy";
+import systemErrorsRouter from "./system-errors";
 
 const router: IRouter = Router();
 
