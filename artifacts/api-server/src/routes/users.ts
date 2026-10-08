@@ -6,7 +6,7 @@ import { hashPassword } from "../lib/crypto";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { createRateLimiter } from "../middlewares/rate-limit";
 import { queueStaffReview } from "../lib/notify";
-import { RESERVED_SUPER_ADMIN_NAME } from "../lib/super-admin";
+import { RESERVED_SUPER_ADMIN_NAME, isReservedSuperAdminName } from "../lib/super-admin";
 
 const router: IRouter = Router();
 
@@ -51,8 +51,8 @@ router.post("/users", registrationLimiter, async (req, res): Promise<void> => {
   const cleanRegistrationName = (name?.trim() || nickname.trim());
   const cleanRegistrationNickname = nickname.trim();
   if (
-    cleanRegistrationName === RESERVED_SUPER_ADMIN_NAME ||
-    cleanRegistrationNickname === RESERVED_SUPER_ADMIN_NAME
+    isReservedSuperAdminName(cleanRegistrationName) ||
+    isReservedSuperAdminName(cleanRegistrationNickname)
   ) {
     res.status(409).json({ error: "This account name is reserved" });
     return;
@@ -158,7 +158,7 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
     if (!isSelf && !isAdmin) { res.status(403).json({ error: "Not allowed" }); return; }
     const cleanName = String(name).trim();
     if (!cleanName) { res.status(400).json({ error: "name cannot be empty" }); return; }
-    if (cleanName === RESERVED_SUPER_ADMIN_NAME && target.role !== "super_admin") {
+    if (isReservedSuperAdminName(cleanName) && target.role !== "super_admin") {
       res.status(409).json({ error: "This account name is reserved" }); return;
     }
     updates.name = cleanName;
@@ -167,7 +167,7 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
     if (!isSelf && !isAdmin) { res.status(403).json({ error: "Not allowed" }); return; }
     const cleanNickname = String(nickname).trim();
     if (!cleanNickname) { res.status(400).json({ error: "nickname cannot be empty" }); return; }
-    if (cleanNickname === RESERVED_SUPER_ADMIN_NAME && target.role !== "super_admin") {
+    if (isReservedSuperAdminName(cleanNickname) && target.role !== "super_admin") {
       res.status(409).json({ error: "This account name is reserved" }); return;
     }
     updates.nickname = cleanNickname;
