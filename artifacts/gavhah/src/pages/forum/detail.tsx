@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Heart, Eye, MessageCircle, Lock, Pin, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, MessageCircle, Lock, Pin, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ReportButton } from "@/components/shared/report-button";
 import { SaveButton } from "@/components/shared/save-button";
@@ -21,6 +21,8 @@ import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
+import { UpvoteButton } from "@/components/shared/upvote-button";
+import { useUpvoteStates } from "@/hooks/use-upvote-states";
 
 const CATEGORY_LABELS: Record<string, string> = {
   medical: "Medical Assistance", shidduchim: "Shidduchim",
@@ -56,6 +58,12 @@ export default function ForumDetail() {
     query: { queryKey: getListDiscussionCommentsQueryKey(numId), enabled: !!numId },
   });
   const like = useLikeDiscussion();
+  const discussionUpvotes = useUpvoteStates("discussion", numId ? [numId] : [], isAuthenticated && !!numId);
+  const commentUpvotes = useUpvoteStates(
+    "comment",
+    Array.isArray(comments) ? comments.map((comment: any) => comment.id) : [],
+    isAuthenticated,
+  );
   const { data: engagementSettings } = useEngagementSettings();
   const forumEngagement = settingFor(engagementSettings, "forum");
 
@@ -77,7 +85,10 @@ export default function ForumDetail() {
       return;
     }
     like.mutate({ id: numId }, {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getGetDiscussionQueryKey(numId) }),
+      onSuccess: (result: any) => {
+        if (typeof result?.liked === "boolean") discussionUpvotes.setLiked(numId, result.liked);
+        void qc.invalidateQueries({ queryKey: getGetDiscussionQueryKey(numId) });
+      },
     });
   };
 
@@ -128,6 +139,8 @@ export default function ForumDetail() {
       credentials: "include",
     });
     if (res.ok) {
+      const result = await res.json().catch(() => ({}));
+      if (typeof result?.liked === "boolean") commentUpvotes.setLiked(commentId, result.liked);
       void qc.invalidateQueries({ queryKey: getListDiscussionCommentsQueryKey(numId) });
     }
   };
@@ -298,12 +311,12 @@ export default function ForumDetail() {
           )}
 
           <div className="flex items-center gap-4 mt-3 pt-3 border-t text-xs text-muted-foreground">
-            <button
-              className="flex items-center gap-1 hover:text-secondary transition-colors"
+            <UpvoteButton
+              active={commentUpvotes.isLiked(comment.id)}
+              count={comment.likes}
               onClick={() => void handleCommentLike(comment.id)}
-            >
-              <Heart className="h-3 w-3" /> {comment.likes}
-            </button>
+              title={commentUpvotes.isLiked(comment.id) ? "Remove upvote" : "Upvote comment"}
+            />
             {forumEngagement.replyMode !== "off" && (
               <button
                 className="flex items-center gap-1 hover:text-secondary transition-colors"
@@ -436,14 +449,14 @@ export default function ForumDetail() {
               </div>
 
               <div className="flex items-center gap-6 pt-4 border-t text-sm text-muted-foreground">
-                <button
-                  onClick={handleLike}
-                  className="flex items-center gap-2 hover:text-secondary transition-colors"
-                  disabled={like.isPending}
-                >
-                  <Heart className="h-4 w-4" />
-                  <span>{discussion.likes} likes</span>
-                </button>
+                <UpvoteButton
+                  active={discussionUpvotes.isLiked(numId)}
+                  count={discussion.likes}
+                  pending={like.isPending}
+                  onClick={() => handleLike()}
+                  label="upvotes"
+                  title={discussionUpvotes.isLiked(numId) ? "Remove upvote" : "Upvote discussion"}
+                />
                 {forumEngagement.showViews && (
                   <div className="flex items-center gap-2">
                     <Eye className="h-4 w-4" />
