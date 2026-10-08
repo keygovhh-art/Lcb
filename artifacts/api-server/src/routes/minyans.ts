@@ -4,6 +4,7 @@ import { db, minyansTable, notificationsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getCurrentSessionUser } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { logActivity } from "../lib/activity";
+import { notifyStaff } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -50,6 +51,7 @@ router.post("/minyans", requireAuth, async (req, res): Promise<void> => {
     notes: notes ? String(notes).trim().slice(0, 3000) : null,
     status: "pending",
   }).returning();
+  await notifyStaff(`New minyan submission: ${minyan.synagogueName} — ${minyan.city}`, "/founder", "admin_minyan");
   res.status(201).json(minyan);
 });
 
