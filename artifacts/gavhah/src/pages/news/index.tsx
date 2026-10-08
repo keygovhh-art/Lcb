@@ -15,6 +15,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
+import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import {
   Search, Plus, Eye, Heart, Star, Globe, ChevronRight,
@@ -257,7 +258,7 @@ function NewsCard({ article, large = false }: { article: any; large?: boolean })
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 flex-wrap gap-2">
             <span>{format(new Date(article.createdAt), "MMM d, yyyy")}</span>
             <div className="flex items-center gap-3">
-              {(article.viewCount ?? 0) > 0 && (
+              {newsEngagement.showViews && (article.viewCount ?? 0) > 0 && (
                 <span className="flex items-center gap-1">
                   <Eye className="h-3.5 w-3.5" /> {article.viewCount.toLocaleString()}
                 </span>
@@ -308,6 +309,8 @@ function NewsCard({ article, large = false }: { article: any; large?: boolean })
 }
 
 export default function NewsPage() {
+  const { data: engagementSettings } = useEngagementSettings();
+  const newsEngagement = settingFor(engagementSettings, "news");
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
