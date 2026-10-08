@@ -6,7 +6,7 @@ import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName } from "../lib/user-display";
 import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 import { logActivity } from "../lib/activity";
-import { notifyUser } from "../lib/notify";
+import { notifyUser, notifyStaff } from "../lib/notify";
 
 const router: IRouter = Router();
 
