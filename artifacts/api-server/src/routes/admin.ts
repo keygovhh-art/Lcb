@@ -7,9 +7,53 @@ import {
   groupMembersTable, causeSubmissionsTable, minyansTable, reservationsTable,
 } from "@workspace/db/schema";
 import { count, eq, desc } from "drizzle-orm";
-import { requireAdmin } from "../middlewares/auth";
+import { requireAdmin, getSessionUserId } from "../middlewares/auth";
 
 const router = Router();
+
+const WORKFLOW_META_TYPE = "__workflow_meta__";
+
+type WorkflowNote = { text: string; authorId: number; createdAt: string };
+type WorkflowState = {
+  assignedTo: number | null;
+  workflowStatus: "new" | "in_review" | "waiting";
+  dueAt: string | null;
+  notes: WorkflowNote[];
+  updatedAt: string | null;
+  updatedBy: number | null;
+};
+
+function defaultWorkflow(): WorkflowState {
+  return { assignedTo: null, workflowStatus: "new", dueAt: null, notes: [], updatedAt: null, updatedBy: null };
+}
+
+function parseWorkflow(message: unknown): WorkflowState {
+  try {
+    const parsed = JSON.parse(String(message));
+    return {
+      assignedTo: Number.isInteger(parsed.assignedTo) ? Number(parsed.assignedTo) : null,
+      workflowStatus: ["new","in_review","waiting"].includes(parsed.workflowStatus) ? parsed.workflowStatus : "new",
+      dueAt: typeof parsed.dueAt === "string" && parsed.dueAt ? parsed.dueAt : null,
+      notes: Array.isArray(parsed.notes)
+        ? parsed.notes.filter((n: any) => n && typeof n.text === "string" && Number.isInteger(n.authorId) && typeof n.createdAt === "string").slice(-100)
+        : [],
+      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
+      updatedBy: Number.isInteger(parsed.updatedBy) ? Number(parsed.updatedBy) : null,
+    };
+  } catch {
+    return defaultWorkflow();
+  }
+}
+
+function escalationFor(createdAt: unknown, priority: string, dueAt: string | null) {
+  const now = Date.now();
+  const created = new Date(String(createdAt)).getTime();
+  const ageHours = Number.isFinite(created) ? Math.max(0, (now - created) / 3600000) : 0;
+  const dueMs = dueAt ? new Date(dueAt).getTime() : NaN;
+  const pastDue = Number.isFinite(dueMs) && dueMs < now;
+  const threshold = priority === "critical" ? 2 : priority === "high" ? 8 : 24;
+  return { overdue: pastDue, escalated: pastDue || ageHours >= threshold, ageHours: Math.round(ageHours * 10) / 10 };
+}
 
 router.get("/admin/stats", requireAdmin, async (_req, res) => {
   const [[members], [active], [volunteers], [projects], [causes], [discussions], [reports], [pending], [news], [groups], [follows], [saved]] =
@@ -55,6 +99,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     minyans,
     supportMessages,
     reservations,
+    workflowRows,
   ] = await Promise.all([
     db.select().from(reportsTable).where(eq(reportsTable.status, "pending")).orderBy(desc(reportsTable.createdAt)),
     db.select().from(helpRequestsTable).where(eq(helpRequestsTable.status, "pending")).orderBy(desc(helpRequestsTable.createdAt)),
@@ -64,10 +109,11 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     db.select().from(minyansTable).where(eq(minyansTable.status, "pending")).orderBy(desc(minyansTable.createdAt)),
     db.select().from(supportMessagesTable).where(eq(supportMessagesTable.status, "open")).orderBy(desc(supportMessagesTable.createdAt)),
     db.select().from(reservationsTable).where(eq(reservationsTable.status, "confirmed")).orderBy(desc(reservationsTable.createdAt)),
+    db.select().from(supportMessagesTable).where(eq(supportMessagesTable.type, WORKFLOW_META_TYPE)).orderBy(desc(supportMessagesTable.createdAt)),
   ]);
 
   const groupNames = new Map(groups.map(g => [g.id, g.name]));
-  const items = [
+  const rawItems = [
     ...reports.map(r => ({
       key: `report:${r.id}`,
       kind: "report",
@@ -138,7 +184,19 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
       createdAt: r.createdAt,
       meta: { userId: r.userId, reservationDate: r.reservationDate, reservationTime: r.reservationTime },
     })),
-  ].sort((a, b) => {
+  ];
+
+  const workflowByKey = new Map<string, WorkflowState>();
+  for (const row of workflowRows) {
+    if (!workflowByKey.has(row.subject)) workflowByKey.set(row.subject, parseWorkflow(row.message));
+  }
+
+  const items = rawItems.map(item => {
+    const workflow = workflowByKey.get(item.key) ?? defaultWorkflow();
+    const escalation = escalationFor(item.createdAt, item.priority, workflow.dueAt);
+    return { ...item, workflow, ...escalation };
+  }).sort((a, b) => {
+    if (a.escalated !== b.escalated) return a.escalated ? -1 : 1;
     const rank = (p: string) => p === "critical" ? 3 : p === "high" ? 2 : 1;
     const diff = rank(b.priority) - rank(a.priority);
     if (diff) return diff;
@@ -158,6 +216,87 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     },
     items,
   });
+});
+
+router.patch("/admin/operations-workflow", requireAdmin, async (req, res): Promise<void> => {
+  const actorId = getSessionUserId(req)!;
+  const key = String(req.body?.key || "").trim();
+  if (!key || key.length > 200 || !/^[a-z_]+:[0-9]+$/i.test(key)) {
+    res.status(400).json({ error: "Invalid operation key" });
+    return;
+  }
+
+  const [existing] = await db.select().from(supportMessagesTable)
+    .where(eq(supportMessagesTable.subject, key))
+    .orderBy(desc(supportMessagesTable.id));
+
+  let state = existing?.type === WORKFLOW_META_TYPE ? parseWorkflow(existing.message) : defaultWorkflow();
+
+  if (req.body?.assignedTo !== undefined) {
+    if (req.body.assignedTo === null || req.body.assignedTo === "") {
+      state.assignedTo = null;
+    } else {
+      const targetId = Number(req.body.assignedTo);
+      if (!Number.isSafeInteger(targetId) || targetId <= 0) {
+        res.status(400).json({ error: "Invalid staff member" }); return;
+      }
+      const [target] = await db.select().from(usersTable).where(eq(usersTable.id, targetId));
+      if (!target || !["moderator","admin","super_admin"].includes(target.role) || target.status !== "active") {
+        res.status(400).json({ error: "Assigned user must be active staff" }); return;
+      }
+      state.assignedTo = targetId;
+    }
+  }
+
+  if (req.body?.workflowStatus !== undefined) {
+    const status = String(req.body.workflowStatus);
+    if (!["new","in_review","waiting"].includes(status)) {
+      res.status(400).json({ error: "Invalid workflow status" }); return;
+    }
+    state.workflowStatus = status as WorkflowState["workflowStatus"];
+  }
+
+  if (req.body?.dueAt !== undefined) {
+    if (req.body.dueAt === null || req.body.dueAt === "") {
+      state.dueAt = null;
+    } else {
+      const parsed = new Date(String(req.body.dueAt));
+      if (!Number.isFinite(parsed.getTime())) {
+        res.status(400).json({ error: "Invalid due date" }); return;
+      }
+      state.dueAt = parsed.toISOString();
+    }
+  }
+
+  const note = String(req.body?.note || "").trim();
+  if (note) {
+    state.notes = [
+      ...state.notes,
+      { text: note.slice(0, 2000), authorId: actorId, createdAt: new Date().toISOString() },
+    ].slice(-100);
+  }
+
+  state.updatedAt = new Date().toISOString();
+  state.updatedBy = actorId;
+
+  const message = JSON.stringify(state);
+  if (existing?.type === WORKFLOW_META_TYPE) {
+    await db.update(supportMessagesTable)
+      .set({ message, userId: actorId, status: "resolved" })
+      .where(eq(supportMessagesTable.id, existing.id));
+  } else {
+    await db.insert(supportMessagesTable).values({
+      userId: actorId,
+      name: "Operations Workflow",
+      email: "workflow@internal.invalid",
+      type: WORKFLOW_META_TYPE,
+      subject: key,
+      message,
+      status: "resolved",
+    });
+  }
+
+  res.json({ key, workflow: state });
 });
 
 export default router;
