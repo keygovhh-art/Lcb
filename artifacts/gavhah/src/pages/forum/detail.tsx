@@ -326,6 +326,9 @@ export default function ForumDetail() {
                   placeholder={forumEngagement.replyMode === "review" ? "Write a reply — it will wait for review..." : "Write a reply..."}
                   className="min-h-20 resize-none"
                 />
+                <div className="mt-2">
+                  <DisplayAsSelector value={displayAs} onChange={setDisplayAs} />
+                </div>
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <span className="text-[11px] text-muted-foreground">
                     {forumEngagement.replyMode === "review" ? "This reply will be reviewed before it goes live." : ""}
