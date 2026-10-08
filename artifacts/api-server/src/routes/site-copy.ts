@@ -25,36 +25,12 @@ let schemaPromise: Promise<void> | null = null;
 function ensureSchema(): Promise<void> {
   if (!schemaPromise) {
     schemaPromise = (async () => {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS site_copy_overrides (
-          id BIGSERIAL PRIMARY KEY,
-          page TEXT NOT NULL,
-          lang VARCHAR(2) NOT NULL CHECK (lang IN ('en','yi')),
-          source_text TEXT NOT NULL,
-          published_value TEXT,
-          draft_value TEXT,
-          updated_by INTEGER,
-          published_by INTEGER,
-          version INTEGER NOT NULL DEFAULT 0,
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          published_at TIMESTAMPTZ,
-          UNIQUE (page, lang, source_text)
-        )
-      `);
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS site_copy_history (
-          id BIGSERIAL PRIMARY KEY,
-          override_id BIGINT NOT NULL REFERENCES site_copy_overrides(id) ON DELETE CASCADE,
-          previous_value TEXT,
-          new_value TEXT,
-          actor_id INTEGER NOT NULL,
-          action VARCHAR(24) NOT NULL,
-          version INTEGER NOT NULL,
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `);
-      await pool.query("CREATE INDEX IF NOT EXISTS site_copy_history_override_idx ON site_copy_history (override_id, created_at DESC)");
-      await pool.query("CREATE INDEX IF NOT EXISTS site_copy_overrides_lookup_idx ON site_copy_overrides (lang, page)");
+      const { rows } = await pool.query(
+        "SELECT to_regclass('public.site_copy_overrides') AS overrides, to_regclass('public.site_copy_history') AS history"
+      );
+      if (!rows[0]?.overrides || !rows[0]?.history) {
+        throw new Error("Live Site Editor database migration has not been installed");
+      }
     })().catch(err => {
       schemaPromise = null;
       throw err;
