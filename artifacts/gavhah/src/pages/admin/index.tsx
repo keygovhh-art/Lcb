@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CharityManagement } from "@/components/admin/charity-management";
 import { FeaturedCauseManagement } from "@/components/admin/featured-cause-management";
 import { SiteCopyManagement } from "@/components/admin/site-copy-management";
+import { OperationsInbox } from "@/components/admin/operations-inbox";
 
 function reportContentPath(type: string, id: number) {
   if (type === "news") return `/news/${id}`;
@@ -243,8 +244,11 @@ export default function FounderDashboard() {
       </div>
 
       <div className="container mx-auto px-4 py-10">
-        <Tabs defaultValue="overview" className="space-y-8">
+        <Tabs defaultValue="operations" className="space-y-8">
           <TabsList className="bg-muted/50 flex flex-wrap h-auto gap-1 p-1">
+            <TabsTrigger value="operations" className="gap-2">
+              <AlertTriangle className="h-4 w-4" /> Operations Inbox
+            </TabsTrigger>
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" /> Overview
             </TabsTrigger>
@@ -294,6 +298,11 @@ export default function FounderDashboard() {
             </TabsTrigger>
             <TabsTrigger value="announcements" className="gap-2"><Megaphone className="h-4 w-4" /> Announcements</TabsTrigger>
           </TabsList>
+
+          {/* ─── Operations Inbox ─── */}
+          <TabsContent value="operations" className="space-y-6">
+            <OperationsInbox />
+          </TabsContent>
 
           {/* ─── Overview ─── */}
           <TabsContent value="overview" className="space-y-8">
