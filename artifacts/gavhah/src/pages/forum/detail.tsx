@@ -21,6 +21,7 @@ import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
+import { DiscussionTicker } from "@/components/shared/discussion-ticker";
 import { UpvoteButton } from "@/components/shared/upvote-button";
 import { useUpvoteStates } from "@/hooks/use-upvote-states";
 
@@ -378,6 +379,8 @@ export default function ForumDetail() {
           </Link>
         </div>
       </div>
+
+      <DiscussionTicker excludeId={numId} />
 
       <div className="container mx-auto px-4 py-12 max-w-4xl">
         {isLoading ? (
