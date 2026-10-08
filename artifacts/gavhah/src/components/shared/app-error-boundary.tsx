@@ -1,4 +1,5 @@
 import * as React from "react";
+import { reportSystemError } from "@/lib/system-error-reporter";
 
 type Props = { children: React.ReactNode };
 type State = { hasError: boolean };
@@ -10,8 +11,14 @@ export class AppErrorBoundary extends React.Component<Props, State> {
     return { hasError: true };
   }
 
-  componentDidCatch(error: unknown) {
+  componentDidCatch(error: unknown, info: React.ErrorInfo) {
     console.error("Gavhah UI crash recovered by AppErrorBoundary", error);
+    void reportSystemError({
+      type: "react_crash",
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      componentStack: info.componentStack || undefined,
+    });
   }
 
   private reload = () => {
@@ -41,8 +48,8 @@ export class AppErrorBoundary extends React.Component<Props, State> {
           </h1>
           <p className="mt-3 text-sm text-muted-foreground leading-6">
             {isYi
-              ? "דער סייט איז נישט פארשוואונדן. דרוק רילאוד צו צוריקקומען. די מערכת קען דערנאך נאכקוקן דעם פראבלעם."
-              : "The site did not disappear. Reload the page to recover, and the issue can then be investigated."}
+              ? "דער סייט איז נישט פארשוואונדן. דער פראבלעם איז אויטאמאטיש באריכטעט געווארן צום טיעם. דרוק רילאוד צו צוריקקומען."
+              : "The site did not disappear. This problem was automatically reported to the team. Reload the page to recover."}
           </p>
           <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
             <button
