@@ -10,7 +10,7 @@ import { logActivity } from "../lib/activity";
 const router: IRouter = Router();
 
 function isStaffRole(role?: string) {
-  return role === "admin" || role === "moderator";
+  return role === "admin" || role === "moderator" || role === "super_admin";
 }
 
 const NEWS_CATEGORIES = new Set([
