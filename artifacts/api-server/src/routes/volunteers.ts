@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable } from "@workspace/db";
+import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable, supportMessagesTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { getMemberIdentity, resolveMemberDisplayName } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
@@ -71,6 +71,24 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
     isFeatured: false,
   }).returning();
   await logActivity("volunteer", `${safeUserName} registered as a volunteer`, safeUserName);
+
+  const volunteerUser = await getMemberIdentity(userId);
+  await db.insert(supportMessagesTable).values({
+    userId,
+    name: safeUserName,
+    email: volunteerUser?.email || volunteerUser?.phone || "Gavhah member",
+    type: "volunteer_registration",
+    subject: `New volunteer registration: ${safeUserName}`,
+    message: [
+      `Location: ${cleanLocation}`,
+      `Availability: ${cleanAvailability}`,
+      Array.isArray(skills) && skills.length ? `Skills: ${skills.join(", ")}` : "",
+      Array.isArray(areasOfInterest) && areasOfInterest.length ? `Areas: ${areasOfInterest.join(", ")}` : "",
+      bio ? `Bio: ${String(bio).trim()}` : "",
+    ].filter(Boolean).join("\n"),
+    status: "open",
+  });
+
   res.status(201).json(vol);
 });
 
