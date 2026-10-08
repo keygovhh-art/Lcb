@@ -9,7 +9,7 @@ import { notifyUser, notifyStaff, queueStaffReview } from "../lib/notify";
 const router: IRouter = Router();
 
 function isStaffRole(role?: string) {
-  return role === "admin" || role === "moderator";
+  return role === "admin" || role === "moderator" || role === "super_admin";
 }
 
 const PROJECT_TYPES = new Set(["project", "campaign", "initiative", "program"]);
