@@ -96,7 +96,7 @@ router.post("/member-requests", requireAuth, async (req, res): Promise<void> => 
 
 router.get("/admin/support-messages", requireAdmin, async (_req, res): Promise<void> => {
   const rows = await db.select().from(supportMessagesTable).orderBy(desc(supportMessagesTable.createdAt));
-  res.json(rows);
+  res.json(rows.filter(row => !String(row.type).startsWith("__site_copy_")));
 });
 
 router.patch("/admin/support-messages/:id", requireAdmin, async (req, res): Promise<void> => {
