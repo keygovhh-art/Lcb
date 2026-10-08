@@ -278,8 +278,12 @@ router.post("/users/:id/suspend", requireAdmin, async (req, res): Promise<void> 
   }
   const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
   if (!target) { res.status(404).json({ error: "User not found" }); return; }
-  if (requesterRole === "moderator" && target.role === "admin") {
+  if (requesterRole === "moderator" && (target.role === "admin" || target.role === "super_admin")) {
     res.status(403).json({ error: "Moderators cannot manage administrators" });
+    return;
+  }
+  if (target.role === "super_admin" && requesterRole !== "super_admin") {
+    res.status(403).json({ error: "Only a super admin can manage a super admin account" });
     return;
   }
   const [user] = await db.update(usersTable).set({ status: "suspended" }).where(eq(usersTable.id, id)).returning();
