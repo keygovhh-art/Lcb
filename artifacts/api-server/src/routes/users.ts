@@ -6,6 +6,7 @@ import { hashPassword } from "../lib/crypto";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { createRateLimiter } from "../middlewares/rate-limit";
 import { queueStaffReview } from "../lib/notify";
+import { RESERVED_SUPER_ADMIN_NAME } from "../lib/super-admin";
 
 const router: IRouter = Router();
 
@@ -22,7 +23,7 @@ function safeUser<T extends { passwordHash?: unknown }>(user: T) {
 }
 
 function isStaffRole(role?: string) {
-  return role === "admin" || role === "moderator";
+  return role === "admin" || role === "moderator" || role === "super_admin";
 }
 
 router.get("/users", requireAdmin, async (req, res): Promise<void> => {
@@ -45,6 +46,15 @@ router.post("/users", registrationLimiter, async (req, res): Promise<void> => {
 
   if (!nickname) {
     res.status(400).json({ error: "nickname is required" });
+    return;
+  }
+  const cleanRegistrationName = (name?.trim() || nickname.trim());
+  const cleanRegistrationNickname = nickname.trim();
+  if (
+    cleanRegistrationName === RESERVED_SUPER_ADMIN_NAME ||
+    cleanRegistrationNickname === RESERVED_SUPER_ADMIN_NAME
+  ) {
+    res.status(409).json({ error: "This account name is reserved" });
     return;
   }
   if (!email && !phone) {
@@ -124,15 +134,20 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
   if (!target) { res.status(404).json({ error: "User not found" }); return; }
 
   const isSelf = requesterId === id;
-  const isAdmin = requesterRole === "admin";
+  const isSuperAdmin = requesterRole === "super_admin";
+  const isAdmin = requesterRole === "admin" || isSuperAdmin;
   const isModerator = requesterRole === "moderator";
 
   if (!isSelf && !isAdmin && !isModerator) {
     res.status(403).json({ error: "Not allowed" });
     return;
   }
-  if (!isSelf && isModerator && target.role === "admin") {
+  if (!isSelf && isModerator && (target.role === "admin" || target.role === "super_admin")) {
     res.status(403).json({ error: "Moderators cannot manage administrators" });
+    return;
+  }
+  if (!isSelf && target.role === "super_admin" && !isSuperAdmin) {
+    res.status(403).json({ error: "Only a super admin can manage another super admin" });
     return;
   }
 
@@ -143,12 +158,18 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
     if (!isSelf && !isAdmin) { res.status(403).json({ error: "Not allowed" }); return; }
     const cleanName = String(name).trim();
     if (!cleanName) { res.status(400).json({ error: "name cannot be empty" }); return; }
+    if (cleanName === RESERVED_SUPER_ADMIN_NAME && target.role !== "super_admin") {
+      res.status(409).json({ error: "This account name is reserved" }); return;
+    }
     updates.name = cleanName;
   }
   if (nickname !== undefined) {
     if (!isSelf && !isAdmin) { res.status(403).json({ error: "Not allowed" }); return; }
     const cleanNickname = String(nickname).trim();
     if (!cleanNickname) { res.status(400).json({ error: "nickname cannot be empty" }); return; }
+    if (cleanNickname === RESERVED_SUPER_ADMIN_NAME && target.role !== "super_admin") {
+      res.status(409).json({ error: "This account name is reserved" }); return;
+    }
     updates.nickname = cleanNickname;
   }
   if (bio !== undefined) {
@@ -169,8 +190,12 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
       res.status(403).json({ error: "Only administrators can change roles" });
       return;
     }
-    if (!["member", "moderator", "admin"].includes(String(role))) {
+    if (!["member", "moderator", "admin", "super_admin"].includes(String(role))) {
       res.status(400).json({ error: "Invalid role" });
+      return;
+    }
+    if (String(role) === "super_admin" && !isSuperAdmin) {
+      res.status(403).json({ error: "Only a super admin can assign the super admin role" });
       return;
     }
     if (isSelf && role !== target.role) {
@@ -206,6 +231,13 @@ router.patch("/users/:id", requireAuth, async (req, res): Promise<void> => {
 
 router.delete("/users/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
+  const requesterRole = getSessionUserRole(req);
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  if (!target) { res.status(404).json({ error: "User not found" }); return; }
+  if (target.role === "super_admin" && requesterRole !== "super_admin") {
+    res.status(403).json({ error: "Only a super admin can delete a super admin account" });
+    return;
+  }
   if (id === getSessionUserId(req)) {
     res.status(400).json({ error: "You cannot delete your own admin account" });
     return;
@@ -224,8 +256,12 @@ router.post("/users/:id/ban", requireAdmin, async (req, res): Promise<void> => {
   }
   const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
   if (!target) { res.status(404).json({ error: "User not found" }); return; }
-  if (requesterRole === "moderator" && target.role === "admin") {
+  if (requesterRole === "moderator" && (target.role === "admin" || target.role === "super_admin")) {
     res.status(403).json({ error: "Moderators cannot manage administrators" });
+    return;
+  }
+  if (target.role === "super_admin" && requesterRole !== "super_admin") {
+    res.status(403).json({ error: "Only a super admin can manage a super admin account" });
     return;
   }
   const [user] = await db.update(usersTable).set({ status: "banned" }).where(eq(usersTable.id, id)).returning();
