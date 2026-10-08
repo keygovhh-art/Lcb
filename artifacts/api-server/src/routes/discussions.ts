@@ -1,11 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, sql, and, inArray } from "drizzle-orm";
-import { db, discussionsTable, commentsTable, entityLikesTable } from "@workspace/db";
+import { db, discussionsTable, commentsTable, entityLikesTable, supportMessagesTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
-import { resolveMemberDisplayName } from "../lib/user-display";
+import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
-import { notifyUser } from "../lib/notify";
+import { notifyUser, notifyStaff } from "../lib/notify";
+import { getEngagementSetting } from "../lib/engagement-settings";
 
 const router: IRouter = Router();
 
@@ -204,14 +205,31 @@ router.delete("/discussions/:id/comments/:commentId", requireAuth, async (req, r
     res.status(403).json({ error: "Not allowed" }); return;
   }
 
-  await db.delete(entityLikesTable).where(and(
-    eq(entityLikesTable.entityType, "comment"),
-    eq(entityLikesTable.entityId, commentId),
-  ));
-  await db.delete(commentsTable).where(eq(commentsTable.id, commentId));
-  await db.update(discussionsTable)
-    .set({ commentCount: sql`GREATEST(0, ${discussionsTable.commentCount} - 1)` })
-    .where(eq(discussionsTable.id, discussionId));
+  const allComments = await db.select().from(commentsTable)
+    .where(eq(commentsTable.discussionId, discussionId));
+  const idsToDelete = new Set<number>([commentId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const item of allComments) {
+      if (item.parentId !== null && idsToDelete.has(item.parentId) && !idsToDelete.has(item.id)) {
+        idsToDelete.add(item.id);
+        changed = true;
+      }
+    }
+  }
+  const deleteIds = Array.from(idsToDelete);
+
+  if (deleteIds.length > 0) {
+    await db.delete(entityLikesTable).where(and(
+      eq(entityLikesTable.entityType, "comment"),
+      inArray(entityLikesTable.entityId, deleteIds),
+    ));
+    await db.delete(commentsTable).where(inArray(commentsTable.id, deleteIds));
+    await db.update(discussionsTable)
+      .set({ commentCount: sql`GREATEST(0, ${discussionsTable.commentCount} - ${deleteIds.length})` })
+      .where(eq(discussionsTable.id, discussionId));
+  }
   res.sendStatus(204);
 });
 
@@ -267,6 +285,48 @@ router.post("/discussions/:id/comments", requireAuth, async (req, res): Promise<
   }
 
   const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
+  const engagement = await getEngagementSetting("forum");
+
+  if (engagement.replyMode === "off") {
+    res.status(403).json({ error: "Replies are currently disabled for this section" });
+    return;
+  }
+
+  if (engagement.replyMode === "review") {
+    const member = await getMemberIdentity(userId);
+    const payload = {
+      discussionId,
+      content: cleanContent,
+      parentId: parent?.id ?? null,
+      authorId: userId,
+      authorName: safeAuthorName,
+      createdAt: new Date().toISOString(),
+    };
+
+    const [pending] = await db.insert(supportMessagesTable).values({
+      userId,
+      name: safeAuthorName,
+      email: member?.email || member?.phone || "Gavhah member",
+      type: "__pending_comment__",
+      subject: `forum:${discussionId}`,
+      message: JSON.stringify(payload),
+      status: "open",
+    }).returning();
+
+    await notifyStaff(
+      `Forum reply waiting for review: ${discussion.title}`,
+      "/founder",
+      "admin_comment_review",
+    );
+
+    res.status(202).json({
+      pending: true,
+      reviewId: pending.id,
+      message: "Reply submitted for review",
+    });
+    return;
+  }
+
   const [comment] = await db.insert(commentsTable).values({
     content: cleanContent,
     discussionId,
