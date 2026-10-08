@@ -14,13 +14,15 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Users, Lock, Globe, KeyRound, Heart, MessageCircle, Pencil, Trash2, Clock } from "lucide-react";
+import { ArrowLeft, Users, Lock, Globe, KeyRound, MessageCircle, Pencil, Trash2, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadField } from "@/components/shared/image-upload-field";
+import { UpvoteButton } from "@/components/shared/upvote-button";
+import { useUpvoteStates } from "@/hooks/use-upvote-states";
 
 const privacyIcon = (p: string) => {
   if (p === "private") return <Lock className="h-4 w-4" />;
@@ -64,6 +66,11 @@ export default function GroupDetail() {
   const { data: posts } = useListGroupPosts(numId, {
     query: { queryKey: getListGroupPostsQueryKey(numId), enabled: !!numId && canReadPosts },
   });
+  const postUpvotes = useUpvoteStates(
+    "group_post",
+    Array.isArray(posts) ? posts.map((post: any) => post.id) : [],
+    isAuthenticated && canReadPosts,
+  );
 
   const openGroupEdit = () => {
     if (!group) return;
@@ -225,7 +232,7 @@ export default function GroupDetail() {
 
   const handlePostLike = async (postId: number) => {
     if (!isAuthenticated) {
-      toast({ title: "Sign in to like posts", description: "Join Gavhah free to participate." });
+      toast({ title: "Sign in to upvote posts", description: "Join Gavhah free to participate." });
       return;
     }
     const res = await fetch(`/api/groups/${numId}/posts/${postId}/like`, {
@@ -233,6 +240,8 @@ export default function GroupDetail() {
       credentials: "include",
     });
     if (res.ok) {
+      const result = await res.json().catch(() => ({}));
+      if (typeof result?.liked === "boolean") postUpvotes.setLiked(postId, result.liked);
       void qc.invalidateQueries({ queryKey: getListGroupPostsQueryKey(numId) });
     }
   };
@@ -431,12 +440,12 @@ export default function GroupDetail() {
                       <p className="text-foreground leading-relaxed whitespace-pre-wrap">{post.content}</p>
                     )}
                     <div className="flex items-center gap-4 mt-4 pt-4 border-t text-sm text-muted-foreground">
-                      <button
-                        className="flex items-center gap-1 hover:text-secondary transition-colors"
+                      <UpvoteButton
+                        active={postUpvotes.isLiked(post.id)}
+                        count={post.likes}
                         onClick={() => void handlePostLike(post.id)}
-                      >
-                        <Heart className="h-4 w-4" /> {post.likes}
-                      </button>
+                        title={postUpvotes.isLiked(post.id) ? "Remove upvote" : "Upvote post"}
+                      />
                     </div>
                   </div>
                 ))}
