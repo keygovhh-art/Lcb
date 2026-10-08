@@ -3,6 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { db, supportMessagesTable, usersTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { createRateLimiter } from "../middlewares/rate-limit";
+import { notifyStaff } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -53,6 +54,7 @@ router.post("/support-messages", publicSupportLimiter, async (req, res): Promise
     status: "open",
   }).returning();
 
+  await notifyStaff(`New ${type} message: ${subject}`, "/founder", "admin_support");
   res.status(201).json(created);
 });
 
@@ -84,6 +86,11 @@ router.post("/member-requests", requireAuth, async (req, res): Promise<void> => 
     status: "open",
   }).returning();
 
+  await notifyStaff(
+    `New member connection request: ${user.nickname || user.name} — ${subject}`,
+    "/founder",
+    "admin_member_connection",
+  );
   res.status(201).json(created);
 });
 
