@@ -5,7 +5,7 @@ import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Plus, Heart, Eye, MessageCircle, Lock, TrendingUp, Pin } from "lucide-react";
+import { Search, Plus, ArrowBigUp, Eye, MessageCircle, Lock, TrendingUp, Pin } from "lucide-react";
 import { format } from "date-fns";
 import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
 
@@ -123,7 +123,7 @@ export default function ForumList() {
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2 text-xs text-muted-foreground shrink-0">
-                          <div className="flex items-center gap-1"><Heart className="h-3 w-3" /> {disc.likes}</div>
+                          <div className="flex items-center gap-1"><ArrowBigUp className="h-3.5 w-3.5" /> {disc.likes}</div>
                           {forumEngagement.showViews && <div className="flex items-center gap-1"><Eye className="h-3 w-3" /> {disc.views}</div>}
                           <div className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {disc.commentCount}</div>
                         </div>
