@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and } from "drizzle-orm";
-import { db, communityProjectsTable, projectMembersTable } from "@workspace/db";
+import { db, communityProjectsTable, projectMembersTable, supportMessagesTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
-import { resolveMemberDisplayName } from "../lib/user-display";
+import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
 import { notifyUser } from "../lib/notify";
 
@@ -175,6 +175,21 @@ router.post("/community-projects/:id/join", requireAuth, async (req, res): Promi
       "/directory",
     );
   }
+
+  const joiningUser = await getMemberIdentity(userId);
+  await db.insert(supportMessagesTable).values({
+    userId,
+    name: safeName,
+    email: joiningUser?.email || joiningUser?.phone || "Gavhah member",
+    type: "project_join",
+    subject: `Project participation: ${project.title}`,
+    message: [
+      `Member: ${safeName}`,
+      `Role: ${cleanRole}`,
+      message ? `Message: ${String(message).trim()}` : "",
+    ].filter(Boolean).join("\n"),
+    status: "open",
+  });
 
   res.status(201).json(member);
 });
