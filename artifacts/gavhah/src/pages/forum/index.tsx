@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Plus, ArrowBigUp, Eye, MessageCircle, Lock, TrendingUp, Pin } from "lucide-react";
 import { format } from "date-fns";
 import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
+import { DiscussionTicker } from "@/components/shared/discussion-ticker";
 
 const CATEGORIES = [
   { value: "", label: "All Topics" },
@@ -53,6 +54,8 @@ export default function ForumList() {
           </div>
         </div>
       </div>
+
+      <DiscussionTicker />
 
       <div className="container mx-auto px-4 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
