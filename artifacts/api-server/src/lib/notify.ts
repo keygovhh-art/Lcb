@@ -1,4 +1,4 @@
-import { db, notificationsTable, usersTable } from "@workspace/db";
+import { db, notificationsTable, usersTable, supportMessagesTable } from "@workspace/db";
 
 export async function notifyUser(
   userId: number,
@@ -42,4 +42,33 @@ export async function notifyStaff(
       isRead: false,
     }))
   );
+}
+
+
+export async function queueStaffReview(input: {
+  userId?: number | null;
+  name: string;
+  contact?: string | null;
+  type: string;
+  subject: string;
+  message: string;
+  notificationType?: string;
+}) {
+  const [created] = await db.insert(supportMessagesTable).values({
+    userId: input.userId ?? null,
+    name: input.name.slice(0, 120),
+    email: (input.contact || "Gavhah member").slice(0, 200),
+    type: input.type.slice(0, 40),
+    subject: input.subject.slice(0, 200),
+    message: input.message.slice(0, 5000),
+    status: "open",
+  }).returning();
+
+  await notifyStaff(
+    input.subject,
+    "/founder",
+    input.notificationType || "admin_inbox",
+  );
+
+  return created;
 }
