@@ -6,7 +6,7 @@ import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName } from "../lib/user-display";
 import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 import { logActivity } from "../lib/activity";
-import { notifyUser, notifyStaff } from "../lib/notify";
+import { notifyUser, notifyStaff, queueStaffReview } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -53,6 +53,20 @@ router.post("/groups", requireAuth, async (req, res): Promise<void> => {
   }).onConflictDoNothing();
 
   await logActivity("group", `Created community group "${group.name}"`, ownerName);
+  const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  await queueStaffReview({
+    userId,
+    name: ownerName,
+    contact: owner?.email || owner?.phone,
+    type: "group_creation",
+    subject: `New group created: ${group.name}`,
+    message: [
+      `Owner: ${ownerName}`,
+      `Privacy: ${group.privacy}`,
+      `Description: ${group.description}`,
+    ].join("\n"),
+    notificationType: "admin_group_creation",
+  });
   res.status(201).json(group);
 });
 
