@@ -12,6 +12,7 @@ import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth
 import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
 import { deleteManagedMediaUrl } from "../lib/media-cleanup";
+import { notifyStaff } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -303,6 +304,11 @@ router.post("/cause-submissions", requireAuth, async (req, res): Promise<void> =
     urgency: cleanUrgency,
   }).returning();
 
+  await notifyStaff(
+    `New cause submission: ${submission.title} — ${submission.urgency}`,
+    "/founder",
+    "admin_cause_submission",
+  );
   res.status(201).json(submission);
 });
 
