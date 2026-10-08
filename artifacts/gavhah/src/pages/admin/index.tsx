@@ -590,7 +590,7 @@ export default function FounderDashboard() {
                       size="sm"
                       variant="outline"
                       className="gap-2"
-                      onClick={() => navigate(reportContentPath(report.contentType, report.contentId)!)}
+                      onClick={() => { window.location.href = reportContentPath(report.contentType, report.contentId)!; }}
                     >
                       <ExternalLink className="h-4 w-4" /> View Content
                     </Button>
