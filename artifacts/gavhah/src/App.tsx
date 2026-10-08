@@ -8,6 +8,7 @@ import { AuthProvider } from "@/context/auth-context";
 import { YiddishMirror } from "@/components/shared/yiddish-mirror";
 import { SiteCopyLayer } from "@/components/shared/site-copy-layer";
 import { AppErrorBoundary } from "@/components/shared/app-error-boundary";
+import { installGlobalErrorReporting, reportSystemError } from "@/lib/system-error-reporter";
 import NotFound from "@/pages/not-found";
 
 import Home from "@/pages/home";
@@ -51,7 +52,6 @@ if (typeof window !== "undefined" && !(window as any).__gavhahApiRefetchInstalle
   const nativeFetch = window.fetch.bind(window);
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-    const response = await nativeFetch(input, init);
     const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
     const url = typeof input === "string"
       ? input
@@ -59,18 +59,47 @@ if (typeof window !== "undefined" && !(window as any).__gavhahApiRefetchInstalle
         ? input.toString()
         : input.url;
 
-    if (
-      response.ok &&
-      url.includes("/api/") &&
-      ["POST", "PUT", "PATCH", "DELETE"].includes(method)
-    ) {
-      queueMicrotask(() => {
-        void queryClient.invalidateQueries({ refetchType: "active" });
-      });
-    }
+    try {
+      const response = await nativeFetch(input, init);
 
-    return response;
+      if (
+        !url.includes("/api/system-errors") &&
+        url.includes("/api/") &&
+        response.status >= 500
+      ) {
+        void reportSystemError({
+          type: "api_failure",
+          message: `${method} ${url} returned ${response.status}`,
+          resource: url,
+          statusCode: response.status,
+        });
+      }
+
+      if (
+        response.ok &&
+        url.includes("/api/") &&
+        ["POST", "PUT", "PATCH", "DELETE"].includes(method)
+      ) {
+        queueMicrotask(() => {
+          void queryClient.invalidateQueries({ refetchType: "active" });
+        });
+      }
+
+      return response;
+    } catch (error) {
+      if (!url.includes("/api/system-errors")) {
+        void reportSystemError({
+          type: "fetch_failure",
+          message: error instanceof Error ? error.message : "Network request failed",
+          stack: error instanceof Error ? error.stack : undefined,
+          resource: url,
+        });
+      }
+      throw error;
+    }
   };
+
+  (window as any).__gavhahErrorCleanup = installGlobalErrorReporting();
 }
 
 function ScrollToTop() {
