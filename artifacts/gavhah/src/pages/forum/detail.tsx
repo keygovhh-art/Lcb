@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import {
-  useGetDiscussion, useListDiscussionComments, useLikeDiscussion, useCreateDiscussionComment,
+  useGetDiscussion, useListDiscussionComments, useLikeDiscussion,
   getGetDiscussionQueryKey, getListDiscussionCommentsQueryKey
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,6 +20,7 @@ import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
+import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
 
 const CATEGORY_LABELS: Record<string, string> = {
   medical: "Medical Assistance", shidduchim: "Shidduchim",
@@ -35,6 +36,9 @@ export default function ForumDetail() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [reply, setReply] = useState("");
+  const [replyParentId, setReplyParentId] = useState<number | null>(null);
+  const [nestedReply, setNestedReply] = useState("");
+  const [postingComment, setPostingComment] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
@@ -52,7 +56,20 @@ export default function ForumDetail() {
     query: { queryKey: getListDiscussionCommentsQueryKey(numId), enabled: !!numId },
   });
   const like = useLikeDiscussion();
-  const addComment = useCreateDiscussionComment();
+  const { data: engagementSettings } = useEngagementSettings();
+  const forumEngagement = settingFor(engagementSettings, "forum");
+
+  const commentTree = useMemo(() => {
+    const items = Array.isArray(comments) ? comments : [];
+    const byId = new Map<number, any>();
+    const roots: any[] = [];
+    for (const item of items) byId.set(item.id, { ...item, children: [] });
+    for (const item of byId.values()) {
+      if (item.parentId && byId.has(item.parentId)) byId.get(item.parentId).children.push(item);
+      else roots.push(item);
+    }
+    return roots;
+  }, [comments]);
 
   const handleLike = () => {
     if (!isAuthenticated) {
@@ -96,10 +113,8 @@ export default function ForumDetail() {
       toast({ title: "Could not delete reply", variant: "destructive" });
       return;
     }
-    qc.setQueryData(getListDiscussionCommentsQueryKey(numId), (current: any) =>
-      Array.isArray(current) ? current.filter((item: any) => item.id !== commentId) : current
-    );
-    void qc.invalidateQueries({ queryKey: getGetDiscussionQueryKey(numId) });
+    await qc.invalidateQueries({ queryKey: getListDiscussionCommentsQueryKey(numId) });
+    await qc.invalidateQueries({ queryKey: getGetDiscussionQueryKey(numId) });
     toast({ title: "Reply deleted" });
   };
 
@@ -173,26 +188,167 @@ export default function ForumDetail() {
     }
   };
 
-    const handleComment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reply.trim()) return;
+  const submitComment = async (content: string, parentId: number | null) => {
+    const clean = content.trim();
+    if (!clean || postingComment) return;
     const authorName = getDisplayName(displayAs, user);
-    addComment.mutate({ id: numId, data: { content: reply.trim(), authorName } }, {
-      onSuccess: (comment) => {
-        setReply("");
-        qc.setQueryData(getListDiscussionCommentsQueryKey(numId), (current: any) => {
-          const items = Array.isArray(current) ? current : [];
-          return [...items.filter((item: any) => item.id !== comment.id), comment];
+    setPostingComment(true);
+    try {
+      const res = await fetch(`/api/discussions/${numId}/comments`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: clean, parentId, authorName }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 403 && forumEngagement.replyMode === "off") {
+          toast({ title: "Replies are currently turned off", variant: "destructive" });
+          return;
+        }
+        throw new Error(body.error || "Could not post reply");
+      }
+
+      if (res.status === 202 || body.pending) {
+        toast({
+          title: "Sent for review",
+          description: "Your reply will appear after the team approves it.",
         });
-        void qc.invalidateQueries({ queryKey: getGetDiscussionQueryKey(numId) });
+      } else {
         toast({ title: "Reply posted", description: "Your reply is now live." });
-      },
-      onError: () => toast({
+        await qc.invalidateQueries({ queryKey: getListDiscussionCommentsQueryKey(numId) });
+        await qc.invalidateQueries({ queryKey: getGetDiscussionQueryKey(numId) });
+      }
+
+      if (parentId === null) setReply("");
+      else {
+        setNestedReply("");
+        setReplyParentId(null);
+      }
+    } catch (error) {
+      toast({
         title: "Could not post reply",
-        description: "Please try again.",
+        description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
-      }),
-    });
+      });
+    } finally {
+      setPostingComment(false);
+    }
+  };
+
+  const handleComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submitComment(reply, null);
+  };
+
+  const renderComment = (comment: any, depth = 0): React.ReactNode => {
+    const visualDepth = Math.min(depth, 5);
+    return (
+      <div key={comment.id} className={depth === 0 ? "" : "mt-3"}>
+        <div
+          className="bg-card border rounded-xl p-4 sm:p-5"
+          style={{ marginInlineStart: visualDepth * 14 }}
+        >
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <span className="font-semibold text-foreground text-sm">{comment.authorName}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">
+                {format(new Date(comment.createdAt), "MMM d, yyyy 'at' h:mm a")}
+              </span>
+              {!!user && (comment.authorId === user.id || isAdmin) && (
+                <>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => {
+                      setEditingCommentId(comment.id);
+                      setEditingCommentContent(comment.content);
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-destructive"
+                    onClick={() => void deleteComment(comment.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {editingCommentId === comment.id ? (
+            <div className="space-y-2">
+              <Textarea
+                value={editingCommentContent}
+                onChange={e => setEditingCommentContent(e.target.value)}
+                className="min-h-24"
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => void saveCommentEdit(comment.id)} disabled={!editingCommentContent.trim()}>Save</Button>
+                <Button size="sm" variant="outline" onClick={() => { setEditingCommentId(null); setEditingCommentContent(""); }}>Cancel</Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-foreground leading-relaxed whitespace-pre-wrap">{comment.content}</p>
+          )}
+
+          <div className="flex items-center gap-4 mt-3 pt-3 border-t text-xs text-muted-foreground">
+            <button
+              className="flex items-center gap-1 hover:text-secondary transition-colors"
+              onClick={() => void handleCommentLike(comment.id)}
+            >
+              <Heart className="h-3 w-3" /> {comment.likes}
+            </button>
+            {forumEngagement.replyMode !== "off" && (
+              <button
+                className="flex items-center gap-1 hover:text-secondary transition-colors"
+                onClick={() => {
+                  setReplyParentId(current => current === comment.id ? null : comment.id);
+                  setNestedReply("");
+                }}
+              >
+                <MessageCircle className="h-3 w-3" /> Reply
+              </button>
+            )}
+          </div>
+
+          {replyParentId === comment.id && forumEngagement.replyMode !== "off" && (
+            <MemberGate action="reply to this comment" compact={!user}>
+              <div className="mt-3 rounded-lg border bg-muted/20 p-3">
+                <Textarea
+                  value={nestedReply}
+                  onChange={e => setNestedReply(e.target.value)}
+                  placeholder={forumEngagement.replyMode === "review" ? "Write a reply — it will wait for review..." : "Write a reply..."}
+                  className="min-h-20 resize-none"
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-muted-foreground">
+                    {forumEngagement.replyMode === "review" ? "This reply will be reviewed before it goes live." : ""}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => { setReplyParentId(null); setNestedReply(""); }}>Cancel</Button>
+                    <Button
+                      size="sm"
+                      onClick={() => void submitComment(nestedReply, comment.id)}
+                      disabled={postingComment || !nestedReply.trim()}
+                    >
+                      {postingComment ? "Sending..." : "Reply"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </MemberGate>
+          )}
+        </div>
+
+        {Array.isArray(comment.children) && comment.children.map((child: any) => renderComment(child, depth + 1))}
+      </div>
+    );
   };
 
   return (
