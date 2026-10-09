@@ -94,6 +94,13 @@ router.post("/member-requests", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
+  // Matching is controlled exclusively by Gavhah staff. Members may apply for
+  // help, but must not initiate arbitrary direct contact by guessing IDs.
+  if (type === "volunteer_contact") {
+    res.status(403).json({ error: "Only Gavhah staff can arrange private volunteer matches. Submit a help request instead." });
+    return;
+  }
+
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
