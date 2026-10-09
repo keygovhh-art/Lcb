@@ -76,10 +76,10 @@ export function Layout({ children }: { children: ReactNode }) {
   const browserSuffix = typeof window !== "undefined" ? window.location.search + window.location.hash : "";
 
   return (
-    <div className="min-h-[100dvh] w-full max-w-full min-w-0 overflow-x-hidden flex flex-col bg-background">
+    <div className="min-h-[100dvh] flex flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full max-w-full overflow-x-hidden border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 h-14 min-w-0 flex items-center justify-between gap-3">
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-3">
           {/* Logo */}
           <Link href="/" className="flex items-center shrink-0">
             <span className="font-serif text-xl font-bold text-primary tracking-wide">GAVHAH</span>
@@ -266,14 +266,14 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* Breadcrumb */}
         {location !== "/" && (
           <div className="border-t border-muted/40 bg-muted/20">
-            <div className="container mx-auto px-4 min-w-0 overflow-hidden flex items-center gap-2 py-1.5">
+            <div className="container mx-auto px-4 flex items-center gap-2 py-1.5">
               <Link href="/"><span className="text-xs text-muted-foreground hover:text-primary cursor-pointer">Home</span></Link>
               {allDepts.filter(d => isActive(d.href)).map(d => (
-                <div key={d.href} className="min-w-0 flex items-center gap-2">
+                <div key={d.href} className="flex items-center gap-2">
                   <span className="text-muted-foreground/40 text-xs">/</span>
-                  <div className="min-w-0 flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5">
                     <span className="text-primary">{d.icon}</span>
-                    <span className="min-w-0 truncate text-xs font-semibold text-primary">{d.fullLabel}</span>
+                    <span className="text-xs font-semibold text-primary">{d.fullLabel}</span>
                   </div>
                 </div>
               ))}
@@ -286,7 +286,7 @@ export function Layout({ children }: { children: ReactNode }) {
       {mobileOpen && (
         <div className="fixed inset-0 z-[60] lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <div className="absolute top-0 left-0 h-full w-[min(18rem,88vw)] max-w-[88vw] bg-background border-r shadow-2xl flex flex-col">
+          <div className="absolute top-0 left-0 h-full w-72 bg-background border-r shadow-2xl flex flex-col">
             <div className="flex items-center justify-between p-4 border-b">
               <span className="font-serif text-xl font-bold text-primary tracking-wide">GAVHAH</span>
               <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} className="h-8 w-8">
