@@ -31,6 +31,8 @@ export function AdvancedMemberManagement() {
   const [counts,setCounts]=useState({total:0,permissionYes:0,doNotSend:0,noAddress:0,onHold:0});
   const [search,setSearch]=useState("");
   const [filter,setFilter]=useState("all");
+  const [roleFilter,setRoleFilter]=useState("all");
+  const [accountFilter,setAccountFilter]=useState("all");
   const [open,setOpen]=useState<number|null>(null);
   const [notes,setNotes]=useState<Record<number,string>>({});
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState<number|null>(null);
