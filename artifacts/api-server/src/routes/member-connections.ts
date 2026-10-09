@@ -228,6 +228,8 @@ router.post("/member-connections/:id/respond",requireAuth,async(req,res,next):Pr
     }else{
       await alertParty(state.requesterUserId===actor?state.volunteerUserId:state.requesterUserId,
         "connection_waiting_second_approval","One participant approved this Gavhah proposal. Please respond in My Connections; no contact has been shared.");
+      await notifyStaff(`Case #${id}: first personal approval received; other person's permission and FINAL Gavhah approval are still needed. Contact remains hidden.`,
+        "/founder","admin_member_connection");
     }
     res.json({stage:finalState.stage,myApproved:true,otherApproved:Boolean(approvals[otherParty]),
       contactShared:false,requiresFinalGavhahApproval:bothApproved});
