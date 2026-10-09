@@ -736,13 +736,19 @@ export function OperationsInbox() {
                           </Button>
                         </div>
                       )}
+                      {item.meta?.connectionStage === "consent_revoked" && (
+                        <p className="text-xs rounded-md bg-muted/30 p-2 border">
+                          {yi ? "דער וואלונטיר האט צוריקגענומען רשות. קיין קאנטאקט־פרטים ווערן נישט מער ארויסגעוויזן. באהאנדל דעם פאל אלס נישט געלונגען." :
+                            "The volunteer withdrew consent. Contact details are no longer displayed; resolve the case as unsuccessful."}
+                        </p>
+                      )}
                       {item.meta?.connectionStage === "declined" && (
                         <p className="text-xs rounded-md bg-muted/30 p-2 border">
                           {yi ? "דער וואלונטיר האט נישט מסכים געווען. שרייב א פאסיגן הסבר אונטן איידער מען פארמאכט דעם פאל אלס נישט געלונגען." :
                             "The volunteer declined. Enter a reason below to close this case as unsuccessful, NOT completed."}
                         </p>
                       )}
-                      {["new", "invited", "accepted", "contact_problem", "declined"].includes(item.meta?.connectionStage) && (
+                      {["new", "invited", "accepted", "contact_problem", "consent_revoked", "declined"].includes(item.meta?.connectionStage) && (
                         <div className="space-y-2">
                           <Input
                             value={closureReasons[item.key] || ""}
