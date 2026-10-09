@@ -223,6 +223,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
         connectionStage: m.type === "volunteer_contact"
           ? (connectionsByRequest.get(m.id)?.stage ?? "legacy")
           : null,
+        connectionIssue: connectionsByRequest.get(m.id)?.contactIssue ?? null,
         volunteerId: connectionsByRequest.get(m.id)?.volunteerId ?? null,
         volunteerName: connectionsByRequest.get(m.id)?.volunteerUserId
           ? (volunteersById.get(connectionsByRequest.get(m.id)!.volunteerUserId)?.nickname ||
