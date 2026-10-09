@@ -38,7 +38,6 @@ const validCustomCategory = (value: string) =>
   value.length > 0 && value.length <= 120 && !/[\u0000-\u001f\u007f]/.test(value);
 const HELP_URGENCIES = new Set(["low", "medium", "high", "critical"]);
 const HELP_STATUSES = new Set(["pending", "open", "rejected", "resolved"]);
-const VOLUNTEER_AVAILABILITY = new Set(["weekdays", "evenings", "weekends", "flexible", "on_call", "anytime", "by_appointment"]);
 
 function publicHelpRequest<T extends { contactInfo?: unknown }>(request: T) {
   const { contactInfo: _contactInfo, ...safe } = request as T & { contactInfo?: unknown };
@@ -286,7 +285,7 @@ router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> 
   if (location !== undefined) updates.location = location ? String(location).trim().slice(0, 200) : null;
   if (needType !== undefined) {
     const clean = String(needType);
-    if (!HELP_TYPES.has(clean)) { res.status(400).json({ error: "invalid needType" }); return; }
+    if (!validCustomCategory(clean)) { res.status(400).json({ error: "Category must be 1–120 characters" }); return; }
     updates.needType = clean;
   }
   if (description !== undefined) {
