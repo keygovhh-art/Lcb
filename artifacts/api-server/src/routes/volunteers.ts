@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable, supportMessagesTable } from "@workspace/db";
+import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable, supportMessagesTable, memberContactMethodsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { getMemberIdentity, resolveMemberDisplayName } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
 import { notifyStaff } from "../lib/notify";
+import { parseContactSelection, saveContactValues } from "../lib/member-contact-methods";
 
 const router: IRouter = Router();
 
@@ -46,6 +47,8 @@ router.get("/volunteers", async (req, res): Promise<void> => {
 router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   const userId = getSessionUserId(req)!;
   const { userName, skills, availability, location, bio, areasOfInterest } = req.body;
+  const contact = parseContactSelection(req.body?.contactMethods);
+  if (!contact.value) { res.status(400).json({ error: contact.error || "Contact method required" }); return; }
   const cleanAvailability = String(availability || "");
   const cleanLocation = String(location || "").trim();
   if (!VOLUNTEER_AVAILABILITY.has(cleanAvailability) || !cleanLocation) {
@@ -60,7 +63,8 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   }
 
   const safeUserName = await resolveMemberDisplayName(userId, userName);
-  const [vol] = await db.insert(volunteerProfilesTable).values({
+  const vol = await db.transaction(async tx => {
+    const [created] = await tx.insert(volunteerProfilesTable).values({
     userId,
     userName: safeUserName,
     skills: Array.isArray(skills) ? skills.slice(0, 30).map(v => String(v).slice(0, 100)) : [],
@@ -71,6 +75,13 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
     labels: [],
     isFeatured: false,
   }).returning();
+    await tx.insert(memberContactMethodsTable).values(saveContactValues(userId, "volunteer", contact.value!))
+      .onConflictDoUpdate({
+        target:[memberContactMethodsTable.userId,memberContactMethodsTable.purpose],
+        set:{...contact.value!,updatedAt:new Date()},
+      });
+    return created;
+  });
   await logActivity("volunteer", `${safeUserName} registered as a volunteer`, safeUserName);
 
   const volunteerUser = await getMemberIdentity(userId);
@@ -175,9 +186,12 @@ router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
   const user = await getMemberIdentity(userId);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
+  const contact = parseContactSelection(req.body?.contactMethods);
+  if (!contact.value) { res.status(400).json({ error: contact.error || "Contact method required" }); return; }
   const contactInfo = user.email || user.phone || `Gavhah member #${userId}`;
 
-  const [request] = await db.insert(helpRequestsTable).values({
+  const request = await db.transaction(async tx => {
+    const [created] = await tx.insert(helpRequestsTable).values({
     userId,
     name: cleanName.slice(0, 200),
     contactInfo,
@@ -188,6 +202,13 @@ router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
     isFeatured: false,
     status: "pending",
   }).returning();
+    await tx.insert(memberContactMethodsTable).values(saveContactValues(userId, "help", contact.value!))
+      .onConflictDoUpdate({
+        target:[memberContactMethodsTable.userId,memberContactMethodsTable.purpose],
+        set:{...contact.value!,updatedAt:new Date()},
+      });
+    return created;
+  });
 
   await notifyStaff(
     `New help request: ${request.name} — ${request.urgency} ${request.needType}`,
