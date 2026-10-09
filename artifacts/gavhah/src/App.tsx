@@ -19,7 +19,7 @@ import NewsDetail from "@/pages/news/detail";
 import ForumList from "@/pages/forum/index";
 import ForumDetail from "@/pages/forum/detail";
 import ForumNew from "@/pages/forum/new";
-import Directory from "@/pages/directory/index";
+import Directory, { CommunityProjectsPage } from "@/pages/directory/index";
 import United from "@/pages/united/index";
 import Communications from "@/pages/communications/index";
 import Charity from "@/pages/charity/index";
@@ -167,6 +167,7 @@ function Router() {
       <Route path="/forum/new">{() => <RequireForumMembership><ForumNew /></RequireForumMembership>}</Route>
       <Route path="/forum/:id">{() => <RequireForumMembership><ForumDetail /></RequireForumMembership>}</Route>
       <Route path="/directory" component={Directory} />
+      <Route path="/community-projects" component={CommunityProjectsPage} />
       <Route path="/united" component={United} />
       <Route path="/communications" component={Communications} />
       <Route path="/charity" component={Charity} />
