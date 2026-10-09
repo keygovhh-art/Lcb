@@ -84,6 +84,8 @@ const ROLE_LABELS: Record<string, string> = {
 function VolunteerCard({ vol }: { vol: any }) {
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [contactMethods, setContactMethods] = useState<ContactMethodsForm>(initialContactMethods);
   const [editOpen, setEditOpen] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -157,10 +159,21 @@ function VolunteerCard({ vol }: { vol: any }) {
     }
   };
 
-    const requestContact = async () => {
-    if (!isAuthenticated) {
-      toast({ title: "Sign in to request contact", description: "Join Gavhah free to contact volunteers." });
+  const openContactRequest = async () => {
+    if(!isAuthenticated){
+      toast({title:"Sign in to request contact",description:"Join Gavhah free to contact volunteers."});
       return;
+    }
+    setRequestOpen(true);
+    try{
+      const r=await fetch("/api/me/contact-methods/help",{credentials:"include",cache:"no-store"});
+      if(r.ok){const x=await r.json();if(x.methods)setContactMethods(x.methods);}
+    }catch{/* Allow a new entry if a saved method is unavailable. */}
+  };
+
+  const requestContact = async () => {
+    if (!isAuthenticated || !contactReady(contactMethods)) {
+      toast({ title: "Please enter your primary contact method", variant:"destructive" });return;
     }
     setSending(true);
     try {
@@ -171,12 +184,13 @@ function VolunteerCard({ vol }: { vol: any }) {
         body: JSON.stringify({
           type: "volunteer_contact",
           volunteerId: vol.id,
+          contactMethods,
           subject: `Volunteer contact request: ${vol.userName}`,
           message: `Member requested contact with volunteer #${vol.id} (${vol.userName}) in ${vol.location}.`,
         }),
       });
       if (res.ok) {
-        setOpen(false);
+        setOpen(false);setRequestOpen(false);
         toast({ title: "Request sent", description: "Gavhah administrators received your contact request." });
       } else {
         toast({ title: "Could not send request", variant: "destructive" });
@@ -250,10 +264,23 @@ function VolunteerCard({ vol }: { vol: any }) {
                 </Button>
               </div>
             )}
-            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={requestContact} disabled={sending}>
+            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void openContactRequest()} disabled={sending}>
               {sending ? "Sending..." : "Request Contact via Gavhah"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Ask Gavhah to Arrange Contact</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Gavhah will check your request. The volunteer and you must EACH personally approve sharing any details.
+          </p>
+          <ContactMethodPicker value={contactMethods} onChange={setContactMethods} />
+          <Button type="button" disabled={sending || !contactReady(contactMethods)}
+            onClick={() => void requestContact()}>
+            {sending ? "Submitting..." : "Send Request for Staff Review"}
+          </Button>
         </DialogContent>
       </Dialog>
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
