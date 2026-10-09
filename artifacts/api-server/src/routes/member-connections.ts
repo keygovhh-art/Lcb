@@ -150,6 +150,49 @@ router.post("/admin/member-connections/:id/invite", requireAdmin, async (req, re
   } catch (error) { next(error); }
 });
 
+// A staff member who personally obtained explicit permission can document
+// verified phone/in-person consent; a mere "Reviewed" click is never consent.
+router.post("/admin/member-connections/:id/record-consent", requireAdmin, async (req, res, next): Promise<void> => {
+  try {
+    const id = idFromRequest(req.params.id);
+    const method = String(req.body?.method || "");
+    const note = String(req.body?.note || "").trim();
+    if (!id || !["phone", "in_person"].includes(method) ||
+        req.body?.confirmedPermission !== true || note.length < 20 || note.length > 1000) {
+      res.status(400).json({
+        error: "Choose phone/in-person verification, document 20–1000 characters, and explicitly confirm the volunteer granted permission to share their contact details",
+      });
+      return;
+    }
+    const request = await originalRequest(id);
+    const { row, state } = await getConnectionMeta(id);
+    if (!request || request.status !== "open" || !row || !state) {
+      res.status(404).json({ error: "Linked open connection request not found" }); return;
+    }
+    if (!["new", "invited"].includes(state.stage)) {
+      res.status(409).json({ error: "Consent already decided; refresh this case" }); return;
+    }
+    const volunteer = await contactFor(state.volunteerUserId);
+    if (!volunteer || volunteer.status !== "active" || !(volunteer.phone || volunteer.email)) {
+      res.status(409).json({ error: "Volunteer must have an active account with a contact method" }); return;
+    }
+    const verifierId = getSessionUserId(req)!;
+    const nextState: ConnectionState = {
+      ...state, stage: "accepted", respondedAt: new Date().toISOString(),
+      consentMethod: method === "phone" ? "staff_verified_phone" : "staff_verified_in_person",
+      consentNote: note, consentVerifiedBy: verifierId, updatedBy: verifierId,
+    };
+    if (!await updateConnectionMeta(row, nextState)) {
+      res.status(409).json({ error: "Request changed; refresh and retry" }); return;
+    }
+    await notifyUser(state.requesterUserId, "connection_request_update",
+      "An administrator personally verified the volunteer's permission. Open My Connections to contact the volunteer and confirm whether contact succeeded.", "/connections");
+    await notifyUser(state.volunteerUserId, "connection_request_update",
+      "An administrator recorded your permission to share your contact details after personal verification. If this was not authorized, contact administration immediately.", "/connections");
+    res.json({ stage: "accepted", consentMethod: nextState.consentMethod });
+  } catch (error) { next(error); }
+});
+
 router.post("/member-connections/:id/respond", requireAuth, async (req, res, next): Promise<void> => {
   try {
     const id = idFromRequest(req.params.id);
@@ -176,7 +219,10 @@ router.post("/member-connections/:id/respond", requireAuth, async (req, res, nex
     }
     const stage = decision === "accept" ? "accepted" : "declined";
     if (!await updateConnectionMeta(row, {
-      ...state, stage, respondedAt: new Date().toISOString(), updatedBy: getSessionUserId(req)!,
+      ...state, stage, respondedAt: new Date().toISOString(),
+      consentMethod: decision === "accept" ? "in_app" : null,
+      consentNote: null, consentVerifiedBy: null,
+      updatedBy: getSessionUserId(req)!,
     })) { res.status(409).json({ error: "Another update occurred; refresh the request" }); return; }
     await notifyUser(state.requesterUserId, "connection_request_update",
       decision === "accept"
