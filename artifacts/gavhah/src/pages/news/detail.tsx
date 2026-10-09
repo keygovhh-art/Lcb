@@ -140,7 +140,7 @@ function ArticleBody({ article }: { article: any }) {
       qc.setQueryData(getGetNewsQueryKey(article.id), updated);
       void qc.invalidateQueries({ queryKey: ["/api/news"] });
       setEditOpen(false);
-      toast({ title: "Update saved", description: "The published story has been updated." });
+      toast({ title: "Update saved", description: "The published update has been updated." });
     } catch {
       toast({ title: "Could not save changes", variant: "destructive" });
     } finally {
@@ -169,7 +169,7 @@ function ArticleBody({ article }: { article: any }) {
   const handleLike = (e: React.MouseEvent) => {
     if (!isAuthenticated) {
       e.preventDefault();
-      toast({ title: "Sign in to upvote stories", description: "Join Gavhah free to upvote community updates." });
+      toast({ title: "Sign in to upvote updates", description: "Join Gavhah free to upvote community updates." });
       setLocation("/login");
       return;
     }
@@ -186,7 +186,7 @@ function ArticleBody({ article }: { article: any }) {
           {article.title}
         </h1>
 
-        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground pb-6 border-b">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3 sm:gap-4 text-sm text-muted-foreground pb-6 border-b">
           <div className="flex items-center gap-1.5">
             <Calendar className="h-4 w-4" />
             <span>{format(new Date(article.createdAt), "MMMM d, yyyy")}</span>
@@ -201,24 +201,24 @@ function ArticleBody({ article }: { article: any }) {
               <span>{(article.viewCount ?? 0).toLocaleString()} {article.viewCount === 1 ? "view" : "views"}</span>
             </div>
           )}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="w-full min-w-0 max-w-full flex flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
             <UpvoteButton
               active={isLiked}
               count={likeCount}
               pending={pending}
               onClick={handleLike}
               label="upvotes"
-              title={isLiked ? "Remove upvote" : "Upvote story"}
+              title={isLiked ? "Remove upvote" : "Upvote update"}
             />
             {canManage && (
               <>
-                <Button variant="outline" size="sm" className="gap-2" onClick={openEdit}>
+                <Button variant="outline" size="sm" className="max-w-full gap-2" onClick={openEdit}>
                   <Pencil className="h-4 w-4" /> Edit
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="gap-2 text-destructive border-destructive/20"
+                  className="max-w-full gap-2 text-destructive border-destructive/20"
                   onClick={() => void deleteArticle()}
                   disabled={deleting}
                 >
@@ -237,7 +237,7 @@ function ArticleBody({ article }: { article: any }) {
             <Button
               variant="outline"
               size="sm"
-              className="gap-2"
+              className="max-w-full gap-2"
               onClick={() => navigator.share?.({ title: article.title, url: window.location.href }).catch(() => {})}
             >
               <Share2 className="h-4 w-4" /> Share
@@ -286,7 +286,7 @@ function ArticleBody({ article }: { article: any }) {
       </Dialog>
 
       {/* Footer */}
-      <div className="mt-12 pt-8 border-t flex flex-col sm:flex-row items-start sm:items-center gap-6">
+      <div className="mt-12 pt-8 border-t flex min-w-0 max-w-full flex-col sm:flex-row items-start sm:items-center gap-6">
         <div className="flex-1">
           <p className="font-serif font-bold text-primary">{article.authorName}</p>
           <p className="text-sm text-muted-foreground">
@@ -299,7 +299,7 @@ function ArticleBody({ article }: { article: any }) {
           </div>
         )}
         <Link href="/news">
-          <Button variant="outline" className="gap-2"><ArrowLeft className="h-4 w-4" /> More Stories</Button>
+          <Button variant="outline" className="gap-2"><ArrowLeft className="h-4 w-4" /> More Updates</Button>
         </Link>
       </div>
     </article>
