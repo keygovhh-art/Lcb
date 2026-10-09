@@ -135,6 +135,7 @@ export function OperationsInbox() {
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [legacyVolunteerIds, setLegacyVolunteerIds] = useState<Record<string, string>>({});
   const [closureReasons, setClosureReasons] = useState<Record<string, string>>({});
+  const [followupDrafts, setFollowupDrafts] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
@@ -188,15 +189,20 @@ export function OperationsInbox() {
     }
   };
 
-  const connectionAction = async (item: OperationItem, action: "link" | "invite" | "close") => {
+  const connectionAction = async (item: OperationItem, action: "link" | "invite" | "close" | "retry") => {
     const volunteerId = Number(legacyVolunteerIds[item.key]);
     const reason = (closureReasons[item.key] || "").trim();
+    const followup = (followupDrafts[item.key] || "").trim();
     if (action === "link" && (!Number.isSafeInteger(volunteerId) || volunteerId <= 0)) {
       toast({ title: yi ? "שרייב א ריכטיגן וואלונטיר־נומער" : "Enter a valid volunteer ID", variant: "destructive" });
       return;
     }
     if (action === "close" && (reason.length < 10 || reason.length > 1000)) {
       toast({ title: yi ? "שרייב כאטש צען אותיות פארוואס עס איז נישט געלונגען" : "Give a reason of 10–1000 characters", variant: "destructive" });
+      return;
+    }
+    if (action === "retry" && (followup.length < 10 || followup.length > 500)) {
+      toast({ title: yi ? "שרייב קודם וואס מען האט פאקטיש פארראכטן" : "Record the actual follow-up before retrying", variant: "destructive" });
       return;
     }
     if (action === "invite" && !window.confirm(
@@ -212,9 +218,9 @@ export function OperationsInbox() {
     try {
       const base = `/api/admin/member-connections/${item.id}`;
       await request(
-        base + (action === "link" ? "/link" : action === "invite" ? "/invite" : "/close-unfulfilled"),
+        base + (action === "link" ? "/link" : action === "invite" ? "/invite" : action === "retry" ? "/retry-contact" : "/close-unfulfilled"),
         "POST",
-        action === "link" ? { volunteerId } : action === "close" ? { reason } : {},
+        action === "link" ? { volunteerId } : action === "close" ? { reason } : action === "retry" ? { followup } : {},
       );
       toast({ title: yi ? "די פארבינדונג־בקשה איז אפדעיטעד" : "Connection case updated" });
       await load();
@@ -616,13 +622,31 @@ export function OperationsInbox() {
                             "Volunteer consent granted. The requester can see contact details in My Connections. This stays OPEN until the requester confirms actual contact."}
                         </p>
                       )}
+                      {item.meta?.connectionStage === "contact_problem" && (
+                        <div className="space-y-2 rounded-md bg-muted/30 p-2 border">
+                          <p className="text-xs">
+                            {yi ? "דער בעטער האט געמאלדן אז דער קאנטאקט איז נישט געלונגען. העלף אים פאקטיש, דערנאך שרייב וואס איז געטאן געווארן און לאז אים נאכאמאל פרובירן." :
+                              "The requester could not connect. Perform real follow-up, record what was fixed, then offer another attempt."}
+                          </p>
+                          <p className="text-xs font-semibold break-words">{item.meta.connectionIssue || ""}</p>
+                          <Input
+                            value={followupDrafts[item.key] || ""}
+                            onChange={e => setFollowupDrafts(prev => ({ ...prev, [item.key]: e.target.value }))}
+                            placeholder={yi ? "וואס איז פארראכטן געווארן?" : "What was actually fixed?"}
+                            className="h-9"
+                          />
+                          <Button className="w-full" disabled={busy !== null} onClick={() => void connectionAction(item, "retry")}>
+                            {yi ? "פרוביר ווידער נאכן פאררעכטן" : "Let requester try again"}
+                          </Button>
+                        </div>
+                      )}
                       {item.meta?.connectionStage === "declined" && (
                         <p className="text-xs rounded-md bg-muted/30 p-2 border">
                           {yi ? "דער וואלונטיר האט נישט מסכים געווען. שרייב א פאסיגן הסבר אונטן איידער מען פארמאכט דעם פאל אלס נישט געלונגען." :
                             "The volunteer declined. Enter a reason below to close this case as unsuccessful, NOT completed."}
                         </p>
                       )}
-                      {["new", "invited", "accepted", "declined"].includes(item.meta?.connectionStage) && (
+                      {["new", "invited", "accepted", "contact_problem", "declined"].includes(item.meta?.connectionStage) && (
                         <div className="space-y-2">
                           <Input
                             value={closureReasons[item.key] || ""}
