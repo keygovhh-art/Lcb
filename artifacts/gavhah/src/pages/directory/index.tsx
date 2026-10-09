@@ -1166,3 +1166,31 @@ export default function Directory() {
     </div>
   </Layout>;
 }
+
+/** Community projects are a separate feature, not a directory of help-seekers or volunteers. */
+export function CommunityProjectsPage(){
+  const [projectType,setProjectType]=useState("all");
+  const projParams={type:projectType==="all"?undefined:projectType};
+  const {data:projects,isLoading}=useListCommunityProjects(projParams,{
+    query:{queryKey:getListCommunityProjectsQueryKey(projParams)},
+  });
+  return <Layout>
+    <section className="container mx-auto max-w-5xl px-4 py-10 space-y-6">
+      <h1 className="text-3xl font-serif font-bold text-primary">Community Projects & Initiatives</h1>
+      <p className="text-sm text-muted-foreground">
+        Community projects are separate from Gavhah's strictly confidential volunteer and private-assistance system.
+        No private help requests or volunteer applications are displayed here.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {PROJECT_TYPES.map(t=><Button key={t.value} size="sm"
+          variant={projectType===t.value?"default":"outline"}
+          onClick={()=>setProjectType(t.value)}><t.icon className="h-4 w-4 me-1"/>{t.label}</Button>)}
+      </div>
+      <CreateProjectDialog/>
+      <div className="grid md:grid-cols-2 gap-4">
+        {isLoading?<p>Loading projects...</p>:
+          projects?.map((p:any)=><ProjectCard key={p.id} project={p}/>)}
+      </div>
+    </section>
+  </Layout>;
+}
