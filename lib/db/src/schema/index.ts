@@ -17,3 +17,5 @@ export * from "./support";
 export * from "./likes";
 export * from "./broadcasts";
 export * from "./media";
+export * from "./member-mailing";
+export * from "./member-contact-methods";

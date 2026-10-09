@@ -25,7 +25,7 @@ export default function Login() {
     if (result.ok) {
       const params = new URLSearchParams(window.location.search);
       const requested = params.get("return") || "/";
-      const safeReturn = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
+      const safeReturn = requested.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\") ? requested : "/";
       const separator = safeReturn.includes("?") ? "&" : "?";
       window.location.replace(`${safeReturn}${separator}auth=${Date.now()}`);
     } else {

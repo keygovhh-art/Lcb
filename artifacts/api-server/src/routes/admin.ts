@@ -6,7 +6,8 @@ import {
   followsTable, savedItemsTable, supportMessagesTable, helpRequestsTable,
   groupMembersTable, causeSubmissionsTable, minyansTable, reservationsTable,
 } from "@workspace/db/schema";
-import { count, eq, desc } from "drizzle-orm";
+import { count, eq, desc, inArray } from "drizzle-orm";
+import { CONNECTION_META_TYPE, parseConnectionState, type ConnectionState } from "../lib/member-connections";
 import { requireAdmin, getSessionUserId } from "../middlewares/auth";
 
 const router = Router();
@@ -100,9 +101,10 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     supportRows,
     reservations,
     workflowRows,
+    connectionRows,
   ] = await Promise.all([
     db.select().from(reportsTable).where(eq(reportsTable.status, "pending")).orderBy(desc(reportsTable.createdAt)),
-    db.select().from(helpRequestsTable).where(eq(helpRequestsTable.status, "pending")).orderBy(desc(helpRequestsTable.createdAt)),
+    db.select().from(helpRequestsTable).where(inArray(helpRequestsTable.status, ["pending", "open"])).orderBy(desc(helpRequestsTable.createdAt)),
     db.select().from(groupMembersTable).where(eq(groupMembersTable.status, "pending")).orderBy(desc(groupMembersTable.joinedAt)),
     db.select({ id: groupsTable.id, name: groupsTable.name }).from(groupsTable),
     db.select().from(causeSubmissionsTable).where(eq(causeSubmissionsTable.status, "pending")).orderBy(desc(causeSubmissionsTable.createdAt)),
@@ -110,7 +112,24 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     db.select().from(supportMessagesTable).where(eq(supportMessagesTable.status, "open")).orderBy(desc(supportMessagesTable.createdAt)),
     db.select().from(reservationsTable).where(eq(reservationsTable.status, "confirmed")).orderBy(desc(reservationsTable.createdAt)),
     db.select().from(supportMessagesTable).where(eq(supportMessagesTable.type, WORKFLOW_META_TYPE)).orderBy(desc(supportMessagesTable.createdAt)),
+    db.select().from(supportMessagesTable).where(eq(supportMessagesTable.type, CONNECTION_META_TYPE)).orderBy(desc(supportMessagesTable.id)),
   ]);
+
+  const connectionsByRequest = new Map<number, ConnectionState>();
+  for (const row of connectionRows) {
+    const id = Number(row.subject.match(/^support:(\d+)$/)?.[1]);
+    if (!Number.isSafeInteger(id) || id <= 0 || connectionsByRequest.has(id)) continue;
+    const state = parseConnectionState(row.message);
+    if (state) connectionsByRequest.set(id,state);
+  }
+  const contactIds = [...new Set([...connectionsByRequest.values()].map(s => s.volunteerUserId))];
+  const contactUsers = contactIds.length
+    ? await db.select({
+        id: usersTable.id, name: usersTable.name, nickname: usersTable.nickname,
+        email: usersTable.email, phone: usersTable.phone,
+      }).from(usersTable).where(inArray(usersTable.id, contactIds))
+    : [];
+  const volunteersById = new Map(contactUsers.map(u => [u.id, u]));
 
   const groupNames = new Map(groups.map(g => [g.id, g.name]));
   const pendingComments = supportRows.filter(m => m.type === "__pending_comment__");
@@ -135,7 +154,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
       title: `Help request: ${r.name}`,
       summary: r.description,
       createdAt: r.createdAt,
-      meta: { needType: r.needType, urgency: r.urgency, location: r.location, userId: r.userId },
+      meta: { needType: r.needType, urgency: r.urgency, location: r.location, userId: r.userId, helpStatus: r.status },
     })),
     ...groupMembers.map(m => ({
       key: `group:${m.id}`,
@@ -188,13 +207,37 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     }),
     ...supportMessages.map(m => ({
       key: `support:${m.id}`,
-      kind: m.type === "volunteer_contact" || m.type === "help_offer" ? "member_connection" : m.type,
+      kind: m.type === "volunteer_contact" ? "member_connection" : m.type,
       id: m.id,
-      priority: m.type === "report" || m.type === "system_error" ? "high" : "normal",
+      priority: m.type === "report" || m.type === "system_error" ||
+        (m.type === "volunteer_contact" && connectionsByRequest.get(m.id)?.stage === "awaiting_staff_release")
+          ? "high" : "normal",
       title: m.subject,
       summary: m.message,
       createdAt: m.createdAt,
-      meta: { type: m.type, userId: m.userId, name: m.name, contact: m.email },
+      meta: {
+        type: m.type, userId: m.userId, name: m.name, contact: m.email,
+        connectionStage: m.type === "volunteer_contact"
+          ? (connectionsByRequest.get(m.id)?.stage ?? "legacy")
+          : null,
+        connectionIssue: connectionsByRequest.get(m.id)?.contactIssue ?? null,
+        requesterApproved: Boolean(connectionsByRequest.get(m.id)?.approvals.requester),
+        volunteerApproved: Boolean(connectionsByRequest.get(m.id)?.approvals.volunteer),
+        staffFinalReleased: Boolean(connectionsByRequest.get(m.id)?.staffReleasedAt),
+        requesterChoice: connectionsByRequest.get(m.id)?.requesterChoice ?? "primary",
+        volunteerChoice: connectionsByRequest.get(m.id)?.volunteerChoice ?? "primary",
+        volunteerId: connectionsByRequest.get(m.id)?.volunteerId ?? null,
+        volunteerName: connectionsByRequest.get(m.id)?.volunteerUserId
+          ? (volunteersById.get(connectionsByRequest.get(m.id)!.volunteerUserId)?.nickname ||
+             volunteersById.get(connectionsByRequest.get(m.id)!.volunteerUserId)?.name ||
+             "Volunteer")
+          : null,
+        volunteerContact: connectionsByRequest.get(m.id)?.volunteerUserId
+          ? (volunteersById.get(connectionsByRequest.get(m.id)!.volunteerUserId)?.phone ||
+             volunteersById.get(connectionsByRequest.get(m.id)!.volunteerUserId)?.email ||
+             null)
+          : null,
+      },
     })),
     ...reservations.map(r => ({
       key: `reservation:${r.id}`,
@@ -239,6 +282,71 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     },
     items,
   });
+});
+
+// Completed support and volunteer-connection history is deliberately separate
+// from the open queue. Completed does not automatically mean successful.
+router.get("/admin/operations-history", requireAdmin, async (_req, res) => {
+  const [cases, consentRecords, closeRecords, fulfilledHelp, helpAudits] = await Promise.all([
+    db.select().from(supportMessagesTable)
+      .where(eq(supportMessagesTable.status, "resolved"))
+      .orderBy(desc(supportMessagesTable.id)).limit(300),
+    db.select().from(supportMessagesTable)
+      .where(eq(supportMessagesTable.type, CONNECTION_META_TYPE))
+      .orderBy(desc(supportMessagesTable.id)).limit(400),
+    db.select().from(supportMessagesTable)
+      .where(eq(supportMessagesTable.type, "__support_resolution__"))
+      .orderBy(desc(supportMessagesTable.id)).limit(400),
+    db.select().from(helpRequestsTable)
+      .where(eq(helpRequestsTable.status, "resolved"))
+      .orderBy(desc(helpRequestsTable.id)).limit(150),
+    db.select().from(supportMessagesTable)
+      .where(eq(supportMessagesTable.type, "__help_resolution__"))
+      .orderBy(desc(supportMessagesTable.id)).limit(300),
+  ]);
+
+  const connections = new Map<number, ConnectionState>();
+  for (const row of consentRecords) {
+    const requestId = Number(row.subject.match(/^support:(\d+)$/)?.[1]);
+    if (!Number.isSafeInteger(requestId) || connections.has(requestId)) continue;
+    try { connections.set(requestId, JSON.parse(row.message) as ConnectionState); } catch {}
+  }
+  const closures = new Map<number, typeof closeRecords[number]>();
+  for (const row of closeRecords) {
+    const requestId = Number(row.subject.match(/^support:(\d+)$/)?.[1]);
+    if (Number.isSafeInteger(requestId) && !closures.has(requestId)) closures.set(requestId, row);
+  }
+  const fulfilledNotes = new Map<number, typeof helpAudits[number]>();
+  for (const audit of helpAudits) {
+    const requestId = Number(audit.subject.match(/^help:(\d+)$/)?.[1]);
+    if (Number.isSafeInteger(requestId) && !fulfilledNotes.has(requestId)) fulfilledNotes.set(requestId, audit);
+  }
+  const helpOutcomes = fulfilledHelp.map(row => {
+    const audit = fulfilledNotes.get(row.id);
+    return {
+      id: row.id, kind: "help_request", title: `Help request: ${row.name}`,
+      requester: row.name, outcome: "confirmed_help" as const,
+      closedAt: audit?.createdAt || row.createdAt, summary: audit?.message || null,
+      actorId: audit?.userId || null,
+    };
+  });
+  const items = [...cases.filter(row => !row.type.startsWith("__")).map(row => {
+    const connection = row.type === "volunteer_contact" ? connections.get(row.id) : null;
+    const audit = closures.get(row.id);
+    const outcome =
+      connection?.stage === "connected" ? "confirmed_success" :
+      connection?.stage === "closed_unfulfilled" ? "unsuccessful" :
+      row.type === "volunteer_contact" ? "legacy_closed" : "staff_closed";
+    return {
+      id: row.id, kind: row.type, title: row.subject, requester: row.name,
+      outcome,
+      closedAt: connection?.confirmedAt || connection?.closedAt || audit?.createdAt || row.createdAt,
+      summary: connection?.closureReason || audit?.message || null,
+      actorId: connection?.updatedBy || audit?.userId || null,
+    };
+  }), ...helpOutcomes]
+    .sort((a,b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime()).slice(0,150);
+  res.json({ items });
 });
 
 router.patch("/admin/operations-workflow", requireAdmin, async (req, res): Promise<void> => {

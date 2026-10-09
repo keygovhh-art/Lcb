@@ -24,12 +24,7 @@ import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
 import { DiscussionTicker } from "@/components/shared/discussion-ticker";
 import { UpvoteButton } from "@/components/shared/upvote-button";
 import { useUpvoteStates } from "@/hooks/use-upvote-states";
-
-const CATEGORY_LABELS: Record<string, string> = {
-  medical: "Medical Assistance", shidduchim: "Shidduchim",
-  livelihood: "Livelihood", education: "Education",
-  charity: "Charity", community: "Community Affairs", general: "General Discussion",
-};
+import { visibleForumTopic } from "@/lib/forum-topic";
 
 export default function ForumDetail() {
   const { id } = useParams<{ id: string }>();
@@ -45,7 +40,7 @@ export default function ForumDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
-  const [editCategory, setEditCategory] = useState("general");
+  const [editCategory, setEditCategory] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
@@ -152,7 +147,7 @@ export default function ForumDetail() {
     if (!discussion) return;
     setEditTitle(discussion.title);
     setEditContent(discussion.content);
-    setEditCategory(discussion.category);
+    setEditCategory(visibleForumTopic(discussion.category));
     setEditOpen(true);
   };
 
@@ -167,7 +162,7 @@ export default function ForumDetail() {
         body: JSON.stringify({
           title: editTitle.trim(),
           content: editContent.trim(),
-          category: editCategory,
+          category: editCategory.trim(),
           isPinned: discussion.isPinned,
         }),
       });
@@ -332,7 +327,7 @@ export default function ForumDetail() {
           </div>
 
           {replyParentId === comment.id && forumEngagement.replyMode !== "off" && (
-            <MemberGate action="reply to this comment" compact={!user}>
+            <MemberGate gate="forum" action="reply to this comment" compact={!user}>
               <div className="mt-3 rounded-lg border bg-muted/20 p-3">
                 <Textarea
                   value={nestedReply}
@@ -394,9 +389,11 @@ export default function ForumDetail() {
             <div className="bg-card border rounded-xl p-8 shadow-sm mb-8">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="flex flex-wrap gap-2">
-                  <span className="px-3 py-1 bg-secondary/10 text-secondary text-xs font-semibold uppercase tracking-wider rounded-full">
-                    {CATEGORY_LABELS[discussion.category] || discussion.category}
-                  </span>
+                  {visibleForumTopic(discussion.category) && (
+                    <span className="px-3 py-1 bg-secondary/10 text-secondary text-xs font-semibold rounded-full break-words">
+                      {visibleForumTopic(discussion.category)}
+                    </span>
+                  )}
                   {discussion.isPinned && (
                     <span className="px-3 py-1 bg-accent/20 text-accent-foreground text-xs font-semibold rounded-full flex items-center gap-1">
                       <Pin className="h-3 w-3" /> Pinned
@@ -486,7 +483,7 @@ export default function ForumDetail() {
             </div>
 
             {!discussion.isLocked && forumEngagement.replyMode !== "off" && (
-              <MemberGate action="leave a reply" compact={!user}>
+              <MemberGate gate="forum" action="leave a reply" compact={!user}>
                 <div className="bg-card border rounded-xl p-6 shadow-sm">
                   <h3 className="font-serif font-bold text-primary mb-2">Leave a Reply</h3>
                   {forumEngagement.replyMode === "review" && (
@@ -526,7 +523,7 @@ export default function ForumDetail() {
                 <div className="space-y-4">
                   <div><Label>Title</Label><Input value={editTitle} onChange={e => setEditTitle(e.target.value)} /></div>
                   <div><Label>Message</Label><Textarea className="min-h-40" value={editContent} onChange={e => setEditContent(e.target.value)} /></div>
-                  <div><Label>Category</Label><Input value={editCategory} onChange={e => setEditCategory(e.target.value)} /></div>
+                  <div><Label>Topic (optional) / טעמע</Label><Input value={editCategory} onChange={e => setEditCategory(e.target.value)} maxLength={100} placeholder="אייגענע טעמע אדער ליידיג" /></div>
                   <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveDiscussion()} disabled={savingEdit || !editTitle.trim() || !editContent.trim()}>
                     {savingEdit ? "Saving..." : "Save Changes"}
                   </Button>

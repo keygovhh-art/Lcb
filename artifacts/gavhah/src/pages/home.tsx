@@ -29,8 +29,8 @@ const DEPARTMENTS = [
     iconColor: "bg-secondary/10 text-secondary",
   },
   {
-    label: "Activists Directory",
-    desc: "Find volunteers and submit help requests",
+    label: "Private Assistance",
+    desc: "Submit confidential help requests or volunteer to assist — coordinated only by Gavhah",
     href: "/directory",
     icon: <HandHeart className="h-7 w-7" />,
     color: "from-accent/15 to-accent/5 border-accent/20",
@@ -165,8 +165,8 @@ export default function Home() {
               <div key={i} className="text-center p-5 bg-card border rounded-xl"><Skeleton className="h-10 w-1/2 mx-auto mb-2" /><Skeleton className="h-4 w-2/3 mx-auto" /></div>
             )) : [
               { label: "Members Worldwide", value: `${(stats?.totalMembers ?? 0).toLocaleString()}` },
-              { label: "Acts of Chesed", value: `${(stats?.totalPeopleHelped ?? 0).toLocaleString()}` },
-              { label: "Active Volunteers", value: `${(stats?.activeVolunteers ?? 0).toLocaleString()}` },
+              { label: "Community Groups", value: `${(stats?.activeGroups ?? 0).toLocaleString()}` },
+              { label: "News Updates", value: `${(((stats as {totalNewsArticles?: number} | undefined)?.totalNewsArticles) ?? 0).toLocaleString()}` },
               { label: "Recorded Donations", value: `$${Number(stats?.donationsRaised ?? 0).toLocaleString()}` },
             ].map((stat, i) => (
               <div key={i} className="text-center p-5 bg-card border rounded-xl shadow-sm">

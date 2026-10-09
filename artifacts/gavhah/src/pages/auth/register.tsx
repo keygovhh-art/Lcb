@@ -4,13 +4,21 @@ import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, UserPlus, CheckCircle, Mail, Phone } from "lucide-react";
+import { Eye, EyeOff, UserPlus, CheckCircle, Mail, Phone, MapPin, Package } from "lucide-react";
+import { useLanguage } from "@/context/language-context";
 import { useToast } from "@/hooks/use-toast";
 
 type ContactMethod = "email" | "phone";
 
 export default function Register() {
   const { toast } = useToast();
+  const { lang } = useLanguage();
+  const yi = lang === "yi";
+  const [mailing, setMailing] = useState({
+    recipient:"",addressLine1:"",addressLine2:"",city:"",state:"",postalCode:"",country:"US",
+  });
+  const [uspsPermission, setUspsPermission] = useState<"yes" | "no" | "">("");
+  const [showAddress, setShowAddress] = useState(false);
   const [method, setMethod] = useState<ContactMethod>("email");
   const [form, setForm] = useState({
     nickname: "", name: "", email: "", phone: "",
@@ -30,8 +38,18 @@ export default function Register() {
     if (method === "phone" && form.phone.replace(/\D/g, "").length < 7) e.contact = "A valid phone number is required";
     if (form.password.length < 8) e.password = "Password must be at least 8 characters";
     if (form.password !== form.confirm) e.confirm = "Passwords do not match";
+    const hasAddress=Object.values(mailing).some((v,i)=>i!==6 && v.trim());
+    if (hasAddress && (!mailing.recipient.trim() || !mailing.addressLine1.trim() || !mailing.city.trim() || !mailing.state.trim() || !mailing.postalCode.trim())) {
+      e.mailing = "To save an address, please provide recipient, street, city, state and ZIP. Otherwise clear the optional address fields.";
+    }
+    if (hasAddress && uspsPermission === "") e.permission = "Please explicitly choose Yes or No for USPS mail to this address.";
+    if (!hasAddress && uspsPermission === "yes") e.permission = "Enter a complete address first or choose No.";
     return e;
   };
+
+  const hasMailingAddress=Object.entries(mailing).some(([key,value])=>key!=="country" && Boolean(value.trim()));
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,12 +58,21 @@ export default function Register() {
     setErrors({});
     setLoading(true);
     try {
-      const payload: Record<string, string> = {
+      const payload: Record<string, unknown> = {
         nickname: form.nickname.trim(),
         password: form.password,
         ...(form.name.trim() ? { name: form.name.trim() } : {}),
         ...(form.location.trim() ? { location: form.location.trim() } : {}),
         ...(method === "email" ? { email: form.email.trim() } : { phone: form.phone.trim() }),
+        ...(hasMailingAddress ? {
+          mailingAddress: {
+            ...mailing,
+            recipient: mailing.recipient.trim(), addressLine1: mailing.addressLine1.trim(),
+            addressLine2: mailing.addressLine2.trim(), city: mailing.city.trim(),
+            state: mailing.state.trim(), postalCode: mailing.postalCode.trim(),
+            uspsConsent: uspsPermission === "yes",
+          },
+        } : {}),
       };
       const res = await fetch("/api/users", {
         method: "POST",
@@ -66,7 +93,10 @@ export default function Register() {
         });
         toast({ title: `Welcome, ${user.nickname}!`, description: "Your Gavhah membership is active." });
         if (loginRes.ok) {
-          window.location.replace(`/?auth=${Date.now()}`);
+          const requested = new URLSearchParams(window.location.search).get("return") || "/";
+          const safeReturn = requested.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\") ? requested : "/";
+          const separator = safeReturn.includes("?") ? "&" : "?";
+          window.location.replace(`${safeReturn}${separator}auth=${Date.now()}`);
         } else {
           window.location.assign("/login");
         }
@@ -169,6 +199,76 @@ export default function Register() {
                 <Input id="location" value={form.location} onChange={set("location")} placeholder="Brooklyn, NY" className="h-12" />
               </div>
 
+              {/* Optional home mailing address: never mandatory for signup */}
+              <div className="rounded-xl border p-4 space-y-3 bg-muted/10">
+                <div className="flex items-start gap-2">
+                  <Package className="h-5 w-5 text-primary shrink-0 mt-0.5"/>
+                  <div>
+                    <p className="font-semibold text-primary">
+                      {yi ? "היים־אדרעס פאר וויכטיגע מעמבער־פאסט — אפטיאָנעל" : "Optional home address for important member mail"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {yi
+                        ? "די מערכת קען אמאל שיקן ספעציעלע וויכטיגע סחורה פאר מעמבערס. דו מוזט נישט געבן קיין אדרעס צו ווערן א מעמבער."
+                        : "We may occasionally have important member materials to mail. Providing a home address is completely optional and never required for membership."}
+                    </p>
+                  </div>
+                </div>
+                <label className="flex gap-2 items-center text-sm">
+                  <input type="checkbox" checked={showAddress}
+                    onChange={e=>{setShowAddress(e.target.checked);if(!e.target.checked){setMailing({recipient:"",addressLine1:"",addressLine2:"",city:"",state:"",postalCode:"",country:"US"});setUspsPermission("");}}}/>
+                  {yi ? "איך וויל אפטיאָנעל אריינלייגן מיין היים־אדרעס" : "I'd like to optionally provide my home address"}
+                </label>
+                {showAddress && <>
+                  <div className="grid gap-3">
+                    <div><Label>{yi?"אויף וועמענס נאמען":"Recipient name"}</Label>
+                      <Input autoComplete="name" value={mailing.recipient} onChange={e=>setMailing(m=>({...m,recipient:e.target.value}))}/>
+                    </div>
+                    <div><Label>{yi?"הויז־נומער און גאס":"Street address"}</Label>
+                      <Input autoComplete="address-line1" value={mailing.addressLine1} onChange={e=>setMailing(m=>({...m,addressLine1:e.target.value}))}/>
+                    </div>
+                    <div><Label>{yi?"דירה / סוויט (אויב שייך)":"Apartment / suite (optional)"}</Label>
+                      <Input autoComplete="address-line2" value={mailing.addressLine2} onChange={e=>setMailing(m=>({...m,addressLine2:e.target.value}))}/>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><Label>{yi?"שטאט":"City"}</Label>
+                        <Input autoComplete="address-level2" value={mailing.city} onChange={e=>setMailing(m=>({...m,city:e.target.value}))}/>
+                      </div>
+                      <div><Label>{yi?"סטעיט":"State"}</Label>
+                        <Input autoComplete="address-level1" value={mailing.state} onChange={e=>setMailing(m=>({...m,state:e.target.value}))}/>
+                      </div>
+                    </div>
+                    <div><Label>{yi?"זיפ קאוד":"ZIP code"}</Label>
+                      <Input autoComplete="postal-code" value={mailing.postalCode} onChange={e=>setMailing(m=>({...m,postalCode:e.target.value}))}/>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3 bg-background space-y-2">
+                    <p className="font-semibold text-sm">
+                      {yi?"געבסטו בפירוש רשות אז די מערכת מעג שיקן USPS־פאסט צו דער אדרעס?" :
+                        "Do you explicitly permit Gavhah to send USPS mail to this home address?"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {yi?"אויב דו ווילסט נישט, ווערט די אדרעס אפגעהיטן מיטן לעבעל 'נישט שיקן'. מען קען דאס שפעטער טוישן." :
+                        "If No, your address will be saved as DO NOT SEND. You may change this permission later."}
+                    </p>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="radio" name="usps-consent" checked={uspsPermission==="yes"} onChange={()=>setUspsPermission("yes")}/>
+                      {yi?"יא, איך בין מסכים צו באקומען USPS־פאסט":"Yes, USPS mail is permitted"}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="radio" name="usps-consent" checked={uspsPermission==="no"} onChange={()=>setUspsPermission("no")}/>
+                      {yi?"ניין, היט אפ מיין אדרעס, אבער שיק גארנישט":"No — save address but DO NOT SEND"}
+                    </label>
+                    {errors.permission && <p className="text-xs text-destructive">{errors.permission}</p>}
+                  </div>
+                  {errors.mailing && <p className="text-xs text-destructive">{errors.mailing}</p>}
+                </>}
+                <p className="text-xs text-muted-foreground">
+                  {yi?"די אדרעס איז פריוואט, נאר פארן בארעכטיגטן אדמין, און ווערט נישט געוויזן אינעם פובליק־פראפיל." :
+                    "Address is private, available only to authorized staff, never displayed in your public profile."}
+                </p>
+              </div>
+
               {/* Password */}
               <div className="space-y-2">
                 <Label htmlFor="password" className="font-semibold">Password <span className="text-destructive">*</span></Label>
@@ -233,7 +333,7 @@ export default function Register() {
             <div className="mt-6 pt-6 border-t text-center">
               <p className="text-sm text-muted-foreground">
                 Already have an account?{" "}
-                <Link href="/login" className="text-secondary font-semibold hover:underline">Sign in</Link>
+                <Link href={`/login?return=${encodeURIComponent(new URLSearchParams(window.location.search).get("return") || "/")}`} className="text-secondary font-semibold hover:underline">Sign in</Link>
               </p>
             </div>
           </div>

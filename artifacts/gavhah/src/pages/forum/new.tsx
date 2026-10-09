@@ -8,31 +8,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
-
-const CATEGORIES = [
-  { value: "medical", label: "Medical Assistance" },
-  { value: "shidduchim", label: "Shidduchim" },
-  { value: "livelihood", label: "Livelihood" },
-  { value: "education", label: "Education" },
-  { value: "charity", label: "Charity" },
-  { value: "community", label: "Community Affairs" },
-  { value: "general", label: "General Discussion" },
-];
+import { useLanguage } from "@/context/language-context";
 
 export default function ForumNew() {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { lang } = useLanguage();
+  const yi = lang === "yi";
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [category, setCategory] = useState("general");
+  const [category, setCategory] = useState("");
   const [displayAs, setDisplayAs] = useState<DisplayAs>("nickname");
   const createDiscussion = useCreateDiscussion();
 
@@ -41,7 +33,7 @@ export default function ForumNew() {
     if (!title.trim() || !content.trim()) return;
     const authorName = getDisplayName(displayAs, user);
     createDiscussion.mutate(
-      { data: { title, content, category, authorName } },
+      { data: { title, content, category: category.trim(), authorName } },
       {
         onSuccess: (disc) => {
           void qc.invalidateQueries({ queryKey: ["/api/discussions"] });
@@ -78,17 +70,18 @@ export default function ForumNew() {
           <div className="bg-card border rounded-xl p-8 shadow-sm">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="category" className="font-semibold text-foreground">Category</Label>
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger className="h-12">
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map(cat => (
-                      <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="category" className="font-semibold text-foreground">{yi ? "טעמע (אפטשענעל)" : "Topic (optional)"}</Label>
+                <Input
+                  id="category"
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  placeholder={yi ? "שרייב דיין אייגענע טעמע, אדער לאז ליידיג" : "Write your own topic, or leave blank"}
+                  maxLength={100}
+                  className="h-12 text-base"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {yi ? "דאס פעלד איז נישט פארפיכטעט. מען קען שרייבן סיי וועלכע אייגענע ווערטער; עס זענען נישטא קיין פאראויס־באשטימטע קאטעגאריעס." : "Write any topic in your own words, or leave this blank. There are no preset categories."}
+                </p>
               </div>
 
               <div className="space-y-2">

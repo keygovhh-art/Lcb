@@ -4,7 +4,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/context/language-context";
-import { AuthProvider } from "@/context/auth-context";
+import { AuthProvider, useAuth } from "@/context/auth-context";
+import { MemberGate } from "@/components/shared/member-gate";
+import { Layout } from "@/components/layout/layout";
 import { YiddishMirror } from "@/components/shared/yiddish-mirror";
 import { SiteCopyLayer } from "@/components/shared/site-copy-layer";
 import { AppErrorBoundary } from "@/components/shared/app-error-boundary";
@@ -17,7 +19,7 @@ import NewsDetail from "@/pages/news/detail";
 import ForumList from "@/pages/forum/index";
 import ForumDetail from "@/pages/forum/detail";
 import ForumNew from "@/pages/forum/new";
-import Directory from "@/pages/directory/index";
+import Directory, { CommunityProjectsPage } from "@/pages/directory/index";
 import United from "@/pages/united/index";
 import Communications from "@/pages/communications/index";
 import Charity from "@/pages/charity/index";
@@ -33,6 +35,7 @@ import Register from "@/pages/auth/register";
 import FounderDashboard from "@/pages/admin/index";
 import NotificationsPage from "@/pages/notifications/index";
 import ProfilePage from "@/pages/profile/index";
+import ConnectionsPage from "@/pages/connections/index";
 import SearchPage from "@/pages/search/index";
 import PrivacyPage from "@/pages/privacy";
 import TermsPage from "@/pages/terms";
@@ -145,6 +148,13 @@ function ScrollToTop() {
   return null;
 }
 
+function RequireForumMembership({ children }: { children: React.ReactNode }) {
+  const { user, isLoaded } = useAuth();
+  if (!isLoaded) return <Layout><div className="min-h-[20rem]" /></Layout>;
+  if (!user) return <Layout><MemberGate gate="forum" /></Layout>;
+  return <>{children}</>;
+}
+
 function Router() {
   return (
     <>
@@ -153,10 +163,11 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/news" component={NewsList} />
       <Route path="/news/:id" component={NewsDetail} />
-      <Route path="/forum" component={ForumList} />
-      <Route path="/forum/new" component={ForumNew} />
-      <Route path="/forum/:id" component={ForumDetail} />
+      <Route path="/forum">{() => <RequireForumMembership><ForumList /></RequireForumMembership>}</Route>
+      <Route path="/forum/new">{() => <RequireForumMembership><ForumNew /></RequireForumMembership>}</Route>
+      <Route path="/forum/:id">{() => <RequireForumMembership><ForumDetail /></RequireForumMembership>}</Route>
       <Route path="/directory" component={Directory} />
+      <Route path="/community-projects" component={CommunityProjectsPage} />
       <Route path="/united" component={United} />
       <Route path="/communications" component={Communications} />
       <Route path="/charity" component={Charity} />
@@ -170,6 +181,7 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/notifications" component={NotificationsPage} />
       <Route path="/profile" component={ProfilePage} />
+      <Route path="/connections" component={ConnectionsPage} />
       <Route path="/search" component={SearchPage} />
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/terms" component={TermsPage} />

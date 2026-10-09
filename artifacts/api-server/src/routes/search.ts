@@ -6,7 +6,6 @@ import {
   discussionsTable,
   groupsTable,
   minyansTable,
-  volunteerProfilesTable,
   communityProjectsTable,
   featuredCausesTable,
   charitiesTable,
@@ -19,13 +18,15 @@ function contains(column: unknown, query: string) {
 }
 
 router.get("/search", async (req, res): Promise<void> => {
+  // Never let historic public search results with private applicant names be cached.
+  res.setHeader("Cache-Control","no-store");
   const q = String(req.query.q ?? "").trim().slice(0, 100);
   if (q.length < 2) {
     res.json([]);
     return;
   }
 
-  const [news, discussions, groups, minyans, volunteers, projects, causes, charities] = await Promise.all([
+  const [news, discussions, groups, minyans, _privateVolunteers, projects, causes, charities] = await Promise.all([
     db.select({
       id: newsTable.id,
       title: newsTable.title,
@@ -38,15 +39,17 @@ router.get("/search", async (req, res): Promise<void> => {
       contains(newsTable.organization, q),
     )).limit(8),
 
-    db.select({
-      id: discussionsTable.id,
-      title: discussionsTable.title,
-      description: discussionsTable.content,
-      category: discussionsTable.category,
-    }).from(discussionsTable).where(or(
-      contains(discussionsTable.title, q),
-      contains(discussionsTable.content, q),
-    )).limit(8),
+    req.session.userId
+      ? db.select({
+          id: discussionsTable.id,
+          title: discussionsTable.title,
+          description: discussionsTable.content,
+          category: discussionsTable.category,
+        }).from(discussionsTable).where(or(
+          contains(discussionsTable.title, q),
+          contains(discussionsTable.content, q),
+        )).limit(8)
+      : Promise.resolve([]),
 
     db.select({
       id: groupsTable.id,
@@ -74,16 +77,8 @@ router.get("/search", async (req, res): Promise<void> => {
       ),
     )).limit(8),
 
-    db.select({
-      id: volunteerProfilesTable.id,
-      title: volunteerProfilesTable.userName,
-      description: volunteerProfilesTable.bio,
-      location: volunteerProfilesTable.location,
-    }).from(volunteerProfilesTable).where(or(
-      contains(volunteerProfilesTable.userName, q),
-      contains(volunteerProfilesTable.bio, q),
-      contains(volunteerProfilesTable.location, q),
-    )).limit(8),
+    // Confidential volunteer applications are NEVER searchable site-wide.
+    Promise.resolve([] as Array<{id:number;title:string;description:string|null;location:string|null}>),
 
     db.select({
       id: communityProjectsTable.id,
@@ -162,21 +157,13 @@ router.get("/search", async (req, res): Promise<void> => {
       meta: "Minyan",
       url: "/minyans",
     })),
-    ...volunteers.map(item => ({
-      type: "volunteer",
-      id: item.id,
-      title: item.title,
-      description: cleanSnippet(item.description),
-      meta: item.location,
-      url: "/directory",
-    })),
     ...projects.map(item => ({
       type: "project",
       id: item.id,
       title: item.title,
       description: cleanSnippet(item.description),
       meta: item.location || "Community project",
-      url: "/directory",
+      url: "/community-projects",
     })),
     ...causes.map(item => ({
       type: "cause",

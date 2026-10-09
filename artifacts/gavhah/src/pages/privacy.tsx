@@ -13,6 +13,12 @@ export default function PrivacyPage() {
             <p>Gavhah stores the account and profile information you choose to provide, such as your name, public nickname, email or phone number, location, bio, and password hash. Passwords are not stored as readable text.</p>
           </section>
           <section>
+            <h2 className="font-serif text-xl font-bold text-primary">Optional home mailing address & USPS consent</h2>
+            <p>Joining never requires your home address. If you voluntarily provide a recipient name, street, city, state and ZIP code, the details are stored separately from your public profile. Gavhah may use this information only to arrange the member mail described during signup. We ask separately whether you permit USPS mail to that address. Answering No saves the address with a DO NOT SEND instruction; leaving the address blank means no address is stored and no postal mail should be sent.</p>
+            <p>Only authorized administrators may view mailing addresses; moderators and public visitors cannot access them through the member-management interface. Administrators may temporarily block mail, but they cannot grant USPS permission on your behalf. You can review, change, withdraw permission, or delete your address from My Profile. Giving permission does not guarantee any package will be sent.</p>
+            <p>We do not use USPS permission as consent to marketing email, SMS, or other kinds of messages. Mailing addresses are not included in public profiles. Please do not enter an address you do not have permission to provide.</p>
+          </section>
+          <section>
             <h2 className="font-serif text-xl font-bold text-primary">Community content</h2>
             <p>Posts, comments, public groups, news, volunteer profiles, approved minyans, public projects, and other content you publish may be visible to other visitors. Private Askanus cases, private group posts, private help-request contact information, and pending moderated submissions are restricted by the platform's access rules.</p>
           </section>

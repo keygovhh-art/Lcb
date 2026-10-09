@@ -17,6 +17,8 @@ import { User, UserMinus, Bookmark, BookmarkX, ArrowRight, UserPlus, BookmarkChe
 import { format } from "date-fns";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
+import { MemberMailingProfile } from "@/components/shared/member-mailing-profile";
+import { MemberContactProfile } from "@/components/shared/member-contact-profile";
 import { useToast } from "@/hooks/use-toast";
 
 const ENTITY_TYPE_LABEL: Record<string, string> = {
@@ -160,7 +162,7 @@ export default function ProfilePage() {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-16">
-          <MemberGate action="view your profile">{null}</MemberGate>
+          <MemberGate gate="profile" action="view your profile">{null}</MemberGate>
         </div>
       </Layout>
     );
@@ -269,6 +271,12 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="container mx-auto px-4 max-w-4xl mb-6">
+        <MemberContactProfile />
+        <div className="h-5" />
+        <MemberMailingProfile />
       </div>
 
       <div className="container mx-auto px-4 py-10">

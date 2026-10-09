@@ -15,6 +15,8 @@ const EXACT: Record<string, string> = {
   "Minyan Directory": "מנינים ליסטע",
   "Group Center": "גרופעס",
   "My Askanus": "מיין עסקנות",
+  "My Connections": "מיינע פארבינדונגען",
+  "Volunteer Connections": "פארבינדונגען מיט וואלונטירן",
   "Gavhah Office Reservations": "באשטעלן א צייט אין אפיס",
   "Koach Harabim": "כח הרבים",
   "Koach Harabim Dashboard": "כח הרבים",

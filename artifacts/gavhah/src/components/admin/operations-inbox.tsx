@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/context/language-context";
+import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 
 type WorkflowState = {
@@ -28,6 +29,17 @@ type OperationItem = {
   overdue: boolean;
   escalated: boolean;
   ageHours: number;
+};
+
+type CompletedCase = {
+  id: number;
+  kind: string;
+  title: string;
+  requester: string;
+  outcome: "confirmed_success" | "confirmed_help" | "unsuccessful" | "staff_closed" | "legacy_closed";
+  closedAt: string;
+  summary: string | null;
+  actorId: number | null;
 };
 
 type StaffMember = {
@@ -66,6 +78,7 @@ function labelForKind(kind: string, yi: boolean) {
     cause_submission: "Cause Review",
     minyan_submission: "Minyan Review",
     member_connection: "Member Connection",
+    help_offer: "Help Offer",
     volunteer_registration: "Volunteer Registration",
     project_join: "Project Participation",
     cause_join: "Cause Participation",
@@ -88,6 +101,7 @@ function labelForKind(kind: string, yi: boolean) {
     cause_submission: "צוועק־איבערזיכט",
     minyan_submission: "מנין־איבערזיכט",
     member_connection: "פארבינדן מיטגלידער",
+    help_offer: "הילף אנבאט",
     volunteer_registration: "נייער העלפער",
     project_join: "אנטייל אין פראיעקט",
     cause_join: "אנטייל אין צוועק",
@@ -124,23 +138,37 @@ export function OperationsInbox() {
   const { lang } = useLanguage();
   const yi = lang === "yi";
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canFinalRelease = user?.role === "admin" || user?.role === "super_admin";
   const [data, setData] = useState<InboxResponse>(EMPTY);
+  const [history, setHistory] = useState<CompletedCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [legacyVolunteerIds, setLegacyVolunteerIds] = useState<Record<string, string>>({});
+  const [closureReasons, setClosureReasons] = useState<Record<string, string>>({});
+  const [followupDrafts, setFollowupDrafts] = useState<Record<string, string>>({});
+  const [releaseReasons, setReleaseReasons] = useState<Record<string, string>>({});
+  const [requesterChoices,setRequesterChoices] = useState<Record<string,"primary"|"backup">>({});
+  const [volunteerChoices,setVolunteerChoices] = useState<Record<string,"primary"|"backup">>({});
 
   const load = async () => {
     setLoading(true);
     try {
-      const [res, usersRes] = await Promise.all([
+      const [res, usersRes, historyRes] = await Promise.all([
         fetch("/api/admin/operations-inbox", { credentials: "include", cache: "no-store" }),
         fetch("/api/users", { credentials: "include", cache: "no-store" }),
+        fetch("/api/admin/operations-history", { credentials: "include", cache: "no-store" }),
       ]);
       if (!res.ok) throw new Error("Could not load management inbox");
       setData(await res.json());
+      if (historyRes.ok) {
+        const completed = await historyRes.json();
+        setHistory(Array.isArray(completed.items) ? completed.items : []);
+      }
       if (usersRes.ok) {
         const allUsers = await usersRes.json() as StaffMember[];
         setStaff(allUsers.filter(user =>
@@ -184,13 +212,154 @@ export function OperationsInbox() {
     }
   };
 
+  const connectionAction = async (item: OperationItem, action: "link" | "invite" | "close" | "retry" | "final-release") => {
+    const volunteerId = Number(legacyVolunteerIds[item.key]);
+    const reason = (closureReasons[item.key] || "").trim();
+    const followup = (followupDrafts[item.key] || "").trim();
+    const releaseReason = (releaseReasons[item.key] || "").trim();
+    if (action === "link" && (!Number.isSafeInteger(volunteerId) || volunteerId <= 0)) {
+      toast({ title: yi ? "שרייב א ריכטיגן וואלונטיר־נומער" : "Enter a valid volunteer ID", variant: "destructive" });
+      return;
+    }
+    if (action === "close" && (reason.length < 10 || reason.length > 1000)) {
+      toast({ title: yi ? "שרייב כאטש צען אותיות פארוואס עס איז נישט געלונגען" : "Give a reason of 10–1000 characters", variant: "destructive" });
+      return;
+    }
+    if (action === "retry" && (followup.length < 10 || followup.length > 500)) {
+      toast({ title: yi ? "שרייב קודם וואס מען האט פאקטיש פארראכטן" : "Record the actual follow-up before retrying", variant: "destructive" });
+      return;
+    }
+    if (action === "final-release") {
+      if (!canFinalRelease || releaseReason.length < 10 || releaseReason.length > 1000) {
+        toast({ title: yi ? "נאר א פולער אדמין קען ערלויבן דאס איבערגעבן. שרייב א הסבר פון כאטש צען אותיות." :
+          "Full administrator authorization and a written decision of at least 10 characters are required.",
+          variant: "destructive" }); return;
+      }
+      if (!window.confirm(yi
+        ? "ביסטו זיכער אז ביידע האבן מסכים געווען, און די מערכת ערלויבט יעצט בפירוש צו טיילן די אויסגעקליבענע קאנטאקט־פרטים נאר פאר דעם פאל?"
+        : "Do you give Gavhah's separate FINAL authorization, after BOTH people approved, to share only the selected contact details for this case?")) return;
+    }
+    if (action === "invite" && !window.confirm(
+      yi
+        ? "דאס שיקט א פארלאנג דורך דער וועבסייט צום וואלונטיר. עס שיקט דערווייל נישט קיין SMS אדער אימעיל. ווייטער?"
+        : "This asks BOTH members for in-app permission. Phone notices are queued but NOT sent. Continue?"
+    )) return;
+    if (action === "close" && !window.confirm(
+      yi ? "דער פאל וועט ווערן פארמאכט אלס נישט געלונגען, נישט אלס מצליח געווען. ווייטער?" :
+        "Close this case as unsuccessful? It will NOT be counted as a successful connection."
+    )) return;
+    setBusy(item.key + action);
+    try {
+      const base = `/api/admin/member-connections/${item.id}`;
+      await request(
+        base + (action === "link" ? "/link" : action === "invite" ? "/invite" : action === "retry" ? "/retry-contact" : action === "final-release" ? "/final-release" : "/close-unfulfilled"),
+        "POST",
+        action === "link" ? { volunteerId } : action === "close" ? { reason } : action === "final-release" ? {note:releaseReason,confirmRelease:true} : action === "retry" ? {followup,
+          requesterChoice: requesterChoices[item.key] || "primary",
+          volunteerChoice: volunteerChoices[item.key] || "primary",
+        } : {},
+      );
+      toast({ title: yi ? "די פארבינדונג־בקשה איז אפדעיטעד" : "Connection case updated" });
+      await load();
+    } catch (error) {
+      toast({
+        title: yi ? "די אקציע איז נישט דורכגעגאנגען" : "Could not update connection case",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    } finally { setBusy(null); }
+  };
+
+  const actionExplanation = (item: OperationItem) => {
+    if (item.kind === "help_request" && item.meta?.helpStatus === "open") {
+      return yi
+        ? "די בקשה בלייבט בלויז ביי דער מערכת, און בלייבט אפן ביז מען האט טאקע געהאלפן. שרייב וואס איז געטאן געווארן, און נאר דאן באשטעטיג אז די הילף איז געלונגען."
+        : "This request is PRIVATE to staff and stays open until assistance actually happened. Document the work, then mark the help fulfilled.";
+    }
+    const descriptions: Record<string, [string, string]> = {
+      report: [
+        "באשטעטיגן מיינט אז דער רעפארט איז באהאנדלט; אפווארפן מיינט מען פארמאכט דעם רעפארט אן אננעמען די טענה. דאס מעקט נישט אויטאמאטיש די פאוסט.",
+        "Resolve closes the report after investigation; Dismiss closes it without accepting the report. Neither automatically deletes the post.",
+      ],
+      help_request: [
+        "באשטעטיגן שטעלט די בקשה נאר אין דער אינערליכער מערכת־ארבעטסליסטע. קיין פרט ווערט נישט פובליק.",
+        "Approve accepts the request for PRIVATE staff handling, not publication. This does not mean help has been delivered.",
+      ],
+      group_join: [
+        "באשטעטיגן ערלויבט דעם מיטגליד אריינצוקומען אין דער גרופע.",
+        "Approve gives this member access to the group.",
+      ],
+      cause_submission: [
+        "באשטעטיגן לאזט די פארגעשלאגענע צוועק ווייטערגיין צום פובליקירן.",
+        "Approve lets the submitted cause progress to its public listing.",
+      ],
+      minyan_submission: [
+        "באשטעטיגן לייגט אריין דעם מנין אין דער עפנטליכער ליסטע.",
+        "Approve puts the minyan into the public directory.",
+      ],
+      reservation: [
+        "פארטיג מיינט די אפיס־באגעגעניש איז שוין פאקטיש פארגעקומען; קענסל מאכט די באשטעלונג אויס.",
+        "Complete means the appointment actually happened. Cancel removes the scheduled appointment.",
+      ],
+      comment_review: [
+        "באשטעטיגן פובליקירט דעם פארהאלטענעם ריפליי. אפווארפן פארמיידט דאס פובליקירן.",
+        "Approve publishes the held reply; Reject prevents publication.",
+      ],
+      member_connection: [
+        "איבערקוקן אליין איז נישט גענוג. ביידע צדדים דארפן אליין געבן רשות, און דער בעטער דארף פאקטיש באשטעטיגן אז די פארבינדונג איז געלונגען.",
+        "Staff may approve a MATCH only. Both users must consent, then Gavhah must give a separate FINAL release authorization; requester then confirms real contact.",
+      ],
+    };
+    const [yiddish, english] = descriptions[item.kind] || [
+      "נעם קודם אחריות, פיהר אויס די נויטיגע ארבעט און שרייב א נאטיץ. נאר דערנאך קען מען דעם פאל פארמאכן.",
+      "Take ownership, perform the required follow-up, and record what was done before closing.",
+    ];
+    return yi ? yiddish : english;
+  };
+
   const act = async (item: OperationItem, action: string) => {
+    if (item.kind === "member_connection") {
+      toast({ title: yi ? "פארבינדונגען מוז מען פירן דורך דעם פולן פארבינדונג־פראצעס" :
+        "Use the connection workflow; review alone cannot close this case", variant: "destructive" });
+      return;
+    }
+    if (item.kind === "help_request" && action === "complete") {
+      if (!item.workflow.notes.length || !window.confirm(
+        yi ? "איז די הילף טאקע געגעבן געווארן? דאס וועט פארמאכן דעם פאל אלס ערלעדיגט." :
+          "Was real assistance delivered? This will close the request as fulfilled."
+      )) {
+        if (!item.workflow.notes.length) toast({
+          title: yi ? "שרייב קודם א אינערליכע נאטיץ וואס איז פאקטיש געגעבן געווארן" :
+            "Document what help was delivered before marking fulfilled", variant: "destructive",
+        });
+        return;
+      }
+    }
+    if (reviewOnly(item)) {
+      if (!item.workflow.notes.length) {
+        toast({
+          title: yi ? "לייג קודם א אינערליכע נאטיץ וואס איז פאקטיש געטאן געווארן" :
+            "Record the actual follow-up as an internal note before closing",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!window.confirm(yi
+        ? "האסטו טאקע דורכגעפירט די ארבעט וואס שטייט אין די נאטיצן? דער פאל וועט פארשווינדן פונעם אפענעם אינבאקס."
+        : "Has the work described in the notes actually been done? This closes the case in the open inbox."
+      )) return;
+    }
     setBusy(item.key + action);
     try {
       if (item.kind === "report") {
         await request(`/api/reports/${item.id}/${action === "approve" ? "resolve" : "dismiss"}`);
       } else if (item.kind === "help_request") {
-        await request(`/api/help-requests/${item.id}`, "PATCH", { status: action === "approve" ? "open" : "rejected" });
+        await request(`/api/help-requests/${item.id}`, "PATCH", {
+          status: action === "complete" ? "resolved" : action === "approve" ? "open" : "rejected",
+          ...(action === "complete" ? {
+            resolutionNote: item.workflow.notes[item.workflow.notes.length - 1]?.text || "",
+          } : {}),
+        });
       } else if (item.kind === "group_join") {
         await request(`/api/groups/${item.meta.groupId}/members/${item.id}`, "PATCH", { status: action === "approve" ? "approved" : "rejected" });
       } else if (item.kind === "cause_submission") {
@@ -202,10 +371,12 @@ export function OperationsInbox() {
       } else if (item.kind === "comment_review") {
         await request(`/api/admin/pending-comments/${item.id}/${action === "approve" ? "approve" : "reject"}`);
       } else {
-        await request(`/api/admin/support-messages/${item.id}`, "PATCH", { status: "resolved" });
+        await request(`/api/admin/support-messages/${item.id}`, "PATCH", {
+          status: "resolved", resolutionNote: item.workflow.notes[item.workflow.notes.length - 1]?.text || "",
+        });
       }
 
-      toast({ title: yi ? "אויפגעפאסט" : "Updated" });
+      toast({ title: yi ? "די אקציע איז אפגעהיטן — זע די ערקלערונג אויבן" : "Action completed — see the outcome explanation" });
       await load();
     } catch (error) {
       toast({
@@ -368,8 +539,27 @@ export function OperationsInbox() {
                   <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap break-words">{item.summary}</p>
                   {item.meta?.location && <p className="text-xs text-muted-foreground mt-2">{yi ? "ארט:" : "Location:"} {item.meta.location}</p>}
                   {item.meta?.contact && <p className="text-xs text-muted-foreground mt-1">{yi ? "קאנטאקט:" : "Contact:"} {item.meta.contact}</p>}
+                  {item.kind === "member_connection" && item.meta?.volunteerName && (
+                    <p className="text-xs mt-2">
+                      <span className="font-semibold">{yi ? "פארלאנגטער וואלונטיר:" : "Requested volunteer:"}</span>
+                      {" "}{item.meta.volunteerName} {item.meta.volunteerId ? `(#${item.meta.volunteerId})` : ""}
+                    </p>
+                  )}
+                  {item.kind === "member_connection" && item.meta?.volunteerContact && (
+                    <p className="text-xs mt-1 break-all">
+                      <span className="font-semibold">{yi ? "וואלונטיר קאנטאקט — נאר פאר אדמין:" : "Volunteer contact — staff only:"}</span>
+                      {" "}{item.meta.volunteerContact}
+                    </p>
+                  )}
+                  <p className="rounded-md bg-muted/30 border px-3 py-2 mt-3 text-xs text-foreground leading-relaxed">
+                    <strong>{yi ? "וואס פאסירט ווען מען דרוקט?" : "What does the action do?"}</strong>
+                    {" "}{actionExplanation(item)}
+                  </p>
 
                   <div className="mt-4 rounded-xl border bg-muted/15 p-3 space-y-3">
+                    <p className="text-xs text-muted-foreground">{yi
+                      ? "די פעלדער אונטן טוישן נאר דעם אינערליכן ארבעטס־פלאן; זיי פארמאכן נישט דעם פאל און שיקן נישט קיין קאנטאקט־פרטים."
+                      : "Assignment, status and due date organize staff work only. They do not close a case or share contact information."}</p>
                     <div className="grid sm:grid-cols-3 gap-2">
                       <label className="text-[11px] text-muted-foreground">
                         <span className="mb-1 flex items-center gap-1"><UserCog className="h-3 w-3" /> {yi ? "ווער האנדלט עס" : "Assigned to"}</span>
@@ -418,7 +608,7 @@ export function OperationsInbox() {
                       <Input
                         value={noteDrafts[item.key] || ""}
                         onChange={e => setNoteDrafts(prev => ({ ...prev, [item.key]: e.target.value }))}
-                        placeholder={yi ? "אינערליכע נאטיץ פארן טיעם..." : "Internal note for the team..."}
+                        placeholder={yi ? "וואס האט מען געטאן? קומענדיגער שריט..." : "What was done? Next step..."}
                         className="h-9"
                       />
                       <Button
@@ -428,8 +618,9 @@ export function OperationsInbox() {
                         onClick={() => {
                           const note = (noteDrafts[item.key] || "").trim();
                           if (!note) return;
-                          setNoteDrafts(prev => ({ ...prev, [item.key]: "" }));
-                          void updateWorkflow(item, { note });
+                          void updateWorkflow(item, { note }).then(() => {
+                            setNoteDrafts(prev => ({ ...prev, [item.key]: "" }));
+                          });
                         }}
                         className="gap-1.5 shrink-0"
                       >
@@ -452,10 +643,152 @@ export function OperationsInbox() {
                 </div>
 
                 <div className="flex flex-wrap gap-2 lg:justify-end">
-                  {reviewOnly(item) ? (
+                  {item.kind === "member_connection" ? (
+                    <div className="space-y-2 w-full lg:w-72">
+                      {item.meta?.connectionStage === "legacy" && (
+                        <>
+                          <p className="text-xs text-muted-foreground">
+                            {yi ? "אלטע בקשה: דער וואלונטיר איז נאך נישט באשטעטיגט. שרייב דעם ריכטיגן וואלונטיר־נומער צו פארבינדן דעם פאל." :
+                              "Older request: verify the volunteer profile ID before continuing."}
+                          </p>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={legacyVolunteerIds[item.key] || ""}
+                            onChange={e => setLegacyVolunteerIds(prev => ({ ...prev, [item.key]: e.target.value }))}
+                            placeholder={yi ? "וואלונטיר נומער" : "Volunteer profile ID"}
+                            className="h-9"
+                          />
+                          <Button className="w-full" disabled={busy !== null} onClick={() => void connectionAction(item, "link")}>
+                            {yi ? "באשטעטיג דעם וואלונטיר" : "Verify and link volunteer"}
+                          </Button>
+                        </>
+                      )}
+                      {["new", "needs_reapproval"].includes(item.meta?.connectionStage) && (
+                        <Button className="w-full" disabled={busy !== null} onClick={() => void connectionAction(item, "invite")}>
+                          {yi ? "בעט רשות פונעם וואלונטיר" : "Request volunteer consent"}
+                        </Button>
+                      )}
+                      {item.meta?.connectionStage === "invited" && (
+                        <p className="text-xs rounded-md bg-muted/30 p-2 border">
+                          {yi ? "די מערכת האט פארגעשלאגן די פארבינדונג פאר ביידע. בעטער: " + (item.meta?.requesterApproved ? "מסכים" : "ווארט") + ". עסקן: " + (item.meta?.volunteerApproved ? "מסכים" : "ווארט") + ". קיינער'ס קאנטאקט ווערט נישט איבערגעגעבן ביז ביידע האבן מסכים געווען." :
+                            "Gavhah approved the proposal, NOT disclosure. Requester: " + (item.meta?.requesterApproved ? "approved" : "pending") + ". Volunteer: " + (item.meta?.volunteerApproved ? "approved" : "pending") + ". No contact is released until BOTH approve."}
+                        </p>
+                      )}
+                      {item.meta?.connectionStage === "awaiting_staff_release" && (
+                        <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+                          <p className="font-semibold text-sm">
+                            {yi ? "🚨 ביידע האבן מסכים געווען — ווארט אויף לעצטע גבהה־רשות" :
+                              "Both participants consented — FINAL Gavhah authorization required"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {yi ? "ביידע רשות'ן זענען שוין אריינגעקומען, אבער גארנישט ווערט איבערגעגעבן ביז א פולער אדמין באשטעטיגט באזונדער דאס ארויסגעבן. דער אדמין קען נישט באשטעטיגן אנשטאט איינעם פון די צוויי."
+                              : "Both people agreed, but contact remains PRIVATE until a full administrator separately authorizes release. Staff cannot consent for either member."}
+                          </p>
+                          {canFinalRelease ? <>
+                            <textarea rows={3} maxLength={1000}
+                              value={releaseReasons[item.key] || ""}
+                              onChange={e=>setReleaseReasons(v=>({...v,[item.key]:e.target.value}))}
+                              placeholder={yi ? "דאקומענטיר פארוואס די מערכת ערלויבט דאס איבערגעבן (כאטש 10 אותיות)" :
+                                "Document why Gavhah finally approves the contact exchange (10+ characters)"}
+                              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                            />
+                            <Button className="w-full" disabled={busy!==null || (releaseReasons[item.key]||"").trim().length<10}
+                              onClick={()=>void connectionAction(item,"final-release")}>
+                              <Check className="h-4 w-4" />
+                              {yi ? "ערלויב דאס איבערגעבן — לעצטע אדמין־אישור" : "FINAL approve contact release"}
+                            </Button>
+                          </> : <p className="text-xs text-muted-foreground">
+                            {yi ? "נאר א פולער אדמין קען געבן די לעצטע רשות." : "Only a full administrator may authorize release."}
+                          </p>}
+                        </div>
+                      )}
+                      {item.meta?.connectionStage === "accepted" && (
+                        <p className="text-xs rounded-md bg-muted/30 p-2 border">
+                          {yi ? "ביידע מענטשן האבן פערזענליך מסכים געווען. דער בעטער זעט דעם קאנטאקט אין 'מיינע פארבינדונגען'. דער פאל בלייבט אפן ביז דער בעטער באשטעטיגט הצלחה." :
+                            "Both participants personally approved. The requester can see the selected contact details in My Connections. This stays OPEN until the requester confirms actual contact."}
+                        </p>
+                      )}
+                      {item.meta?.connectionStage === "contact_problem" && (
+                        <div className="space-y-2 rounded-md bg-muted/30 p-2 border">
+                          <p className="text-xs">
+                            {yi ? "איינער פון די צדדים האט געמאלדן א קאנטאקט־פראבלעם. העלף פאקטיש, דערנאך שרייב וואס איז געטאן געווארן און לאז אים נאכאמאל פרובירן." :
+                              "A participant reported a channel problem. Perform real follow-up, record what was fixed, then offer another attempt."}
+                          </p>
+                          <p className="text-xs font-semibold break-words">{item.meta.connectionIssue || ""}</p>
+                          <Input
+                            value={followupDrafts[item.key] || ""}
+                            onChange={e => setFollowupDrafts(prev => ({ ...prev, [item.key]: e.target.value }))}
+                            placeholder={yi ? "וואס איז פארראכטן געווארן?" : "What was actually fixed?"}
+                            className="h-9"
+                          />
+                          <div className="grid grid-cols-1 gap-2">
+                          <label className="text-xs">
+                            {yi ? "וועלכן קאנטאקט פונעם בעטער זאל מען פארשלאגן?" : "Requester method for a new consent request"}
+                            <select className="w-full h-9 rounded-md bg-background border px-2 mt-1"
+                              value={requesterChoices[item.key] || "primary"}
+                              onChange={e=>setRequesterChoices(v=>({...v,[item.key]:e.target.value as "primary"|"backup"}))}>
+                              <option value="primary">{yi ? "הויפט־וועג" : "Primary"}</option>
+                              <option value="backup">{yi ? "בעק־אפ (נאר אויב יענער האט איינע)" : "Optional backup (if available)"}</option>
+                            </select>
+                          </label>
+                          <label className="text-xs">
+                            {yi ? "וועלכן קאנטאקט פונעם וואלונטיר זאל מען פארשלאגן?" : "Volunteer method for a new consent request"}
+                            <select className="w-full h-9 rounded-md bg-background border px-2 mt-1"
+                              value={volunteerChoices[item.key] || "primary"}
+                              onChange={e=>setVolunteerChoices(v=>({...v,[item.key]:e.target.value as "primary"|"backup"}))}>
+                              <option value="primary">{yi ? "הויפט־וועג" : "Primary"}</option>
+                              <option value="backup">{yi ? "בעק־אפ (אפטיאָנעל)" : "Backup (optional)"}</option>
+                            </select>
+                          </label>
+                        </div>
+                        <Button className="w-full" disabled={busy !== null} onClick={() => void connectionAction(item, "retry")}>
+                            {yi ? "פרוביר ווידער נאכן פאררעכטן" : "Let requester try again"}
+                          </Button>
+                        </div>
+                      )}
+                      {item.meta?.connectionStage === "consent_revoked" && (
+                        <p className="text-xs rounded-md bg-muted/30 p-2 border">
+                          {yi ? "איינער פון די צוויי האט צוריקגענומען רשות. קאנטאקט־פרטים ווערן נישט מער ארויסגעוויזן. א פרישע פארבינדונג דארף ביידע רשות נאכאמאל." :
+                            "A participant withdrew consent. Contact details are no longer displayed; a new review requires both people to approve again."}
+                        </p>
+                      )}
+                      {item.meta?.connectionStage === "declined" && (
+                        <p className="text-xs rounded-md bg-muted/30 p-2 border">
+                          {yi ? "איינער פון ביידע האט נישט מסכים געווען. שרייב א פאסיגן הסבר אונטן איידער מען פארמאכט דעם פאל אלס נישט געלונגען." :
+                            "A participant declined. Enter a reason below to close this case as unsuccessful, NOT completed."}
+                        </p>
+                      )}
+                      {["new", "invited", "needs_reapproval", "awaiting_staff_release", "accepted", "contact_problem", "consent_revoked", "declined"].includes(item.meta?.connectionStage) && (
+                        <div className="space-y-2">
+                          <Input
+                            value={closureReasons[item.key] || ""}
+                            onChange={e => setClosureReasons(prev => ({ ...prev, [item.key]: e.target.value }))}
+                            placeholder={yi ? "פארוואס קען מען נישט אויספירן? (אויב נויטיג)" : "Reason if this cannot be completed"}
+                            className="h-9"
+                          />
+                          <Button variant="outline" className="w-full" disabled={busy !== null}
+                            onClick={() => void connectionAction(item, "close")}>
+                            {yi ? "פארמאך אלס נישט געלונגען" : "Close as unsuccessful"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : item.kind === "help_request" && item.meta?.helpStatus === "open" ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground max-w-[18rem]">
+                        {yi ? "די בקשה איז נאר ביי דער מערכת. דער פאל בלייבט אפן ביז מען האט פאקטיש געהאלפן." :
+                          "Private to staff. Keep following up until assistance is actually provided."}
+                      </p>
+                      <Button size="sm" disabled={busy !== null} onClick={() => void act(item, "complete")}>
+                        <Check className="h-3.5 w-3.5" />
+                        {yi ? "באשטעטיג פאקטישע הילף" : "Confirm real help delivered"}
+                      </Button>
+                    </div>
+                  ) : reviewOnly(item) ? (
                     <Button size="sm" onClick={() => void act(item, "approve")} disabled={busy !== null} className="gap-1.5">
                       <Check className="h-3.5 w-3.5" />
-                      {yi ? "איבערגעקוקט" : "Mark Reviewed"}
+                      {yi ? "פארמאך נאכן ערלעדיגן" : "Close after follow-up"}
                     </Button>
                   ) : (
                     <>
@@ -481,6 +814,43 @@ export function OperationsInbox() {
           ))}
         </div>
       )}
+
+      <details className="rounded-xl border bg-card p-4 sm:p-5">
+        <summary className="cursor-pointer text-sm font-semibold text-primary">
+          {yi ? `פארמאכטע פעלער — לעצטע ${history.length} רעקארדס` :
+            `Completed and unsuccessful cases — last ${history.length} records`}
+        </summary>
+        <p className="text-xs text-muted-foreground mt-3">
+          {yi ? "היסטאריע וועט נישט אויסמעקן ווערן ווען א בקשה פארשווינדט פונעם אפענעם אינבאקס. 'נישט געלונגען' איז נישט קיין הצלחה." :
+            "Closed cases remain visible for review. Unsuccessful introductions are never counted as successes."}
+        </p>
+        <div className="mt-3 max-h-[35rem] overflow-y-auto space-y-2">
+          {history.length === 0 && <p className="text-sm text-muted-foreground">
+            {yi ? "נאך נישטא קיין פארמאכטע פעלער." : "No closed cases yet."}
+          </p>}
+          {history.map(entry => (
+            <div key={entry.id} className="rounded-lg border p-3 space-y-1 text-xs">
+              <div className="flex flex-wrap justify-between gap-2 items-center">
+                <span className="font-semibold text-sm break-words">{entry.title}</span>
+                <Badge variant={["confirmed_success", "confirmed_help"].includes(entry.outcome) ? "default" : "secondary"}>
+                  {entry.outcome === "confirmed_success"
+                    ? (yi ? "בעטער האט באשטעטיגט הצלחה" : "Requester confirmed success")
+                    : entry.outcome === "confirmed_help"
+                      ? (yi ? "הילף איז געגעבן געווארן" : "Assistance delivered")
+                      : entry.outcome === "unsuccessful"
+                        ? (yi ? "נישט געלונגען" : "Unsuccessful")
+                        : (yi ? "פארמאכט נאך באהאנדלונג" : "Closed after review")}
+                </Badge>
+              </div>
+              <p className="text-muted-foreground">
+                {entry.requester} · {new Date(entry.closedAt).toLocaleString()}
+                {entry.actorId ? ` · ${yi ? "אדמין" : "Staff"} #${entry.actorId}` : ""}
+              </p>
+              {entry.summary && <p className="whitespace-pre-wrap break-words">{entry.summary}</p>}
+            </div>
+          ))}
+        </div>
+      </details>
 
       <div className="rounded-xl border bg-muted/20 p-4 text-xs text-muted-foreground flex items-start gap-2">
         <Clock className="h-4 w-4 shrink-0 mt-0.5" />

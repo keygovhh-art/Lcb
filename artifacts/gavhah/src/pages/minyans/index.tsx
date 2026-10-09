@@ -55,7 +55,7 @@ function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
   };
 
   if (isLoaded && !isAuthenticated) {
-    return <MemberGate compact action="add a minyan">{null}</MemberGate>;
+    return <MemberGate gate="minyans" compact action="add a minyan">{null}</MemberGate>;
   }
 
   return (

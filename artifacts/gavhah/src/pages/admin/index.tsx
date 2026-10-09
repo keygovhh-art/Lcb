@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +26,10 @@ import { useToast } from "@/hooks/use-toast";
 import { CharityManagement } from "@/components/admin/charity-management";
 import { FeaturedCauseManagement } from "@/components/admin/featured-cause-management";
 import { SiteCopyManagement } from "@/components/admin/site-copy-management";
+import { MembershipGateManagement } from "@/components/admin/membership-gate-management";
+import { AdvancedMemberManagement } from "@/components/admin/advanced-member-management";
 import { OperationsInbox } from "@/components/admin/operations-inbox";
+import { PrivateAssistanceManagement } from "@/components/admin/private-assistance-management";
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 
@@ -54,6 +58,8 @@ export default function FounderDashboard() {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { lang } = useLanguage();
+  const yi = lang === "yi";
   const { user, isLoaded, isAdmin } = useAuth();
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
@@ -64,8 +70,10 @@ export default function FounderDashboard() {
   const [adminMinyans, setAdminMinyans] = useState<any[]>([]);
   const [causeSubmissions, setCauseSubmissions] = useState<any[]>([]);
   const [supportMessages, setSupportMessages] = useState<any[]>([]);
+  const [supportResolutionNotes, setSupportResolutionNotes] = useState<Record<number, string>>({});
   const [adminReservations, setAdminReservations] = useState<any[]>([]);
   const [adminHelpRequests, setAdminHelpRequests] = useState<any[]>([]);
+  const [helpResolutionNotes, setHelpResolutionNotes] = useState<Record<number, string>>({});
   const [causeActivity, setCauseActivity] = useState<any[]>([]);
 
 
@@ -261,11 +269,22 @@ export default function FounderDashboard() {
             <TabsTrigger value="site-copy" className="gap-2">
               <Edit3 className="h-4 w-4" /> Live Site Editor
             </TabsTrigger>
+            <TabsTrigger value="welcome-pages" className="gap-2">
+              <Edit3 className="h-4 w-4" /> {yi ? "ברוכים־הבאים־בלעטער" : "Welcome Page Designer"}
+            </TabsTrigger>
+            {(user?.role === "admin" || user?.role === "super_admin") && (
+              <TabsTrigger value="member-management" className="gap-2">
+                <Users className="h-4 w-4" /> {yi ? "מעמבער־פארוואלטונג" : "Advanced Members"}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="support" className="gap-2">
               <MessageSquare className="h-4 w-4" /> Support
               {supportMessages.filter(m => m.status === "open").length > 0 && (
                 <span className="bg-destructive text-white text-xs rounded-full px-1.5 py-0.5">{supportMessages.filter(m => m.status === "open").length}</span>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="private-assistance" className="gap-2">
+              <HandHeart className="h-4 w-4" /> {yi ? "פריוואטער הילף־צענטער" : "Private Assistance Matching"}
             </TabsTrigger>
             <TabsTrigger value="help-requests" className="gap-2">
               <HandHeart className="h-4 w-4" /> Help Requests
@@ -304,6 +323,38 @@ export default function FounderDashboard() {
             </TabsTrigger>
             <TabsTrigger value="announcements" className="gap-2"><Megaphone className="h-4 w-4" /> Announcements</TabsTrigger>
           </TabsList>
+
+          <details className="rounded-xl border bg-card p-4 sm:p-5 text-sm">
+            <summary className="cursor-pointer font-semibold text-primary text-base">
+              {yi ? "וויאזוי ארבעט די אדמיניסטראציע? — ערקלערונג פאר אלע קנעפלעך" :
+                "How administration works — what the actions actually do"}
+            </summary>
+            <div className="mt-4 space-y-3 text-muted-foreground leading-relaxed">
+              <p>
+                {yi ? "דער אפעראציע־אינבאקס איז דער הויפט־פלאץ פאר אלע אריינקומענדע בקשות. צוטיילן צו אן אדמין, אויסקלויבן א מצב און אריינשרייבן נאטיצן פארמאכט נישט דעם פאל." :
+                  "Operations Inbox is the central place for incoming cases. Assigning staff, changing status or writing notes never completes the case."}
+              </p>
+              <p>
+                <strong className="text-foreground">{yi ? "באשטעטיגן:" : "Approve:"}</strong>{" "}
+                {yi ? "מיינט אין יעדע אפטיילונג אן אנדער זאך: פובליקירן א הילף־בקשה, ערלויבן א גרופע־מיטגליד, אדער אננעמען א ריפליי. דאס איז נישט קיין באווייז אז די הילף איז שוין געלונגען." :
+                  "Its effect depends on the section: publishing a help request, admitting a group member, or publishing a reply. It never proves that real assistance was delivered."}
+              </p>
+              <p>
+                <strong className="text-foreground">{yi ? "פארמאכן:" : "Close:"}</strong>{" "}
+                {yi ? "מוז קומען נאכן אמתן ערלעדיגן. ביי פשוטע מעסעדזשעס דארף מען שרייבן וואס מען האט געטאן; ביי וואלונטיר־פארבינדונגען קען מען נישט באצייכענען הצלחה ביז דער בעטער אליין באשטעטיגט." :
+                  "Requires a recorded follow-up for ordinary messages. Volunteer introductions cannot be marked successful until the requester confirms real contact."}
+              </p>
+              <p>
+                <strong className="text-foreground">{yi ? "נאך־ארבעט:" : "Follow-up:"}</strong>{" "}
+                {yi ? "נוץ די אינערליכע נאטיצן, דער פאראנטווארטליכער אדמין, און א טערמין. זאכן וואס ווארטן צו לאנג ווערן ארויסגעהויבן." :
+                  "Assign an owner, due date and internal notes. Overdue cases are highlighted."}
+              </p>
+              <p>
+                {yi ? "חשוב: די וועבסייט שיקט אינערליכע מעלדונגען. SMS און אוטאמאטישע אימעילס זענען דערווייל נישט פארבונדן." :
+                  "Website inbox notifications are active; SMS and automated email are not connected."}
+              </p>
+            </div>
+          </details>
 
           {/* ─── Operations Inbox ─── */}
           <TabsContent value="operations" className="space-y-6">
@@ -378,6 +429,15 @@ export default function FounderDashboard() {
             </div>
           </TabsContent>
 
+          <TabsContent value="welcome-pages" className="space-y-6">
+            <MembershipGateManagement />
+          </TabsContent>
+          {(user?.role === "admin" || user?.role === "super_admin") && (
+            <TabsContent value="member-management" className="space-y-6">
+              <AdvancedMemberManagement />
+            </TabsContent>
+          )}
+
           {/* ─── Live Site Editor ─── */}
           <TabsContent value="site-copy" className="space-y-6">
             <SiteCopyManagement />
@@ -387,7 +447,7 @@ export default function FounderDashboard() {
           <TabsContent value="support" className="space-y-4">
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary">Support Inbox</h2>
-              <p className="text-muted-foreground text-sm mt-1">Messages submitted through System Center.</p>
+              <p className="text-muted-foreground text-sm mt-1">{yi ? "דא קען מען באהאנדלען מעסעדזשעס. א פאל ווערט פארמאכט נאר נאך א דאקומענטירטן ערלעדיגונג." : "Handle incoming messages with a documented action before closing them."}</p>
             </div>
             {supportMessages.map(msg => (
               <div key={msg.id} className="bg-card border rounded-xl p-5">
@@ -402,21 +462,50 @@ export default function FounderDashboard() {
                     <p className="text-xs text-muted-foreground">{msg.name} · {msg.email} · {format(new Date(msg.createdAt), "MMM d, yyyy h:mm a")}</p>
                   </div>
                   {msg.status === "open" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        const res = await fetch(`/api/admin/support-messages/${msg.id}`, {
-                          method: "PATCH",
-                          credentials: "include",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ status: "resolved" }),
-                        });
-                        if (res.ok) await loadSupportMessages();
-                      }}
-                    >
-                      <CheckCircle className="h-3.5 w-3.5 mr-1" /> Resolve
-                    </Button>
+                    msg.type === "volunteer_contact" ? (
+                      <p className="text-xs max-w-xs rounded-md border p-2 bg-muted/30">
+                        {yi ? "פארבינדונג־בקשה: פיהר עס ווייטער אינעם אפעראציע־אינבאקס. איבערקוקן אליין איז נישט קיין הצלחה." :
+                          "Member connection: continue in Operations Inbox. Review alone cannot complete the introduction."}
+                      </p>
+                    ) : (
+                      <div className="space-y-2 w-full sm:max-w-xs">
+                        <p className="text-xs text-muted-foreground">
+                          {yi ? "וואס האסטו פאקטיש געטאן? שרייב א נאטיץ איידער דו פארמאכסט." :
+                            "Describe the real follow-up before closing this request."}
+                        </p>
+                        <Textarea
+                          rows={2}
+                          value={supportResolutionNotes[msg.id] || ""}
+                          onChange={e => setSupportResolutionNotes(prev => ({ ...prev, [msg.id]: e.target.value }))}
+                          placeholder={yi ? "ערלעדיגט: וואס פונקטליך איז געטאן געווארן?" :
+                            "What action was taken?"}
+                        />
+                        <Button
+                          size="sm" variant="outline"
+                          disabled={(supportResolutionNotes[msg.id] || "").trim().length < 10}
+                          onClick={async () => {
+                            if (!window.confirm(yi
+                              ? "האסטו פאקטיש ערלעדיגט די זאך? דער פאל וועט פארשווינדן פונעם אפענעם אינבאקס."
+                              : "Was the stated action really completed? This closes the open case.")) return;
+                            const res = await fetch(`/api/admin/support-messages/${msg.id}`, {
+                              method: "PATCH", credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ status: "resolved", resolutionNote: supportResolutionNotes[msg.id].trim() }),
+                            });
+                            if (res.ok) {
+                              await loadSupportMessages();
+                              setSupportResolutionNotes(prev => ({ ...prev, [msg.id]: "" }));
+                            } else {
+                              const error = await res.json().catch(() => ({}));
+                              toast({ title: error.error || "Could not close the request", variant: "destructive" });
+                            }
+                          }}
+                        >
+                          <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                          {yi ? "פארמאך נאכן ערלעדיגן" : "Close after follow-up"}
+                        </Button>
+                      </div>
+                    )
                   )}
                 </div>
               </div>
@@ -426,11 +515,15 @@ export default function FounderDashboard() {
             )}
           </TabsContent>
 
+          <TabsContent value="private-assistance" className="space-y-6">
+            <PrivateAssistanceManagement />
+          </TabsContent>
+
           {/* ─── Help Requests ─── */}
           <TabsContent value="help-requests" className="space-y-4">
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary">Help Requests</h2>
-              <p className="text-muted-foreground text-sm mt-1">Private contact details are visible here only to administrators.</p>
+              <p className="text-muted-foreground text-sm mt-1">{yi ? "יעדע בקשה בלייבט גענצליך פריוואט. באשטעטיגן מיינט נאר אז די מערכת נעמט איבער דעם פאל. זוך דעם פאסיגן עסקן אינעם פריוואטן הילף־צענטער." : "All help requests remain private. Approve means staff accepts the case internally, NEVER public publication. Find a suitable helper in Private Assistance Matching."}</p>
             </div>
             {adminHelpRequests.map(req => (
               <div key={req.id} className="bg-card border rounded-xl p-5">
@@ -464,7 +557,7 @@ export default function FounderDashboard() {
                             }
                           }}
                         >
-                          <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
+                          <CheckCircle className="h-3.5 w-3.5 mr-1" /> {yi ? "נעם איבער אינערליך" : "Accept Privately"}
                         </Button>
                         <Button
                           size="sm"
@@ -485,24 +578,43 @@ export default function FounderDashboard() {
                       </>
                     )}
                     {req.status === "open" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          const res = await fetch(`/api/help-requests/${req.id}`, {
-                            method: "PATCH",
-                            credentials: "include",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ status: "resolved", isFeatured: req.isFeatured }),
-                          });
-                          if (res.ok) {
-                            await loadAdminHelpRequests();
-                            void qc.invalidateQueries({ queryKey: ["/api/help-requests"] });
-                          }
-                        }}
-                      >
-                        <CheckCircle className="h-3.5 w-3.5 mr-1" /> Mark Resolved
-                      </Button>
+                      <div className="w-full sm:max-w-xs space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          {yi ? "די בקשה ווערט אינערליך באהאנדלט, נישט פובליק. שרייב וועלכע הילף איז טאקע געגעבן געווארן איידער דו פארמאכסט דעם פאל." :
+                            "This request is being handled privately by staff, NOT publicly. Record assistance delivered before closing."}
+                        </p>
+                        <Textarea rows={2}
+                          value={helpResolutionNotes[req.id] || ""}
+                          onChange={e => setHelpResolutionNotes(prev => ({ ...prev, [req.id]: e.target.value }))}
+                          placeholder={yi ? "וואס איז פאקטיש געהאלפן געווארן?" : "What assistance was delivered?"}
+                        />
+                        <Button size="sm" variant="outline"
+                          disabled={(helpResolutionNotes[req.id] || "").trim().length < 10}
+                          onClick={async () => {
+                            if (!window.confirm(yi
+                              ? "איז די הילף טאקע געגעבן געווארן? דער פאל וועט ווערן פארמאכט."
+                              : "Was real help delivered? This will mark the case fulfilled.")) return;
+                            const res = await fetch(`/api/help-requests/${req.id}`, {
+                              method: "PATCH", credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                status: "resolved", isFeatured: req.isFeatured,
+                                resolutionNote: helpResolutionNotes[req.id].trim(),
+                              }),
+                            });
+                            if (res.ok) {
+                              await loadAdminHelpRequests();
+                              void qc.invalidateQueries({ queryKey: ["/api/help-requests"] });
+                            } else {
+                              const error = await res.json().catch(() => ({}));
+                              toast({ title: error.error || "Could not complete help request", variant: "destructive" });
+                            }
+                          }}
+                        >
+                          <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                          {yi ? "באשטעטיג אז די הילף איז געגעבן" : "Confirm real assistance delivered"}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>

@@ -1,15 +1,37 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable, supportMessagesTable } from "@workspace/db";
+import { CONNECTION_META_TYPE, parseConnectionState, clearConsentForNewReview } from "../lib/member-connections";
+import { notifyUser } from "../lib/notify";
+import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable, supportMessagesTable, memberContactMethodsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { getMemberIdentity, resolveMemberDisplayName } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
 import { notifyStaff } from "../lib/notify";
+import { parseContactSelection, saveContactValues, getContactSelection } from "../lib/member-contact-methods";
 
 const router: IRouter = Router();
+// Prevent a third-party page from approving contacts or editing private
+// contact details via a member's authenticated session.
+router.use((req,res,next)=>{
+  if (["GET","HEAD","OPTIONS"].includes(req.method)) return next();
+  if (req.get("sec-fetch-site") === "cross-site") {
+    res.status(403).json({error:"Cross-site changes are not allowed"});return;
+  }
+  const origin=req.get("origin");
+  if (!origin) return next(); // non-browser clients; still require a valid session
+  try{
+    if (new URL(origin).host !== req.get("host")) {
+      res.status(403).json({error:"Invalid request origin"});return;
+    }
+  }catch{
+    res.status(403).json({error:"Invalid request origin"});return;
+  }
+  next();
+});
+
 
 function isStaffRole(role?: string) {
-  return role === "admin" || role === "moderator";
+  return role === "admin" || role === "moderator" || role === "super_admin";
 }
 
 const HELP_TYPES = new Set(["medical", "wedding", "food", "housing", "transportation", "financial", "other"]);
@@ -22,12 +44,14 @@ function publicHelpRequest<T extends { contactInfo?: unknown }>(request: T) {
   return safe;
 }
 
-router.get("/featured/volunteers", async (_req, res): Promise<void> => {
+router.get("/featured/volunteers", requireAdmin, async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control","private, no-store");
   const featured = await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.isFeatured, true)).limit(4);
   res.json(featured);
 });
 
-router.get("/featured/requests", async (_req, res): Promise<void> => {
+router.get("/featured/requests", requireAdmin, async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control","private, no-store");
   const featured = await db.select().from(helpRequestsTable).where(and(
     eq(helpRequestsTable.isFeatured, true),
     eq(helpRequestsTable.status, "open"),
@@ -35,7 +59,8 @@ router.get("/featured/requests", async (_req, res): Promise<void> => {
   res.json(featured.map(publicHelpRequest));
 });
 
-router.get("/volunteers", async (req, res): Promise<void> => {
+router.get("/volunteers", requireAdmin, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control","private, no-store");
   const { location, search } = req.query as Record<string, string>;
   let all = await db.select().from(volunteerProfilesTable);
   if (location) all = all.filter(v => v.location.toLowerCase().includes(location.toLowerCase()));
@@ -46,6 +71,8 @@ router.get("/volunteers", async (req, res): Promise<void> => {
 router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   const userId = getSessionUserId(req)!;
   const { userName, skills, availability, location, bio, areasOfInterest } = req.body;
+  const contact = parseContactSelection(req.body?.contactMethods);
+  if (!contact.value) { res.status(400).json({ error: contact.error || "Contact method required" }); return; }
   const cleanAvailability = String(availability || "");
   const cleanLocation = String(location || "").trim();
   if (!VOLUNTEER_AVAILABILITY.has(cleanAvailability) || !cleanLocation) {
@@ -60,7 +87,8 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   }
 
   const safeUserName = await resolveMemberDisplayName(userId, userName);
-  const [vol] = await db.insert(volunteerProfilesTable).values({
+  const vol = await db.transaction(async tx => {
+    const [created] = await tx.insert(volunteerProfilesTable).values({
     userId,
     userName: safeUserName,
     skills: Array.isArray(skills) ? skills.slice(0, 30).map(v => String(v).slice(0, 100)) : [],
@@ -71,7 +99,14 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
     labels: [],
     isFeatured: false,
   }).returning();
-  await logActivity("volunteer", `${safeUserName} registered as a volunteer`, safeUserName);
+    await tx.insert(memberContactMethodsTable).values(saveContactValues(userId, "volunteer", contact.value!))
+      .onConflictDoUpdate({
+        target:[memberContactMethodsTable.userId,memberContactMethodsTable.purpose],
+        set:{...contact.value!,updatedAt:new Date()},
+      });
+    return created;
+  });
+  // Deliberately no public activity record for confidential volunteer signup.
 
   const volunteerUser = await getMemberIdentity(userId);
   await db.insert(supportMessagesTable).values({
@@ -91,14 +126,19 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   });
   await notifyStaff(`New volunteer registration: ${safeUserName}`, "/founder", "admin_volunteer");
 
+  res.setHeader("Cache-Control","private, no-store");
   res.status(201).json(vol);
 });
 
-router.get("/volunteers/:id", async (req, res): Promise<void> => {
+router.get("/volunteers/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const [vol] = await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.id, id));
   if (!vol) { res.status(404).json({ error: "Not found" }); return; }
+  if (vol.userId !== getSessionUserId(req) && !isStaffRole(getSessionUserRole(req))) {
+    res.status(404).json({ error: "Not found" }); return;
+  }
+  res.setHeader("Cache-Control","private, no-store");
   res.json(vol);
 });
 
@@ -144,11 +184,13 @@ router.delete("/volunteers/:id", requireAuth, async (req, res): Promise<void> =>
 });
 
 router.get("/admin/help-requests", requireAdmin, async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control","private, no-store");
   const all = await db.select().from(helpRequestsTable);
   res.json(all);
 });
 
-router.get("/help-requests", async (req, res): Promise<void> => {
+router.get("/help-requests", requireAdmin, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control","private, no-store");
   const { type, urgency } = req.query as Record<string, string>;
   let all = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.status, "open"));
   if (type) all = all.filter(r => r.needType === type);
@@ -175,9 +217,12 @@ router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
   const user = await getMemberIdentity(userId);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
+  const contact = parseContactSelection(req.body?.contactMethods);
+  if (!contact.value) { res.status(400).json({ error: contact.error || "Contact method required" }); return; }
   const contactInfo = user.email || user.phone || `Gavhah member #${userId}`;
 
-  const [request] = await db.insert(helpRequestsTable).values({
+  const request = await db.transaction(async tx => {
+    const [created] = await tx.insert(helpRequestsTable).values({
     userId,
     name: cleanName.slice(0, 200),
     contactInfo,
@@ -188,30 +233,36 @@ router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
     isFeatured: false,
     status: "pending",
   }).returning();
+    await tx.insert(memberContactMethodsTable).values(saveContactValues(userId, "help", contact.value!))
+      .onConflictDoUpdate({
+        target:[memberContactMethodsTable.userId,memberContactMethodsTable.purpose],
+        set:{...contact.value!,updatedAt:new Date()},
+      });
+    return created;
+  });
 
   await notifyStaff(
     `New help request: ${request.name} — ${request.urgency} ${request.needType}`,
     "/founder",
     "admin_help_request",
   );
+  res.setHeader("Cache-Control","private, no-store");
   res.status(201).json(publicHelpRequest(request));
 });
 
-router.get("/help-requests/:id", async (req, res): Promise<void> => {
+router.get("/help-requests/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const [request] = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.id, id));
   if (!request) { res.status(404).json({ error: "Not found" }); return; }
 
-  if (request.status !== "open") {
-    const currentUser = await getCurrentSessionUser(req);
-    if (!currentUser || (currentUser.id !== request.userId && !isStaffRole(currentUser.role))) {
-      res.status(404).json({ error: "Not found" });
-      return;
-    }
+  // Requests are private irrespective of review status.
+  const currentUser = await getCurrentSessionUser(req);
+  if (!currentUser || (currentUser.id !== request.userId && !isStaffRole(currentUser.role))) {
+    res.status(404).json({ error: "Not found" }); return;
   }
-
-  res.json(publicHelpRequest(request));
+  res.setHeader("Cache-Control","private, no-store");
+  res.json(isStaffRole(currentUser.role) ? request : publicHelpRequest(request));
 });
 
 router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> => {
@@ -251,6 +302,12 @@ router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> 
     if (status !== undefined) {
       const clean = String(status);
       if (!HELP_STATUSES.has(clean)) { res.status(400).json({ error: "invalid status" }); return; }
+      if (clean === "resolved" && existing.status !== "resolved") {
+        const resolutionNote = String(req.body?.resolutionNote || "").trim();
+        if (resolutionNote.length < 10 || resolutionNote.length > 2000) {
+          res.status(400).json({ error: "Describe the assistance actually delivered before marking this request fulfilled" }); return;
+        }
+      }
       updates.status = clean;
     }
     if (isFeatured !== undefined) updates.isFeatured = !!isFeatured;
@@ -261,16 +318,20 @@ router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> 
     .where(eq(helpRequestsTable.id, id))
     .returning();
 
+  if (isStaffRole(role) && status === "resolved" && existing.status !== "resolved") {
+    await db.insert(supportMessagesTable).values({
+      userId, name: "Help Fulfillment Audit", email: "audit@internal.invalid",
+      type: "__help_resolution__", subject: `help:${id}`,
+      message: String(req.body?.resolutionNote || "").trim(), status: "resolved",
+    });
+  }
+
   if (isStaffRole(role) && status !== undefined && status !== existing.status) {
     const decisionMessage =
-      status === "open" ? `Your help request "${request.name}" was approved and is now public.` :
-      status === "rejected" ? `Your help request "${request.name}" was not approved for public listing.` :
+      status === "open" ? `Your private help request "${request.name}" has been accepted for confidential staff follow-up. It is NOT public.` :
+      status === "rejected" ? `Your private help request "${request.name}" could not be accepted for internal follow-up.` :
       status === "resolved" ? `Your help request "${request.name}" was marked resolved.` :
       null;
-
-    if (status === "open" && existing.status === "pending") {
-      await logActivity("help_request", "A new help request was approved for the directory", request.name);
-    }
 
     if (decisionMessage) {
       await db.insert(notificationsTable).values({
@@ -283,6 +344,7 @@ router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> 
     }
   }
 
+  res.setHeader("Cache-Control","private, no-store");
   res.json(isStaffRole(role) ? request : publicHelpRequest(request));
 });
 
@@ -296,6 +358,58 @@ router.delete("/help-requests/:id", requireAuth, async (req, res): Promise<void>
   }
   await db.delete(helpRequestsTable).where(eq(helpRequestsTable.id, id));
   res.sendStatus(204);
+});
+
+/**
+ * Account owners can update the contact methods used in their applications.
+ * Updating those methods immediately invalidates any open case's approval;
+ * previously displayed contact information must not be re-released without
+ * new permission from BOTH participants.
+ */
+router.get("/me/contact-methods/:purpose", requireAuth, async(req,res):Promise<void>=>{
+  const purpose=String(req.params.purpose);
+  if(purpose!=="volunteer"&&purpose!=="help"){res.status(400).json({error:"Invalid contact context"});return;}
+  res.setHeader("Cache-Control","private, no-store");
+  res.json({methods:await getContactSelection(getSessionUserId(req)!,purpose)});
+});
+router.put("/me/contact-methods/:purpose", requireAuth, async(req,res,next):Promise<void>=>{
+  try{
+    const purpose=String(req.params.purpose);
+    if(purpose!=="volunteer"&&purpose!=="help"){res.status(400).json({error:"Invalid contact context"});return;}
+    const parsed=parseContactSelection(req.body);
+    if(!parsed.value){res.status(400).json({error:parsed.error});return;}
+    const userId=getSessionUserId(req)!;
+    const before=await getContactSelection(userId,purpose);
+    const changed=JSON.stringify(before)!==JSON.stringify(parsed.value);
+    await db.transaction(async tx=>{
+      await tx.insert(memberContactMethodsTable).values(saveContactValues(userId,purpose,parsed.value!))
+        .onConflictDoUpdate({
+          target:[memberContactMethodsTable.userId,memberContactMethodsTable.purpose],
+          set:{...parsed.value!,updatedAt:new Date()},
+        });
+      if(!changed)return;
+      const rows=await tx.select().from(supportMessagesTable)
+        .where(eq(supportMessagesTable.type,CONNECTION_META_TYPE));
+      for(const row of rows){
+        const state=parseConnectionState(row.message);
+        if(!state||!["invited","accepted","contact_problem"].includes(state.stage))continue;
+        if(state.requesterUserId!==userId&&state.volunteerUserId!==userId)continue;
+        if(purpose==="volunteer"&&state.volunteerUserId!==userId)continue;
+        if(purpose==="help"&&state.requesterUserId!==userId)continue;
+        const updated={...clearConsentForNewReview(state),stage:"needs_reapproval" as const,
+          invitedAt:null,updatedBy:userId};
+        const [saved]=await tx.update(supportMessagesTable).set({message:JSON.stringify(updated)})
+          .where(and(eq(supportMessagesTable.id,row.id),eq(supportMessagesTable.message,row.message)))
+          .returning({id:supportMessagesTable.id});
+        if(!saved)throw Error("A connection was updated concurrently. Please retry.");
+      }
+    });
+    if(changed){
+      await notifyStaff("A member updated private contact channels. Open introductions require renewed personal approvals.",
+        "/founder","admin_member_connection");
+    }
+    res.json({saved:true,approvalsInvalidated:changed});
+  }catch(e){next(e);}
 });
 
 export default router;
