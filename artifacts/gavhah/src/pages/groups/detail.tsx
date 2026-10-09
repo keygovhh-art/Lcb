@@ -308,7 +308,7 @@ export default function GroupDetail() {
                       <Clock className="h-4 w-4 mr-2" /> Request Pending
                     </Button>
                   ) : (
-                    <MemberGate action="join this group" compact>
+                    <MemberGate gate="groups" action="join this group" compact>
                       <Button
                         onClick={handleJoin}
                         className="bg-secondary hover:bg-secondary/90 text-white shrink-0"
@@ -365,7 +365,7 @@ export default function GroupDetail() {
               </TabsList>
 
               <TabsContent value="posts" className="space-y-6">
-                <MemberGate action="post in this group" compact>
+                <MemberGate gate="groups" action="post in this group" compact>
                   {isMember ? (
                     <div className="bg-card border rounded-xl p-6">
                       <h3 className="font-semibold text-foreground mb-4">Share with the group</h3>
