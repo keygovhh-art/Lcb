@@ -94,7 +94,7 @@ export default function Register() {
         toast({ title: `Welcome, ${user.nickname}!`, description: "Your Gavhah membership is active." });
         if (loginRes.ok) {
           const requested = new URLSearchParams(window.location.search).get("return") || "/";
-          const safeReturn = requested.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\\\") ? requested : "/";
+          const safeReturn = requested.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\") ? requested : "/";
           const separator = safeReturn.includes("?") ? "&" : "?";
           window.location.replace(`${safeReturn}${separator}auth=${Date.now()}`);
         } else {
