@@ -65,6 +65,18 @@ export interface UserUpdate {
 
 export type DiscussionCategory = string;
 
+// Legacy API compatibility only: these old values are no longer selectable
+// presets in the forum UI. New topics can be any free text.
+export const DiscussionCategory = {
+  medical: 'medical',
+  shidduchim: 'shidduchim',
+  livelihood: 'livelihood',
+  education: 'education',
+  charity: 'charity',
+  community: 'community',
+  general: 'general',
+} as const;
+
 export interface Discussion {
   id: number;
   title: string;
@@ -121,7 +133,7 @@ export interface UserDashboard {
 export interface DiscussionInput {
   title: string;
   content: string;
-  category: string;
+  category?: string;
   authorName?: string;
 }
 
