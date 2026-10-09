@@ -9,6 +9,6 @@
 export interface DiscussionInput {
   title: string;
   content: string;
-  category: string;
+  category?: string;
   authorName?: string;
 }
