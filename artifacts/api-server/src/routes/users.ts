@@ -443,7 +443,7 @@ router.get("/users/:id/dashboard", requireAuth, async (req, res): Promise<void> 
     return;
   }
   const [discCount] = await db.select({ count: count() }).from(discussionsTable).where(eq(discussionsTable.authorId, userId));
-  const [reqCount] = await db.select({ count: count() }).from(helpRequestsTable);
+  const [reqCount] = await db.select({ count: count() }).from(helpRequestsTable).where(eq(helpRequestsTable.userId, userId));
   res.json({
     userId,
     discussionCount: discCount?.count ?? 0,
