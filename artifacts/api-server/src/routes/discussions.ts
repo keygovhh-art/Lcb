@@ -55,7 +55,7 @@ router.post("/discussions", requireAuth, async (req, res): Promise<void> => {
   const [disc] = await db.insert(discussionsTable).values({
     title: cleanTitle.slice(0, 300),
     content: cleanContent.slice(0, 30000),
-    category: cleanCategory,
+    category: cleanCategory ? `u:${cleanCategory}` : "",
     authorId: userId,
     authorName: safeAuthorName,
   }).returning();
@@ -96,7 +96,7 @@ router.patch("/discussions/:id", requireAuth, async (req, res): Promise<void> =>
   if (category !== undefined) {
     const clean = cleanForumTopic(category);
     if (clean === null) { res.status(400).json({ error: "topic must be text of at most 100 characters" }); return; }
-    updates.category = clean;
+    updates.category = clean ? `u:${clean}` : "";
   }
   if (isPinned !== undefined) {
     if (!isStaffRole(getSessionUserRole(req))) {
