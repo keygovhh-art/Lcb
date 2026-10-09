@@ -9,7 +9,7 @@ import { notifyStaff } from "../lib/notify";
 const router: IRouter = Router();
 
 function isStaffRole(role?: string) {
-  return role === "admin" || role === "moderator";
+  return role === "admin" || role === "moderator" || role === "super_admin";
 }
 
 const HELP_TYPES = new Set(["medical", "wedding", "food", "housing", "transportation", "financial", "other"]);
@@ -251,6 +251,12 @@ router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> 
     if (status !== undefined) {
       const clean = String(status);
       if (!HELP_STATUSES.has(clean)) { res.status(400).json({ error: "invalid status" }); return; }
+      if (clean === "resolved" && existing.status !== "resolved") {
+        const resolutionNote = String(req.body?.resolutionNote || "").trim();
+        if (resolutionNote.length < 10 || resolutionNote.length > 2000) {
+          res.status(400).json({ error: "Describe the assistance actually delivered before marking this request fulfilled" }); return;
+        }
+      }
       updates.status = clean;
     }
     if (isFeatured !== undefined) updates.isFeatured = !!isFeatured;
@@ -260,6 +266,14 @@ router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> 
     .set(updates)
     .where(eq(helpRequestsTable.id, id))
     .returning();
+
+  if (isStaffRole(role) && status === "resolved" && existing.status !== "resolved") {
+    await db.insert(supportMessagesTable).values({
+      userId, name: "Help Fulfillment Audit", email: "audit@internal.invalid",
+      type: "__help_resolution__", subject: `help:${id}`,
+      message: String(req.body?.resolutionNote || "").trim(), status: "resolved",
+    });
+  }
 
   if (isStaffRole(role) && status !== undefined && status !== existing.status) {
     const decisionMessage =
