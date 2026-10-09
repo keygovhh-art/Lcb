@@ -95,7 +95,8 @@ router.get("/member-connections/mine",requireAuth,async(req,res,next):Promise<vo
       ]);
       const choice=party==="requester"?state.requesterChoice:state.volunteerChoice;
       const ownContact=prefs?pointFor(prefs,choice):null;
-      const released=["accepted","connected"].includes(state.stage)&&hasMutualConsent(state);
+      const released=["accepted","connected"].includes(state.stage)&&hasMutualConsent(state)&&
+        requester?.status==="active"&&volunteer?.status==="active";
       const otherContact=released?state.agreedContacts?.[other]:null;
       return {
         id,stage:state.stage,role:party,createdAt:original.createdAt,subject:original.subject,
@@ -169,6 +170,12 @@ router.post("/member-connections/:id/respond",requireAuth,async(req,res,next):Pr
     const request=await originalRequest(id);
     if(!row||!state||!request||request.status!=="open"){
       res.status(404).json({error:"Open connection case not found"});return;
+    }
+    const [requesterAccount,volunteerAccount]=await Promise.all([
+      member(state.requesterUserId),member(state.volunteerUserId),
+    ]);
+    if(requesterAccount?.status!=="active"||volunteerAccount?.status!=="active"){
+      res.status(409).json({error:"Both participants must have active membership accounts"});return;
     }
     const actor=getSessionUserId(req)!;
     const party=ownParty(state,actor);
