@@ -31,6 +31,7 @@ export type ConnectionState = {
   /** Final, case-specific Gavhah permission AFTER both members approve. */
   staffReleasedAt: string | null;
   staffReleasedBy: number | null;
+  staffReleaseReason: string | null;
   proposedContacts: Partial<Shared>;
   // Former staff-recorded consent fields are retained ONLY for audit, and
   // can NEVER authorize disclosure to the other person.
@@ -59,7 +60,7 @@ export function newConnectionState(input: {
     closureReason:null,contactIssue:null,contactFollowups:[],
     requesterChoice:"primary",volunteerChoice:"primary",
     approvals:{requester:null,volunteer:null},agreedContacts:null,
-    staffReleasedAt:null,staffReleasedBy:null,proposedContacts:{},
+    staffReleasedAt:null,staffReleasedBy:null,staffReleaseReason:null,proposedContacts:{},
     consentMethod:null,consentNote:null,consentVerifiedBy:null,updatedBy:null,
   };
 }
@@ -96,6 +97,7 @@ export function parseConnectionState(raw: string): ConnectionState | null {
       volunteerChoice:v.volunteerChoice==="backup"?"backup":"primary",
       approvals,agreedContacts:released?{requester:requester!,volunteer:volunteer!}:null,
       staffReleasedAt:released?staffReleasedAt:null,staffReleasedBy:released?staffReleasedBy:null,
+      staffReleaseReason:released && typeof v.staffReleaseReason === "string" ? v.staffReleaseReason : null,
       proposedContacts:{
         ...(validPoint(v.proposedContacts?.requester)?{requester:validPoint(v.proposedContacts.requester)!}:{}),
         ...(validPoint(v.proposedContacts?.volunteer)?{volunteer:validPoint(v.proposedContacts.volunteer)!}:{}),
@@ -122,7 +124,7 @@ export function clearConsentForNewReview(state: ConnectionState, choices?:{
   return {...state,
     stage:"invited",invitedAt:new Date().toISOString(),respondedAt:null,
     approvals:{requester:null,volunteer:null},agreedContacts:null,proposedContacts:{},
-    staffReleasedAt:null,staffReleasedBy:null,
+    staffReleasedAt:null,staffReleasedBy:null,staffReleaseReason:null,
     requesterChoice:choices?.requesterChoice??state.requesterChoice,
     volunteerChoice:choices?.volunteerChoice??state.volunteerChoice,
     consentMethod:null,consentNote:null,consentVerifiedBy:null,
