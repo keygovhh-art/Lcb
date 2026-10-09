@@ -27,7 +27,11 @@ export function UpvoteButton({
         variant={active ? "secondary" : "ghost"}
         size="icon"
         className={active ? "text-primary" : "text-muted-foreground hover:text-primary"}
-        onClick={onClick}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onClick(event);
+        }}
         disabled={pending}
         title={title || (active ? "Remove upvote" : "Upvote")}
         aria-pressed={active}
