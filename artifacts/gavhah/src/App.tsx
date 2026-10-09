@@ -4,7 +4,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/context/language-context";
-import { AuthProvider } from "@/context/auth-context";
+import { AuthProvider, useAuth } from "@/context/auth-context";
+import { MemberGate } from "@/components/shared/member-gate";
+import { Layout } from "@/components/layout/layout";
 import { YiddishMirror } from "@/components/shared/yiddish-mirror";
 import { SiteCopyLayer } from "@/components/shared/site-copy-layer";
 import { AppErrorBoundary } from "@/components/shared/app-error-boundary";
@@ -146,6 +148,13 @@ function ScrollToTop() {
   return null;
 }
 
+function RequireForumMembership({ children }: { children: React.ReactNode }) {
+  const { user, isLoaded } = useAuth();
+  if (!isLoaded) return <Layout><div className="min-h-[20rem]" /></Layout>;
+  if (!user) return <Layout><MemberGate gate="forum" /></Layout>;
+  return <>{children}</>;
+}
+
 function Router() {
   return (
     <>
@@ -154,9 +163,9 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/news" component={NewsList} />
       <Route path="/news/:id" component={NewsDetail} />
-      <Route path="/forum" component={ForumList} />
-      <Route path="/forum/new" component={ForumNew} />
-      <Route path="/forum/:id" component={ForumDetail} />
+      <Route path="/forum">{() => <RequireForumMembership><ForumList /></RequireForumMembership>}</Route>
+      <Route path="/forum/new">{() => <RequireForumMembership><ForumNew /></RequireForumMembership>}</Route>
+      <Route path="/forum/:id">{() => <RequireForumMembership><ForumDetail /></RequireForumMembership>}</Route>
       <Route path="/directory" component={Directory} />
       <Route path="/united" component={United} />
       <Route path="/communications" component={Communications} />
