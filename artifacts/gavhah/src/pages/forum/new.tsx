@@ -13,12 +13,15 @@ import { Link } from "wouter";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
 
 export default function ForumNew() {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { lang } = useLanguage();
+  const yi = lang === "yi";
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("");
@@ -67,17 +70,17 @@ export default function ForumNew() {
           <div className="bg-card border rounded-xl p-8 shadow-sm">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="category" className="font-semibold text-foreground">Topic (optional) / טעמע (אפטשענעל)</Label>
+                <Label htmlFor="category" className="font-semibold text-foreground">{yi ? "טעמע (אפטשענעל)" : "Topic (optional)"}</Label>
                 <Input
                   id="category"
                   value={category}
                   onChange={e => setCategory(e.target.value)}
-                  placeholder="שרייב דיין אייגענע טעמע, אדער לאז ליידיג"
+                  placeholder={yi ? "שרייב דיין אייגענע טעמע, אדער לאז ליידיג" : "Write your own topic, or leave blank"}
                   maxLength={100}
                   className="h-12 text-base"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Write any topic in your own words, or leave this blank. There are no preset categories.
+                  {yi ? "דאס פעלד איז נישט פארפיכטעט. מען קען שרייבן סיי וועלכע אייגענע ווערטער; עס זענען נישטא קיין פאראויס־באשטימטע קאטעגאריעס." : "Write any topic in your own words, or leave this blank. There are no preset categories."}
                 </p>
               </div>
 
