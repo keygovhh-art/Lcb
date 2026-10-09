@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, usersTable, discussionsTable, helpRequestsTable } from "@workspace/db";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
+import { db, usersTable, discussionsTable, helpRequestsTable, memberMailingTable } from "@workspace/db";
+import { mailingValues, parseMailingInput, publicMailingStatus } from "../lib/member-mailing";
 import { count } from "drizzle-orm";
 import { hashPassword } from "../lib/crypto";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
@@ -43,6 +44,11 @@ router.get("/users", requireAdmin, async (req, res): Promise<void> => {
 
 router.post("/users", registrationLimiter, async (req, res): Promise<void> => {
   const { name, nickname, email, phone, password, location, bio } = req.body as Record<string, string>;
+  const providedMailing = req.body?.mailingAddress;
+  const mailing = providedMailing === undefined || providedMailing === null
+    ? { value: null as ReturnType<typeof parseMailingInput>["value"] }
+    : parseMailingInput(providedMailing);
+  if (mailing.error) { res.status(400).json({ error: mailing.error }); return; }
 
   if (!nickname) {
     res.status(400).json({ error: "nickname is required" });
@@ -77,15 +83,23 @@ router.post("/users", registrationLimiter, async (req, res): Promise<void> => {
 
   const passwordHash = await hashPassword(password);
 
-  const [user] = await db.insert(usersTable).values({
-    name: name?.trim() || nickname.trim(),
-    nickname: nickname.trim(),
-    email: email ? email.toLowerCase().trim() : null,
-    phone: phone ? phone.trim() : null,
-    passwordHash,
-    location: location?.trim() || null,
-    bio: bio?.trim() || null,
-  }).returning();
+  // Account and optional mailing data commit together. If saving the provided
+  // address fails, registration fails as a whole rather than silently losing it.
+  const user = await db.transaction(async tx => {
+    const [created] = await tx.insert(usersTable).values({
+      name: name?.trim() || nickname.trim(),
+      nickname: nickname.trim(),
+      email: email ? email.toLowerCase().trim() : null,
+      phone: phone ? phone.trim() : null,
+      passwordHash,
+      location: location?.trim() || null,
+      bio: bio?.trim() || null,
+    }).returning();
+    if (mailing.value) {
+      await tx.insert(memberMailingTable).values(mailingValues(created.id, mailing.value));
+    }
+    return created;
+  });
 
   await queueStaffReview({
     userId: user.id,
@@ -104,6 +118,117 @@ router.post("/users", registrationLimiter, async (req, res): Promise<void> => {
   });
 
   res.status(201).json(safeUser(user));
+});
+
+/** Mailing data is NEVER included in /users, /users/me, or public profiles. */
+router.get("/me/mailing-address", requireAuth, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const [row] = await db.select().from(memberMailingTable)
+    .where(eq(memberMailingTable.userId, getSessionUserId(req)!));
+  if (!row) { res.json({ address: null, status: "no_address" }); return; }
+  const { mailingHold: _hold, adminNote: _note, userId: _id, ...address } = row;
+  res.json({ address, status: publicMailingStatus(row) });
+});
+
+router.put("/me/mailing-address", requireAuth, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const parsed = parseMailingInput(req.body);
+  if (parsed.error || !parsed.value) {
+    res.status(400).json({ error: parsed.error || "Invalid address" }); return;
+  }
+  const userId = getSessionUserId(req)!;
+  const [old] = await db.select().from(memberMailingTable)
+    .where(eq(memberMailingTable.userId, userId));
+  // Explicit consent must be renewed after changing the actual address.
+  const oldAddress = old &&
+    [old.recipient, old.addressLine1, old.addressLine2 || "", old.city, old.state, old.postalCode, old.country].join("|");
+  const newAddress = [
+    parsed.value.recipient, parsed.value.addressLine1, parsed.value.addressLine2 || "",
+    parsed.value.city, parsed.value.state, parsed.value.postalCode, parsed.value.country,
+  ].join("|");
+  if (old && oldAddress !== newAddress && parsed.value.uspsConsent) {
+    if (req.body?.confirmNewAddressConsent !== true) {
+      res.status(400).json({ error: "Please explicitly confirm USPS consent again for this changed address" }); return;
+    }
+  }
+  const values = mailingValues(userId, parsed.value);
+  await db.insert(memberMailingTable).values(values)
+    .onConflictDoUpdate({
+      target: memberMailingTable.userId,
+      set: {
+        recipient: values.recipient, addressLine1: values.addressLine1,
+        addressLine2: values.addressLine2, city: values.city, state: values.state,
+        postalCode: values.postalCode, country: values.country,
+        uspsConsent: values.uspsConsent, consentAt: values.consentAt,
+        addressUpdatedAt: values.addressUpdatedAt,
+        // mailingHold and adminNote can ONLY be managed by administrators.
+      },
+    });
+  const [row] = await db.select().from(memberMailingTable).where(eq(memberMailingTable.userId, userId));
+  res.json({ status: publicMailingStatus(row), saved: true });
+});
+
+router.delete("/me/mailing-address", requireAuth, async (req, res): Promise<void> => {
+  await db.delete(memberMailingTable).where(eq(memberMailingTable.userId, getSessionUserId(req)!));
+  res.json({ status: "no_address", deleted: true });
+});
+
+router.get("/admin/members/mailing", requireAdmin, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const [members, addresses] = await Promise.all([
+    db.select({
+      id: usersTable.id, name: usersTable.name, nickname: usersTable.nickname,
+      email: usersTable.email, phone: usersTable.phone, role: usersTable.role,
+      status: usersTable.status, location: usersTable.location,
+      createdAt: usersTable.createdAt,
+    }).from(usersTable).orderBy(desc(usersTable.createdAt)),
+    db.select().from(memberMailingTable),
+  ]);
+  const byMember = new Map(addresses.map(address => [address.userId, address]));
+  const search = String(req.query?.search || "").trim().toLowerCase().slice(0,120);
+  const filter = String(req.query?.mailStatus || "all");
+  const valid = ["all", "no_address", "do_not_send", "permission_yes", "on_hold"];
+  if (!valid.includes(filter)) {
+    res.status(400).json({ error: "Invalid mailing filter" }); return;
+  }
+  const rows = members.map(member => {
+    const address = byMember.get(member.id) || null;
+    return { ...member, address, mailStatus: publicMailingStatus(address) };
+  }).filter(row => {
+    if (filter !== "all" && row.mailStatus !== filter) return false;
+    if (!search) return true;
+    return [row.id, row.name, row.nickname, row.email, row.phone, row.location]
+      .some(value => String(value || "").toLowerCase().includes(search));
+  });
+  res.json({
+    counts: {
+      total: members.length,
+      permissionYes: addresses.filter(a => a.uspsConsent && !a.mailingHold).length,
+      doNotSend: addresses.filter(a => !a.uspsConsent).length,
+      noAddress: members.length - addresses.length,
+      onHold: addresses.filter(a => a.mailingHold && a.uspsConsent).length,
+    },
+    items: rows,
+  });
+});
+
+router.patch("/admin/members/:id/mailing", requireAdmin, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid member ID" }); return;
+  }
+  const [row] = await db.select().from(memberMailingTable).where(eq(memberMailingTable.userId, id));
+  if (!row) { res.status(404).json({ error: "Member has no postal address" }); return; }
+  if (typeof req.body?.mailingHold !== "boolean") {
+    res.status(400).json({ error: "mailingHold must be a boolean" }); return;
+  }
+  const adminNote = typeof req.body?.adminNote === "string" ? req.body.adminNote.trim().slice(0,1500) : (row.adminNote || "");
+  // Admin may BLOCK mail but may never grant mailing permission for a member.
+  const [changed] = await db.update(memberMailingTable)
+    .set({ mailingHold: req.body.mailingHold, adminNote })
+    .where(eq(memberMailingTable.userId, id)).returning();
+  res.json({ mailStatus: publicMailingStatus(changed), updated: true });
 });
 
 router.get("/users/me", requireAuth, async (req, res): Promise<void> => {
