@@ -35,7 +35,7 @@ type CompletedCase = {
   kind: string;
   title: string;
   requester: string;
-  outcome: "confirmed_success" | "unsuccessful" | "staff_closed" | "legacy_closed";
+  outcome: "confirmed_success" | "confirmed_help" | "unsuccessful" | "staff_closed" | "legacy_closed";
   closedAt: string;
   summary: string | null;
   actorId: number | null;
@@ -815,12 +815,14 @@ export function OperationsInbox() {
             <div key={entry.id} className="rounded-lg border p-3 space-y-1 text-xs">
               <div className="flex flex-wrap justify-between gap-2 items-center">
                 <span className="font-semibold text-sm break-words">{entry.title}</span>
-                <Badge variant={entry.outcome === "confirmed_success" ? "default" : "secondary"}>
+                <Badge variant={["confirmed_success", "confirmed_help"].includes(entry.outcome) ? "default" : "secondary"}>
                   {entry.outcome === "confirmed_success"
                     ? (yi ? "בעטער האט באשטעטיגט הצלחה" : "Requester confirmed success")
-                    : entry.outcome === "unsuccessful"
-                      ? (yi ? "נישט געלונגען" : "Unsuccessful")
-                      : (yi ? "פארמאכט נאך באהאנדלונג" : "Closed after review")}
+                    : entry.outcome === "confirmed_help"
+                      ? (yi ? "הילף איז געגעבן געווארן" : "Assistance delivered")
+                      : entry.outcome === "unsuccessful"
+                        ? (yi ? "נישט געלונגען" : "Unsuccessful")
+                        : (yi ? "פארמאכט נאך באהאנדלונג" : "Closed after review")}
                 </Badge>
               </div>
               <p className="text-muted-foreground">
