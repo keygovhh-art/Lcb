@@ -273,8 +273,8 @@ export function OperationsInbox() {
   const actionExplanation = (item: OperationItem) => {
     if (item.kind === "help_request" && item.meta?.helpStatus === "open") {
       return yi
-        ? "די בקשה איז שוין פובליק. זי בלייבט אפן ביז מען האט טאקע געהאלפן. שרייב וואס איז געטאן געווארן, און נאר דאן באשטעטיג אז די הילף איז געלונגען."
-        : "This request is PUBLIC but remains open until assistance actually happened. Document the work, then mark the help fulfilled.";
+        ? "די בקשה בלייבט בלויז ביי דער מערכת, און בלייבט אפן ביז מען האט טאקע געהאלפן. שרייב וואס איז געטאן געווארן, און נאר דאן באשטעטיג אז די הילף איז געלונגען."
+        : "This request is PRIVATE to staff and stays open until assistance actually happened. Document the work, then mark the help fulfilled.";
     }
     const descriptions: Record<string, [string, string]> = {
       report: [
@@ -282,8 +282,8 @@ export function OperationsInbox() {
         "Resolve closes the report after investigation; Dismiss closes it without accepting the report. Neither automatically deletes the post.",
       ],
       help_request: [
-        "באשטעטיגן שטעלט די בקשה אין דער עפנטליכער הילף־ליסטע. דאס מיינט נישט אז מען האט שוין געהאלפן.",
-        "Approve publishes the help request to the public directory. It does NOT mean help was delivered.",
+        "באשטעטיגן שטעלט די בקשה נאר אין דער אינערליכער מערכת־ארבעטסליסטע. קיין פרט ווערט נישט פובליק.",
+        "Approve accepts the request for PRIVATE staff handling, not publication. This does not mean help has been delivered.",
       ],
       group_join: [
         "באשטעטיגן ערלויבט דעם מיטגליד אריינצוקומען אין דער גרופע.",
@@ -777,8 +777,8 @@ export function OperationsInbox() {
                   ) : item.kind === "help_request" && item.meta?.helpStatus === "open" ? (
                     <div className="space-y-2">
                       <p className="text-xs text-muted-foreground max-w-[18rem]">
-                        {yi ? "די הילף־בקשה איז שוין פובליק. דער פאל בלייבט אפן פאר נאכפאלגן." :
-                          "Already public; keep following up until actual help is provided."}
+                        {yi ? "די בקשה איז נאר ביי דער מערכת. דער פאל בלייבט אפן ביז מען האט פאקטיש געהאלפן." :
+                          "Private to staff. Keep following up until assistance is actually provided."}
                       </p>
                       <Button size="sm" disabled={busy !== null} onClick={() => void act(item, "complete")}>
                         <Check className="h-3.5 w-3.5" />
