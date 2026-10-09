@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
+import { useLanguage } from "@/context/language-context";
 import { ContactMethodPicker, initialContactMethods, type ContactMethodsForm } from "@/components/shared/contact-method-picker";
 
 // ---- Constants ----
@@ -559,17 +560,12 @@ function RegisterVolunteerDialog() {
       { data: { userName: form.userName, location: form.location, availability: form.availability, bio: form.bio || undefined, skills: selectedSkills, contactMethods } as any },
       {
         onSuccess: (volunteer) => {
-          qc.setQueryData(getListVolunteersQueryKey({}), (current: any) => {
-            const items = Array.isArray(current) ? current : [];
-            return [volunteer, ...items.filter((item: any) => item.id !== volunteer.id)];
-          });
-          void qc.invalidateQueries({ queryKey: ["/api/volunteers"] });
-          void qc.invalidateQueries({ queryKey: getGetFeaturedVolunteersQueryKey() });
+          // The volunteer registry is private to administration. Never populate a public cache.
           setOpen(false);
           setForm({ userName: nickname, location: "", availability: "weekends", bio: "" });
           setSelectedSkills([]);
           setContactMethods(initialContactMethods());
-          toast({ title: "Thank you!", description: "You have been registered as a volunteer." });
+          toast({ title: "Application received", description: "Your private volunteer registration is available to Gavhah staff only." });
         },
         onError: (error: any) => toast({
           title: "Could not register",
@@ -670,7 +666,7 @@ function SubmitRequestDialog() {
           setContactMethods(initialContactMethods());
           toast({
             title: "Request submitted for review",
-            description: "It is private until Gavhah staff approves it for the public directory.",
+            description: "Your request stays private. Gavhah staff will review and look for a suitable helper.",
           });
         },
         onError: () => toast({ title: "Could not submit request", description: "Please check the form and try again.", variant: "destructive" }),
@@ -1117,194 +1113,56 @@ function ProjectCard({ project }: { project: any }) {
   );
 }
 
-// ---- Main Page ----
+// ---- Confidential intake only: no applicant lists on the website ----
 export default function Directory() {
-  const [volSearch, setVolSearch] = useState("");
-  const [reqType, setReqType] = useState("");
-  const [projectType, setProjectType] = useState("all");
-
-  const volParams = { search: volSearch || undefined };
-  const reqParams = { type: reqType || undefined };
-  const projParams = { type: projectType === "all" ? undefined : projectType };
-
-  const { data: volunteers, isLoading: volLoading } = useListVolunteers(volParams, { query: { queryKey: getListVolunteersQueryKey(volParams) } });
-  const { data: requests, isLoading: reqLoading } = useListHelpRequests(reqParams, { query: { queryKey: getListHelpRequestsQueryKey(reqParams) } });
-  const { data: featuredVols } = useGetFeaturedVolunteers({ query: { queryKey: getGetFeaturedVolunteersQueryKey() } });
-  const { data: featuredReqs } = useGetFeaturedRequests({ query: { queryKey: getGetFeaturedRequestsQueryKey() } });
-  const { data: projects, isLoading: projLoading } = useListCommunityProjects(projParams, { query: { queryKey: getListCommunityProjectsQueryKey(projParams) } });
-
-  const NEED_TYPES = [
-    { value: "", label: "All" }, { value: "medical", label: "Medical" },
-    { value: "wedding", label: "Wedding" }, { value: "food", label: "Food" },
-    { value: "housing", label: "Housing" }, { value: "transportation", label: "Transport" },
-    { value: "financial", label: "Financial" },
-  ];
-
-  return (
-    <Layout>
-      {/* Header */}
-      <div className="bg-gradient-to-br from-primary/5 to-secondary/5 border-b">
-        <div className="container mx-auto px-4 py-12">
-          <h1 className="font-serif text-4xl font-bold text-primary mb-2">Activists Directory</h1>
-          <p className="text-muted-foreground font-serif italic">
-            Volunteers, help requests, and community-led projects — all in one place.
+  const {lang}=useLanguage(),yi=lang==="yi";
+  const {isAuthenticated,isLoaded}=useAuth();
+  return <Layout>
+    <div className="bg-gradient-to-br from-primary/5 to-secondary/5 border-b">
+      <div className="container mx-auto max-w-4xl px-4 py-12 text-center">
+        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-primary">
+          {yi ? "גבהה — פריוואטע הילף און עסקנות" : "Gavhah — Private Assistance"}
+        </h1>
+        <p className="text-muted-foreground mt-3 leading-relaxed">
+          {yi ? "דארפסטו הילף, אדער ווילסטו העלפן אנדערע? שיק אריין א פריוואטע בקשה. די מערכת זוכט פאסיגע עסקנים און פירט די גאנצע פארבינדונג. קיין בקשות אדער עסקנים־ליסטעס ווערן נישט פובליק געמאכט." :
+            "Need help or want to assist others? Submit a confidential request. Gavhah staff will find a suitable person and manage the introduction. No member, volunteer, or help-request list is published."}
+        </p>
+      </div>
+    </div>
+    <div className="container mx-auto px-4 py-10 max-w-4xl space-y-6">
+      <div className="grid md:grid-cols-2 gap-4">
+        <section className="border rounded-xl bg-card p-6 space-y-4">
+          <div className="flex gap-2 items-center text-primary">
+            <HandHeart className="h-7 w-7"/><h2 className="font-serif font-bold text-xl">
+              {yi ? "איך דארף הילף" : "I Need Help"}
+            </h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {yi ? "נאר די מערכת זעט דיין בקשה. מיר זוכן פאר דיר א פאסיגן עסקן אין אונזער פריוואטער ליסטע. די בקשה גייט נישט ארויף אויפן וועבסייט." :
+              "Only Gavhah staff will review your request and search the private volunteer registry. Nothing you submit is published."}
           </p>
-          <p className="text-xs text-muted-foreground mt-2">All names shown are nicknames to protect privacy.</p>
-        </div>
+          {isLoaded && (isAuthenticated ? <SubmitRequestDialog/> :
+            <MemberGate gate="help" action="submit a help request"/>)}
+        </section>
+        <section className="border rounded-xl bg-card p-6 space-y-4">
+          <div className="flex gap-2 items-center text-primary">
+            <Users className="h-7 w-7"/><h2 className="font-serif font-bold text-xl">
+              {yi ? "איך וויל העלפן" : "I Want to Help"}
+            </h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {yi ? "גיב אן דיינע קענטענישן און ווען דו ביסט אוועילעבל. נאר די מערכת וועט דאס זען און דיך אנפרעגן אויב זי געפינט א פאסיגן פאל." :
+              "Privately provide your skills, area and availability. Only Gavhah staff sees your application and will approach you about a suitable case."}
+          </p>
+          {isLoaded && (isAuthenticated ? <RegisterVolunteerDialog/> :
+            <MemberGate gate="volunteer" action="register as a volunteer"/>)}
+        </section>
       </div>
-
-      <div className="container mx-auto px-4 py-10">
-        <Tabs defaultValue="volunteers" className="space-y-8">
-          <TabsList className="bg-muted/50 h-auto p-1">
-            <TabsTrigger value="volunteers" className="gap-2 px-5 py-2.5">
-              <Users className="h-4 w-4" /> Volunteers
-              {volunteers && <span className="ml-1 text-xs text-muted-foreground">({volunteers.length})</span>}
-            </TabsTrigger>
-            <TabsTrigger value="requests" className="gap-2 px-5 py-2.5">
-              <HandHeart className="h-4 w-4" /> Help Requests
-              {requests && <span className="ml-1 text-xs text-muted-foreground">({requests.length})</span>}
-            </TabsTrigger>
-            <TabsTrigger value="projects" className="gap-2 px-5 py-2.5">
-              <FolderKanban className="h-4 w-4" /> Community Projects
-              {projects && <span className="ml-1 text-xs text-muted-foreground">({projects.length})</span>}
-            </TabsTrigger>
-          </TabsList>
-
-          {/* ---- Volunteers Tab ---- */}
-          <TabsContent value="volunteers" className="space-y-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-10 h-11" placeholder="Search volunteers by name..." value={volSearch} onChange={e => setVolSearch(e.target.value)} />
-              </div>
-              <RegisterVolunteerDialog />
-            </div>
-
-            {featuredVols && featuredVols.length > 0 && !volSearch && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Star className="h-4 w-4 text-accent fill-accent" />
-                  <h3 className="font-serif font-bold text-primary">Featured Volunteers</h3>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {featuredVols.map((vol: any) => <VolunteerCard key={vol.id} vol={vol} />)}
-                </div>
-                <hr />
-              </div>
-            )}
-
-            {volLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="bg-card border rounded-xl p-5 space-y-3">
-                    <div className="flex gap-3"><Skeleton className="w-12 h-12 rounded-full" /><div className="flex-1 space-y-2"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-3 w-1/2" /></div></div>
-                    <Skeleton className="h-3 w-full" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {volunteers?.map((vol: any) => <VolunteerCard key={vol.id} vol={vol} />)}
-                {volunteers?.length === 0 && (
-                  <div className="col-span-full text-center py-16 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">
-                    No volunteers yet. Be the first to register!
-                  </div>
-                )}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* ---- Help Requests Tab ---- */}
-          <TabsContent value="requests" className="space-y-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex gap-2 flex-wrap flex-1">
-                {NEED_TYPES.map(t => (
-                  <Button key={t.value} variant={reqType === t.value ? "default" : "outline"} size="sm" className="rounded-full" onClick={() => setReqType(t.value)}>
-                    {t.label}
-                  </Button>
-                ))}
-              </div>
-              <SubmitRequestDialog />
-            </div>
-
-            {featuredReqs && featuredReqs.length > 0 && !reqType && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-destructive" />
-                  <h3 className="font-serif font-bold text-primary">Urgent Needs</h3>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {featuredReqs.map((req: any) => <HelpRequestCard key={req.id} req={req} />)}
-                </div>
-                <hr />
-              </div>
-            )}
-
-            {reqLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {[...Array(4)].map((_, i) => <div key={i} className="bg-card border rounded-xl p-5 space-y-3"><Skeleton className="h-5 w-1/2" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-3/4" /></div>)}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {requests?.map((req: any) => <HelpRequestCard key={req.id} req={req} />)}
-                {requests?.length === 0 && (
-                  <div className="col-span-full text-center py-16 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">
-                    No help requests at the moment.
-                  </div>
-                )}
-              </div>
-            )}
-          </TabsContent>
-
-          {/* ---- Community Projects Tab ---- */}
-          <TabsContent value="projects" className="space-y-6">
-            {/* Sub-header */}
-            <div className="bg-muted/30 rounded-xl p-5 border">
-              <h2 className="font-serif text-xl font-bold text-primary mb-1">Community Projects & Initiatives</h2>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Activists create projects, campaigns, and programs for the community to join.
-                Browse what is underway and volunteer your time, skills, or support.
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              {/* Type filters */}
-              <div className="flex gap-2 flex-wrap">
-                {PROJECT_TYPES.map(t => (
-                  <Button
-                    key={t.value}
-                    variant={projectType === t.value ? "default" : "outline"}
-                    size="sm"
-                    className="rounded-full gap-1.5"
-                    onClick={() => setProjectType(t.value)}
-                  >
-                    <t.icon className="h-3.5 w-3.5" /> {t.label}
-                  </Button>
-                ))}
-              </div>
-              <CreateProjectDialog />
-            </div>
-
-            {projLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-56 rounded-xl" />)}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {projects?.map((p: any) => <ProjectCard key={p.id} project={p} />)}
-                {projects?.length === 0 && (
-                  <div className="col-span-full text-center py-20 border-2 border-dashed rounded-xl bg-muted/10 text-muted-foreground">
-                    <FolderKanban className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                    <p className="font-serif italic text-lg">No projects yet.</p>
-                    <p className="text-sm mt-1">Be the first activist to create a community project.</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </TabsContent>
-
-        </Tabs>
+      <div className="rounded-xl border p-4 text-sm text-muted-foreground space-y-2 bg-muted/10">
+        <p className="font-semibold text-primary">{yi ? "וויכטיג וועגן פריוואטקייט" : "Your privacy matters"}</p>
+        <p>{yi ? "פארבינדונגען ווערן געהאנדלט בלויז דורך גבהה. דער בעטער און דער עסקן דארפן ביידע מסכים זיין; דערנאך מוז די מערכת געבן א באזונדערע לעצטע ערלויבעניש איידער פרטים ווערן איבערגעגעבן." :
+          "Introductions are coordinated by Gavhah only. Both participants must personally consent, followed by separate final Gavhah authorization, before any contact details are shared."}</p>
       </div>
-    </Layout>
-  );
+    </div>
+  </Layout>;
 }
