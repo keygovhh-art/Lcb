@@ -30,7 +30,7 @@ import { ContactMethodPicker, initialContactMethods, type ContactMethodsForm } f
 
 // ---- Constants ----
   const contactReady = (contact: ContactMethodsForm) =>
-    contact.primaryValue.trim() && (!contact.backupMethod || (contact.backupValue||"").trim());
+    contact.primaryValue.trim() && !!contact.mayConsiderSharing && (!contact.backupMethod || (contact.backupValue||"").trim());
 const URGENCY_MAP: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   critical: { label: "Critical", color: "destructive", icon: <AlertTriangle className="h-3 w-3" /> },
   high: { label: "High", color: "secondary", icon: <AlertCircle className="h-3 w-3" /> },
