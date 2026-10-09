@@ -167,6 +167,7 @@ function VolunteerCard({ vol }: { vol: any }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "volunteer_contact",
+          volunteerId: vol.id,
           subject: `Volunteer contact request: ${vol.userName}`,
           message: `Member requested contact with volunteer #${vol.id} (${vol.userName}) in ${vol.location}.`,
         }),
