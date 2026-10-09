@@ -27,6 +27,7 @@ import { FeaturedCauseManagement } from "@/components/admin/featured-cause-manag
 import { SiteCopyManagement } from "@/components/admin/site-copy-management";
 import { OperationsInbox } from "@/components/admin/operations-inbox";
 import { EngagementManagement } from "@/components/admin/engagement-management";
+import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 
 function reportContentPath(type: string, id: number) {
   if (type === "news") return `/news/${id}`;
@@ -911,10 +912,23 @@ export default function FounderDashboard() {
           </TabsContent>
 
           {/* ─── Announcements ─── */}
-          <TabsContent value="announcements" className="space-y-6">
-            <h2 className="font-serif text-2xl font-bold text-primary">Announcements</h2>
-            <div className="bg-card border rounded-xl p-6">
-              <h3 className="font-semibold text-foreground mb-4">Create Announcement</h3>
+          <TabsContent value="announcements" className="space-y-8">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-primary">Announcements</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Manage pinned home announcements linked to official News posts, plus general platform announcements.
+              </p>
+            </div>
+
+            <PinnedAnnouncementManagement />
+
+            <div className="border-t pt-8">
+              <h3 className="font-serif text-xl font-bold text-primary">General Platform Announcements</h3>
+              <p className="text-sm text-muted-foreground mt-1 mb-5">
+                These legacy announcements are not automatically pinned to the home bar. Use the pinned manager above for the home announcement strip.
+              </p>
+              <div className="bg-card border rounded-xl p-6">
+              <h3 className="font-semibold text-foreground mb-4">Create General Announcement</h3>
               <form className="space-y-4" onSubmit={e => {
                 e.preventDefault();
                 if (!annTitle || !annContent) return;
@@ -985,8 +999,9 @@ export default function FounderDashboard() {
               </div>
             ))}
             {announcements?.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground font-serif italic border rounded-xl bg-muted/20">No announcements yet.</div>
+              <div className="text-center py-8 text-muted-foreground font-serif italic border rounded-xl bg-muted/20">No general announcements yet.</div>
             )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
