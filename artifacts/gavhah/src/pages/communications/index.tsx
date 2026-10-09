@@ -89,7 +89,7 @@ export default function Communications() {
         </div>
       </div>
 
-      <MemberGate action="access the communications platform">
+      <MemberGate gate="communications" action="access the communications platform">
       <div className="container mx-auto px-4 py-10">
         {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
