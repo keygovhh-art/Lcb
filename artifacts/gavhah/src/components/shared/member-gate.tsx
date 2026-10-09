@@ -98,7 +98,9 @@ export function MemberGate({ children, gate = "general" }:
   },[gate,selectedLang]);
   if (!isLoaded) return null;
   if (user) return <>{children}</>;
-  const returnTo = location && location.startsWith("/") && !location.startsWith("//") ? location : "/";
+  // Preserve the /yi language prefix and current section after joining.
+  const currentPath = typeof window !== "undefined" ? window.location.pathname : location;
+  const returnTo = currentPath && currentPath.startsWith("/") && !currentPath.startsWith("//") ? currentPath : "/";
   return <div className="w-full max-w-4xl mx-auto my-4" data-membership-gate={gate}>
     <GateWelcome design={design} returnTo={returnTo} />
   </div>;
