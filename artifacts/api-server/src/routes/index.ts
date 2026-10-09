@@ -24,6 +24,7 @@ import searchRouter from "./search";
 import siteCopyRouter from "./site-copy";
 import systemErrorsRouter from "./system-errors";
 import engagementRouter from "./engagement";
+import pinnedAnnouncementsRouter from "./pinned-announcements";
 
 const router: IRouter = Router();
 
