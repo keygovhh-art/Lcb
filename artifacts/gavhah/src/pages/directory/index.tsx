@@ -1113,6 +1113,48 @@ function ProjectCard({ project }: { project: any }) {
   );
 }
 
+// ---- Public community projects / campaigns / initiatives / programs ----
+// This section is NOT the confidential help or volunteer registry.
+function CommunityProjectsContent() {
+  const [projectType,setProjectType]=useState("all");
+  const projParams={type:projectType==="all"?undefined:projectType};
+  const {data:projects,isLoading}=useListCommunityProjects(projParams,{
+    query:{queryKey:getListCommunityProjectsQueryKey(projParams)},
+  });
+  return <section id="community-projects" className="space-y-6 scroll-mt-20">
+    <div className="rounded-xl border bg-muted/20 p-5 space-y-2">
+      <div className="flex items-center gap-2">
+        <FolderKanban className="h-6 w-6 text-primary" />
+        <h2 className="font-serif text-2xl font-bold text-primary">Community Projects, Campaigns & Programs</h2>
+      </div>
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        Create and manage community projects, campaigns, initiatives and programs.
+        Browse what is underway, see the goals, join, volunteer your time or offer support.
+        This public project area is separate from private assistance applications.
+      </p>
+    </div>
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap gap-2">
+        {PROJECT_TYPES.map(t=><Button key={t.value} size="sm" className="rounded-full gap-1.5"
+          variant={projectType===t.value?"default":"outline"} onClick={()=>setProjectType(t.value)}>
+          <t.icon className="h-3.5 w-3.5" />{t.label}
+        </Button>)}
+      </div>
+      <CreateProjectDialog/>
+    </div>
+    {isLoading ? <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {[...Array(4)].map((_,i)=><Skeleton key={i} className="h-56 rounded-xl" />)}
+    </div> : <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {projects?.map((p:any)=><ProjectCard key={p.id} project={p}/>)}
+      {projects?.length===0&&<div className="col-span-full text-center py-16 border-2 border-dashed rounded-xl bg-muted/10">
+        <FolderKanban className="h-10 w-10 mx-auto mb-3 text-muted-foreground"/>
+        <p className="font-serif italic text-lg">No projects yet.</p>
+        <p className="text-sm text-muted-foreground">Start a campaign, program or project for your community.</p>
+      </div>}
+    </div>}
+  </section>;
+}
+
 // ---- Confidential intake only: no applicant lists on the website ----
 export default function Directory() {
   const {lang}=useLanguage(),yi=lang==="yi";
@@ -1163,34 +1205,16 @@ export default function Directory() {
         <p>{yi ? "פארבינדונגען ווערן געהאנדלט בלויז דורך גבהה. דער בעטער און דער עסקן דארפן ביידע מסכים זיין; דערנאך מוז די מערכת געבן א באזונדערע לעצטע ערלויבעניש איידער פרטים ווערן איבערגעגעבן." :
           "Introductions are coordinated by Gavhah only. Both participants must personally consent, followed by separate final Gavhah authorization, before any contact details are shared."}</p>
       </div>
-    </div>
+
+      <CommunityProjectsContent />    </div>
   </Layout>;
 }
 
-/** Community projects are a separate feature, not a directory of help-seekers or volunteers. */
+/** Dedicated URL for the same complete project and campaign center. */
 export function CommunityProjectsPage(){
-  const [projectType,setProjectType]=useState("all");
-  const projParams={type:projectType==="all"?undefined:projectType};
-  const {data:projects,isLoading}=useListCommunityProjects(projParams,{
-    query:{queryKey:getListCommunityProjectsQueryKey(projParams)},
-  });
   return <Layout>
-    <section className="container mx-auto max-w-5xl px-4 py-10 space-y-6">
-      <h1 className="text-3xl font-serif font-bold text-primary">Community Projects & Initiatives</h1>
-      <p className="text-sm text-muted-foreground">
-        Community projects are separate from Gavhah's strictly confidential volunteer and private-assistance system.
-        No private help requests or volunteer applications are displayed here.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {PROJECT_TYPES.map(t=><Button key={t.value} size="sm"
-          variant={projectType===t.value?"default":"outline"}
-          onClick={()=>setProjectType(t.value)}><t.icon className="h-4 w-4 me-1"/>{t.label}</Button>)}
-      </div>
-      <CreateProjectDialog/>
-      <div className="grid md:grid-cols-2 gap-4">
-        {isLoading?<p>Loading projects...</p>:
-          projects?.map((p:any)=><ProjectCard key={p.id} project={p}/>)}
-      </div>
-    </section>
+    <div className="container mx-auto max-w-5xl px-4 py-10">
+      <CommunityProjectsContent/>
+    </div>
   </Layout>;
 }
