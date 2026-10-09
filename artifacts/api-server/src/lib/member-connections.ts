@@ -23,6 +23,7 @@ export type ConnectionState = {
   closedAt: string | null;
   closureReason: string | null;
   contactIssue: string | null;
+  contactFollowups: Array<{ note: string; actorId: number; at: string }>;
   updatedBy: number | null;
 };
 
@@ -40,6 +41,7 @@ export function newConnectionState(input: {
     closedAt: null,
     closureReason: null,
     contactIssue: null,
+    contactFollowups: [],
     updatedBy: null,
   };
 }
@@ -64,6 +66,10 @@ function parseConnectionState(raw: string): ConnectionState | null {
       closedAt: typeof value.closedAt === "string" ? value.closedAt : null,
       closureReason: typeof value.closureReason === "string" ? value.closureReason : null,
       contactIssue: typeof value.contactIssue === "string" ? value.contactIssue : null,
+      contactFollowups: Array.isArray(value.contactFollowups)
+        ? value.contactFollowups.filter((entry: any) => entry && typeof entry.note === "string" &&
+          Number.isSafeInteger(entry.actorId) && typeof entry.at === "string").slice(-50)
+        : [],
       updatedBy: Number.isSafeInteger(value.updatedBy) ? value.updatedBy : null,
     };
   } catch { return null; }
