@@ -24,6 +24,9 @@ export type ConnectionState = {
   closureReason: string | null;
   contactIssue: string | null;
   contactFollowups: Array<{ note: string; actorId: number; at: string }>;
+  consentMethod: "in_app" | "staff_verified_phone" | "staff_verified_in_person" | null;
+  consentNote: string | null;
+  consentVerifiedBy: number | null;
   updatedBy: number | null;
 };
 
@@ -42,6 +45,9 @@ export function newConnectionState(input: {
     closureReason: null,
     contactIssue: null,
     contactFollowups: [],
+    consentMethod: null,
+    consentNote: null,
+    consentVerifiedBy: null,
     updatedBy: null,
   };
 }
@@ -70,6 +76,10 @@ function parseConnectionState(raw: string): ConnectionState | null {
         ? value.contactFollowups.filter((entry: any) => entry && typeof entry.note === "string" &&
           Number.isSafeInteger(entry.actorId) && typeof entry.at === "string").slice(-50)
         : [],
+      consentMethod: ["in_app", "staff_verified_phone", "staff_verified_in_person"].includes(value.consentMethod)
+        ? value.consentMethod : null,
+      consentNote: typeof value.consentNote === "string" ? value.consentNote : null,
+      consentVerifiedBy: Number.isSafeInteger(value.consentVerifiedBy) ? value.consentVerifiedBy : null,
       updatedBy: Number.isSafeInteger(value.updatedBy) ? value.updatedBy : null,
     };
   } catch { return null; }
