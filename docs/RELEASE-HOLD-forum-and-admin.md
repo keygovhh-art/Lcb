@@ -25,7 +25,7 @@
    - Failed attempts return to admin workflow for follow-up; unsuccessful cases have a separate outcome with explanation.
    - Historical unlinked requests need manual volunteer-ID validation before proceeding.
 4. Other help cases
-   - An approved public help request stays OPEN in operations until assistance is actually delivered and documented.
+   - An accepted PRIVATE help request stays OPEN in operations until assistance is actually delivered and documented. It is never publicly listed.
    - Staff closure saves audit notes; super-admin permissions supported.
 
 ## Pre-release QA — REQUIRED, not yet run on live Render
@@ -41,7 +41,7 @@
 - [ ] Check concurrent submit/confirm/close requests for races and duplicate notifications.
 - [ ] Test closing unsuccessful cases separately from successful ones and inspect audit history.
 - [ ] Test generic support close only after an action note, including the alternate Support tab.
-- [ ] Test help request pending→public/open→fulfilled, including audit note and notifications.
+- [ ] Test help request pending→private staff follow-up/open→fulfilled, including audit note and private notifications; no publication.
 - [ ] Review real Render service, connected DB, production environment values and backup plan before any deployment.
 - [ ] Smoke-test every affected page on Android after owner approves a batch release.
 
