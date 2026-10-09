@@ -1,6 +1,7 @@
-import { Link } from "wouter";
+import { useState } from "react";
+import { useLocation } from "wouter";
 import {
-  useListNotifications, useMarkNotificationRead, useMarkAllNotificationsRead,
+  useListNotifications,
   getListNotificationsQueryKey, getGetUnreadNotificationCountQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -11,6 +12,7 @@ import { Bell, CheckCheck, MessageSquare, Heart, Users, Megaphone, Star, ArrowRi
 import { format } from "date-fns";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
+import { useToast } from "@/hooks/use-toast";
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
   comment: <MessageSquare className="h-4 w-4" />,
@@ -26,32 +28,101 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
 
 export default function NotificationsPage() {
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
   const { isAuthenticated, isLoaded } = useAuth();
   const { data: notifications, isLoading } = useListNotifications({
     query: { queryKey: getListNotificationsQueryKey(), enabled: isAuthenticated }
   });
 
-  const markRead = useMarkNotificationRead();
-  const markAll = useMarkAllNotificationsRead();
+  const [pendingIds, setPendingIds] = useState<Set<number>>(new Set());
+  const [markingAll, setMarkingAll] = useState(false);
 
   const unreadCount = notifications?.filter(n => !n.isRead).length ?? 0;
 
-  const handleMarkRead = (id: number) => {
-    markRead.mutate({ id }, {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
-        qc.invalidateQueries({ queryKey: getGetUnreadNotificationCountQueryKey() });
-      }
+  const setUnreadCache = (nextNotifications: any[]) => {
+    qc.setQueryData(getListNotificationsQueryKey(), nextNotifications);
+    qc.setQueryData(getGetUnreadNotificationCountQueryKey(), {
+      count: nextNotifications.filter(n => !n.isRead).length,
     });
   };
 
-  const handleMarkAll = () => {
-    markAll.mutate(undefined, {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
-        qc.invalidateQueries({ queryKey: getGetUnreadNotificationCountQueryKey() });
+  const handleMarkRead = async (id: number): Promise<boolean> => {
+    if (pendingIds.has(id)) return false;
+    const previous = Array.isArray(notifications) ? notifications : [];
+    const optimistic = previous.map(n => n.id === id ? { ...n, isRead: true } : n);
+    setUnreadCache(optimistic);
+    setPendingIds(current => new Set(current).add(id));
+
+    try {
+      const res = await fetch(`/api/notifications/${id}/read`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Could not mark notification read (${res.status})`);
       }
-    });
+      return true;
+    } catch (error) {
+      setUnreadCache(previous);
+      toast({
+        title: "Could not update notification",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setPendingIds(current => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+      void qc.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
+      void qc.invalidateQueries({ queryKey: getGetUnreadNotificationCountQueryKey() });
+    }
+  };
+
+  const handleMarkAll = async () => {
+    if (markingAll || unreadCount === 0) return;
+    const previous = Array.isArray(notifications) ? notifications : [];
+    setUnreadCache(previous.map(n => ({ ...n, isRead: true })));
+    setMarkingAll(true);
+
+    try {
+      const res = await fetch("/api/notifications/read-all", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Could not mark notifications read (${res.status})`);
+      }
+      toast({ title: "All notifications marked read" });
+    } catch (error) {
+      setUnreadCache(previous);
+      toast({
+        title: "Could not mark all read",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setMarkingAll(false);
+      void qc.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
+      void qc.invalidateQueries({ queryKey: getGetUnreadNotificationCountQueryKey() });
+    }
+  };
+
+  const handleView = async (notif: any) => {
+    if (!notif.linkUrl) return;
+    if (!notif.isRead) {
+      const ok = await handleMarkRead(notif.id);
+      if (!ok) return;
+    }
+    const target = String(notif.linkUrl);
+    if (target.startsWith("/") && !target.startsWith("//")) navigate(target);
   };
 
   if (isLoaded && !isAuthenticated) {
@@ -79,7 +150,7 @@ export default function NotificationsPage() {
               </div>
             </div>
             {unreadCount > 0 && (
-              <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={handleMarkAll} disabled={markAll.isPending}>
+              <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={() => void handleMarkAll()} disabled={markingAll}>
                 <CheckCheck className="h-4 w-4" />
                 Mark all read
               </Button>
@@ -127,18 +198,23 @@ export default function NotificationsPage() {
                   </span>
                   {!notif.isRead && (
                     <button
-                      onClick={() => handleMarkRead(notif.id)}
-                      className="text-xs text-primary hover:underline"
+                      type="button"
+                      onClick={() => void handleMarkRead(notif.id)}
+                      disabled={pendingIds.has(notif.id)}
+                      className="text-xs text-primary hover:underline disabled:opacity-50"
                     >
                       Mark read
                     </button>
                   )}
                   {notif.linkUrl && (
-                    <Link href={notif.linkUrl}>
-                      <span className="text-xs text-primary hover:underline flex items-center gap-1 cursor-pointer">
-                        View <ArrowRight className="h-3 w-3" />
-                      </span>
-                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => void handleView(notif)}
+                      disabled={pendingIds.has(notif.id)}
+                      className="text-xs text-primary hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      View <ArrowRight className="h-3 w-3" />
+                    </button>
                   )}
                 </div>
               </div>
