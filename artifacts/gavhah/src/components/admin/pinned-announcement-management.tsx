@@ -46,8 +46,8 @@ function toIsoOrNull(value: string) {
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
 
-function displayTitle(pin: PinItem) {
-  return pin.headline || pin.news?.title || "Pinned announcement";
+function displayTitle(pin: PinItem, newsTitle?: string) {
+  return pin.headline || newsTitle || pin.news?.title || "Pinned announcement";
 }
 
 export function PinnedAnnouncementManagement() {
@@ -372,6 +372,7 @@ export function PinnedAnnouncementManagement() {
       <div className="space-y-3">
         {pins.map(pin => {
           const draft = editing[pin.id] || pin;
+          const draftNews = news.find(item => item.id === draft.newsId) ?? pin.news;
           return (
             <div key={pin.id} className="rounded-2xl border bg-card p-5">
               <div className="flex flex-col xl:flex-row xl:items-start gap-4">
@@ -464,7 +465,7 @@ export function PinnedAnnouncementManagement() {
                         {draft.label || "Announcement"}
                       </span>
                       <p className="min-w-0 flex-1 truncate text-sm">
-                        <span className="font-medium">{displayTitle(draft)}</span>
+                        <span className="font-medium">{displayTitle(draft, draftNews?.title)}</span>
                         {draft.summary ? <span className="text-muted-foreground"> — {draft.summary}</span> : null}
                       </p>
                     </div>
@@ -490,7 +491,7 @@ export function PinnedAnnouncementManagement() {
                   <Button
                     type="button"
                     size="sm"
-                    disabled={busyId === pin.id || !draft.news}
+                    disabled={busyId === pin.id || !draftNews}
                     onClick={() => void patch(pin.id)}
                     className="gap-1.5"
                   >
@@ -498,7 +499,7 @@ export function PinnedAnnouncementManagement() {
                     {busyId === pin.id ? "Saving..." : "Save"}
                   </Button>
 
-                  {draft.news && (
+                  {draftNews && (
                     <a href={`/news/${draft.newsId}`} target="_blank" rel="noreferrer">
                       <Button type="button" variant="outline" size="sm" className="w-full gap-1.5">
                         <ExternalLink className="h-3.5 w-3.5" /> Open News
