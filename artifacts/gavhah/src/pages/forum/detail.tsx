@@ -327,7 +327,7 @@ export default function ForumDetail() {
           </div>
 
           {replyParentId === comment.id && forumEngagement.replyMode !== "off" && (
-            <MemberGate action="reply to this comment" compact={!user}>
+            <MemberGate gate="forum" action="reply to this comment" compact={!user}>
               <div className="mt-3 rounded-lg border bg-muted/20 p-3">
                 <Textarea
                   value={nestedReply}
@@ -483,7 +483,7 @@ export default function ForumDetail() {
             </div>
 
             {!discussion.isLocked && forumEngagement.replyMode !== "off" && (
-              <MemberGate action="leave a reply" compact={!user}>
+              <MemberGate gate="forum" action="leave a reply" compact={!user}>
                 <div className="bg-card border rounded-xl p-6 shadow-sm">
                   <h3 className="font-serif font-bold text-primary mb-2">Leave a Reply</h3>
                   {forumEngagement.replyMode === "review" && (
