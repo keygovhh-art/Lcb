@@ -5,7 +5,7 @@ import { requireAdmin, getSessionUserId } from "../middlewares/auth";
 
 const router: IRouter = Router();
 const TYPE = "__membership_gate_config__";
-const SECTIONS = new Set(["forum","volunteer","help","projects","groups","connections","general"]);
+const SECTIONS = new Set(["forum","volunteer","help","projects","groups","connections","communications","minyans","united","profile","general"]);
 const LANGS = new Set(["yi", "en"]);
 const THEMES = new Set(["warm", "gold", "blue", "plain"]);
 const LAYOUTS = new Set(["centered","split","minimal"]);
@@ -39,6 +39,10 @@ const fallback = (section: string, lang: string): GateDesign => {
     projects: ["קהילה פראיעקטן", "Community Projects"],
     groups: ["גרופעס", "Member Groups"],
     connections: ["פארבינדונגען", "Member Connections"],
+    communications: ["קאמוניקאציע", "Communications"],
+    minyans: ["מנינים", "Minyan Directory"],
+    united: ["אחדות און חסד", "United In Kindness"],
+    profile: ["מיין פראפיל", "My Profile"],
     general: ["מעמבער־צוטריט", "Member Access"],
   };
   const name = subject[section] || subject.general;
