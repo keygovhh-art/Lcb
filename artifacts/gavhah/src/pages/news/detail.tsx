@@ -177,12 +177,12 @@ function ArticleBody({ article }: { article: any }) {
   };
 
   return (
-    <article>
+    <article className="w-full max-w-full min-w-0 overflow-hidden">
       <div className="mb-8">
         <Badge className="bg-secondary/10 text-secondary border-secondary/20 mb-4">
           {CATEGORY_LABELS[article.category] || article.category}
         </Badge>
-        <h1 className="font-serif text-4xl md:text-5xl font-bold text-primary leading-tight mb-6">
+        <h1 className="max-w-full break-words [overflow-wrap:anywhere] font-serif text-4xl md:text-5xl font-bold text-primary leading-tight mb-6">
           {article.title}
         </h1>
 
@@ -254,12 +254,12 @@ function ArticleBody({ article }: { article: any }) {
       )}
 
       {article.summary && (
-        <p className="font-serif text-xl italic text-muted-foreground border-l-4 border-accent pl-6 mb-8 leading-relaxed">
+        <p className="max-w-full break-words [overflow-wrap:anywhere] font-serif text-xl italic text-muted-foreground border-l-4 border-accent pl-6 mb-8 leading-relaxed">
           {article.summary}
         </p>
       )}
 
-      <div className="text-foreground leading-relaxed text-lg space-y-4">
+      <div className="max-w-full min-w-0 break-words [overflow-wrap:anywhere] text-foreground leading-relaxed text-lg space-y-4">
         {article.content.split("\n").filter(Boolean).map((para: string, i: number) => (
           <p key={i}>{para}</p>
         ))}
