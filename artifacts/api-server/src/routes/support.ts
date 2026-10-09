@@ -8,6 +8,25 @@ import { createRateLimiter } from "../middlewares/rate-limit";
 import { notifyStaff } from "../lib/notify";
 
 const router: IRouter = Router();
+// Prevent a third-party page from approving contacts or editing private
+// contact details via a member's authenticated session.
+router.use((req,res,next)=>{
+  if (["GET","HEAD","OPTIONS"].includes(req.method)) return next();
+  if (req.get("sec-fetch-site") === "cross-site") {
+    res.status(403).json({error:"Cross-site changes are not allowed"});return;
+  }
+  const origin=req.get("origin");
+  if (!origin) return next(); // non-browser clients; still require a valid session
+  try{
+    if (new URL(origin).host !== req.get("host")) {
+      res.status(403).json({error:"Invalid request origin"});return;
+    }
+  }catch{
+    res.status(403).json({error:"Invalid request origin"});return;
+  }
+  next();
+});
+
 
 const publicSupportLimiter = createRateLimiter({
   name: "support",
