@@ -70,6 +70,7 @@ export default function FounderDashboard() {
   const [supportResolutionNotes, setSupportResolutionNotes] = useState<Record<number, string>>({});
   const [adminReservations, setAdminReservations] = useState<any[]>([]);
   const [adminHelpRequests, setAdminHelpRequests] = useState<any[]>([]);
+  const [helpResolutionNotes, setHelpResolutionNotes] = useState<Record<number, string>>({});
   const [causeActivity, setCauseActivity] = useState<any[]>([]);
 
 
@@ -550,24 +551,43 @@ export default function FounderDashboard() {
                       </>
                     )}
                     {req.status === "open" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          const res = await fetch(`/api/help-requests/${req.id}`, {
-                            method: "PATCH",
-                            credentials: "include",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ status: "resolved", isFeatured: req.isFeatured }),
-                          });
-                          if (res.ok) {
-                            await loadAdminHelpRequests();
-                            void qc.invalidateQueries({ queryKey: ["/api/help-requests"] });
-                          }
-                        }}
-                      >
-                        <CheckCircle className="h-3.5 w-3.5 mr-1" /> Mark Resolved
-                      </Button>
+                      <div className="w-full sm:max-w-xs space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          {yi ? "די בקשה איז שוין פובליק. שרייב וועלכע הילף איז טאקע געגעבן געווארן איידער דו פארמאכסט דעם פאל." :
+                            "This request is already public. Record what help was actually delivered before closing."}
+                        </p>
+                        <Textarea rows={2}
+                          value={helpResolutionNotes[req.id] || ""}
+                          onChange={e => setHelpResolutionNotes(prev => ({ ...prev, [req.id]: e.target.value }))}
+                          placeholder={yi ? "וואס איז פאקטיש געהאלפן געווארן?" : "What assistance was delivered?"}
+                        />
+                        <Button size="sm" variant="outline"
+                          disabled={(helpResolutionNotes[req.id] || "").trim().length < 10}
+                          onClick={async () => {
+                            if (!window.confirm(yi
+                              ? "איז די הילף טאקע געגעבן געווארן? דער פאל וועט ווערן פארמאכט."
+                              : "Was real help delivered? This will mark the case fulfilled.")) return;
+                            const res = await fetch(`/api/help-requests/${req.id}`, {
+                              method: "PATCH", credentials: "include",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                status: "resolved", isFeatured: req.isFeatured,
+                                resolutionNote: helpResolutionNotes[req.id].trim(),
+                              }),
+                            });
+                            if (res.ok) {
+                              await loadAdminHelpRequests();
+                              void qc.invalidateQueries({ queryKey: ["/api/help-requests"] });
+                            } else {
+                              const error = await res.json().catch(() => ({}));
+                              toast({ title: error.error || "Could not complete help request", variant: "destructive" });
+                            }
+                          }}
+                        >
+                          <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                          {yi ? "באשטעטיג אז די הילף איז געגעבן" : "Confirm real assistance delivered"}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
