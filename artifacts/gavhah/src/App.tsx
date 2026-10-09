@@ -81,7 +81,23 @@ if (typeof window !== "undefined" && !(window as any).__gavhahApiRefetchInstalle
         ["POST", "PUT", "PATCH", "DELETE"].includes(method)
       ) {
         queueMicrotask(() => {
-          void queryClient.invalidateQueries({ refetchType: "active" });
+          try {
+            const pathname = new URL(url, window.location.origin).pathname;
+            const parts = pathname.split("/").filter(Boolean);
+            const queryBase = parts[1] === "admin"
+              ? `/${parts.slice(0, 3).join("/")}`
+              : `/${parts.slice(0, 2).join("/")}`;
+
+            void queryClient.invalidateQueries({
+              predicate: query => {
+                const first = query.queryKey[0];
+                return typeof first === "string" && first.startsWith(queryBase);
+              },
+              refetchType: "active",
+            });
+          } catch {
+            // A successful mutation must never cause a broad fallback refresh.
+          }
         });
       }
 
