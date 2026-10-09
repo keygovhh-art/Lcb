@@ -161,7 +161,7 @@ export default function ProfilePage() {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-16">
-          <MemberGate action="view your profile">{null}</MemberGate>
+          <MemberGate gate="profile" action="view your profile">{null}</MemberGate>
         </div>
       </Layout>
     );
