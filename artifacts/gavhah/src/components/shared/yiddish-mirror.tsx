@@ -392,9 +392,10 @@ const EXACT: Record<string, string> = {
   "Remove upvote": "נעם אראפ אפוואט",
   "Upvote comment": "גיב אן אפוואט",
   "Upvote discussion": "גיב אן אפוואט",
-  "Upvote story": "גיב אן אפוואט",
+  "Upvote update": "גיב דעם אפדעיט אן אפוואט",
+  "More Updates": "נאך אפדעיטס",
   "Upvote post": "גיב אן אפוואט",
-  "Sign in to upvote stories": "לאג אריין צו קענען אפוואטן",
+  "Sign in to upvote updates": "לאג אריין צו קענען אפוואטן אפדעיטס",
   "Join Gavhah free to upvote community updates.": "שרייב זיך איין אומזיסט כדי צו קענען אפוואטן.",
   "Sign in to upvote posts": "לאג אריין צו קענען אפוואטן",
 
