@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feature/forum-free-topics-admin-workflow-20261008
+      - fix/restore-campaigns-custom-help-20261009
   workflow_dispatch:
 jobs:
   verify:

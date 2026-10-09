@@ -19,7 +19,12 @@ const KEYWORDS:Record<string,string[]>={
 };
 function compatible(req:Request,vol:Volunteer){
   const text=[...vol.skills,...vol.areasOfInterest,vol.bio||""].join(" ").toLowerCase();
-  const tokens=KEYWORDS[req.needType]||[];
+  // Custom Yiddish / English categories must remain matchable; do not assume
+  // everyone selected one of the retired predefined categories.
+  const category=req.needType.toLocaleLowerCase().trim();
+  const ownWords=category.split(/[^\p{L}\p{N}]+/u).filter(token=>token.length>=2);
+  const tokens=[...new Set([category,...ownWords,...(KEYWORDS[category]||[])])]
+    .filter(Boolean).slice(0,30);
   let score=0;
   const reasons:string[]=[];
   const found=tokens.filter(token=>text.includes(token));

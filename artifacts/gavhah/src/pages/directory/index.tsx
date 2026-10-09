@@ -32,26 +32,6 @@ import { ContactMethodPicker, initialContactMethods, type ContactMethodsForm } f
 // ---- Constants ----
   const contactReady = (contact: ContactMethodsForm) =>
     contact.primaryValue.trim() && !!contact.mayConsiderSharing && (!contact.backupMethod || (contact.backupValue||"").trim());
-const URGENCY_MAP: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  critical: { label: "Critical", color: "destructive", icon: <AlertTriangle className="h-3 w-3" /> },
-  high: { label: "High", color: "secondary", icon: <AlertCircle className="h-3 w-3" /> },
-  medium: { label: "Medium", color: "default", icon: <Minus className="h-3 w-3" /> },
-  low: { label: "Low", color: "outline", icon: <Minus className="h-3 w-3" /> },
-};
-
-const NEED_LABELS: Record<string, string> = {
-  medical: "Medical", wedding: "Wedding / Simcha",
-  food: "Food Assistance", housing: "Housing",
-  transportation: "Transportation", financial: "Financial", other: "Other",
-};
-
-const SKILLS_OPTIONS = [
-  "Bikur Cholim", "Hospital Visits", "Medical Transport", "Hachnosas Kallah",
-  "Wedding Assistance", "Fundraising", "Housing Support", "Financial Aid",
-  "Crisis Counseling", "Community Organizing", "Special Needs", "Food Distribution",
-  "Driver / Transport", "Translation", "Government Liaison",
-];
-
 const PROJECT_TYPES = [
   { value: "all", label: "All Types", icon: FolderKanban },
   { value: "project", label: "Projects", icon: Target },
@@ -81,446 +61,9 @@ const ROLE_LABELS: Record<string, string> = {
   donor: "Donor",
 };
 
-// ---- Volunteer Card ----
-function VolunteerCard({ vol }: { vol: any }) {
-  const [open, setOpen] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [requestOpen, setRequestOpen] = useState(false);
-  const [contactMethods, setContactMethods] = useState<ContactMethodsForm>(initialContactMethods);
-  const [editOpen, setEditOpen] = useState(false);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [editForm, setEditForm] = useState({
-    location: vol.location ?? "",
-    availability: vol.availability ?? "weekends",
-    bio: vol.bio ?? "",
-    skills: Array.isArray(vol.skills) ? vol.skills.join(", ") : "",
-  });
-  const { user, isAuthenticated, isAdmin } = useAuth();
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const canManage = !!user && (vol.userId === user.id || isAdmin);
-
-  const openVolunteerEdit = () => {
-    setEditForm({
-      location: vol.location ?? "",
-      availability: vol.availability ?? "weekends",
-      bio: vol.bio ?? "",
-      skills: Array.isArray(vol.skills) ? vol.skills.join(", ") : "",
-    });
-    setEditOpen(true);
-  };
-
-  const saveVolunteerEdit = async () => {
-    if (!editForm.location.trim()) return;
-    setSavingEdit(true);
-    try {
-      const res = await fetch(`/api/volunteers/${vol.id}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userName: vol.userName,
-          location: editForm.location.trim(),
-          availability: editForm.availability,
-          bio: editForm.bio.trim() || null,
-          skills: editForm.skills.split(",").map((x: string) => x.trim()).filter(Boolean),
-        }),
-      });
-      if (!res.ok) throw new Error("update failed");
-      const updated = await res.json();
-      qc.setQueriesData({ queryKey: ["/api/volunteers"] }, (current: any) =>
-        Array.isArray(current) ? current.map((item: any) => item.id === vol.id ? updated : item) : current
-      );
-      void qc.invalidateQueries({ queryKey: ["/api/volunteers"] });
-      setEditOpen(false);
-      toast({ title: "Volunteer profile updated" });
-    } catch {
-      toast({ title: "Could not update volunteer profile", variant: "destructive" });
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
-  const deleteVolunteer = async () => {
-    if (!window.confirm("Remove your volunteer profile?")) return;
-    setDeleting(true);
-    try {
-      const res = await fetch(`/api/volunteers/${vol.id}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) throw new Error("delete failed");
-      qc.setQueriesData({ queryKey: ["/api/volunteers"] }, (current: any) =>
-        Array.isArray(current) ? current.filter((item: any) => item.id !== vol.id) : current
-      );
-      void qc.invalidateQueries({ queryKey: getGetFeaturedVolunteersQueryKey() });
-      setOpen(false);
-      toast({ title: "Volunteer profile removed" });
-    } catch {
-      toast({ title: "Could not remove volunteer profile", variant: "destructive" });
-      setDeleting(false);
-    }
-  };
-
-  const openContactRequest = async () => {
-    if(!isAuthenticated){
-      toast({title:"Sign in to request contact",description:"Join Gavhah free to contact volunteers."});
-      return;
-    }
-    setRequestOpen(true);
-    try{
-      const r=await fetch("/api/me/contact-methods/help",{credentials:"include",cache:"no-store"});
-      if(r.ok){const x=await r.json();if(x.methods)setContactMethods(x.methods);}
-    }catch{/* Allow a new entry if a saved method is unavailable. */}
-  };
-
-  const requestContact = async () => {
-    if (!isAuthenticated || !contactReady(contactMethods)) {
-      toast({ title: "Please enter your primary contact method", variant:"destructive" });return;
-    }
-    setSending(true);
-    try {
-      const res = await fetch("/api/member-requests", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "volunteer_contact",
-          volunteerId: vol.id,
-          contactMethods,
-          subject: `Volunteer contact request: ${vol.userName}`,
-          message: `Member requested contact with volunteer #${vol.id} (${vol.userName}) in ${vol.location}.`,
-        }),
-      });
-      if (res.ok) {
-        setOpen(false);setRequestOpen(false);
-        toast({ title: "Request sent", description: "Gavhah administrators received your contact request." });
-      } else {
-        toast({ title: "Could not send request", variant: "destructive" });
-      }
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <>
-      <div onClick={() => setOpen(true)} className="bg-card border rounded-xl p-5 hover:border-primary/30 hover:shadow-md transition-all cursor-pointer flex flex-col gap-3">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-serif font-bold text-xl shrink-0">
-            {(vol.userName || "?")[0]}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className="font-semibold text-foreground">{vol.userName}</span>
-              {vol.isFeatured && <Star className="h-4 w-4 text-accent fill-accent" />}
-            </div>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-              <MapPin className="h-3 w-3" /> {vol.location}
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {(vol.skills || []).slice(0, 3).map((skill: string, i: number) => (
-                <Badge key={i} variant="outline" className="text-xs">{skill}</Badge>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground border-t pt-3">
-          <Clock className="h-3 w-3" /> {vol.availability}
-        </div>
-      </div>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-serif text-2xl text-primary">{vol.userName}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center gap-2 text-muted-foreground text-sm"><MapPin className="h-4 w-4" /> {vol.location}</div>
-            <div className="flex items-center gap-2 text-muted-foreground text-sm"><Clock className="h-4 w-4" /> Available: {vol.availability}</div>
-            {vol.skills?.length > 0 && (
-              <div>
-                <p className="font-semibold text-foreground text-sm mb-2">Skills</p>
-                <div className="flex flex-wrap gap-2">{vol.skills.map((s: string, i: number) => <Badge key={i} variant="outline">{s}</Badge>)}</div>
-              </div>
-            )}
-            {vol.bio && (
-              <div>
-                <p className="font-semibold text-foreground text-sm mb-1">About</p>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{vol.bio}</p>
-              </div>
-            )}
-            <div className="bg-muted/40 rounded-lg p-3 text-sm text-muted-foreground">
-              Contact is facilitated through Gavhah to protect privacy.
-            </div>
-            {canManage && (
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" onClick={openVolunteerEdit} className="gap-2">
-                  <Pencil className="h-4 w-4" /> Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  className="gap-2 text-destructive border-destructive/20"
-                  onClick={() => void deleteVolunteer()}
-                  disabled={deleting}
-                >
-                  <Trash2 className="h-4 w-4" /> {deleting ? "Removing..." : "Remove"}
-                </Button>
-              </div>
-            )}
-            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void openContactRequest()} disabled={sending}>
-              {sending ? "Sending..." : "Request Contact via Gavhah"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Ask Gavhah to Arrange Contact</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Gavhah will check your request. The volunteer and you must EACH personally approve sharing any details.
-          </p>
-          <ContactMethodPicker value={contactMethods} onChange={setContactMethods} />
-          <Button type="button" disabled={sending || !contactReady(contactMethods)}
-            onClick={() => void requestContact()}>
-            {sending ? "Submitting..." : "Send Request for Staff Review"}
-          </Button>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Edit Volunteer Profile</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div><Label>City / Community *</Label><Input value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} /></div>
-            <div>
-              <Label>Availability</Label>
-              <Select value={editForm.availability} onValueChange={availability => setEditForm(f => ({ ...f, availability }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weekdays">Weekdays</SelectItem>
-                  <SelectItem value="evenings">Evenings</SelectItem>
-                  <SelectItem value="weekends">Weekends</SelectItem>
-                  <SelectItem value="flexible">Flexible</SelectItem>
-                  <SelectItem value="on_call">On Call</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Skills</Label><Input value={editForm.skills} onChange={e => setEditForm(f => ({ ...f, skills: e.target.value }))} placeholder="Separate skills with commas" /></div>
-            <div><Label>About</Label><Textarea className="min-h-24" value={editForm.bio} onChange={e => setEditForm(f => ({ ...f, bio: e.target.value }))} /></div>
-            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveVolunteerEdit()} disabled={savingEdit || !editForm.location.trim()}>
-              {savingEdit ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-// ---- Help Request Card ----
-function HelpRequestCard({ req }: { req: any }) {
-  const [open, setOpen] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [editForm, setEditForm] = useState({
-    name: req.name ?? "",
-    location: req.location ?? "",
-    needType: req.needType ?? "other",
-    description: req.description ?? "",
-    urgency: req.urgency ?? "medium",
-  });
-  const { user, isAuthenticated, isAdmin } = useAuth();
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const canManage = !!user && (req.userId === user.id || isAdmin);
-  const urgency = URGENCY_MAP[req.urgency] ?? URGENCY_MAP.medium;
-
-  const openHelpEdit = () => {
-    setEditForm({
-      name: req.name ?? "",
-      location: req.location ?? "",
-      needType: req.needType ?? "other",
-      description: req.description ?? "",
-      urgency: req.urgency ?? "medium",
-    });
-    setEditOpen(true);
-  };
-
-  const saveHelpEdit = async () => {
-    if (!editForm.name.trim() || !editForm.description.trim()) return;
-    setSavingEdit(true);
-    try {
-      const res = await fetch(`/api/help-requests/${req.id}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editForm.name.trim(),
-          location: editForm.location.trim() || null,
-          needType: editForm.needType,
-          description: editForm.description.trim(),
-          urgency: editForm.urgency,
-        }),
-      });
-      if (!res.ok) throw new Error("update failed");
-      const updated = await res.json();
-      qc.setQueriesData({ queryKey: ["/api/help-requests"] }, (current: any) =>
-        Array.isArray(current) ? current.map((item: any) => item.id === req.id ? updated : item) : current
-      );
-      void qc.invalidateQueries({ queryKey: ["/api/help-requests"] });
-      setEditOpen(false);
-      toast({ title: "Help request updated" });
-    } catch {
-      toast({ title: "Could not update help request", variant: "destructive" });
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
-  const deleteHelpRequest = async () => {
-    if (!window.confirm("Delete this help request?")) return;
-    setDeleting(true);
-    try {
-      const res = await fetch(`/api/help-requests/${req.id}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) throw new Error("delete failed");
-      qc.setQueriesData({ queryKey: ["/api/help-requests"] }, (current: any) =>
-        Array.isArray(current) ? current.filter((item: any) => item.id !== req.id) : current
-      );
-      void qc.invalidateQueries({ queryKey: getGetFeaturedRequestsQueryKey() });
-      setOpen(false);
-      toast({ title: "Help request deleted" });
-    } catch {
-      toast({ title: "Could not delete help request", variant: "destructive" });
-      setDeleting(false);
-    }
-  };
-
-    const offerHelp = async () => {
-    if (!isAuthenticated) {
-      toast({ title: "Sign in to offer help", description: "Join Gavhah free to respond to help requests." });
-      return;
-    }
-    setSending(true);
-    try {
-      const res = await fetch("/api/member-requests", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "help_offer",
-          subject: `Offer to help: ${req.name}`,
-          message: `Member offered help for request #${req.id}: ${req.description}`,
-        }),
-      });
-      if (res.ok) {
-        setOpen(false);
-        toast({ title: "Offer sent", description: "Gavhah administrators received your offer to help." });
-      } else {
-        toast({ title: "Could not send offer", variant: "destructive" });
-      }
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <>
-      <div onClick={() => setOpen(true)} className="bg-card border rounded-xl p-5 hover:border-primary/30 hover:shadow-md transition-all cursor-pointer flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <Badge variant={urgency.color as any} className="gap-1 text-xs">{urgency.icon} {urgency.label}</Badge>
-              <span className="text-xs bg-muted px-2 py-0.5 rounded-full font-medium">{NEED_LABELS[req.needType] || req.needType}</span>
-            </div>
-            <p className="font-semibold text-foreground">{req.name}</p>
-          </div>
-          {req.isFeatured && <Star className="h-4 w-4 text-accent fill-accent shrink-0" />}
-        </div>
-        <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">{req.description}</p>
-        <div className="flex items-center justify-between pt-2 border-t">
-          <Badge variant={req.status === "open" ? "default" : "secondary"} className="capitalize text-xs">{req.status}</Badge>
-          <span className="text-xs text-muted-foreground">Contact via Gavhah</span>
-        </div>
-      </div>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle className="font-serif text-2xl text-primary">Help Request</DialogTitle></DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant={urgency.color as any} className="gap-1">{urgency.icon} {urgency.label} Urgency</Badge>
-              <Badge variant="outline">{NEED_LABELS[req.needType] || req.needType}</Badge>
-              <Badge variant={req.status === "open" ? "default" : "secondary"} className="capitalize">{req.status}</Badge>
-            </div>
-            <div>
-              <p className="font-semibold text-foreground mb-1">{req.name}</p>
-              <p className="text-foreground leading-relaxed">{req.description}</p>
-            </div>
-            <div className="bg-muted/40 rounded-lg p-4 text-sm text-muted-foreground">
-              To maintain privacy, all contact is handled through Gavhah administrators.
-            </div>
-            {canManage && (
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" onClick={openHelpEdit} className="gap-2">
-                  <Pencil className="h-4 w-4" /> Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  className="gap-2 text-destructive border-destructive/20"
-                  onClick={() => void deleteHelpRequest()}
-                  disabled={deleting}
-                >
-                  <Trash2 className="h-4 w-4" /> {deleting ? "Deleting..." : "Delete"}
-                </Button>
-              </div>
-            )}
-            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={offerHelp} disabled={sending}>
-              {sending ? "Sending..." : "I Can Help With This"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Edit Help Request</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div><Label>Name</Label><Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} /></div>
-            <div><Label>Location</Label><Input value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} /></div>
-            <div>
-              <Label>Need Type</Label>
-              <Select value={editForm.needType} onValueChange={needType => setEditForm(f => ({ ...f, needType }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="medical">Medical</SelectItem>
-                  <SelectItem value="wedding">Wedding / Simcha</SelectItem>
-                  <SelectItem value="food">Food Assistance</SelectItem>
-                  <SelectItem value="housing">Housing</SelectItem>
-                  <SelectItem value="transportation">Transportation</SelectItem>
-                  <SelectItem value="financial">Financial</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Urgency</Label>
-              <Select value={editForm.urgency} onValueChange={urgency => setEditForm(f => ({ ...f, urgency }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Description</Label><Textarea className="min-h-28" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
-            <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveHelpEdit()} disabled={savingEdit || !editForm.name.trim() || !editForm.description.trim()}>
-              {savingEdit ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
+// Volunteer and help applications are confidential to Gavhah.
+// Old public profile/request card components and their preset edit menus were
+// removed. Campaign/project cards remain complete below.
 
 // ---- Register Volunteer Dialog ----
 // Activists Directory special rule: always show Nickname only
@@ -531,8 +74,9 @@ function RegisterVolunteerDialog() {
   const [open, setOpen] = useState(false);
 
   const nickname = (user as any)?.nickname || user?.name || "";
-  const [form, setForm] = useState({ userName: "", location: "", availability: "weekends", bio: "" });
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const { lang } = useLanguage(), yi = lang === "yi";
+  const [form, setForm] = useState({ userName: "", location: "", availability: "anytime", bio: "" });
+  const [skillsText, setSkillsText] = useState("");
   const [contactMethods, setContactMethods] = useState<ContactMethodsForm>(initialContactMethods);
   const createVol = useCreateVolunteer();
 
@@ -544,26 +88,24 @@ function RegisterVolunteerDialog() {
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
-  const toggleSkill = (skill: string) =>
-    setSelectedSkills(prev => prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.userName.trim() || !form.location.trim() || selectedSkills.length === 0) {
-      toast({ title: "Please complete the required fields", description: "Display name, location, and at least one area of help are required.", variant: "destructive" });
+    const skills = skillsText.split(/[,;\n]+/).map(v=>v.trim()).filter(Boolean).slice(0,30);
+    if (!form.userName.trim() || !form.location.trim() || skills.length === 0) {
+      toast({ title: "Please complete the required fields", description: yi ? "נאמען, געגנט און אן אייגענע קאטאגאריע זענען פארלאנגט." : "Name, location, and your custom area of help are required.", variant: "destructive" });
       return;
     }
     if (!contactReady(contactMethods)) {
       toast({ title: "Enter the main contact method and any selected backup", variant: "destructive" });return;
     }
     createVol.mutate(
-      { data: { userName: form.userName, location: form.location, availability: form.availability, bio: form.bio || undefined, skills: selectedSkills, contactMethods } as any },
+      { data: { userName: form.userName, location: form.location, availability: "anytime", bio: form.bio || undefined, skills, contactMethods } as any },
       {
         onSuccess: (volunteer) => {
           // The volunteer registry is private to administration. Never populate a public cache.
           setOpen(false);
-          setForm({ userName: nickname, location: "", availability: "weekends", bio: "" });
-          setSelectedSkills([]);
+          setForm({ userName: nickname, location: "", availability: "anytime", bio: "" });
+          setSkillsText("");
           setContactMethods(initialContactMethods());
           toast({ title: "Application received", description: "Your private volunteer registration is available to Gavhah staff only." });
         },
@@ -592,43 +134,31 @@ function RegisterVolunteerDialog() {
             <div className="space-y-1.5">
               <Label className="font-semibold">Display Name</Label>
               <Input value={form.userName} onChange={set("userName")} placeholder="Your nickname" className="h-11" required />
-              <p className="text-xs text-muted-foreground">Activists Directory shows nicknames only to protect privacy.</p>
+              <p className="text-xs text-muted-foreground">This is a private application. Only Gavhah staff sees your details.</p>
             </div>
             <div className="space-y-1.5">
               <Label className="font-semibold">City / Community *</Label>
               <Input value={form.location} onChange={set("location")} placeholder="Brooklyn, NY" className="h-11" required />
             </div>
             <div className="space-y-1.5">
-              <Label className="font-semibold">Availability</Label>
-              <Select value={form.availability} onValueChange={set("availability")}>
-                <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weekdays">Weekdays</SelectItem>
-                  <SelectItem value="weekends">Weekends</SelectItem>
-                  <SelectItem value="evenings">Evenings</SelectItem>
-                  <SelectItem value="anytime">Anytime</SelectItem>
-                  <SelectItem value="by_appointment">By Appointment</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="font-semibold">{yi ? "ווען קענסטו העלפן?" : "Availability"}</Label>
+              <div className="border rounded-md bg-muted/20 p-3 text-sm font-medium">
+                {yi ? "אין יעדע צייט" : "Anytime"}
+              </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="font-semibold">Areas of Help *</Label>
-              <p className="text-xs text-muted-foreground">Select all that apply</p>
-              <div className="flex flex-wrap gap-2">
-                {SKILLS_OPTIONS.map(skill => (
-                  <button key={skill} type="button" onClick={() => toggleSkill(skill)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedSkills.includes(skill) ? "bg-secondary text-white border-secondary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
-                    {skill}
-                  </button>
-                ))}
-              </div>
+              <Label className="font-semibold">{yi ? "אין וועלכע זאכן קענסטו העלפן? *" : "Your own areas of help *"}</Label>
+              <Textarea value={skillsText} onChange={e=>setSkillsText(e.target.value)} maxLength={1800}
+                className="min-h-24" dir="auto" required
+                placeholder={yi ? "שרייב אליין די קאטאגאריע אדער קענטענישן, אויף באזונדערע שורות." : "Write your own help category or skills, one per line."} />
+              <p className="text-xs text-muted-foreground">{yi ? "קיין פארגעשריבענע קאטאגאריעס. נאר די מערכת זעט די פרטים." : "No preset categories. Staff only; not published."}</p>
             </div>
             <div className="space-y-1.5">
               <Label className="font-semibold">Brief Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
               <Textarea value={form.bio} onChange={set("bio")} placeholder="A few words about your background or how you like to help..." className="resize-none min-h-20" />
             </div>
             <ContactMethodPicker value={contactMethods} onChange={setContactMethods} />
-            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createVol.isPending || selectedSkills.length === 0 || !form.location.trim() || !contactReady(contactMethods)}>
+            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createVol.isPending || !skillsText.trim() || !form.location.trim() || !contactReady(contactMethods)}>
               {createVol.isPending ? "Registering..." : "Register as Volunteer"}
             </Button>
           </form>
@@ -644,7 +174,8 @@ function SubmitRequestDialog() {
   const { toast } = useToast();
   const { isAuthenticated, isLoaded } = useAuth();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", needType: "medical", urgency: "medium", location: "" });
+  const { lang } = useLanguage(), yi = lang === "yi";
+  const [form, setForm] = useState({ name: "", description: "", needType: "", urgency: "medium", location: "" });
   const createReq = useCreateHelpRequest();
   const [contactMethods, setContactMethods] = useState<ContactMethodsForm>(initialContactMethods);
 
@@ -653,7 +184,9 @@ function SubmitRequestDialog() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.description) return;
+    if (!form.name.trim() || !form.description.trim() || !form.needType.trim()) {
+      toast({title: yi ? "שרייב דיין קאטאגאריע און די בקשה" : "Enter a custom category and request description",variant:"destructive"}); return;
+    }
     if (!contactReady(contactMethods)) {
       toast({ title: "Enter your main contact method and any selected backup", variant: "destructive" });return;
     }
@@ -662,7 +195,7 @@ function SubmitRequestDialog() {
       {
         onSuccess: () => {
           setOpen(false);
-          setForm({ name: "", description: "", needType: "medical", urgency: "medium", location: "" });
+          setForm({ name: "", description: "", needType: "", urgency: "medium", location: "" });
           setContactMethods(initialContactMethods());
           toast({
             title: "Request submitted for review",
@@ -692,34 +225,12 @@ function SubmitRequestDialog() {
               <Label className="font-semibold">Name / Reference *</Label>
               <Input value={form.name} onChange={set("name")} placeholder="First name or family name only" className="h-11" required />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="font-semibold">Type of Need</Label>
-                <Select value={form.needType} onValueChange={set("needType")}>
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="medical">Medical</SelectItem>
-                    <SelectItem value="wedding">Wedding / Simcha</SelectItem>
-                    <SelectItem value="food">Food Assistance</SelectItem>
-                    <SelectItem value="housing">Housing</SelectItem>
-                    <SelectItem value="transportation">Transportation</SelectItem>
-                    <SelectItem value="financial">Financial</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="font-semibold">Urgency</Label>
-                <Select value={form.urgency} onValueChange={set("urgency")}>
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="critical">Critical</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-1.5">
+              <Label className="font-semibold">{yi ? "וואס פאר הילף דארפסטו? — אייגענע קאטאגאריע *" : "Kind of help — write your own category *"}</Label>
+              <Input value={form.needType} onChange={set("needType")} dir="auto" maxLength={120}
+                placeholder={yi ? "שרייב אליין וואס דו דארפסט" : "Describe the kind of help in your own words"}
+                className="h-11" required />
+              <p className="text-xs text-muted-foreground">{yi ? "גארנישט ווערט נישט פובליק." : "Private to Gavhah; no preset categories."}</p>
             </div>
             <div className="space-y-1.5">
               <Label className="font-semibold">Location <span className="font-normal text-muted-foreground">(optional)</span></Label>
@@ -730,7 +241,7 @@ function SubmitRequestDialog() {
               <Textarea value={form.description} onChange={set("description")} placeholder="Describe the situation and what kind of help is needed..." className="resize-none min-h-28" required />
             </div>
             <ContactMethodPicker value={contactMethods} onChange={setContactMethods} />
-            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createReq.isPending || !contactReady(contactMethods)}>
+            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createReq.isPending || !form.needType.trim() || !contactReady(contactMethods)}>
               {createReq.isPending ? "Submitting..." : "Submit Request"}
             </Button>
           </form>
@@ -1113,6 +624,48 @@ function ProjectCard({ project }: { project: any }) {
   );
 }
 
+// ---- Public community projects / campaigns / initiatives / programs ----
+// This section is NOT the confidential help or volunteer registry.
+function CommunityProjectsContent() {
+  const [projectType,setProjectType]=useState("all");
+  const projParams={type:projectType==="all"?undefined:projectType};
+  const {data:projects,isLoading}=useListCommunityProjects(projParams,{
+    query:{queryKey:getListCommunityProjectsQueryKey(projParams)},
+  });
+  return <section id="community-projects" className="space-y-6 scroll-mt-20">
+    <div className="rounded-xl border bg-muted/20 p-5 space-y-2">
+      <div className="flex items-center gap-2">
+        <FolderKanban className="h-6 w-6 text-primary" />
+        <h2 className="font-serif text-2xl font-bold text-primary">Community Projects, Campaigns & Programs</h2>
+      </div>
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        Create and manage community projects, campaigns, initiatives and programs.
+        Browse what is underway, see the goals, join, volunteer your time or offer support.
+        This public project area is separate from private assistance applications.
+      </p>
+    </div>
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap gap-2">
+        {PROJECT_TYPES.map(t=><Button key={t.value} size="sm" className="rounded-full gap-1.5"
+          variant={projectType===t.value?"default":"outline"} onClick={()=>setProjectType(t.value)}>
+          <t.icon className="h-3.5 w-3.5" />{t.label}
+        </Button>)}
+      </div>
+      <CreateProjectDialog/>
+    </div>
+    {isLoading ? <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {[...Array(4)].map((_,i)=><Skeleton key={i} className="h-56 rounded-xl" />)}
+    </div> : <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {projects?.map((p:any)=><ProjectCard key={p.id} project={p}/>)}
+      {projects?.length===0&&<div className="col-span-full text-center py-16 border-2 border-dashed rounded-xl bg-muted/10">
+        <FolderKanban className="h-10 w-10 mx-auto mb-3 text-muted-foreground"/>
+        <p className="font-serif italic text-lg">No projects yet.</p>
+        <p className="text-sm text-muted-foreground">Start a campaign, program or project for your community.</p>
+      </div>}
+    </div>}
+  </section>;
+}
+
 // ---- Confidential intake only: no applicant lists on the website ----
 export default function Directory() {
   const {lang}=useLanguage(),yi=lang==="yi";
@@ -1163,34 +716,17 @@ export default function Directory() {
         <p>{yi ? "פארבינדונגען ווערן געהאנדלט בלויז דורך גבהה. דער בעטער און דער עסקן דארפן ביידע מסכים זיין; דערנאך מוז די מערכת געבן א באזונדערע לעצטע ערלויבעניש איידער פרטים ווערן איבערגעגעבן." :
           "Introductions are coordinated by Gavhah only. Both participants must personally consent, followed by separate final Gavhah authorization, before any contact details are shared."}</p>
       </div>
+
+      <CommunityProjectsContent />
     </div>
   </Layout>;
 }
 
-/** Community projects are a separate feature, not a directory of help-seekers or volunteers. */
+/** Dedicated URL for the same complete project and campaign center. */
 export function CommunityProjectsPage(){
-  const [projectType,setProjectType]=useState("all");
-  const projParams={type:projectType==="all"?undefined:projectType};
-  const {data:projects,isLoading}=useListCommunityProjects(projParams,{
-    query:{queryKey:getListCommunityProjectsQueryKey(projParams)},
-  });
   return <Layout>
-    <section className="container mx-auto max-w-5xl px-4 py-10 space-y-6">
-      <h1 className="text-3xl font-serif font-bold text-primary">Community Projects & Initiatives</h1>
-      <p className="text-sm text-muted-foreground">
-        Community projects are separate from Gavhah's strictly confidential volunteer and private-assistance system.
-        No private help requests or volunteer applications are displayed here.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {PROJECT_TYPES.map(t=><Button key={t.value} size="sm"
-          variant={projectType===t.value?"default":"outline"}
-          onClick={()=>setProjectType(t.value)}><t.icon className="h-4 w-4 me-1"/>{t.label}</Button>)}
-      </div>
-      <CreateProjectDialog/>
-      <div className="grid md:grid-cols-2 gap-4">
-        {isLoading?<p>Loading projects...</p>:
-          projects?.map((p:any)=><ProjectCard key={p.id} project={p}/>)}
-      </div>
-    </section>
+    <div className="container mx-auto max-w-5xl px-4 py-10">
+      <CommunityProjectsContent/>
+    </div>
   </Layout>;
 }
