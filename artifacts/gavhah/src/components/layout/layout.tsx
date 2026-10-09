@@ -15,7 +15,7 @@ import {
 const PRIMARY_DEPTS = [
   { label: "News", fullLabel: "Chesed News Center", href: "/news", icon: <Globe className="h-4 w-4" /> },
   { label: "Forum", fullLabel: "Askanim Discussion Center", href: "/forum", icon: <MessageSquare className="h-4 w-4" /> },
-  { label: "Directory", fullLabel: "Activists Directory", href: "/directory", icon: <HandHeart className="h-4 w-4" /> },
+  { label: "Help", fullLabel: "Private Assistance Intake", href: "/directory", icon: <HandHeart className="h-4 w-4" /> },
   { label: "United", fullLabel: "United In Kindness", href: "/united", icon: <Network className="h-4 w-4" /> },
   { label: "Today's Cause", fullLabel: "Today's Cause", href: "/charity", icon: <Heart className="h-4 w-4" /> },
   { label: "Minyans", fullLabel: "Minyan Directory", href: "/minyans", icon: <Clock className="h-4 w-4" /> },
@@ -441,7 +441,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div>
               <p className="font-semibold text-primary-foreground/80 mb-3 uppercase tracking-wider text-xs">Services</p>
               <nav className="space-y-1.5">
-                {[["Directory", "/directory"], ["Today's Cause", "/charity"], ["Minyan Directory", "/minyans"], ["Reservations", "/reservations"]].map(([l, h]) => (
+                {[["Private Assistance", "/directory"], ["Today's Cause", "/charity"], ["Minyan Directory", "/minyans"], ["Reservations", "/reservations"]].map(([l, h]) => (
                   <Link key={h} href={h} className="block text-primary-foreground/60 hover:text-accent transition-colors text-xs">{l}</Link>
                 ))}
               </nav>
