@@ -45,11 +45,13 @@ function publicHelpRequest<T extends { contactInfo?: unknown }>(request: T) {
 }
 
 router.get("/featured/volunteers", requireAdmin, async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control","private, no-store");
   const featured = await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.isFeatured, true)).limit(4);
   res.json(featured);
 });
 
 router.get("/featured/requests", requireAdmin, async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control","private, no-store");
   const featured = await db.select().from(helpRequestsTable).where(and(
     eq(helpRequestsTable.isFeatured, true),
     eq(helpRequestsTable.status, "open"),
@@ -58,6 +60,7 @@ router.get("/featured/requests", requireAdmin, async (_req, res): Promise<void> 
 });
 
 router.get("/volunteers", requireAdmin, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control","private, no-store");
   const { location, search } = req.query as Record<string, string>;
   let all = await db.select().from(volunteerProfilesTable);
   if (location) all = all.filter(v => v.location.toLowerCase().includes(location.toLowerCase()));
@@ -181,11 +184,13 @@ router.delete("/volunteers/:id", requireAuth, async (req, res): Promise<void> =>
 });
 
 router.get("/admin/help-requests", requireAdmin, async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control","private, no-store");
   const all = await db.select().from(helpRequestsTable);
   res.json(all);
 });
 
 router.get("/help-requests", requireAdmin, async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control","private, no-store");
   const { type, urgency } = req.query as Record<string, string>;
   let all = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.status, "open"));
   if (type) all = all.filter(r => r.needType === type);
