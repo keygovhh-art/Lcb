@@ -166,7 +166,7 @@ export default function Home() {
             )) : [
               { label: "Members Worldwide", value: `${(stats?.totalMembers ?? 0).toLocaleString()}` },
               { label: "Community Groups", value: `${(stats?.activeGroups ?? 0).toLocaleString()}` },
-              { label: "News Updates", value: `${(stats?.totalNewsArticles ?? 0).toLocaleString()}` },
+              { label: "News Updates", value: `${(((stats as {totalNewsArticles?: number} | undefined)?.totalNewsArticles) ?? 0).toLocaleString()}` },
               { label: "Recorded Donations", value: `$${Number(stats?.donationsRaised ?? 0).toLocaleString()}` },
             ].map((stat, i) => (
               <div key={i} className="text-center p-5 bg-card border rounded-xl shadow-sm">
