@@ -26,8 +26,11 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
+import { ContactMethodPicker, initialContactMethods, type ContactMethodsForm } from "@/components/shared/contact-method-picker";
 
 // ---- Constants ----
+  const contactReady = (contact: ContactMethodsForm) =>
+    contact.primaryValue.trim() && (!contact.backupMethod || (contact.backupValue||"").trim());
 const URGENCY_MAP: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   critical: { label: "Critical", color: "destructive", icon: <AlertTriangle className="h-3 w-3" /> },
   high: { label: "High", color: "secondary", icon: <AlertCircle className="h-3 w-3" /> },
@@ -502,6 +505,7 @@ function RegisterVolunteerDialog() {
   const nickname = (user as any)?.nickname || user?.name || "";
   const [form, setForm] = useState({ userName: "", location: "", availability: "weekends", bio: "" });
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [contactMethods, setContactMethods] = useState<ContactMethodsForm>(initialContactMethods);
   const createVol = useCreateVolunteer();
 
   const handleOpen = () => {
@@ -521,8 +525,11 @@ function RegisterVolunteerDialog() {
       toast({ title: "Please complete the required fields", description: "Display name, location, and at least one area of help are required.", variant: "destructive" });
       return;
     }
+    if (!contactReady(contactMethods)) {
+      toast({ title: "Enter the main contact method and any selected backup", variant: "destructive" });return;
+    }
     createVol.mutate(
-      { data: { userName: form.userName, location: form.location, availability: form.availability, bio: form.bio || undefined, skills: selectedSkills } },
+      { data: { userName: form.userName, location: form.location, availability: form.availability, bio: form.bio || undefined, skills: selectedSkills, contactMethods } as any },
       {
         onSuccess: (volunteer) => {
           qc.setQueryData(getListVolunteersQueryKey({}), (current: any) => {
@@ -534,6 +541,7 @@ function RegisterVolunteerDialog() {
           setOpen(false);
           setForm({ userName: nickname, location: "", availability: "weekends", bio: "" });
           setSelectedSkills([]);
+          setContactMethods(initialContactMethods());
           toast({ title: "Thank you!", description: "You have been registered as a volunteer." });
         },
         onError: (error: any) => toast({
@@ -596,7 +604,8 @@ function RegisterVolunteerDialog() {
               <Label className="font-semibold">Brief Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
               <Textarea value={form.bio} onChange={set("bio")} placeholder="A few words about your background or how you like to help..." className="resize-none min-h-20" />
             </div>
-            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createVol.isPending || selectedSkills.length === 0 || !form.location.trim()}>
+            <ContactMethodPicker value={contactMethods} onChange={setContactMethods} />
+            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createVol.isPending || selectedSkills.length === 0 || !form.location.trim() || !contactReady(contactMethods)}>
               {createVol.isPending ? "Registering..." : "Register as Volunteer"}
             </Button>
           </form>
@@ -614,6 +623,7 @@ function SubmitRequestDialog() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", needType: "medical", urgency: "medium", location: "" });
   const createReq = useCreateHelpRequest();
+  const [contactMethods, setContactMethods] = useState<ContactMethodsForm>(initialContactMethods);
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
@@ -621,12 +631,16 @@ function SubmitRequestDialog() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.description) return;
+    if (!contactReady(contactMethods)) {
+      toast({ title: "Enter your main contact method and any selected backup", variant: "destructive" });return;
+    }
     createReq.mutate(
-      { data: { name: form.name, description: form.description, needType: form.needType, urgency: form.urgency, location: form.location || undefined } },
+      { data: { name: form.name, description: form.description, needType: form.needType, urgency: form.urgency, location: form.location || undefined, contactMethods } as any },
       {
         onSuccess: () => {
           setOpen(false);
           setForm({ name: "", description: "", needType: "medical", urgency: "medium", location: "" });
+          setContactMethods(initialContactMethods());
           toast({
             title: "Request submitted for review",
             description: "It is private until Gavhah staff approves it for the public directory.",
@@ -692,7 +706,8 @@ function SubmitRequestDialog() {
               <Label className="font-semibold">Description *</Label>
               <Textarea value={form.description} onChange={set("description")} placeholder="Describe the situation and what kind of help is needed..." className="resize-none min-h-28" required />
             </div>
-            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createReq.isPending}>
+            <ContactMethodPicker value={contactMethods} onChange={setContactMethods} />
+            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createReq.isPending || !contactReady(contactMethods)}>
               {createReq.isPending ? "Submitting..." : "Submit Request"}
             </Button>
           </form>
