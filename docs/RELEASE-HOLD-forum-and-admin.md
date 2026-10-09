@@ -86,3 +86,45 @@ Run and verify `lib/db/migrations/20261009_member_mailing.sql` in the **confirme
 - [ ] Test administrator HOLD / release HOLD does not override member NO.
 - [ ] Test member-management search/filters and private data cache headers.
 - [ ] Review migration rollback/backup and Render/GitHub branch deployment behavior.
+
+
+## October 9 connection policy v2: two independent permissions, optional backup, no live telephone delivery
+
+**Strict release hold continues. Nothing was pushed to main or Render.**
+
+### Private contact information
+- Every new volunteer enrollment, new help request and direct volunteer connection request collects a primary contact way: phone call, email or SMS text. An **optional** backup can be left completely blank.
+- Both main and backup (if chosen) need a valid number or email. Methods are saved privately by user + purpose, never on the public directory card.
+- Separate explicit Yes/No question: whether member is even willing to consider direct sharing after mutual approval. This is **not** case-specific consent. On each match both members must PERSONALLY approve again.
+- Member can change primary/backup and preferences in My Profile; updating an open case invalidates prior approvals and prevents disclosure until new consent. Existing legacy approvals do not authorize disclosure.
+
+### Connection state machine
+1. New request: the requester has chosen a private way to contact them. Staff reviews the match.
+2. Staff approval calls `/admin/member-connections/:id/invite`: in-app notices are sent to BOTH matched users. No contact information is disclosed.
+3. Each user enters My Connections and explicitly checks two statements: (a) consent for THIS specific contact detail and match; (b) no redistribution without Gavhah AND member permission. The user then personally accepts or declines.
+4. Only after both users approve does the app expose each participant's frozen, selected contact point to the other participant. Staff cannot press an old "record consent" button: the endpoint is permanently disabled (410).
+5. An SMS/email/phone limitation can be reported by one tap ("I can't receive texts" / "I don't have email" / "I can't use the phone"). This returns the case to staff, stops exposing contact, records the issue.
+6. Staff must record what was done and may select the **optional** backup for either participant (if present), then request fresh approval from BOTH people. There is no automatic backup handoff.
+7. Requester confirms real successful contact; failed or unsuccessful cases remain separate from successful completion. Either user may withdraw permission on an open connection.
+8. Contact details must not be forwarded to other people without Gavhah approval AND permission of the person whose information it is. The system shows this rule with the released information.
+
+### Phone/website notifications
+- Existing web-bell notifications are staged on staff proposal and again on two-person consent.
+- Phone notices are placed in a **non-sent, awaiting-provider/opt-in outbox** (`__connection_phone_notice__` internal records). This MUST NOT be described as an SMS or call actually delivered.
+- There is **no currently functioning TelTech / SMS / voice delivery implementation**. Provider selection, operational opt-in, message delivery, retries, and confirmation of delivery are pending integration. Do not activate until configured and tested.
+
+### Migration REQUIRED BEFORE RELEASE
+`lib/db/migrations/20261009_member_contact_methods.sql` must be applied in addition to the earlier optional home-mailing migration. Apply only after correct Render production database is identified and backed up; no Neon/Render mutation performed during staging.
+
+### Mandatory QA before release
+- [ ] Build and typecheck staged branch with a local or GitHub CI build (do not deploy).
+- [ ] Test new volunteer & help forms for phone, email and SMS, incomplete values, optional empty backup, and explicit sharing Yes/No.
+- [ ] Test direct "contact volunteer" dialog with an existing and new requester's contact preference.
+- [ ] Test an existing pre-update volunteer with no private contact preference; they must add one through My Profile before approving.
+- [ ] Test both approval orders, attempted unilateral consent, staff impersonation endpoint (must be 410), invalid member IDs, duplicate requests.
+- [ ] Confirm no other contact detail appears in API responses, notifications or forum/search before both users consent.
+- [ ] Test freeze of primary/backup, changes to user's preferences, withdrawal, ban/suspension, and case recovery requiring new consent.
+- [ ] Test one-tap no-SMS/no-email/no-phone with support workflow, optional backup missing/present and fresh approval.
+- [ ] Test staff status display requester vs volunteer, no phone delivery claims, and permission/no-redistribution warning.
+- [ ] Verify website-bell notifications and unsent outbox; do not treat queued telephone records as actual delivery.
+- [ ] Verify new private DB schema, migrations, rollback plan and permission restrictions.
