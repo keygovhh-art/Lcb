@@ -38,15 +38,17 @@ router.get("/search", async (req, res): Promise<void> => {
       contains(newsTable.organization, q),
     )).limit(8),
 
-    db.select({
-      id: discussionsTable.id,
-      title: discussionsTable.title,
-      description: discussionsTable.content,
-      category: discussionsTable.category,
-    }).from(discussionsTable).where(or(
-      contains(discussionsTable.title, q),
-      contains(discussionsTable.content, q),
-    )).limit(8),
+    req.session.userId
+      ? db.select({
+          id: discussionsTable.id,
+          title: discussionsTable.title,
+          description: discussionsTable.content,
+          category: discussionsTable.category,
+        }).from(discussionsTable).where(or(
+          contains(discussionsTable.title, q),
+          contains(discussionsTable.content, q),
+        )).limit(8)
+      : Promise.resolve([]),
 
     db.select({
       id: groupsTable.id,
