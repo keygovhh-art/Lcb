@@ -212,7 +212,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     }),
     ...supportMessages.map(m => ({
       key: `support:${m.id}`,
-      kind: m.type === "volunteer_contact" || m.type === "help_offer" ? "member_connection" : m.type,
+      kind: m.type === "volunteer_contact" ? "member_connection" : m.type,
       id: m.id,
       priority: m.type === "report" || m.type === "system_error" ? "high" : "normal",
       title: m.subject,
