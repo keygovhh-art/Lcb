@@ -1,13 +1,14 @@
 import { Link } from "wouter";
-import { useGetCommunityStats, useGetTodaysCharity, useListAnnouncements, getGetCommunityStatsQueryKey, getGetTodaysCharityQueryKey, getListAnnouncementsQueryKey } from "@workspace/api-client-react";
+import { useGetCommunityStats, useGetTodaysCharity, getGetCommunityStatsQueryKey, getGetTodaysCharityQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { PinnedAnnouncementBar } from "@/components/shared/pinned-announcement-bar";
 import {
   Heart, Users, MessageSquare, Globe, Clock, HandHeart, ArrowRight, Star,
-  Network, Radio, CalendarDays, Shield, BarChart3, Megaphone
+  Network, Radio, CalendarDays, Shield, BarChart3
 } from "lucide-react";
 
 const DEPARTMENTS = [
@@ -113,7 +114,6 @@ const DEPARTMENTS = [
 export default function Home() {
   const { data: stats, isLoading: statsLoading } = useGetCommunityStats({ query: { queryKey: getGetCommunityStatsQueryKey() } });
   const { data: todayCharity } = useGetTodaysCharity({ query: { queryKey: getGetTodaysCharityQueryKey() } });
-  const { data: announcements } = useListAnnouncements({ query: { queryKey: getListAnnouncementsQueryKey() } });
 
   const pct = (raised: number, goal: number) => goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
 
@@ -178,19 +178,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Announcements */}
-      {announcements && announcements.length > 0 && (
-        <section className="py-6 bg-accent/10 border-b">
-          <div className="container mx-auto px-4">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="flex items-center gap-2 bg-accent/20 text-accent-foreground px-3 py-1.5 rounded-full text-xs font-semibold shrink-0">
-                <Megaphone className="h-3.5 w-3.5" /> Announcement
-              </div>
-              <p className="text-sm text-foreground truncate">{announcements[0].title} — {announcements[0].content}</p>
-            </div>
-          </div>
-        </section>
-      )}
+      {/* Pinned News Announcements */}
+      <PinnedAnnouncementBar />
 
       {/* Today's Charity Spotlight */}
       {todayCharity && (
