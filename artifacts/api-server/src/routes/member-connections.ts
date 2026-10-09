@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, supportMessagesTable, usersTable, volunteerProfilesTable } from "@workspace/db";
-import { getSessionUserId, requireAdmin, requireAuth } from "../middlewares/auth";
+import { getSessionUserId, getSessionUserRole, requireAdmin, requireAuth } from "../middlewares/auth";
 import { notifyStaff, notifyUser } from "../lib/notify";
 import { getContactSelection, pointFor, type ContactPoint } from "../lib/member-contact-methods";
 import {
@@ -197,6 +197,9 @@ router.post("/member-connections/:id/respond",requireAuth,async(req,res,next):Pr
     }
     const preferences=await getContactSelection(actor,party==="requester"?"help":"volunteer");
     const selection=party==="requester"?state.requesterChoice:state.volunteerChoice;
+    if(preferences?.mayConsiderSharing!=="yes"){
+      res.status(409).json({error:"You chose Gavhah-only mediation. Change your private sharing preference before giving direct-contact consent."});return;
+    }
     const point=preferences?pointFor(preferences,selection):null;
     if(!point){
       res.status(409).json({error:"Add your contact method in My Profile before approving. No contact has been released."});return;
@@ -228,6 +231,74 @@ router.post("/member-connections/:id/respond",requireAuth,async(req,res,next):Pr
     }
     res.json({stage:finalState.stage,myApproved:true,otherApproved:Boolean(approvals[otherParty]),
       contactShared:false,requiresFinalGavhahApproval:bothApproved});
+  }catch(e){next(e);}
+});
+
+/**
+ * FINAL authorization is a separate decision, always taken AFTER the last
+ * participant consents. Staff cannot substitute for either person's consent.
+ * Only full admins may authorize the actual exchange of contact details.
+ */
+router.post("/admin/member-connections/:id/final-release",requireAdmin,async(req,res,next):Promise<void>=>{
+  try {
+    if(!["admin","super_admin"].includes(String(getSessionUserRole(req)))){
+      res.status(403).json({error:"Final contact-release approval requires a full Gavhah administrator"});return;
+    }
+    const id=validId(req.params.id);
+    const note=typeof req.body?.note==="string"?req.body.note.trim():"";
+    if(!id||note.length<10||note.length>1000||req.body?.confirmRelease!==true){
+      res.status(400).json({error:"Confirm final permission and document the Gavhah decision (10–1000 characters)"});return;
+    }
+    const request=await originalRequest(id);
+    const {row,state}=await getConnectionMeta(id);
+    if(!request||request.status!=="open"||!row||!state){
+      res.status(404).json({error:"Open approved connection not found"});return;
+    }
+    if(state.stage!=="awaiting_staff_release"||!hasMutualConsent(state)||state.staffReleasedAt){
+      res.status(409).json({error:"Both people must approve first; final release may not be repeated"});return;
+    }
+    const [requesterAccount,volunteerAccount,requesterPrefs,volunteerPrefs]=await Promise.all([
+      member(state.requesterUserId),member(state.volunteerUserId),
+      getContactSelection(state.requesterUserId,"help"),
+      getContactSelection(state.volunteerUserId,"volunteer"),
+    ]);
+    if(requesterAccount?.status!=="active"||volunteerAccount?.status!=="active"){
+      res.status(409).json({error:"Both participants must still be active members"});return;
+    }
+    if(!requesterPrefs||!volunteerPrefs||
+       requesterPrefs.mayConsiderSharing!=="yes"||volunteerPrefs.mayConsiderSharing!=="yes"){
+      res.status(409).json({error:"One participant has not permitted consideration of direct contact sharing"});return;
+    }
+    const requesterPoint=pointFor(requesterPrefs,state.requesterChoice);
+    const volunteerPoint=pointFor(volunteerPrefs,state.volunteerChoice);
+    if(!requesterPoint||!volunteerPoint||
+       JSON.stringify(requesterPoint)!==JSON.stringify(state.proposedContacts.requester)||
+       JSON.stringify(volunteerPoint)!==JSON.stringify(state.proposedContacts.volunteer)){
+      res.status(409).json({error:"A member's contact details changed; request fresh consent for both sides"});return;
+    }
+    const adminId=getSessionUserId(req)!;
+    const nextState:ConnectionState={
+      ...state,stage:"accepted",
+      agreedContacts:{requester:requesterPoint,volunteer:volunteerPoint},
+      staffReleasedAt:new Date().toISOString(),staffReleasedBy:adminId,
+      staffReleaseReason:note,updatedBy:adminId,
+    };
+    if(!await updateConnectionMeta(row,nextState)){
+      res.status(409).json({error:"Case changed before final authorization; refresh it"});return;
+    }
+    const message="BOTH people approved, and Gavhah has now given FINAL permission to share the chosen contact details for this case only. Open My Connections. Do not forward details to anyone without Gavhah and that person's permission.";
+    await Promise.all([
+      alertParty(state.requesterUserId,"connection_finally_authorized",message),
+      alertParty(state.volunteerUserId,"connection_finally_authorized",message),
+    ]);
+    // These are NOT transmitted telephone notices. Keep pending until
+    // a delivery provider AND telephone notification permission are configured.
+    await Promise.all([
+      queuePhoneNotice(id,state.requesterUserId,"mutual_consent"),
+      queuePhoneNotice(id,state.volunteerUserId,"mutual_consent"),
+    ]);
+    res.json({stage:"accepted",contactShared:true,finalApprovedBy:adminId,
+      phoneNotice:"queued_but_not_sent"});
   }catch(e){next(e);}
 });
 
