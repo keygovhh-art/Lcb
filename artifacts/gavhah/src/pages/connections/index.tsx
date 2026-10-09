@@ -9,7 +9,7 @@ import { CheckCircle2, Clock, Handshake, Mail, Phone, RefreshCcw, ShieldCheck, X
 
 type Connection = {
   id: number;
-  stage: "new" | "invited" | "accepted" | "declined" | "connected" | "closed_unfulfilled";
+  stage: "new" | "invited" | "accepted" | "contact_problem" | "declined" | "connected" | "closed_unfulfilled";
   role: "requester" | "volunteer";
   subject: string;
   volunteerName: string;
@@ -17,6 +17,7 @@ type Connection = {
   contact: string | null;
   guidance: string;
   closureReason: string | null;
+  contactIssue: string | null;
   createdAt: string;
 };
 
@@ -31,6 +32,7 @@ function stageLabel(stage: Connection["stage"], yi: boolean): string {
     new: ["ווארט אויף אדמין", "Waiting for administrator"],
     invited: ["ווארט אויף רשות", "Waiting for volunteer consent"],
     accepted: ["רשות געגעבן — פארבינד זיך", "Consent granted — make contact"],
+    contact_problem: ["קאנטאקט־פראבלעם — אדמין העלפט", "Contact problem — staff follow-up"],
     declined: ["וואלונטיר האט נישט מסכים געווען", "Volunteer declined"],
     connected: ["פארבינדונג באשטעטיגט", "Connection confirmed"],
     closed_unfulfilled: ["נישט געלונגען", "Could not complete"],
@@ -46,6 +48,7 @@ export default function ConnectionsPage() {
   const [items, setItems] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
+  const [problemDrafts, setProblemDrafts] = useState<Record<number, string>>({});
   const load = useCallback(async () => {
     if (!isAuthenticated) { setLoading(false); return; }
     setLoading(true);
@@ -180,6 +183,24 @@ export default function ConnectionsPage() {
                       <p className="text-xs text-muted-foreground mb-2">
                         {yi ? "דרוק נאר נאכדעם וואס דו האסט זיך פאקטיש געקענט פארבינדן." : "Confirm only after actual contact has succeeded."}
                       </p>
+                      <div className="mt-4 space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          {yi ? "קען זיך נישט פארבינדן? שרייב וואס איז נישט געגאנגען, און דער אדמין וועט זען אז דער פאל דארף נאך הילף." :
+                            "Could not reach the volunteer? Explain the problem; staff will keep the case open for follow-up."}
+                        </p>
+                        <textarea
+                          rows={2} maxLength={500}
+                          value={problemDrafts[item.id] || ""}
+                          onChange={e => setProblemDrafts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          placeholder={yi ? "וואס איז געשען ביים פרובירן זיך צו פארבינדן?" : "What happened when you tried to make contact?"}
+                          className="w-full rounded-md border bg-background p-2 text-sm"
+                        />
+                        <Button type="button" variant="outline"
+                          disabled={busy !== null || (problemDrafts[item.id] || "").trim().length < 10}
+                          onClick={() => void action(item, "problem", { description: problemDrafts[item.id].trim() })}>
+                          {yi ? "איך קען זיך נישט פארבינדן — בעט הילף" : "I couldn't connect — request follow-up"}
+                        </Button>
+                      </div>
                       <Button disabled={busy !== null || !item.contact} onClick={() => {
                         if (window.confirm(yi ? "האסטו זיך טאקע מצליח געווען צו פארבינדן מיט דעם וואלונטיר?" : "Did you actually make contact with the volunteer?")) {
                           void action(item, "confirm", {});
@@ -191,6 +212,15 @@ export default function ConnectionsPage() {
                   </div>
                 )}
 
+                {item.stage === "contact_problem" && (
+                  <div className="rounded-lg border p-4 space-y-2">
+                    <p className="text-sm font-semibold">{yi ? "דער פאל בלייבט אפן. דער אדמין דארף נאך העלפן." : "This case stays open while staff helps resolve the contact problem."}</p>
+                    {item.contactIssue && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{item.contactIssue}</p>}
+                    {item.contact && <p className="text-xs text-muted-foreground break-all">
+                      {yi ? "דער קאנטאקט איז שוין געגעבן געווארן: " : "Previously shared contact: "}{item.contact}
+                    </p>}
+                  </div>
+                )}
                 {item.stage === "declined" && <p className="text-sm text-muted-foreground">
                   {yi ? "דער וואלונטיר האט נישט געגעבן רשות. דער אדמין קען ווייטער באהאנדלען דעם פאל, אבער קיין קאנטאקט איז נישט געשיקט געווארן." : "The volunteer declined. Administrators may follow up, but no contact details were shared."}
                 </p>}
