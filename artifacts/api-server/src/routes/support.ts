@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { desc, eq } from "drizzle-orm";
-import { db, supportMessagesTable, usersTable } from "@workspace/db";
+import { and, desc, eq } from "drizzle-orm";
+import { db, supportMessagesTable, usersTable, volunteerProfilesTable } from "@workspace/db";
+import { CONNECTION_META_TYPE, newConnectionState } from "../lib/member-connections";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { createRateLimiter } from "../middlewares/rate-limit";
 import { notifyStaff } from "../lib/notify";
@@ -76,6 +77,80 @@ router.post("/member-requests", requireAuth, async (req, res): Promise<void> => 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
+  if (type === "volunteer_contact") {
+    const volunteerId = Number(req.body?.volunteerId);
+    if (!Number.isSafeInteger(volunteerId) || volunteerId <= 0) {
+      res.status(400).json({ error: "Select a verified volunteer profile to request contact" });
+      return;
+    }
+    const [volunteer] = await db.select().from(volunteerProfilesTable)
+      .where(eq(volunteerProfilesTable.id, volunteerId));
+    if (!volunteer) { res.status(404).json({ error: "Volunteer profile not found" }); return; }
+    if (volunteer.userId === userId) {
+      res.status(400).json({ error: "You cannot request contact with yourself" }); return;
+    }
+    const [volunteerAccount] = await db.select({
+      status: usersTable.status, email: usersTable.email, phone: usersTable.phone,
+    }).from(usersTable).where(eq(usersTable.id, volunteer.userId));
+    if (!volunteerAccount || volunteerAccount.status !== "active" ||
+        !(volunteerAccount.email || volunteerAccount.phone)) {
+      res.status(409).json({ error: "Volunteer contact is temporarily unavailable" }); return;
+    }
+
+    // Prevent multiple pending requests to the same volunteer. The metadata
+    // is created in the SAME transaction as the staff inbox item.
+    const [openItems, allMeta] = await Promise.all([
+      db.select({ id: supportMessagesTable.id }).from(supportMessagesTable)
+        .where(and(
+          eq(supportMessagesTable.userId, userId),
+          eq(supportMessagesTable.type, "volunteer_contact"),
+          eq(supportMessagesTable.status, "open"),
+        )),
+      db.select({ subject: supportMessagesTable.subject, message: supportMessagesTable.message })
+        .from(supportMessagesTable).where(eq(supportMessagesTable.type, CONNECTION_META_TYPE)),
+    ]);
+    const metaById = new Map(allMeta.map(row => [row.subject, row.message]));
+    for (const row of openItems) {
+      const raw = metaById.get(`support:${row.id}`);
+      if (!raw) continue;
+      try {
+        const previous = JSON.parse(raw);
+        if (previous.volunteerId === volunteerId && previous.stage !== "closed_unfulfilled") {
+          res.status(409).json({ error: "You already have an open request for this volunteer" });
+          return;
+        }
+      } catch { /* Ignore malformed legacy metadata. */ }
+    }
+
+    const cleanNote = message.slice(0, 1500);
+    const [created] = await db.transaction(async tx => {
+      const [item] = await tx.insert(supportMessagesTable).values({
+        userId, name: user.nickname || user.name,
+        email: user.email || user.phone || "Gavhah member",
+        type: "volunteer_contact",
+        subject: `Volunteer contact request: ${volunteer.userName}`,
+        message: `Member asked to connect with volunteer #${volunteer.id} (${volunteer.userName}) in ${volunteer.location}.` +
+          (cleanNote ? `\nMessage: ${cleanNote}` : ""),
+        status: "open",
+      }).returning();
+      await tx.insert(supportMessagesTable).values({
+        userId, name: "Member Connection Workflow", email: "connections@internal.invalid",
+        type: CONNECTION_META_TYPE, subject: `support:${item.id}`,
+        message: JSON.stringify(newConnectionState({
+          volunteerId: volunteer.id, volunteerUserId: volunteer.userId, requesterUserId: userId,
+        })),
+        status: "resolved",
+      });
+      return [item];
+    });
+    await notifyStaff(
+      `New volunteer connection request: ${user.nickname || user.name} — ${volunteer.userName}`,
+      "/founder", "admin_member_connection",
+    );
+    res.status(201).json(created);
+    return;
+  }
+
   const [created] = await db.insert(supportMessagesTable).values({
     userId,
     name: user.nickname || user.name,
@@ -111,6 +186,12 @@ router.patch("/admin/support-messages/:id", requireAdmin, async (req, res): Prom
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
   if (String(existing.type).startsWith("__")) {
     res.status(403).json({ error: "Internal system records must be managed through their dedicated admin controls" });
+    return;
+  }
+  if (existing.type === "volunteer_contact" && status === "resolved") {
+    res.status(409).json({
+      error: "Connection requests cannot be marked successful by staff review. The requester must confirm contact, or staff must close it as unfulfilled with a recorded reason.",
+    });
     return;
   }
 
