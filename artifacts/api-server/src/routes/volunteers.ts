@@ -44,12 +44,12 @@ function publicHelpRequest<T extends { contactInfo?: unknown }>(request: T) {
   return safe;
 }
 
-router.get("/featured/volunteers", async (_req, res): Promise<void> => {
+router.get("/featured/volunteers", requireAdmin, async (_req, res): Promise<void> => {
   const featured = await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.isFeatured, true)).limit(4);
   res.json(featured);
 });
 
-router.get("/featured/requests", async (_req, res): Promise<void> => {
+router.get("/featured/requests", requireAdmin, async (_req, res): Promise<void> => {
   const featured = await db.select().from(helpRequestsTable).where(and(
     eq(helpRequestsTable.isFeatured, true),
     eq(helpRequestsTable.status, "open"),
@@ -57,7 +57,7 @@ router.get("/featured/requests", async (_req, res): Promise<void> => {
   res.json(featured.map(publicHelpRequest));
 });
 
-router.get("/volunteers", async (req, res): Promise<void> => {
+router.get("/volunteers", requireAdmin, async (req, res): Promise<void> => {
   const { location, search } = req.query as Record<string, string>;
   let all = await db.select().from(volunteerProfilesTable);
   if (location) all = all.filter(v => v.location.toLowerCase().includes(location.toLowerCase()));
@@ -103,7 +103,7 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
       });
     return created;
   });
-  await logActivity("volunteer", `${safeUserName} registered as a volunteer`, safeUserName);
+  // Deliberately no public activity record for confidential volunteer signup.
 
   const volunteerUser = await getMemberIdentity(userId);
   await db.insert(supportMessagesTable).values({
@@ -123,14 +123,19 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   });
   await notifyStaff(`New volunteer registration: ${safeUserName}`, "/founder", "admin_volunteer");
 
+  res.setHeader("Cache-Control","private, no-store");
   res.status(201).json(vol);
 });
 
-router.get("/volunteers/:id", async (req, res): Promise<void> => {
+router.get("/volunteers/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const [vol] = await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.id, id));
   if (!vol) { res.status(404).json({ error: "Not found" }); return; }
+  if (vol.userId !== getSessionUserId(req) && !isStaffRole(getSessionUserRole(req))) {
+    res.status(404).json({ error: "Not found" }); return;
+  }
+  res.setHeader("Cache-Control","private, no-store");
   res.json(vol);
 });
 
@@ -180,7 +185,7 @@ router.get("/admin/help-requests", requireAdmin, async (_req, res): Promise<void
   res.json(all);
 });
 
-router.get("/help-requests", async (req, res): Promise<void> => {
+router.get("/help-requests", requireAdmin, async (req, res): Promise<void> => {
   const { type, urgency } = req.query as Record<string, string>;
   let all = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.status, "open"));
   if (type) all = all.filter(r => r.needType === type);
@@ -236,24 +241,23 @@ router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
     "/founder",
     "admin_help_request",
   );
+  res.setHeader("Cache-Control","private, no-store");
   res.status(201).json(publicHelpRequest(request));
 });
 
-router.get("/help-requests/:id", async (req, res): Promise<void> => {
+router.get("/help-requests/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const [request] = await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.id, id));
   if (!request) { res.status(404).json({ error: "Not found" }); return; }
 
-  if (request.status !== "open") {
-    const currentUser = await getCurrentSessionUser(req);
-    if (!currentUser || (currentUser.id !== request.userId && !isStaffRole(currentUser.role))) {
-      res.status(404).json({ error: "Not found" });
-      return;
-    }
+  // Requests are private irrespective of review status.
+  const currentUser = await getCurrentSessionUser(req);
+  if (!currentUser || (currentUser.id !== request.userId && !isStaffRole(currentUser.role))) {
+    res.status(404).json({ error: "Not found" }); return;
   }
-
-  res.json(publicHelpRequest(request));
+  res.setHeader("Cache-Control","private, no-store");
+  res.json(isStaffRole(currentUser.role) ? request : publicHelpRequest(request));
 });
 
 router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> => {
@@ -319,14 +323,10 @@ router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> 
 
   if (isStaffRole(role) && status !== undefined && status !== existing.status) {
     const decisionMessage =
-      status === "open" ? `Your help request "${request.name}" was approved and is now public.` :
-      status === "rejected" ? `Your help request "${request.name}" was not approved for public listing.` :
+      status === "open" ? `Your private help request "${request.name}" has been accepted for confidential staff follow-up. It is NOT public.` :
+      status === "rejected" ? `Your private help request "${request.name}" could not be accepted for internal follow-up.` :
       status === "resolved" ? `Your help request "${request.name}" was marked resolved.` :
       null;
-
-    if (status === "open" && existing.status === "pending") {
-      await logActivity("help_request", "A new help request was approved for the directory", request.name);
-    }
 
     if (decisionMessage) {
       await db.insert(notificationsTable).values({
@@ -339,6 +339,7 @@ router.patch("/help-requests/:id", requireAuth, async (req, res): Promise<void> 
     }
   }
 
+  res.setHeader("Cache-Control","private, no-store");
   res.json(isStaffRole(role) ? request : publicHelpRequest(request));
 });
 
