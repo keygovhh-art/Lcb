@@ -291,8 +291,8 @@ export function OperationsInbox() {
         "Approve publishes the held reply; Reject prevents publication.",
       ],
       member_connection: [
-        "איבערקוקן אליין איז נישט גענוג. דער וואלונטיר מוז מסכים זיין; דער בעטער דארף זיך פארבינדן און באשטעטיגן אז עס איז געלונגען.",
-        "Review alone is NOT completion. The volunteer must consent, and the requester must confirm real contact.",
+        "איבערקוקן אליין איז נישט גענוג. ביידע צדדים דארפן אליין געבן רשות, און דער בעטער דארף פאקטיש באשטעטיגן אז די פארבינדונג איז געלונגען.",
+        "Staff may approve a MATCH only. Both users must personally consent before contact is disclosed; requester then confirms real contact.",
       ],
     };
     const [yiddish, english] = descriptions[item.kind] || [
@@ -669,8 +669,8 @@ export function OperationsInbox() {
                       {item.meta?.connectionStage === "contact_problem" && (
                         <div className="space-y-2 rounded-md bg-muted/30 p-2 border">
                           <p className="text-xs">
-                            {yi ? "דער בעטער האט געמאלדן אז דער קאנטאקט איז נישט געלונגען. העלף אים פאקטיש, דערנאך שרייב וואס איז געטאן געווארן און לאז אים נאכאמאל פרובירן." :
-                              "The requester could not connect. Perform real follow-up, record what was fixed, then offer another attempt."}
+                            {yi ? "איינער פון די צדדים האט געמאלדן א קאנטאקט־פראבלעם. העלף פאקטיש, דערנאך שרייב וואס איז געטאן געווארן און לאז אים נאכאמאל פרובירן." :
+                              "A participant reported a channel problem. Perform real follow-up, record what was fixed, then offer another attempt."}
                           </p>
                           <p className="text-xs font-semibold break-words">{item.meta.connectionIssue || ""}</p>
                           <Input
@@ -706,17 +706,17 @@ export function OperationsInbox() {
                       )}
                       {item.meta?.connectionStage === "consent_revoked" && (
                         <p className="text-xs rounded-md bg-muted/30 p-2 border">
-                          {yi ? "דער וואלונטיר האט צוריקגענומען רשות. קיין קאנטאקט־פרטים ווערן נישט מער ארויסגעוויזן. באהאנדל דעם פאל אלס נישט געלונגען." :
-                            "The volunteer withdrew consent. Contact details are no longer displayed; resolve the case as unsuccessful."}
+                          {yi ? "איינער פון די צוויי האט צוריקגענומען רשות. קאנטאקט־פרטים ווערן נישט מער ארויסגעוויזן. א פרישע פארבינדונג דארף ביידע רשות נאכאמאל." :
+                            "A participant withdrew consent. Contact details are no longer displayed; a new review requires both people to approve again."}
                         </p>
                       )}
                       {item.meta?.connectionStage === "declined" && (
                         <p className="text-xs rounded-md bg-muted/30 p-2 border">
-                          {yi ? "דער וואלונטיר האט נישט מסכים געווען. שרייב א פאסיגן הסבר אונטן איידער מען פארמאכט דעם פאל אלס נישט געלונגען." :
-                            "The volunteer declined. Enter a reason below to close this case as unsuccessful, NOT completed."}
+                          {yi ? "איינער פון ביידע האט נישט מסכים געווען. שרייב א פאסיגן הסבר אונטן איידער מען פארמאכט דעם פאל אלס נישט געלונגען." :
+                            "A participant declined. Enter a reason below to close this case as unsuccessful, NOT completed."}
                         </p>
                       )}
-                      {["new", "invited", "accepted", "contact_problem", "consent_revoked", "declined"].includes(item.meta?.connectionStage) && (
+                      {["new", "invited", "needs_reapproval", "accepted", "contact_problem", "consent_revoked", "declined"].includes(item.meta?.connectionStage) && (
                         <div className="space-y-2">
                           <Input
                             value={closureReasons[item.key] || ""}
