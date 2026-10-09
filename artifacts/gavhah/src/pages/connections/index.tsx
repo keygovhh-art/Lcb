@@ -8,12 +8,12 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, Clock, Handshake, Mail, Phone, RefreshCcw, ShieldCheck, XCircle } from "lucide-react";
 
 type ContactPoint = {method:"phone"|"email"|"sms";value:string};
-type Stage = "new"|"invited"|"needs_reapproval"|"accepted"|"contact_problem"|
+type Stage = "new"|"invited"|"needs_reapproval"|"awaiting_staff_release"|"accepted"|"contact_problem"|
   "consent_revoked"|"declined"|"connected"|"closed_unfulfilled";
 type Connection = {
   id:number;stage:Stage;role:"requester"|"volunteer";createdAt:string;subject:string;
   volunteerName:string;requesterName:string;
-  myApproved:boolean;otherApproved:boolean;myContact:ContactPoint|null;needsMyContact:boolean;
+  myApproved:boolean;otherApproved:boolean;finalStaffApproved:boolean;myContact:ContactPoint|null;needsMyContact:boolean;
   contact:string|null;contactMethod:ContactPoint["method"]|null;backupAvailable:boolean;
   contactIssue:string|null;closureReason:string|null;phoneNotices:string;policy:string;
 };
@@ -21,6 +21,7 @@ const LABELS:Record<Stage,[string,string]>={
   new:["ווארט אויף דער מערכת","Awaiting Gavhah review"],
   invited:["ביידע מוזן מסכים זיין","Both must give permission"],
   needs_reapproval:["נייע רשות נויטיג","Fresh approval required"],
+  awaiting_staff_release:["ווארט אויף לעצטע רשות פון גבהה","Awaiting final Gavhah authorization"],
   accepted:["ביידע האבן מסכים געווען","Both approved — contact available"],
   contact_problem:["דער פאל איז צוריק ביי דער מערכת","Contact problem — staff review"],
   consent_revoked:["רשות צוריקגענומען","Permission withdrawn"],
@@ -80,8 +81,8 @@ export default function ConnectionsPage(){
             <Handshake className="h-7 w-7"/>{yi?"מיינע פארבינדונגען":"My Connections"}
           </h1>
           <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
-            {yi?"די מערכת קען פארשלאגן א פארבינדונג, אבער קען נישט געבן רשות אנשטאט א מענטש. ביידע מוזן אליין מסכים זיין פאר מ'גיט ארויס קאנטאקט־פרטים.":
-              "Gavhah reviews the match, but cannot grant anyone's personal permission. Both people must approve before contact information is shared."}
+            {yi?"די מערכת קען פארשלאגן א פארבינדונג, אבער קען נישט געבן רשות אנשטאט א מענטש. ביידע מוזן אליין מסכים זיין, און דערנאך מוז די מערכת נאך באזונדער ערלויבן דאס איבערגעבן.":
+              "Gavhah reviews the match, but cannot grant anyone's personal permission. Both people must approve, followed by separate FINAL Gavhah authorization, before contact information is shared."}
           </p>
         </div>
         <Button variant="outline" disabled={loading||!isAuthenticated} onClick={()=>void load()}>
@@ -116,8 +117,8 @@ export default function ConnectionsPage(){
               </p>
               {item.myApproved?<div className="rounded-md bg-muted/30 p-3 text-sm flex gap-2 items-center">
                 <Clock className="h-4 w-4"/>
-                {yi?"דו האסט שוין מסכים געווען. מען ווארט אויף דער אנדערער צד.":
-                  "You approved. Waiting for the other person's personal consent."}
+                {yi?"דו האסט שוין מסכים געווען. נאך דער צווייטער צד דארף אויך די מערכת געבן איר לעצטע רשות.":
+                  "You approved. Waiting for the other person, followed by final Gavhah permission."}
               </div>:<>
                 {item.needsMyContact?<div className="border rounded-md p-3 text-sm space-y-2">
                   <p>{yi?"דו דארפסט ערשט אריינלייגן דיין קאנטאקט־וועג אינעם פראפיל.":
@@ -160,6 +161,16 @@ export default function ConnectionsPage(){
                   </Button>
                 </div>
               </>}
+            </div>}
+            {item.stage==="awaiting_staff_release"&&<div className="rounded-lg border p-4 space-y-2 bg-muted/20">
+              <div className="flex items-center gap-2 font-semibold text-sm"><Clock className="h-5 w-5"/>
+                {yi?"ביידע מענטשן האבן מסכים געווען — גבהה דארף נאך באשטעטיגן" :
+                  "Both participants approved — awaiting Gavhah's final authorization"}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {yi?"דאס איבערגעבן די קאנטאקט־פרטים איז דערווייל פארשפארט. נאר ווען די מערכת גיט איר באזונדערן לעצטן אישור וועלן די אויסגעקליבענע פרטים אויפקומען."
+                  :"Neither contact detail is available yet. A full Gavhah administrator must separately approve the actual release before either person can view it."}
+              </p>
             </div>}
             {item.stage==="new"&&<p className="text-sm text-muted-foreground">
               {yi?"די מערכת דארף נאך באטראכטן צי די פארבינדונג איז פאסיג.":
@@ -229,7 +240,7 @@ export default function ConnectionsPage(){
               {yi?"דער בעטער האט באשטעטיגט אז די פארבינדונג איז פאקטיש געלונגען.":
                 "The requester confirmed real contact succeeded."}
             </p>}
-            {["accepted","invited","contact_problem"].includes(item.stage)&&
+            {["accepted","invited","awaiting_staff_release","contact_problem"].includes(item.stage)&&
               <Button size="sm" variant="ghost" disabled={busy!==null}
                 onClick={()=>{if(window.confirm(yi?"ווילסטו צוריקנעמען דיין רשות פאר דעם פאל?":"Withdraw your permission for this case?"))
                   void action(item,"revoke",{});}}>
