@@ -7,7 +7,7 @@ import {
   groupMembersTable, causeSubmissionsTable, minyansTable, reservationsTable,
 } from "@workspace/db/schema";
 import { count, eq, desc, inArray } from "drizzle-orm";
-import { CONNECTION_META_TYPE, type ConnectionState } from "../lib/member-connections";
+import { CONNECTION_META_TYPE, parseConnectionState, type ConnectionState } from "../lib/member-connections";
 import { requireAdmin, getSessionUserId } from "../middlewares/auth";
 
 const router = Router();
@@ -119,13 +119,8 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
   for (const row of connectionRows) {
     const id = Number(row.subject.match(/^support:(\d+)$/)?.[1]);
     if (!Number.isSafeInteger(id) || id <= 0 || connectionsByRequest.has(id)) continue;
-    try {
-      const state = JSON.parse(row.message) as ConnectionState;
-      if (Number.isSafeInteger(state.volunteerId) && Number.isSafeInteger(state.volunteerUserId) &&
-          Number.isSafeInteger(state.requesterUserId) && typeof state.stage === "string") {
-        connectionsByRequest.set(id, state);
-      }
-    } catch { /* Malformed metadata stays unavailable; the case remains open. */ }
+    const state = parseConnectionState(row.message);
+    if (state) connectionsByRequest.set(id,state);
   }
   const contactIds = [...new Set([...connectionsByRequest.values()].map(s => s.volunteerUserId))];
   const contactUsers = contactIds.length
@@ -224,6 +219,10 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
           ? (connectionsByRequest.get(m.id)?.stage ?? "legacy")
           : null,
         connectionIssue: connectionsByRequest.get(m.id)?.contactIssue ?? null,
+        requesterApproved: Boolean(connectionsByRequest.get(m.id)?.approvals.requester),
+        volunteerApproved: Boolean(connectionsByRequest.get(m.id)?.approvals.volunteer),
+        requesterChoice: connectionsByRequest.get(m.id)?.requesterChoice ?? "primary",
+        volunteerChoice: connectionsByRequest.get(m.id)?.volunteerChoice ?? "primary",
         volunteerId: connectionsByRequest.get(m.id)?.volunteerId ?? null,
         volunteerName: connectionsByRequest.get(m.id)?.volunteerUserId
           ? (volunteersById.get(connectionsByRequest.get(m.id)!.volunteerUserId)?.nickname ||
