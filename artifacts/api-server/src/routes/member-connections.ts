@@ -57,7 +57,7 @@ router.get("/member-connections/mine", requireAuth, async (req, res, next): Prom
       if (!Number.isSafeInteger(requestId) || requestId <= 0) continue;
       let state: ConnectionState | null = null;
       try { state = JSON.parse(row.message) as ConnectionState; } catch { continue; }
-      if (!state || !["new", "invited", "accepted", "contact_problem", "declined", "connected", "closed_unfulfilled"].includes(state.stage)) continue;
+      if (!state || !["new", "invited", "accepted", "contact_problem", "consent_revoked", "declined", "connected", "closed_unfulfilled"].includes(state.stage)) continue;
       if (state.requesterUserId !== userId && state.volunteerUserId !== userId) continue;
       if (selected.some(x => x.id === requestId)) continue;
       selected.push({ id: requestId, state });
@@ -260,6 +260,33 @@ router.post("/member-connections/:id/confirm", requireAuth, async (req, res, nex
 
 // The requester can flag a failed attempt without pretending the introduction
 // succeeded. The case remains open for staff follow-up.
+// The volunteer may withdraw consent while the introduction is still open.
+// Staff and the requester are immediately told not to proceed.
+router.post("/member-connections/:id/revoke", requireAuth, async (req, res, next): Promise<void> => {
+  try {
+    const id = idFromRequest(req.params.id);
+    if (!id) { res.status(400).json({ error: "Invalid connection ID" }); return; }
+    const request = await originalRequest(id);
+    const { row, state } = await getConnectionMeta(id);
+    if (!request || request.status !== "open" || !row || !state) {
+      res.status(404).json({ error: "Open connection request not found" }); return;
+    }
+    if (state.volunteerUserId !== getSessionUserId(req)) {
+      res.status(403).json({ error: "Only the volunteer can withdraw consent" }); return;
+    }
+    if (!["accepted", "contact_problem"].includes(state.stage)) {
+      res.status(409).json({ error: "There is no active consent to withdraw" }); return;
+    }
+    if (!await updateConnectionMeta(row, {
+      ...state, stage: "consent_revoked", updatedBy: getSessionUserId(req)!,
+    })) { res.status(409).json({ error: "Request changed; refresh" }); return; }
+    await notifyUser(state.requesterUserId, "connection_permission_withdrawn",
+      "The volunteer withdrew permission to share contact details. Do not attempt further contact. Administration will follow up.", "/connections");
+    await notifyStaff(`Volunteer withdrew consent for connection request #${id}`, "/founder", "admin_member_connection");
+    res.json({ stage: "consent_revoked" });
+  } catch (error) { next(error); }
+});
+
 router.post("/member-connections/:id/problem", requireAuth, async (req, res, next): Promise<void> => {
   try {
     const id = idFromRequest(req.params.id);
