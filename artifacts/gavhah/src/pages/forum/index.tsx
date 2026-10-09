@@ -9,25 +9,14 @@ import { Search, Plus, ArrowBigUp, Eye, MessageCircle, Lock, TrendingUp, Pin } f
 import { format } from "date-fns";
 import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
 import { DiscussionTicker } from "@/components/shared/discussion-ticker";
-
-const CATEGORIES = [
-  { value: "", label: "All Topics" },
-  { value: "medical", label: "Medical" },
-  { value: "shidduchim", label: "Shidduchim" },
-  { value: "livelihood", label: "Livelihood" },
-  { value: "education", label: "Education" },
-  { value: "charity", label: "Charity" },
-  { value: "community", label: "Community" },
-  { value: "general", label: "General" },
-];
+import { visibleForumTopic } from "@/lib/forum-topic";
 
 export default function ForumList() {
   const { data: engagementSettings } = useEngagementSettings();
   const forumEngagement = settingFor(engagementSettings, "forum");
-  const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
 
-  const params = { category: category || undefined, search: search || undefined };
+  const params = { search: search || undefined };
   const { data: discussions, isLoading } = useListDiscussions(params, {
     query: { queryKey: getListDiscussionsQueryKey(params) },
   });
@@ -72,20 +61,6 @@ export default function ForumList() {
               </div>
             </div>
 
-            <div className="flex gap-2 flex-wrap">
-              {CATEGORIES.map(cat => (
-                <Button
-                  key={cat.value}
-                  variant={category === cat.value ? "default" : "outline"}
-                  size="sm"
-                  className="rounded-full"
-                  onClick={() => setCategory(cat.value)}
-                >
-                  {cat.label}
-                </Button>
-              ))}
-            </div>
-
             {isLoading ? (
               <div className="space-y-4">
                 {[...Array(5)].map((_, i) => (
@@ -109,9 +84,11 @@ export default function ForumList() {
                                 <Pin className="h-2.5 w-2.5" /> Pinned
                               </span>
                             )}
-                            <span className="text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full capitalize">
-                              {disc.category.replace("_", " ")}
-                            </span>
+                            {visibleForumTopic(disc.category) && (
+                              <span className="text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded-full break-words">
+                                {visibleForumTopic(disc.category)}
+                              </span>
+                            )}
                             {disc.isLocked && <Lock className="h-3 w-3 text-muted-foreground" />}
                           </div>
                           <h3 className="font-serif font-bold text-primary group-hover:text-secondary transition-colors line-clamp-1 text-lg mb-1">
