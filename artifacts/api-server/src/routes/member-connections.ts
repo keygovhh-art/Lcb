@@ -3,371 +3,344 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, supportMessagesTable, usersTable, volunteerProfilesTable } from "@workspace/db";
 import { getSessionUserId, requireAdmin, requireAuth } from "../middlewares/auth";
 import { notifyStaff, notifyUser } from "../lib/notify";
+import { getContactSelection, pointFor, type ContactPoint } from "../lib/member-contact-methods";
 import {
-  createConnectionMeta, getConnectionMeta, updateConnectionMeta, finishConnection, newConnectionState, CONNECTION_META_TYPE,
+  getConnectionMeta, updateConnectionMeta, finishConnection, newConnectionState,
+  createConnectionMeta, parseConnectionState, hasMutualConsent,
+  clearConsentForNewReview, queuePhoneNotice, CONNECTION_META_TYPE,
   type ConnectionState,
 } from "../lib/member-connections";
 
 const router: IRouter = Router();
-
-function idFromRequest(raw: unknown): number | null {
-  const id = Number(Array.isArray(raw) ? raw[0] : raw);
-  return Number.isSafeInteger(id) && id > 0 ? id : null;
+function validId(raw: unknown): number | null {
+  const n=Number(Array.isArray(raw)?raw[0]:raw);
+  return Number.isSafeInteger(n)&&n>0?n:null;
 }
-
-async function originalRequest(requestId: number) {
-  const [item] = await db.select().from(supportMessagesTable).where(and(
-    eq(supportMessagesTable.id, requestId),
-    eq(supportMessagesTable.type, "volunteer_contact"),
-  ));
-  return item ?? null;
+async function originalRequest(id:number) {
+  const [request]=await db.select().from(supportMessagesTable)
+    .where(and(eq(supportMessagesTable.id,id),eq(supportMessagesTable.type,"volunteer_contact")));
+  return request??null;
 }
-
-function noContactMessage(stage: string) {
-  if (stage === "declined" || stage === "closed_unfulfilled") {
-    return "This volunteer has not agreed to the connection. No contact details were shared.";
-  }
-  return "Contact details are private until the volunteer agrees.";
+async function member(id:number) {
+  const [user]=await db.select({
+    id:usersTable.id,name:usersTable.name,nickname:usersTable.nickname,
+    status:usersTable.status,
+  }).from(usersTable).where(eq(usersTable.id,id));
+  return user??null;
 }
-
-async function contactFor(userId: number) {
-  const [user] = await db.select({
-    id: usersTable.id,
-    name: usersTable.name,
-    nickname: usersTable.nickname,
-    email: usersTable.email,
-    phone: usersTable.phone,
-    status: usersTable.status,
-  }).from(usersTable).where(eq(usersTable.id, userId));
-  return user ?? null;
+async function alertParty(userId:number,kind:string,message:string) {
+  await notifyUser(userId,kind,message,"/connections");
 }
+async function alertApprovalPair(state:ConnectionState,id:number,event:"approval_requested"|"reapproval") {
+  const note="Gavhah has reviewed a proposed connection. BOTH members must personally approve before any contact details are released. Open My Connections to accept or decline.";
+  await Promise.all([
+    alertParty(state.volunteerUserId,"connection_needs_personal_approval",note),
+    alertParty(state.requesterUserId,"connection_needs_personal_approval",note),
+  ]);
+  // Deliberately NOT SENT: no approved telephone/voice/SMS provider is configured.
+  // The sender must later enforce separate phone-notification opt-in.
+  await Promise.all([
+    queuePhoneNotice(id,state.volunteerUserId,event),
+    queuePhoneNotice(id,state.requesterUserId,event),
+  ]);
+}
+const ownParty=(state:ConnectionState,userId:number):"requester"|"volunteer"|null=>
+  userId===state.requesterUserId?"requester":userId===state.volunteerUserId?"volunteer":null;
 
-// Only the requester and the specifically named volunteer may see a
-// connection. The volunteer's contact details are revealed to the requester
-// only AFTER explicit consent has been recorded.
-router.get("/member-connections/mine", requireAuth, async (req, res, next): Promise<void> => {
+/** Privacy: only the two case participants can see the case. */
+router.get("/member-connections/mine",requireAuth,async(req,res,next):Promise<void>=>{
   try {
-    const userId = getSessionUserId(req)!;
-    const metadata = await db.select().from(supportMessagesTable)
-      .where(eq(supportMessagesTable.type, CONNECTION_META_TYPE))
-      .orderBy(desc(supportMessagesTable.createdAt));
-    const selected: Array<{ id: number; state: ConnectionState }> = [];
-    for (const row of metadata) {
-      const requestId = Number(row.subject.match(/^support:(\d+)$/)?.[1]);
-      if (!Number.isSafeInteger(requestId) || requestId <= 0) continue;
-      let state: ConnectionState | null = null;
-      try { state = JSON.parse(row.message) as ConnectionState; } catch { continue; }
-      if (!state || !["new", "invited", "accepted", "contact_problem", "consent_revoked", "declined", "connected", "closed_unfulfilled"].includes(state.stage)) continue;
-      if (state.requesterUserId !== userId && state.volunteerUserId !== userId) continue;
-      if (selected.some(x => x.id === requestId)) continue;
-      selected.push({ id: requestId, state });
+    res.setHeader("Cache-Control","private, no-store");
+    const userId=getSessionUserId(req)!;
+    const metadata=await db.select().from(supportMessagesTable)
+      .where(eq(supportMessagesTable.type,CONNECTION_META_TYPE)).orderBy(desc(supportMessagesTable.id));
+    const selected:Array<{id:number;state:ConnectionState}>=[];
+    for(const row of metadata) {
+      const id=Number(row.subject.match(/^support:(\d+)$/)?.[1]);
+      if(!Number.isSafeInteger(id)||id<=0||selected.some(s=>s.id===id))continue;
+      const state=parseConnectionState(row.message);
+      if(!state||!ownParty(state,userId))continue;
+      selected.push({id,state});
     }
-    const ids = selected.map(item => item.id);
-    const cases = ids.length ? await db.select().from(supportMessagesTable)
-      .where(and(inArray(supportMessagesTable.id, ids), eq(supportMessagesTable.type, "volunteer_contact"))) : [];
-    const byId = new Map(cases.map(item => [item.id, item]));
-    const results = await Promise.all(selected.map(async item => {
-      const original = byId.get(item.id);
-      if (!original) return null;
-      const requester = await contactFor(item.state.requesterUserId);
-      const volunteer = await contactFor(item.state.volunteerUserId);
-      const isRequester = item.state.requesterUserId === userId;
-      const allowed = ["accepted", "connected"].includes(item.state.stage);
+    const ids=selected.map(x=>x.id);
+    const cases=ids.length?await db.select().from(supportMessagesTable)
+      .where(and(inArray(supportMessagesTable.id,ids),eq(supportMessagesTable.type,"volunteer_contact"))):[];
+    const byId=new Map(cases.map(r=>[r.id,r]));
+    const result=await Promise.all(selected.map(async ({id,state})=>{
+      const original=byId.get(id);if(!original)return null;
+      const party=ownParty(state,userId)!;
+      const other=party==="requester"?"volunteer":"requester";
+      const [requester,volunteer,prefs]=await Promise.all([
+        member(state.requesterUserId),member(state.volunteerUserId),
+        getContactSelection(userId,party==="requester"?"help":"volunteer"),
+      ]);
+      const choice=party==="requester"?state.requesterChoice:state.volunteerChoice;
+      const ownContact=prefs?pointFor(prefs,choice):null;
+      const released=["accepted","connected"].includes(state.stage)&&hasMutualConsent(state);
+      const otherContact=released?state.agreedContacts?.[other]:null;
       return {
-        id: item.id,
-        stage: item.state.stage,
-        role: isRequester ? "requester" : "volunteer",
-        subject: original.subject,
-        createdAt: original.createdAt,
-        volunteerName: volunteer?.nickname || volunteer?.name || "Volunteer",
-        requesterName: requester?.nickname || requester?.name || "Member",
-        contact: allowed
-          ? (isRequester
-            ? (volunteer?.status === "active" ? volunteer.phone || volunteer.email : null)
-            : (requester?.status === "active" ? requester.phone || requester.email : null))
-          : null,
-        guidance: noContactMessage(item.state.stage),
-        closureReason: item.state.stage === "closed_unfulfilled" ? item.state.closureReason : null,
-        contactIssue: item.state.stage === "contact_problem" ? item.state.contactIssue : null,
+        id,stage:state.stage,role:party,createdAt:original.createdAt,subject:original.subject,
+        volunteerName:volunteer?.nickname||volunteer?.name||"Volunteer",
+        requesterName:requester?.nickname||requester?.name||"Member",
+        myApproved:Boolean(state.approvals[party]),otherApproved:Boolean(state.approvals[other]),
+        myContact:ownContact,needsMyContact:!ownContact,
+        contact:otherContact?.value||null,contactMethod:otherContact?.method||null,
+        backupAvailable:Boolean(prefs?.backupMethod),
+        contactIssue:state.contactIssue,closureReason:state.closureReason,
+        phoneNotices:"awaiting_provider",
+        policy:"Do not share the other member's contact information with anyone without Gavhah approval and that member's permission.",
       };
     }));
-    res.json(results.filter(Boolean));
-  } catch (error) { next(error); }
+    res.json(result.filter(Boolean));
+  }catch(e){next(e);}
 });
 
-router.post("/admin/member-connections/:id/link", requireAdmin, async (req, res, next): Promise<void> => {
+/** This is staff matching approval ONLY. It never acts as member consent. */
+router.post("/admin/member-connections/:id/link",requireAdmin,async(req,res,next):Promise<void>=>{
   try {
-    const id = idFromRequest(req.params.id);
-    const volunteerId = idFromRequest(req.body?.volunteerId);
-    if (!id || !volunteerId) { res.status(400).json({ error: "Valid request and volunteer IDs are required" }); return; }
-    const request = await originalRequest(id);
-    if (!request || request.status !== "open" || !request.userId) {
-      res.status(404).json({ error: "Open request with a member account not found" }); return;
+    const id=validId(req.params.id),volunteerId=validId(req.body?.volunteerId);
+    if(!id||!volunteerId){res.status(400).json({error:"Valid case and volunteer IDs required"});return;}
+    const request=await originalRequest(id);
+    if(!request||request.status!=="open"||!request.userId){res.status(404).json({error:"Open member request not found"});return;}
+    const existing=await getConnectionMeta(id);
+    if(existing.row){res.status(409).json({error:"Case is already linked"});return;}
+    const [vol]=await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.id,volunteerId));
+    const target=vol?await member(vol.userId):null;
+    if(!vol||!target||target.status!=="active"||request.userId===vol.userId){
+      res.status(409).json({error:"Select an eligible volunteer other than the requester"});return;
     }
-    const existing = await getConnectionMeta(id);
-    if (existing.row) { res.status(409).json({ error: "Request is already linked to a volunteer" }); return; }
-    const [volunteer] = await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.id, volunteerId));
-    if (!volunteer) { res.status(404).json({ error: "Volunteer profile not found" }); return; }
-    const account = await contactFor(volunteer.userId);
-    if (!account || account.status !== "active" || !(account.phone || account.email)) {
-      res.status(409).json({ error: "Volunteer needs an active account with contact details" }); return;
-    }
-    if (volunteer.userId === request.userId) {
-      res.status(400).json({ error: "A member cannot request their own contact information" }); return;
-    }
-    await createConnectionMeta(id, newConnectionState({
-      volunteerId, volunteerUserId: volunteer.userId, requesterUserId: request.userId,
+    await createConnectionMeta(id,newConnectionState({
+      volunteerId,volunteerUserId:vol.userId,requesterUserId:request.userId,
     }));
-    res.json({ linked: true });
-  } catch (error) { next(error); }
+    res.json({linked:true,consentGranted:false});
+  }catch(e){next(e);}
 });
 
-router.post("/admin/member-connections/:id/invite", requireAdmin, async (req, res, next): Promise<void> => {
+router.post("/admin/member-connections/:id/invite",requireAdmin,async(req,res,next):Promise<void>=>{
   try {
-    const id = idFromRequest(req.params.id);
-    if (!id) { res.status(400).json({ error: "Invalid request ID" }); return; }
-    const request = await originalRequest(id);
-    const { row, state } = await getConnectionMeta(id);
-    if (!request || request.status !== "open" || !row || !state) {
-      res.status(404).json({ error: "Linked open connection request not found" }); return;
+    const id=validId(req.params.id);if(!id){res.status(400).json({error:"Invalid case"});return;}
+    const request=await originalRequest(id);
+    const {row,state}=await getConnectionMeta(id);
+    if(!request||request.status!=="open"||!row||!state){
+      res.status(404).json({error:"Open linked case not found"});return;
     }
-    if (state.stage !== "new") { res.status(409).json({ error: "Invitation was already sent or this request has progressed" }); return; }
-    const target = await contactFor(state.volunteerUserId);
-    if (!target || target.status !== "active" || !(target.phone || target.email)) {
-      res.status(409).json({ error: "Volunteer account is not available for contact" }); return;
+    if(!["new","needs_reapproval"].includes(state.stage)){
+      res.status(409).json({error:"Case is not awaiting staff matching approval"});return;
     }
-    const nextState: ConnectionState = {
-      ...state, stage: "invited", invitedAt: new Date().toISOString(), updatedBy: getSessionUserId(req)!,
-    };
-    if (!await updateConnectionMeta(row, nextState)) {
-      res.status(409).json({ error: "Request was updated by someone else; refresh it" }); return;
-    }
-    await notifyUser(state.volunteerUserId, "volunteer_connection_consent",
-      "Someone requests permission to contact you. Please accept or decline in My Connections.", "/connections");
-    await notifyUser(state.requesterUserId, "connection_request_update",
-      "Your request has been forwarded for the volunteer's permission.", "/connections");
-    res.json({ stage: "invited", notice: "An in-app notification was sent; no SMS or email has been sent." });
-  } catch (error) { next(error); }
+    const nextState=clearConsentForNewReview(state,{
+      requesterChoice:"primary",volunteerChoice:"primary",
+    });
+    nextState.updatedBy=getSessionUserId(req)!;
+    if(!await updateConnectionMeta(row,nextState)){res.status(409).json({error:"Case changed; refresh"});return;}
+    await alertApprovalPair(nextState,id,"approval_requested");
+    res.json({stage:"invited",contactShared:false,phoneNotice:"queued_but_not_sent"});
+  }catch(e){next(e);}
 });
 
-// A staff member who personally obtained explicit permission can document
-// verified phone/in-person consent; a mere "Reviewed" click is never consent.
-router.post("/admin/member-connections/:id/record-consent", requireAdmin, async (req, res, next): Promise<void> => {
-  try {
-    const id = idFromRequest(req.params.id);
-    const method = String(req.body?.method || "");
-    const note = String(req.body?.note || "").trim();
-    if (!id || !["phone", "in_person"].includes(method) ||
-        req.body?.confirmedPermission !== true || note.length < 20 || note.length > 1000) {
-      res.status(400).json({
-        error: "Choose phone/in-person verification, document 20–1000 characters, and explicitly confirm the volunteer granted permission to share their contact details",
-      });
-      return;
-    }
-    const request = await originalRequest(id);
-    const { row, state } = await getConnectionMeta(id);
-    if (!request || request.status !== "open" || !row || !state) {
-      res.status(404).json({ error: "Linked open connection request not found" }); return;
-    }
-    if (!["new", "invited"].includes(state.stage)) {
-      res.status(409).json({ error: "Consent already decided; refresh this case" }); return;
-    }
-    const volunteer = await contactFor(state.volunteerUserId);
-    if (!volunteer || volunteer.status !== "active" || !(volunteer.phone || volunteer.email)) {
-      res.status(409).json({ error: "Volunteer must have an active account with a contact method" }); return;
-    }
-    const verifierId = getSessionUserId(req)!;
-    const nextState: ConnectionState = {
-      ...state, stage: "accepted", respondedAt: new Date().toISOString(),
-      consentMethod: method === "phone" ? "staff_verified_phone" : "staff_verified_in_person",
-      consentNote: note, consentVerifiedBy: verifierId, updatedBy: verifierId,
-    };
-    if (!await updateConnectionMeta(row, nextState)) {
-      res.status(409).json({ error: "Request changed; refresh and retry" }); return;
-    }
-    await notifyUser(state.requesterUserId, "connection_request_update",
-      "An administrator personally verified the volunteer's permission. Open My Connections to contact the volunteer and confirm whether contact succeeded.", "/connections");
-    await notifyUser(state.volunteerUserId, "connection_request_update",
-      "An administrator recorded your permission to share your contact details after personal verification. If this was not authorized, contact administration immediately.", "/connections");
-    res.json({ stage: "accepted", consentMethod: nextState.consentMethod });
-  } catch (error) { next(error); }
+/** Retire the unsafe staff-as-member consent override. */
+router.post("/admin/member-connections/:id/record-consent",requireAdmin,(_req,res):void=>{
+  res.status(410).json({error:"Staff may review a connection but cannot grant consent for either member. Both must respond themselves."});
 });
 
-router.post("/member-connections/:id/respond", requireAuth, async (req, res, next): Promise<void> => {
+router.post("/member-connections/:id/respond",requireAuth,async(req,res,next):Promise<void>=>{
   try {
-    const id = idFromRequest(req.params.id);
-    const decision = String(req.body?.decision || "");
-    if (!id || !["accept", "decline"].includes(decision)) {
-      res.status(400).json({ error: "Valid decision required" }); return;
+    const id=validId(req.params.id),decision=String(req.body?.decision||"");
+    if(!id||!["accept","decline"].includes(decision)){res.status(400).json({error:"Accept or decline required"});return;}
+    const {row,state}=await getConnectionMeta(id);
+    const request=await originalRequest(id);
+    if(!row||!state||!request||request.status!=="open"){
+      res.status(404).json({error:"Open connection case not found"});return;
     }
-    const { row, state } = await getConnectionMeta(id);
-    const request = await originalRequest(id);
-    if (!row || !state || !request || request.status !== "open") {
-      res.status(404).json({ error: "Open connection request not found" }); return;
+    const actor=getSessionUserId(req)!;
+    const party=ownParty(state,actor);
+    if(!party){res.status(403).json({error:"Only the two matched members may decide"});return;}
+    if(state.stage!=="invited"){res.status(409).json({error:"This connection is not awaiting consent"});return;}
+    if(state.approvals[party]){res.status(409).json({error:"You already approved this introduction"});return;}
+    if(decision==="decline") {
+      const nextState:ConnectionState={...state,stage:"declined",agreedContacts:null,proposedContacts:{},
+        approvals:{requester:null,volunteer:null},updatedBy:actor};
+      if(!await updateConnectionMeta(row,nextState)){res.status(409).json({error:"Case changed; refresh"});return;}
+      await alertParty(party==="requester"?state.volunteerUserId:state.requesterUserId,
+        "connection_declined","The proposed introduction was declined. Contact details were not disclosed.");
+      await notifyStaff(`Case #${id}: ${party} declined. No contact disclosed.`,"/founder","admin_member_connection");
+      res.json({stage:"declined",contactShared:false});return;
     }
-    if (state.volunteerUserId !== getSessionUserId(req)) {
-      res.status(403).json({ error: "Only the requested volunteer may decide" }); return;
+    if(req.body?.confirmedPersonalPermission!==true || req.body?.agreedNoRedistribution!==true){
+      res.status(400).json({error:"Confirm personal consent AND no-redistribution conditions explicitly"});return;
     }
-    if (state.stage !== "invited") {
-      res.status(409).json({ error: "This request is not awaiting volunteer consent" }); return;
+    const preferences=await getContactSelection(actor,party==="requester"?"help":"volunteer");
+    const selection=party==="requester"?state.requesterChoice:state.volunteerChoice;
+    const point=preferences?pointFor(preferences,selection):null;
+    if(!point){
+      res.status(409).json({error:"Add your contact method in My Profile before approving. No contact has been released."});return;
     }
-    if (decision === "accept") {
-      const user = await contactFor(state.volunteerUserId);
-      if (!user || user.status !== "active" || !(user.phone || user.email)) {
-        res.status(409).json({ error: "Add an email or phone number to your profile before approving contact" }); return;
-      }
+    const otherParty=party==="requester"?"volunteer":"requester";
+    const approvals={...state.approvals,[party]:new Date().toISOString()};
+    const proposedContacts={...state.proposedContacts,[party]:point};
+    const shared=approvals[otherParty] && proposedContacts.requester && proposedContacts.volunteer
+      ? {requester:proposedContacts.requester,volunteer:proposedContacts.volunteer}:null;
+    const finalState:ConnectionState={...state,approvals,proposedContacts,
+      agreedContacts:shared,stage:shared?"accepted":"invited",
+      respondedAt:new Date().toISOString(),updatedBy:actor,
+      consentMethod:"in_app",consentNote:null,consentVerifiedBy:null};
+    if(!await updateConnectionMeta(row,finalState)){res.status(409).json({error:"Case changed; refresh"});return;}
+    if(shared){
+      await Promise.all([
+        alertParty(state.requesterUserId,"connection_mutual_approval",
+          "Both members personally approved this Gavhah connection. Your approved contact exchange is available in My Connections. Do not redistribute details."),
+        alertParty(state.volunteerUserId,"connection_mutual_approval",
+          "Both members personally approved this Gavhah connection. Your approved contact exchange is available in My Connections. Do not redistribute details."),
+      ]);
+      await Promise.all([
+        queuePhoneNotice(id,state.requesterUserId,"mutual_consent"),
+        queuePhoneNotice(id,state.volunteerUserId,"mutual_consent"),
+      ]);
+      await notifyStaff(`Case #${id}: mutual approval recorded; contact released to the two participants only.`,
+        "/founder","admin_member_connection");
+    }else{
+      await alertParty(state.requesterUserId===actor?state.volunteerUserId:state.requesterUserId,
+        "connection_waiting_second_approval","One participant approved this Gavhah proposal. Please respond in My Connections; no contact has been shared.");
     }
-    const stage = decision === "accept" ? "accepted" : "declined";
-    if (!await updateConnectionMeta(row, {
-      ...state, stage, respondedAt: new Date().toISOString(),
-      consentMethod: decision === "accept" ? "in_app" : null,
-      consentNote: null, consentVerifiedBy: null,
-      updatedBy: getSessionUserId(req)!,
-    })) { res.status(409).json({ error: "Another update occurred; refresh the request" }); return; }
-    await notifyUser(state.requesterUserId, "connection_request_update",
-      decision === "accept"
-        ? "The volunteer agreed to share contact details. Open My Connections to contact them and confirm the outcome."
-        : "The volunteer could not accept the contact request. Your administrators will follow up.", "/connections");
-    await notifyStaff(`Volunteer ${decision === "accept" ? "accepted" : "declined"} request #${id}`, "/founder", "admin_member_connection");
-    res.json({ stage });
-  } catch (error) { next(error); }
+    res.json({stage:finalState.stage,myApproved:true,otherApproved:Boolean(approvals[otherParty]),
+      contactShared:Boolean(shared),phoneNotice:"queued_but_not_sent"});
+  }catch(e){next(e);}
 });
 
-router.post("/member-connections/:id/confirm", requireAuth, async (req, res, next): Promise<void> => {
-  try {
-    const id = idFromRequest(req.params.id);
-    if (!id) { res.status(400).json({ error: "Invalid request ID" }); return; }
-    const request = await originalRequest(id);
-    const { row, state } = await getConnectionMeta(id);
-    if (!row || !state || !request) { res.status(404).json({ error: "Connection request not found" }); return; }
-    if (state.requesterUserId !== getSessionUserId(req)) {
-      res.status(403).json({ error: "Only the requester can confirm successful contact" }); return;
+router.post("/member-connections/:id/confirm",requireAuth,async(req,res,next):Promise<void>=>{
+  try{
+    const id=validId(req.params.id);if(!id){res.status(400).json({error:"Invalid case ID"});return;}
+    const request=await originalRequest(id),{row,state}=await getConnectionMeta(id);
+    if(!request||!row||!state){res.status(404).json({error:"Case not found"});return;}
+    if(state.requesterUserId!==getSessionUserId(req)){res.status(403).json({error:"Only requester confirms real contact"});return;}
+    if(state.stage==="connected"&&hasMutualConsent(state)){res.json({stage:"connected"});return;}
+    if(request.status!=="open"||state.stage!=="accepted"||!hasMutualConsent(state)){
+      res.status(409).json({error:"Both members must explicitly approve before any successful contact is recorded"});return;
     }
-    if (state.stage === "connected") { res.json({ stage: "connected" }); return; }
-    if (state.stage !== "accepted" || request.status !== "open") {
-      res.status(409).json({ error: "The volunteer must accept before contact can be confirmed" }); return;
+    if(!await finishConnection(id,row,{...state,stage:"connected",confirmedAt:new Date().toISOString(),updatedBy:getSessionUserId(req)!})){
+      res.status(409).json({error:"Case changed; refresh"});return;
     }
-    if (!await finishConnection(id, row, {
-      ...state, stage: "connected", confirmedAt: new Date().toISOString(),
-      updatedBy: getSessionUserId(req)!,
-    })) { res.status(409).json({ error: "Request changed; refresh and retry" }); return; }
-    await notifyStaff(`Requester confirmed successful contact for request #${id}`, "/founder", "admin_member_connection");
-    await notifyUser(state.volunteerUserId, "connection_request_update",
-      "The requester confirmed that contact was successful. Thank you!", "/connections");
-    res.json({ stage: "connected" });
-  } catch (error) { next(error); }
+    await alertParty(state.volunteerUserId,"connection_confirmed","Requester confirmed real contact through Gavhah.");
+    await notifyStaff(`Case #${id}: requester confirmed real contact.`,"/founder","admin_member_connection");
+    res.json({stage:"connected"});
+  }catch(e){next(e);}
 });
 
-// The requester can flag a failed attempt without pretending the introduction
-// succeeded. The case remains open for staff follow-up.
-// The volunteer may withdraw consent while the introduction is still open.
-// Staff and the requester are immediately told not to proceed.
-router.post("/member-connections/:id/revoke", requireAuth, async (req, res, next): Promise<void> => {
+/** Either person may withdraw permission until real contact has been closed. */
+router.post("/member-connections/:id/revoke",requireAuth,async(req,res,next):Promise<void>=>{
   try {
-    const id = idFromRequest(req.params.id);
-    if (!id) { res.status(400).json({ error: "Invalid connection ID" }); return; }
-    const request = await originalRequest(id);
-    const { row, state } = await getConnectionMeta(id);
-    if (!request || request.status !== "open" || !row || !state) {
-      res.status(404).json({ error: "Open connection request not found" }); return;
+    const id=validId(req.params.id),{row,state}=id?await getConnectionMeta(id):{row:null,state:null};
+    const request=id?await originalRequest(id):null;
+    if(!id||!row||!state||!request||request.status!=="open"){res.status(404).json({error:"Open case not found"});return;}
+    const actor=getSessionUserId(req)!,party=ownParty(state,actor);
+    if(!party){res.status(403).json({error:"Only the two participants can withdraw"});return;}
+    if(!["invited","accepted","contact_problem"].includes(state.stage)){
+      res.status(409).json({error:"No active consent in this case"});return;
     }
-    if (state.volunteerUserId !== getSessionUserId(req)) {
-      res.status(403).json({ error: "Only the volunteer can withdraw consent" }); return;
-    }
-    if (!["accepted", "contact_problem"].includes(state.stage)) {
-      res.status(409).json({ error: "There is no active consent to withdraw" }); return;
-    }
-    if (!await updateConnectionMeta(row, {
-      ...state, stage: "consent_revoked", updatedBy: getSessionUserId(req)!,
-    })) { res.status(409).json({ error: "Request changed; refresh" }); return; }
-    await notifyUser(state.requesterUserId, "connection_permission_withdrawn",
-      "The volunteer withdrew permission to share contact details. Do not attempt further contact. Administration will follow up.", "/connections");
-    await notifyStaff(`Volunteer withdrew consent for connection request #${id}`, "/founder", "admin_member_connection");
-    res.json({ stage: "consent_revoked" });
-  } catch (error) { next(error); }
+    if(!await updateConnectionMeta(row,{...state,stage:"consent_revoked",
+      approvals:{requester:null,volunteer:null},agreedContacts:null,proposedContacts:{},
+      updatedBy:actor})){res.status(409).json({error:"Case changed; refresh"});return;}
+    const other=party==="requester"?state.volunteerUserId:state.requesterUserId;
+    await alertParty(other,"connection_consent_revoked",
+      "Permission for this Gavhah connection was withdrawn. Do not share or use contact information. Gavhah will follow up.");
+    await notifyStaff(`Case #${id}: ${party} withdrew consent.`,"/founder","admin_member_connection");
+    res.json({stage:"consent_revoked",contactShared:false});
+  }catch(e){next(e);}
 });
 
-router.post("/member-connections/:id/problem", requireAuth, async (req, res, next): Promise<void> => {
+router.post("/member-connections/:id/problem",requireAuth,async(req,res,next):Promise<void>=>{
   try {
-    const id = idFromRequest(req.params.id);
-    const description = String(req.body?.description || "").trim();
-    if (!id || description.length < 10 || description.length > 500) {
-      res.status(400).json({ error: "Explain the contact problem (10–500 characters)" }); return;
+    const id=validId(req.params.id);
+    const code=String(req.body?.code||"other");
+    const codes=new Set(["no_sms","no_email","no_phone","could_not_connect","other"]);
+    const description=String(req.body?.description||"").trim().slice(0,500);
+    if(!id||!codes.has(code)||(code==="other"&&description.length<5)){
+      res.status(400).json({error:"Choose a contact limitation or explain the problem"});return;
     }
-    const request = await originalRequest(id);
-    const { row, state } = await getConnectionMeta(id);
-    if (!request || request.status !== "open" || !row || !state) {
-      res.status(404).json({ error: "Open connection request not found" }); return;
+    const request=await originalRequest(id),{row,state}=await getConnectionMeta(id);
+    if(!request||request.status!=="open"||!row||!state){
+      res.status(404).json({error:"Open case not found"});return;
     }
-    if (state.requesterUserId !== getSessionUserId(req)) {
-      res.status(403).json({ error: "Only the requester can report a failed contact attempt" }); return;
+    const party=ownParty(state,getSessionUserId(req)!);
+    if(!party){res.status(403).json({error:"Only the two participants can flag a channel problem"});return;}
+    if(state.stage!=="accepted"||!hasMutualConsent(state)){
+      res.status(409).json({error:"A contact exchange must first be approved by both members"});return;
     }
-    if (state.stage !== "accepted") {
-      res.status(409).json({ error: "Contact must first be approved by the volunteer" }); return;
-    }
-    if (!await updateConnectionMeta(row, {
-      ...state, stage: "contact_problem", contactIssue: description,
-      updatedBy: getSessionUserId(req)!,
-    })) { res.status(409).json({ error: "Request changed; refresh it" }); return; }
-    await notifyStaff(`Requester needs help contacting volunteer for case #${id}: ${description}`, "/founder", "admin_member_connection");
-    res.json({ stage: "contact_problem" });
-  } catch (error) { next(error); }
+    const issue=`${party}:${code}${description?": "+description:""}`;
+    const nextState:ConnectionState={...state,stage:"contact_problem",contactIssue:issue,
+      approvals:{requester:null,volunteer:null},agreedContacts:null,proposedContacts:{},
+      updatedBy:getSessionUserId(req)!};
+    if(!await updateConnectionMeta(row,nextState)){res.status(409).json({error:"Case changed; refresh"});return;}
+    const other=party==="requester"?state.volunteerUserId:state.requesterUserId;
+    await alertParty(other,"connection_contact_issue",
+      "The participant reported a contact limitation. Previous details are no longer displayed; wait for fresh matching and approval.");
+    await notifyStaff(`Case #${id}: ${issue}. Please review optional backup; both members must reapprove.`,
+      "/founder","admin_member_connection");
+    await queuePhoneNotice(id,other,"channel_problem");
+    res.json({stage:"contact_problem",staffReviewRequired:true,contactShared:false});
+  }catch(e){next(e);}
 });
 
-// After staff has actually followed up and corrected the issue, the same
-// requester may attempt contact and confirm the real result.
-router.post("/admin/member-connections/:id/retry-contact", requireAdmin, async (req, res, next): Promise<void> => {
+router.post("/admin/member-connections/:id/retry-contact",requireAdmin,async(req,res,next):Promise<void>=>{
   try {
-    const id = idFromRequest(req.params.id);
-    if (!id) { res.status(400).json({ error: "Invalid request ID" }); return; }
-    const request = await originalRequest(id);
-    const { row, state } = await getConnectionMeta(id);
-    if (!request || request.status !== "open" || !row || !state) {
-      res.status(404).json({ error: "Open connection request not found" }); return;
+    const id=validId(req.params.id),followup=String(req.body?.followup||"").trim();
+    const choices=["primary","backup"];
+    const requesterChoice=String(req.body?.requesterChoice||"primary");
+    const volunteerChoice=String(req.body?.volunteerChoice||"primary");
+    if(!id||followup.length<10||followup.length>1000||
+       !choices.includes(requesterChoice)||!choices.includes(volunteerChoice)){
+      res.status(400).json({error:"Record follow-up and choose primary or available backup for each member"});return;
     }
-    if (state.stage !== "contact_problem") {
-      res.status(409).json({ error: "Request is not awaiting help with a failed contact attempt" }); return;
+    const request=await originalRequest(id),{row,state}=await getConnectionMeta(id);
+    if(!request||request.status!=="open"||!row||!state){res.status(404).json({error:"Open case not found"});return;}
+    if(!["contact_problem","consent_revoked","declined","needs_reapproval"].includes(state.stage)){
+      res.status(409).json({error:"Case is not awaiting staff re-review"});return;
     }
-    const followup = String(req.body?.followup || "").trim();
-    if (followup.length < 10 || followup.length > 500) {
-      res.status(400).json({ error: "Record what was fixed before inviting another attempt" }); return;
+    const [requester,volunteer]=await Promise.all([
+      getContactSelection(state.requesterUserId,"help"),
+      getContactSelection(state.volunteerUserId,"volunteer"),
+    ]);
+    if(!requester||!volunteer||!pointFor(requester,requesterChoice as "primary"|"backup")||
+       !pointFor(volunteer,volunteerChoice as "primary"|"backup")){
+      res.status(409).json({error:"Both members need the selected method on their private contact profiles; optional backup may be missing"});return;
     }
-    if (!await updateConnectionMeta(row, {
-      ...state, stage: "accepted", contactIssue: null,
-      contactFollowups: [...(state.contactFollowups || []), {
-        note: followup, actorId: getSessionUserId(req)!, at: new Date().toISOString(),
-      }].slice(-50),
-      updatedBy: getSessionUserId(req)!,
-    })) { res.status(409).json({ error: "Request changed; refresh it" }); return; }
-    await notifyUser(state.requesterUserId, "connection_request_update",
-      "The team followed up on your connection problem. Please try again and confirm the result.", "/connections");
-    res.json({ stage: "accepted" });
-  } catch (error) { next(error); }
+    const nextState=clearConsentForNewReview(state,{
+      requesterChoice:requesterChoice as "primary"|"backup",
+      volunteerChoice:volunteerChoice as "primary"|"backup",
+    });
+    nextState.contactFollowups=[...state.contactFollowups,{
+      note:followup,actorId:getSessionUserId(req)!,at:new Date().toISOString(),
+    }].slice(-50);
+    nextState.contactIssue=null;nextState.updatedBy=getSessionUserId(req)!;
+    if(!await updateConnectionMeta(row,nextState)){res.status(409).json({error:"Case changed; refresh"});return;}
+    await alertApprovalPair(nextState,id,"reapproval");
+    res.json({stage:"invited",bothMustApproveAgain:true,phoneNotice:"queued_but_not_sent"});
+  }catch(e){next(e);}
 });
 
-router.post("/admin/member-connections/:id/close-unfulfilled", requireAdmin, async (req, res, next): Promise<void> => {
+router.post("/admin/member-connections/:id/close-unfulfilled",requireAdmin,async(req,res,next):Promise<void>=>{
   try {
-    const id = idFromRequest(req.params.id);
-    const reason = String(req.body?.reason || "").trim();
-    if (!id || reason.length < 10 || reason.length > 1000) {
-      res.status(400).json({ error: "Provide a reason of 10–1000 characters for an unsuccessful closure" }); return;
+    const id=validId(req.params.id),reason=String(req.body?.reason||"").trim();
+    if(!id||reason.length<10||reason.length>1000){
+      res.status(400).json({error:"Explain unsuccessful closure (10–1000 characters)"});return;
     }
-    const request = await originalRequest(id);
-    const { row, state } = await getConnectionMeta(id);
-    if (!row || !state || !request || request.status !== "open") {
-      res.status(404).json({ error: "Open connection request not found" }); return;
+    const request=await originalRequest(id),{row,state}=await getConnectionMeta(id);
+    if(!request||request.status!=="open"||!row||!state){
+      res.status(404).json({error:"Open case not found"});return;
     }
-    if (state.stage === "connected" || state.stage === "closed_unfulfilled") {
-      res.status(409).json({ error: "Request was already closed" }); return;
+    if(["connected","closed_unfulfilled"].includes(state.stage)){
+      res.status(409).json({error:"Case is already closed"});return;
     }
-    if (!await finishConnection(id, row, {
-      ...state, stage: "closed_unfulfilled", closedAt: new Date().toISOString(),
-      closureReason: reason, updatedBy: getSessionUserId(req)!,
-    })) { res.status(409).json({ error: "Request changed; refresh and retry" }); return; }
-    await notifyUser(state.requesterUserId, "connection_request_update",
-      "Your connection request could not be completed. Please check My Connections for an explanation.", "/connections");
-    res.json({ stage: "closed_unfulfilled" });
-  } catch (error) { next(error); }
+    if(!await finishConnection(id,row,{...state,stage:"closed_unfulfilled",
+      approvals:{requester:null,volunteer:null},agreedContacts:null,proposedContacts:{},
+      closedAt:new Date().toISOString(),closureReason:reason,updatedBy:getSessionUserId(req)!})){
+      res.status(409).json({error:"Case changed; refresh"});return;
+    }
+    await Promise.all([
+      alertParty(state.requesterUserId,"connection_unfulfilled","Gavhah closed this case as unsuccessful; see My Connections for the explanation."),
+      alertParty(state.volunteerUserId,"connection_unfulfilled","Gavhah closed this connection as unsuccessful."),
+    ]);
+    res.json({stage:"closed_unfulfilled",success:false});
+  }catch(e){next(e);}
 });
 
 export default router;
