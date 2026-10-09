@@ -7,6 +7,7 @@ export type ConnectionStage =
   | "new"
   | "invited"
   | "accepted"
+  | "contact_problem"
   | "declined"
   | "connected"
   | "closed_unfulfilled";
@@ -21,6 +22,7 @@ export type ConnectionState = {
   confirmedAt: string | null;
   closedAt: string | null;
   closureReason: string | null;
+  contactIssue: string | null;
   updatedBy: number | null;
 };
 
@@ -37,6 +39,7 @@ export function newConnectionState(input: {
     confirmedAt: null,
     closedAt: null,
     closureReason: null,
+    contactIssue: null,
     updatedBy: null,
   };
 }
@@ -48,7 +51,7 @@ function parseConnectionState(raw: string): ConnectionState | null {
       !Number.isSafeInteger(value.volunteerId) || value.volunteerId <= 0 ||
       !Number.isSafeInteger(value.volunteerUserId) || value.volunteerUserId <= 0 ||
       !Number.isSafeInteger(value.requesterUserId) || value.requesterUserId <= 0 ||
-      !["new", "invited", "accepted", "declined", "connected", "closed_unfulfilled"].includes(value.stage)
+      !["new", "invited", "accepted", "contact_problem", "declined", "connected", "closed_unfulfilled"].includes(value.stage)
     ) return null;
     return {
       volunteerId: value.volunteerId,
@@ -60,6 +63,7 @@ function parseConnectionState(raw: string): ConnectionState | null {
       confirmedAt: typeof value.confirmedAt === "string" ? value.confirmedAt : null,
       closedAt: typeof value.closedAt === "string" ? value.closedAt : null,
       closureReason: typeof value.closureReason === "string" ? value.closureReason : null,
+      contactIssue: typeof value.contactIssue === "string" ? value.contactIssue : null,
       updatedBy: Number.isSafeInteger(value.updatedBy) ? value.updatedBy : null,
     };
   } catch { return null; }
@@ -105,4 +109,38 @@ export async function updateConnectionMeta(
     ))
     .returning({ id: supportMessagesTable.id });
   return Boolean(changed);
+}
+
+/**
+ * Close the staff work item in the same transaction as the consent-state
+ * change. A network interruption cannot leave an apparently successful
+ * connection in the still-open staff queue.
+ */
+export async function finishConnection(
+  requestId: number,
+  metaRow: typeof supportMessagesTable.$inferSelect,
+  next: ConnectionState,
+): Promise<boolean> {
+  return db.transaction(async tx => {
+    const [updated] = await tx.update(supportMessagesTable)
+      .set({ message: JSON.stringify(next) })
+      .where(and(
+        eq(supportMessagesTable.id, metaRow.id),
+        eq(supportMessagesTable.message, metaRow.message),
+        eq(supportMessagesTable.type, CONNECTION_META_TYPE),
+      ))
+      .returning({ id: supportMessagesTable.id });
+    if (!updated) return false;
+
+    const [closed] = await tx.update(supportMessagesTable)
+      .set({ status: "resolved" })
+      .where(and(
+        eq(supportMessagesTable.id, requestId),
+        eq(supportMessagesTable.type, "volunteer_contact"),
+        eq(supportMessagesTable.status, "open"),
+      ))
+      .returning({ id: supportMessagesTable.id });
+    if (!closed) throw new Error("Request was already closed; state update rolled back");
+    return true;
+  });
 }
