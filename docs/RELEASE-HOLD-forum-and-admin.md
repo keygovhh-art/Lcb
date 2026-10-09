@@ -51,3 +51,38 @@
 - This branch has not been deployed or tested against a live production database.
 - Production migration and live testing require separate approval.
 - Only the owner may authorize publishing.
+
+
+## Additional staged batch: mandatory account gates and optional postal addresses (2026-10-09)
+
+**Still hold. Do NOT deploy to Render, merge into main, or run DB changes.**
+
+- Guests cannot enter the Askanim Forum, including direct discussion URLs or its API, and global search no longer exposes forum snippets to guests.
+- Volunteer enrollment, help-request submission, project/group participation, minyan/community functions and communications sign-in surfaces use separate welcome-gate sections.
+- Each welcome page has independently editable **Yiddish and English** copy, two buttons, icon, optional HTTPS picture, theme and layout.
+- Admin page designer has a private preview, draft save and a later explicit page-level publish operation. Do not use the publish operation as part of staging.
+- Registration includes an **entirely optional** home address. On entering one, the member must explicitly answer **Yes or No** to USPS mailing. No means stored address flagged DO NOT SEND.
+- Address and consent are never returned from public member endpoints, and are accessible only to the member and full admins through separate routes. Moderators cannot access home addresses.
+- Member can view/update/delete the address and withdraw consent in My Profile.
+- Advanced admin member manager provides filtered membership list, USPS Yes/No/no-address/on-hold labels, admin notes, administrative stop-mail hold and filtering.
+- Administration cannot turn a member's USPS "No" into "Yes".
+- No USPS service integration was added; these fields record member permission only.
+- Privacy disclosure updated.
+
+### DB migration REQUIRED before release (not executed)
+Run and verify `lib/db/migrations/20261009_member_mailing.sql` in the **confirmed** app production PostgreSQL, after backup and connected service verification. Check that the SQL applies to the correct production database and that the address table remains inaccessible to public DB users. Do not assume the older Neon project and the active Render service point to the same DB.
+
+### Additional pre-release tests
+- [ ] Confirm staging code installs, typechecks and builds outside Render.
+- [ ] Test guest/members on /forum, /forum/new, /forum/:id and /api/discussions and global search.
+- [ ] Test all welcome-page variants, RTL Yiddish rendering, image preview, draft, private preview, and version-change behavior.
+- [ ] Test guest volunteer/help membership gate, signing up, then returning to original department.
+- [ ] Test signup with no address: account succeeds and mailing status is NO ADDRESS.
+- [ ] Test incomplete optional address: clear error, not partial storage.
+- [ ] Test full address + USPS NO: saved accurately, labeled DO NOT SEND.
+- [ ] Test full address + USPS YES: explicit consent timestamp and YES label.
+- [ ] Test profile permission withdrawal, address edit requiring renewed confirmation and address deletion.
+- [ ] Test ordinary member / moderator denial of admin postal API, and full admin access.
+- [ ] Test administrator HOLD / release HOLD does not override member NO.
+- [ ] Test member-management search/filters and private data cache headers.
+- [ ] Review migration rollback/backup and Render/GitHub branch deployment behavior.
