@@ -22,14 +22,14 @@ function cleanForumTopic(input: unknown): string | null {
   return value;
 }
 
-router.get("/discussions/trending", async (_req, res): Promise<void> => {
+router.get("/discussions/trending", requireAuth, async (_req, res): Promise<void> => {
   const trending = await db.select().from(discussionsTable)
     .orderBy(desc(discussionsTable.views), desc(discussionsTable.likes))
     .limit(5);
   res.json(trending);
 });
 
-router.get("/discussions", async (req, res): Promise<void> => {
+router.get("/discussions", requireAuth, async (req, res): Promise<void> => {
   const { category, search } = req.query as Record<string, string>;
   let all = await db.select().from(discussionsTable).orderBy(desc(discussionsTable.createdAt));
   if (category) all = all.filter(d => d.category === category);
@@ -63,7 +63,7 @@ router.post("/discussions", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json(disc);
 });
 
-router.get("/discussions/:id", async (req, res): Promise<void> => {
+router.get("/discussions/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const [disc] = await db.select().from(discussionsTable).where(eq(discussionsTable.id, id));
@@ -167,7 +167,7 @@ router.post("/discussions/:id/lock", requireAdmin, async (req, res): Promise<voi
   res.json(disc);
 });
 
-router.get("/discussions/:id/comments", async (req, res): Promise<void> => {
+router.get("/discussions/:id/comments", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const comments = await db.select().from(commentsTable).where(eq(commentsTable.discussionId, id)).orderBy(commentsTable.createdAt);
