@@ -9,7 +9,7 @@ import { CheckCircle2, Clock, Handshake, Mail, Phone, RefreshCcw, ShieldCheck, X
 
 type Connection = {
   id: number;
-  stage: "new" | "invited" | "accepted" | "contact_problem" | "declined" | "connected" | "closed_unfulfilled";
+  stage: "new" | "invited" | "accepted" | "contact_problem" | "consent_revoked" | "declined" | "connected" | "closed_unfulfilled";
   role: "requester" | "volunteer";
   subject: string;
   volunteerName: string;
@@ -33,6 +33,7 @@ function stageLabel(stage: Connection["stage"], yi: boolean): string {
     invited: ["ווארט אויף רשות", "Waiting for volunteer consent"],
     accepted: ["רשות געגעבן — פארבינד זיך", "Consent granted — make contact"],
     contact_problem: ["קאנטאקט־פראבלעם — אדמין העלפט", "Contact problem — staff follow-up"],
+    consent_revoked: ["רשות צוריקגענומען", "Permission withdrawn"],
     declined: ["וואלונטיר האט נישט מסכים געווען", "Volunteer declined"],
     connected: ["פארבינדונג באשטעטיגט", "Connection confirmed"],
     closed_unfulfilled: ["נישט געלונגען", "Could not complete"],
@@ -220,6 +221,19 @@ export default function ConnectionsPage() {
                       {yi ? "דער קאנטאקט איז שוין געגעבן געווארן: " : "Previously shared contact: "}{item.contact}
                     </p>}
                   </div>
+                )}
+                {item.stage === "consent_revoked" && <p className="text-sm text-destructive">
+                  {yi ? "דער וואלונטיר האט צוריקגענומען רשות. מ׳טאר נישט ווייטער שיקן זיינע קאנטאקט־פרטים אדער פרובירן א נייע פארבינדונג אן פרישע רשות." :
+                    "The volunteer withdrew consent. Do not attempt further contact without new permission."}
+                </p>}
+                {item.role === "volunteer" && ["accepted", "contact_problem"].includes(item.stage) && (
+                  <Button variant="outline" disabled={busy !== null}
+                    onClick={() => {
+                      if (window.confirm(yi ? "ווילסטו טאקע צוריקנעמען דיין רשות צו טיילן קאנטאקט־פרטים?" :
+                        "Withdraw permission to share your contact details?")) void action(item, "revoke", {});
+                    }}>
+                    {yi ? "נעם צוריק מיין רשות" : "Withdraw my permission"}
+                  </Button>
                 )}
                 {item.stage === "declined" && <p className="text-sm text-muted-foreground">
                   {yi ? "דער וואלונטיר האט נישט געגעבן רשות. דער אדמין קען ווייטער באהאנדלען דעם פאל, אבער קיין קאנטאקט איז נישט געשיקט געווארן." : "The volunteer declined. Administrators may follow up, but no contact details were shared."}
