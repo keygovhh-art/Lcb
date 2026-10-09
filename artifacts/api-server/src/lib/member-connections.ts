@@ -81,7 +81,7 @@ export function parseConnectionState(raw: string): ConnectionState | null {
     const staffReleasedBy = Number.isSafeInteger(v.staffReleasedBy) && v.staffReleasedBy > 0 ? v.staffReleasedBy : null;
     const released = Boolean(approvals.requester && approvals.volunteer && requester && volunteer && staffReleasedAt && staffReleasedBy);
     // Earlier single/dual approvals NEVER authorize release without separate, later staff approval.
-    const stage:ConnectionStage = ["accepted","connected","contact_problem"].includes(v.stage)&&!released
+    const stage:ConnectionStage = ["accepted","connected"].includes(v.stage)&&!released
       ? "needs_reapproval" : v.stage;
     return {
       volunteerId:v.volunteerId, volunteerUserId:v.volunteerUserId,requesterUserId:v.requesterUserId,
