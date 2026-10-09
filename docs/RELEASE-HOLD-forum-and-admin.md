@@ -128,3 +128,29 @@ Run and verify `lib/db/migrations/20261009_member_mailing.sql` in the **confirme
 - [ ] Test staff status display requester vs volunteer, no phone delivery claims, and permission/no-redistribution warning.
 - [ ] Verify website-bell notifications and unsent outbox; do not treat queued telephone records as actual delivery.
 - [ ] Verify new private DB schema, migrations, rollback plan and permission restrictions.
+
+
+## Final Gavhah release authorization after bilateral personal consent (2026-10-09)
+
+**DO NOT DEPLOY. Do not merge to main and do not touch Render/production DB.**
+
+- The first person consenting does not release any contact. Staff receive an in-app case update.
+- After the second person consents, the case enters `awaiting_staff_release`, not `accepted`. Both participants are notified that the selected contact details remain private.
+- A full administrator (role `admin` or `super_admin`, not moderator) must review the case again, explicitly confirm final authorization and enter a written decision (10–1000 characters) using `POST /admin/member-connections/:id/final-release`.
+- Final release rechecks both member accounts are active, both personal approvals exist, each member's direct-sharing preference is YES, and the exact frozen proposed contact points still match the members' private selections.
+- Only after a successful compare-and-swap of this additional admin decision do the two sides receive their contact information through `/member-connections/mine`. The durable workflow tracks `staffReleasedAt`, `staffReleasedBy`, and `staffReleaseReason`.
+- Historical accepted/connected records that lack this new distinct staff authorization are NOT granted contact access retroactively.
+- Consent revocation, invalid/changed contact method and a reported incompatibility remove contact access and require fresh two-person agreement AND a new final Gavhah authorization.
+- Website-bell notices are sent following final release. Telephone delivery remains **NOT CONNECTED** and is never reported as successfully sent.
+
+### Pre-release verification for this rule
+- [ ] First participant consent alone shows no other person's contact.
+- [ ] BOTH consents without staff final authorization still show no other person's contact.
+- [ ] A moderator or unauthorized member cannot use final-release endpoint.
+- [ ] Full admin must record reason and explicitly confirm final release.
+- [ ] Final authorization before both consents is rejected.
+- [ ] Final authorization after either person withdraws or edits contact details is rejected.
+- [ ] On final authorization, both participants are notified through website bell and see ONLY the selected contact point.
+- [ ] The old staff-only consent endpoint returns 410 and cannot bypass either person's permission.
+- [ ] Release action remains in the staff inbox, marked high priority, until completed or closed.
+- [ ] Verify API and client builds and private-mode route tests off Render before considering any release.
