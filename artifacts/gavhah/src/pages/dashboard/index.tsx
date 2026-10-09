@@ -36,7 +36,7 @@ export default function Dashboard() {
   const statCards = [
     { label: "Total Members", value: stats?.totalMembers ?? 0, icon: <Users className="h-6 w-6" />, link: "/directory", color: "text-primary bg-primary/10" },
     { label: "Active Discussions", value: stats?.totalDiscussions ?? 0, icon: <MessageSquare className="h-6 w-6" />, link: "/forum", color: "text-secondary bg-secondary/10" },
-    { label: "Public News Updates", value: stats?.totalNewsArticles ?? 0, icon: <HandHeart className="h-6 w-6" />, link: "/news", color: "text-accent bg-accent/10" },
+    { label: "Public News Updates", value: (stats as {totalNewsArticles?: number} | undefined)?.totalNewsArticles ?? 0, icon: <HandHeart className="h-6 w-6" />, link: "/news", color: "text-accent bg-accent/10" },
     { label: "Community Groups", value: stats?.activeGroups ?? 0, icon: <Globe className="h-6 w-6" />, link: "/groups", color: "text-primary bg-primary/10" },
     { label: "Confidential Assistance", value: "Handled privately", icon: <Heart className="h-6 w-6" />, link: "/directory", color: "text-secondary bg-secondary/10" },
     { label: "Recorded Donations", value: `$${Number(stats?.donationsRaised ?? 0).toLocaleString()}`, icon: <Activity className="h-6 w-6" />, link: "/charity", color: "text-accent bg-accent/10" },
