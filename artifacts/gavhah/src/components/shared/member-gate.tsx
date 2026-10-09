@@ -5,7 +5,7 @@ import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { Lock, Sparkles } from "lucide-react";
 
-export type MemberGateSection = "forum" | "volunteer" | "help" | "projects" | "groups" | "connections" | "general";
+export type MemberGateSection = "forum" | "volunteer" | "help" | "projects" | "groups" | "connections" | "communications" | "minyans" | "united" | "profile" | "general";
 export type GateDesign = {
   title: string; subtitle: string; body: string; footnote: string;
   joinText: string; signInText: string;
@@ -22,6 +22,10 @@ export function defaultGateDesign(section: MemberGateSection, lang: "yi" | "en")
     projects: ["קהילה פראיעקטן", "Community Projects"],
     groups: ["גרופעס", "Member Groups"],
     connections: ["פארבינדונגען", "Member Connections"],
+    communications: ["קאמוניקאציע", "Communications"],
+    minyans: ["מנינים", "Minyan Directory"],
+    united: ["אחדות און חסד", "United In Kindness"],
+    profile: ["מיין פראפיל", "My Profile"],
     general: ["מעמבער־צוטריט", "Member Access"],
   };
   return {
