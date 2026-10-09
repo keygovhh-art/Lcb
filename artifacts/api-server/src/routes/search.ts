@@ -18,6 +18,8 @@ function contains(column: unknown, query: string) {
 }
 
 router.get("/search", async (req, res): Promise<void> => {
+  // Never let historic public search results with private applicant names be cached.
+  res.setHeader("Cache-Control","no-store");
   const q = String(req.query.q ?? "").trim().slice(0, 100);
   if (q.length < 2) {
     res.json([]);
