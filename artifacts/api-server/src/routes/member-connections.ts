@@ -4,7 +4,7 @@ import { db, supportMessagesTable, usersTable, volunteerProfilesTable } from "@w
 import { getSessionUserId, requireAdmin, requireAuth } from "../middlewares/auth";
 import { notifyStaff, notifyUser } from "../lib/notify";
 import {
-  createConnectionMeta, getConnectionMeta, updateConnectionMeta, CONNECTION_META_TYPE,
+  createConnectionMeta, getConnectionMeta, updateConnectionMeta, newConnectionState, CONNECTION_META_TYPE,
   type ConnectionState,
 } from "../lib/member-connections";
 
@@ -53,7 +53,7 @@ router.get("/member-connections/mine", requireAuth, async (req, res, next): Prom
       .orderBy(desc(supportMessagesTable.createdAt));
     const selected: Array<{ id: number; state: ConnectionState }> = [];
     for (const row of metadata) {
-      const requestId = Number(row.subject.match(/^support:(\\d+)$/)?.[1]);
+      const requestId = Number(row.subject.match(/^support:(\d+)$/)?.[1]);
       if (!Number.isSafeInteger(requestId) || requestId <= 0) continue;
       let state: ConnectionState | null = null;
       try { state = JSON.parse(row.message) as ConnectionState; } catch { continue; }
@@ -114,7 +114,6 @@ router.post("/admin/member-connections/:id/link", requireAdmin, async (req, res,
     if (volunteer.userId === request.userId) {
       res.status(400).json({ error: "A member cannot request their own contact information" }); return;
     }
-    const { newConnectionState } = await import("../lib/member-connections");
     await createConnectionMeta(id, newConnectionState({
       volunteerId, volunteerUserId: volunteer.userId, requesterUserId: request.userId,
     }));
