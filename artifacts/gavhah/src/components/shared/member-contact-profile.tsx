@@ -22,7 +22,7 @@ export function MemberContactProfile(){
     return()=>{active=false;};
   },[purpose,isAuthenticated,user?.id]);
   const save=async()=>{
-    if(!form.primaryValue.trim()||(form.backupMethod&&!form.backupValue?.trim()))return;
+    if(!form.primaryValue.trim()||!form.mayConsiderSharing||(form.backupMethod&&!form.backupValue?.trim()))return;
     if(!window.confirm(yi
       ?"דאס קען אפשטעלן שוין אפראוועטע פארבינדונגען ביז ביידע צדדים באשטעטיגן ווידער. ווייטער?"
       :"Changing these details may pause existing introductions until both people approve again. Continue?"))return;
@@ -55,7 +55,7 @@ export function MemberContactProfile(){
     </div>
     {loading?<p className="text-sm">{yi?"לאדנט...":"Loading..."}</p>:<>
       <ContactMethodPicker value={form} onChange={setForm}/>
-      <Button disabled={busy||!form.primaryValue.trim()||(!!form.backupMethod&&!form.backupValue?.trim())}
+      <Button disabled={busy||!form.primaryValue.trim()||!form.mayConsiderSharing||(!!form.backupMethod&&!form.backupValue?.trim())}
         onClick={()=>void save()}>
         <Save className="h-4 w-4 me-2"/>{yi?"היט אפ מיין קאנטאקט":"Save Contact Preferences"}
       </Button>
