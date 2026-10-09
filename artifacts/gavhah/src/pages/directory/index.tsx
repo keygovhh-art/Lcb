@@ -546,7 +546,7 @@ function RegisterVolunteerDialog() {
   };
 
   if (isLoaded && !isAuthenticated) {
-    return <MemberGate compact action="register as a volunteer">{null}</MemberGate>;
+    return <MemberGate gate="volunteer" action="register as a volunteer">{null}</MemberGate>;
   }
 
   return (
@@ -638,7 +638,7 @@ function SubmitRequestDialog() {
   };
 
   if (isLoaded && !isAuthenticated) {
-    return <MemberGate compact action="submit a help request">{null}</MemberGate>;
+    return <MemberGate gate="help" action="submit a help request">{null}</MemberGate>;
   }
 
   return (
@@ -743,7 +743,7 @@ function CreateProjectDialog() {
   };
 
   if (isLoaded && !isAuthenticated) {
-    return <MemberGate compact action="create a project">{null}</MemberGate>;
+    return <MemberGate gate="projects" action="create a project">{null}</MemberGate>;
   }
 
   return (
@@ -978,7 +978,7 @@ function ProjectCard({ project }: { project: any }) {
         {/* Actions */}
         <div className="flex gap-2 pt-1">
           {isLoaded && !isAuthenticated ? (
-            <MemberGate compact action="join this project">{null}</MemberGate>
+            <MemberGate gate="projects" action="join this project">{null}</MemberGate>
           ) : (
             <Button size="sm" className="flex-1 bg-secondary hover:bg-secondary/90 text-white gap-1.5" onClick={handleJoinOpen}>
               <UserPlus className="h-3.5 w-3.5" /> Join / Volunteer
