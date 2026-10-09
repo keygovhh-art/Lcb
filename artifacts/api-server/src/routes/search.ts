@@ -161,7 +161,7 @@ router.get("/search", async (req, res): Promise<void> => {
       title: item.title,
       description: cleanSnippet(item.description),
       meta: item.location || "Community project",
-      url: "/directory",
+      url: "/community-projects",
     })),
     ...causes.map(item => ({
       type: "cause",
