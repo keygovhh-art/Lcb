@@ -261,6 +261,9 @@ router.post("/admin/member-connections/:id/retry-contact", requireAdmin, async (
     }
     if (!await updateConnectionMeta(row, {
       ...state, stage: "accepted", contactIssue: null,
+      contactFollowups: [...(state.contactFollowups || []), {
+        note: followup, actorId: getSessionUserId(req)!, at: new Date().toISOString(),
+      }].slice(-50),
       updatedBy: getSessionUserId(req)!,
     })) { res.status(409).json({ error: "Request changed; refresh it" }); return; }
     await notifyUser(state.requesterUserId, "connection_request_update",
