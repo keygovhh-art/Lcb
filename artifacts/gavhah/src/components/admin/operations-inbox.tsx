@@ -136,6 +136,9 @@ export function OperationsInbox() {
   const [legacyVolunteerIds, setLegacyVolunteerIds] = useState<Record<string, string>>({});
   const [closureReasons, setClosureReasons] = useState<Record<string, string>>({});
   const [followupDrafts, setFollowupDrafts] = useState<Record<string, string>>({});
+  const [consentNotes, setConsentNotes] = useState<Record<string, string>>({});
+  const [consentMethods, setConsentMethods] = useState<Record<string, string>>({});
+  const [consentConfirmed, setConsentConfirmed] = useState<Record<string, boolean>>({});
 
   const load = async () => {
     setLoading(true);
@@ -189,10 +192,11 @@ export function OperationsInbox() {
     }
   };
 
-  const connectionAction = async (item: OperationItem, action: "link" | "invite" | "close" | "retry") => {
+  const connectionAction = async (item: OperationItem, action: "link" | "invite" | "close" | "retry" | "record-consent") => {
     const volunteerId = Number(legacyVolunteerIds[item.key]);
     const reason = (closureReasons[item.key] || "").trim();
     const followup = (followupDrafts[item.key] || "").trim();
+    const consentNote = (consentNotes[item.key] || "").trim();
     if (action === "link" && (!Number.isSafeInteger(volunteerId) || volunteerId <= 0)) {
       toast({ title: yi ? "שרייב א ריכטיגן וואלונטיר־נומער" : "Enter a valid volunteer ID", variant: "destructive" });
       return;
@@ -205,6 +209,19 @@ export function OperationsInbox() {
       toast({ title: yi ? "שרייב קודם וואס מען האט פאקטיש פארראכטן" : "Record the actual follow-up before retrying", variant: "destructive" });
       return;
     }
+    if (action === "record-consent" && (
+      !["phone", "in_person"].includes(consentMethods[item.key]) ||
+      consentNote.length < 20 || consentNote.length > 1000 ||
+      consentConfirmed[item.key] !== true
+    )) {
+      toast({ title: yi ? "מען מוז באשטעטיגן אז דער וואלונטיר האט בפירוש געגעבן רשות און דאקומענטירן דעם שמועס" :
+        "Record verified, explicit volunteer permission before sharing contact details", variant: "destructive" });
+      return;
+    }
+    if (action === "record-consent" && !window.confirm(
+      yi ? "האסטו פערזענליך באשטעטיגט אז דער וואלונטיר איז מסכים צו טיילן זיין קאנטאקט מיט דעם ספעציפישן בעטער? דאס ווערט רעקארדירט אויף דיין אדמין־אקאונט." :
+        "Did you personally verify the volunteer explicitly agrees to share contact with THIS requester? The decision is recorded under your staff account."
+    )) return;
     if (action === "invite" && !window.confirm(
       yi
         ? "דאס שיקט א פארלאנג דורך דער וועבסייט צום וואלונטיר. עס שיקט דערווייל נישט קיין SMS אדער אימעיל. ווייטער?"
@@ -218,9 +235,11 @@ export function OperationsInbox() {
     try {
       const base = `/api/admin/member-connections/${item.id}`;
       await request(
-        base + (action === "link" ? "/link" : action === "invite" ? "/invite" : action === "retry" ? "/retry-contact" : "/close-unfulfilled"),
+        base + (action === "link" ? "/link" : action === "invite" ? "/invite" : action === "retry" ? "/retry-contact" : action === "record-consent" ? "/record-consent" : "/close-unfulfilled"),
         "POST",
-        action === "link" ? { volunteerId } : action === "close" ? { reason } : action === "retry" ? { followup } : {},
+        action === "link" ? { volunteerId } : action === "close" ? { reason } : action === "retry" ? { followup } : action === "record-consent" ? {
+          method: consentMethods[item.key], note: consentNote, confirmedPermission: true,
+        } : {},
       );
       toast({ title: yi ? "די פארבינדונג־בקשה איז אפדעיטעד" : "Connection case updated" });
       await load();
@@ -609,6 +628,44 @@ export function OperationsInbox() {
                         <Button className="w-full" disabled={busy !== null} onClick={() => void connectionAction(item, "invite")}>
                           {yi ? "בעט רשות פונעם וואלונטיר" : "Request volunteer consent"}
                         </Button>
+                      )}
+                      {["new", "invited"].includes(item.meta?.connectionStage) && (
+                        <details className="rounded-md border p-3 space-y-2">
+                          <summary className="cursor-pointer text-sm font-semibold">
+                            {yi ? "איך האב פערזענליך באקומען רשות פונעם וואלונטיר" :
+                              "I personally verified the volunteer's permission"}
+                          </summary>
+                          <div className="space-y-2 mt-3">
+                            <p className="text-xs text-muted-foreground">
+                              {yi ? "נוץ דאס נאר אויב דו האסט גערעדט מיטן וואלונטיר און ער האט בפירוש מסכים געווען, אז דער בעטער מעג באקומען זיינע קאנטאקט־פרטים. דער אקאונט וועט באקומען א מעלדונג." :
+                                "Only use after personally speaking to the volunteer and obtaining explicit permission to share contact details with this specific requester. The volunteer will be notified."}
+                            </p>
+                            <select value={consentMethods[item.key] || ""} disabled={busy !== null}
+                              onChange={e => setConsentMethods(prev => ({ ...prev, [item.key]: e.target.value }))}
+                              className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+                              <option value="">{yi ? "וויאזוי איז רשות באקומען געווארן?" : "How was consent verified?"}</option>
+                              <option value="phone">{yi ? "דורכן טעלעפאן" : "By phone"}</option>
+                              <option value="in_person">{yi ? "פערזענליך" : "In person"}</option>
+                            </select>
+                            <textarea rows={3} maxLength={1000}
+                              value={consentNotes[item.key] || ""}
+                              onChange={e => setConsentNotes(prev => ({ ...prev, [item.key]: e.target.value }))}
+                              placeholder={yi ? "ווען, מיט וועמען, און וואס האט דער וואלונטיר בפירוש מסכים געווען? (כאטש 20 אותיות)" :
+                                "Who did you speak to, when, and what exactly did they agree to? (20+ characters)"}
+                              className="w-full rounded-md border bg-background p-2 text-sm"
+                            />
+                            <label className="flex gap-2 items-start text-xs leading-relaxed">
+                              <input type="checkbox" checked={consentConfirmed[item.key] || false}
+                                onChange={e => setConsentConfirmed(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                                className="mt-1" />
+                              {yi ? "איך באשטעטיג אז דער וואלונטיר האט מיר בפירוש געגעבן רשות צו טיילן זיין קאנטאקט מיט דעם בעטער." :
+                                "I confirm I personally obtained the volunteer's explicit permission to share contact details with this requester."}
+                            </label>
+                            <Button type="button" className="w-full" disabled={busy !== null} onClick={() => void connectionAction(item, "record-consent")}>
+                              {yi ? "רעקארדיר די באשטעטיגטע רשות" : "Record personally verified consent"}
+                            </Button>
+                          </div>
+                        </details>
                       )}
                       {item.meta?.connectionStage === "invited" && (
                         <p className="text-xs rounded-md bg-muted/30 p-2 border">
