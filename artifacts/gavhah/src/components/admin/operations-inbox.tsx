@@ -270,6 +270,11 @@ export function OperationsInbox() {
   };
 
   const actionExplanation = (item: OperationItem) => {
+    if (item.kind === "help_request" && item.meta?.helpStatus === "open") {
+      return yi
+        ? "די בקשה איז שוין פובליק. זי בלייבט אפן ביז מען האט טאקע געהאלפן. שרייב וואס איז געטאן געווארן, און נאר דאן באשטעטיג אז די הילף איז געלונגען."
+        : "This request is PUBLIC but remains open until assistance actually happened. Document the work, then mark the help fulfilled.";
+    }
     const descriptions: Record<string, [string, string]> = {
       report: [
         "באשטעטיגן מיינט אז דער רעפארט איז באהאנדלט; אפווארפן מיינט מען פארמאכט דעם רעפארט אן אננעמען די טענה. דאס מעקט נישט אויטאמאטיש די פאוסט.",
@@ -317,6 +322,18 @@ export function OperationsInbox() {
         "Use the connection workflow; review alone cannot close this case", variant: "destructive" });
       return;
     }
+    if (item.kind === "help_request" && action === "complete") {
+      if (!item.workflow.notes.length || !window.confirm(
+        yi ? "איז די הילף טאקע געגעבן געווארן? דאס וועט פארמאכן דעם פאל אלס ערלעדיגט." :
+          "Was real assistance delivered? This will close the request as fulfilled."
+      )) {
+        if (!item.workflow.notes.length) toast({
+          title: yi ? "שרייב קודם א אינערליכע נאטיץ וואס איז פאקטיש געגעבן געווארן" :
+            "Document what help was delivered before marking fulfilled", variant: "destructive",
+        });
+        return;
+      }
+    }
     if (reviewOnly(item)) {
       if (!item.workflow.notes.length) {
         toast({
@@ -336,7 +353,12 @@ export function OperationsInbox() {
       if (item.kind === "report") {
         await request(`/api/reports/${item.id}/${action === "approve" ? "resolve" : "dismiss"}`);
       } else if (item.kind === "help_request") {
-        await request(`/api/help-requests/${item.id}`, "PATCH", { status: action === "approve" ? "open" : "rejected" });
+        await request(`/api/help-requests/${item.id}`, "PATCH", {
+          status: action === "complete" ? "resolved" : action === "approve" ? "open" : "rejected",
+          ...(action === "complete" ? {
+            resolutionNote: item.workflow.notes[item.workflow.notes.length - 1]?.text || "",
+          } : {}),
+        });
       } else if (item.kind === "group_join") {
         await request(`/api/groups/${item.meta.groupId}/members/${item.id}`, "PATCH", { status: action === "approve" ? "approved" : "rejected" });
       } else if (item.kind === "cause_submission") {
@@ -734,6 +756,17 @@ export function OperationsInbox() {
                           </Button>
                         </div>
                       )}
+                    </div>
+                  ) : item.kind === "help_request" && item.meta?.helpStatus === "open" ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground max-w-[18rem]">
+                        {yi ? "די הילף־בקשה איז שוין פובליק. דער פאל בלייבט אפן פאר נאכפאלגן." :
+                          "Already public; keep following up until actual help is provided."}
+                      </p>
+                      <Button size="sm" disabled={busy !== null} onClick={() => void act(item, "complete")}>
+                        <Check className="h-3.5 w-3.5" />
+                        {yi ? "באשטעטיג פאקטישע הילף" : "Confirm real help delivered"}
+                      </Button>
                     </div>
                   ) : reviewOnly(item) ? (
                     <Button size="sm" onClick={() => void act(item, "approve")} disabled={busy !== null} className="gap-1.5">
