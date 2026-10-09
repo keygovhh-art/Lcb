@@ -2329,7 +2329,8 @@ components:
           type: string
         category:
           type: string
-          enum: [medical, shidduchim, livelihood, education, charity, community, general]
+          description: Optional free-text topic, empty when none was entered. Existing legacy values are preserved.
+          maxLength: 100
         authorId:
           type: integer
         authorName:
@@ -2351,7 +2352,7 @@ components:
 
     DiscussionInput:
       type: object
-      required: [title, content, category]
+      required: [title, content]
       properties:
         title:
           type: string
@@ -2359,6 +2360,8 @@ components:
           type: string
         category:
           type: string
+          maxLength: 100
+          description: Optional free-text topic; no fixed category selection.
         authorName:
           type: string
 
