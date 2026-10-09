@@ -271,9 +271,11 @@ export default function FounderDashboard() {
             <TabsTrigger value="welcome-pages" className="gap-2">
               <Edit3 className="h-4 w-4" /> {yi ? "ברוכים־הבאים־בלעטער" : "Welcome Page Designer"}
             </TabsTrigger>
-            <TabsTrigger value="member-management" className="gap-2">
-              <Users className="h-4 w-4" /> {yi ? "מעמבער־פארוואלטונג" : "Advanced Members"}
-            </TabsTrigger>
+            {(user?.role === "admin" || user?.role === "super_admin") && (
+              <TabsTrigger value="member-management" className="gap-2">
+                <Users className="h-4 w-4" /> {yi ? "מעמבער־פארוואלטונג" : "Advanced Members"}
+              </TabsTrigger>
+            )
             <TabsTrigger value="support" className="gap-2">
               <MessageSquare className="h-4 w-4" /> Support
               {supportMessages.filter(m => m.status === "open").length > 0 && (
@@ -426,9 +428,11 @@ export default function FounderDashboard() {
           <TabsContent value="welcome-pages" className="space-y-6">
             <MembershipGateManagement />
           </TabsContent>
-          <TabsContent value="member-management" className="space-y-6">
-            <AdvancedMemberManagement />
-          </TabsContent>
+          {(user?.role === "admin" || user?.role === "super_admin") && (
+            <TabsContent value="member-management" className="space-y-6">
+              <AdvancedMemberManagement />
+            </TabsContent>
+          )}
 
           {/* ─── Live Site Editor ─── */
           <TabsContent value="site-copy" className="space-y-6">
