@@ -137,20 +137,20 @@ export default function NotificationsPage() {
 
   return (
     <Layout>
-      <div className="bg-muted/30 border-b">
-        <div className="container mx-auto px-4 py-10">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
+      <div className="w-full max-w-full overflow-x-hidden bg-muted/30 border-b">
+        <div className="container mx-auto w-full max-w-full min-w-0 px-4 py-8 sm:py-10">
+          <div className="flex min-w-0 flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 max-w-full items-center gap-3">
               <Bell className="h-8 w-8 text-secondary" />
-              <div>
-                <h1 className="font-serif text-4xl font-bold text-primary">Notifications</h1>
+              <div className="min-w-0 max-w-full">
+                <h1 className="break-words font-serif text-3xl sm:text-4xl font-bold text-primary">Notifications</h1>
                 {unreadCount > 0 && (
                   <p className="text-muted-foreground font-serif italic mt-1">{unreadCount} unread notification{unreadCount !== 1 ? "s" : ""}</p>
                 )}
               </div>
             </div>
             {unreadCount > 0 && (
-              <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={() => void handleMarkAll()} disabled={markingAll}>
+              <Button variant="outline" size="sm" className="max-w-full gap-2 self-start sm:shrink-0" onClick={() => void handleMarkAll()} disabled={markingAll}>
                 <CheckCheck className="h-4 w-4" />
                 Mark all read
               </Button>
@@ -159,7 +159,7 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-10 max-w-2xl">
+      <div className="container mx-auto w-full max-w-2xl min-w-0 overflow-x-hidden px-4 py-8 sm:py-10">
         {isLoading && (
           <div className="space-y-3">
             {[1, 2, 3].map(i => (
@@ -180,7 +180,7 @@ export default function NotificationsPage() {
           {notifications?.map(notif => (
             <div
               key={notif.id}
-              className={`relative flex items-start gap-4 p-4 rounded-xl border transition-colors ${notif.isRead ? "bg-card" : "bg-primary/5 border-primary/20"}`}
+              className={`relative flex w-full max-w-full min-w-0 items-start gap-3 overflow-hidden rounded-xl border p-3 sm:gap-4 sm:p-4 transition-colors ${notif.isRead ? "bg-card" : "bg-primary/5 border-primary/20"}`}
             >
               {!notif.isRead && (
                 <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-secondary" />
@@ -188,11 +188,11 @@ export default function NotificationsPage() {
               <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${notif.isRead ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"}`}>
                 {TYPE_ICON[notif.type] ?? <Bell className="h-4 w-4" />}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm leading-relaxed ${notif.isRead ? "text-muted-foreground" : "text-foreground font-medium"}`}>
+              <div className="min-w-0 max-w-full flex-1 overflow-hidden">
+                <p className={`max-w-full break-words [overflow-wrap:anywhere] text-sm leading-relaxed ${notif.isRead ? "text-muted-foreground" : "text-foreground font-medium"}`}>
                   {notif.message}
                 </p>
-                <div className="flex items-center gap-3 mt-1.5">
+                <div className="mt-2 flex max-w-full flex-wrap items-center gap-x-3 gap-y-2">
                   <span className="text-xs text-muted-foreground">
                     {format(new Date(notif.createdAt), "MMM d, h:mm a")}
                   </span>
@@ -211,7 +211,7 @@ export default function NotificationsPage() {
                       type="button"
                       onClick={() => void handleView(notif)}
                       disabled={pendingIds.has(notif.id)}
-                      className="text-xs text-primary hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      className="max-w-full text-xs text-primary hover:underline inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     >
                       View <ArrowRight className="h-3 w-3" />
                     </button>
