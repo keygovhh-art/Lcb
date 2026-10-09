@@ -26,6 +26,7 @@ export function PrivateAssistanceManagement(){
   const [filter,setFilter]=useState("active");
   const [selected,setSelected]=useState<Record<number,string>>({});
   const [notes,setNotes]=useState<Record<number,string>>({});
+  const [volSearch,setVolSearch]=useState<Record<number,string>>({});
   const [busy,setBusy]=useState<number|null>(null);
   const [loading,setLoading]=useState(true);
   const load=useCallback(async()=>{
@@ -104,8 +105,11 @@ export function PrivateAssistanceManagement(){
       {yi?"קיין בקשות נישט געפונען":"No requests found"}</p>:
     <div className="space-y-4">
       {visible.map(help=>{
-        const options=volunteers.filter(v=>v.userId!==help.userId);
         const recommended=help.suggestions.filter(s=>s.score>0);
+        const query=(volSearch[help.id]||"").trim().toLowerCase();
+        const options=volunteers.filter(v=>v.userId!==help.userId &&
+          (!query||[v.userName,v.location,v.availability,v.bio,...v.skills,...v.areasOfInterest]
+            .some(field=>String(field||"").toLowerCase().includes(query))));
         const selectedId=selected[help.id]||String(recommended[0]?.volunteerId||options[0]?.id||"");
         return <article key={help.id} className="rounded-xl border p-4 sm:p-5 bg-card space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -147,6 +151,12 @@ export function PrivateAssistanceManagement(){
                     "No strong automatic match. Staff may search and select an available volunteer manually."}
                 </p>}
               <label className="space-y-1 block">
+                <span className="text-sm font-semibold">{yi?"זוך אין דער פריוואטער עסקנים־ליסטע":"Search staff-only volunteer registry"}</span>
+                <Input value={volSearch[help.id]||""}
+                  onChange={e=>setVolSearch(v=>({...v,[help.id]:e.target.value}))}
+                  placeholder={yi?"נאמען, געגנט, קענטעניש אדער אוועילעביליטי":"Name, location, skills or availability"}/>
+              </label>
+              <label className="space-y-1 block">
                 <span className="text-sm font-semibold">{yi?"קלייב דעם פאסיגן עסקן":"Choose volunteer"}</span>
                 <select value={selectedId} onChange={e=>setSelected(v=>({...v,[help.id]:e.target.value}))}
                   className="w-full h-10 rounded-md border bg-background px-2">
@@ -156,7 +166,7 @@ export function PrivateAssistanceManagement(){
                   </option>)}
                 </select>
               </label>
-              {selectedId&&<div className="text-xs text-muted-foreground rounded-md border p-3 bg-muted/20">
+              {selectedId&&options.some(v=>v.id===Number(selectedId))&&<div className="text-xs text-muted-foreground rounded-md border p-3 bg-muted/20">
                 {(()=>{
                   const vol=options.find(v=>v.id===Number(selectedId));
                   return vol?<div className="space-y-1">
@@ -170,7 +180,7 @@ export function PrivateAssistanceManagement(){
               <Textarea rows={2} value={notes[help.id]||""}
                 onChange={e=>setNotes(x=>({...x,[help.id]:e.target.value}))}
                 placeholder={yi?"פארוואס איז דער עסקן פאסיג? שרייב אן אינערליכן באשלוס.":"Document why this volunteer is suitable (staff-only decision)."}/>
-              <Button disabled={busy!==null||!selectedId||(notes[help.id]||"").trim().length<10}
+              <Button disabled={busy!==null||!selectedId||!options.some(v=>v.id===Number(selectedId))||(notes[help.id]||"").trim().length<10}
                 onClick={()=>void match(help)} className="gap-2">
                 <ArrowRightLeft className="h-4 w-4"/>
                 {yi?"עפן א פריוואטן פארבינדונג־פאל":"Create private introduction case"}
