@@ -2329,8 +2329,7 @@ components:
           type: string
         category:
           type: string
-          description: Optional free-text topic, empty when none was entered. Existing legacy values are preserved.
-          maxLength: 100
+          description: Optional free-text topic. The API may prefix newly entered topics with u: internally; clients should display the decoded text.
         authorId:
           type: integer
         authorName:
