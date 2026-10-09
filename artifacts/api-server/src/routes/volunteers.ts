@@ -1,11 +1,13 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
+import { CONNECTION_META_TYPE, parseConnectionState, clearConsentForNewReview } from "../lib/member-connections";
+import { notifyUser } from "../lib/notify";
 import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable, supportMessagesTable, memberContactMethodsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { getMemberIdentity, resolveMemberDisplayName } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
 import { notifyStaff } from "../lib/notify";
-import { parseContactSelection, saveContactValues } from "../lib/member-contact-methods";
+import { parseContactSelection, saveContactValues, getContactSelection } from "../lib/member-contact-methods";
 
 const router: IRouter = Router();
 
@@ -331,6 +333,58 @@ router.delete("/help-requests/:id", requireAuth, async (req, res): Promise<void>
   }
   await db.delete(helpRequestsTable).where(eq(helpRequestsTable.id, id));
   res.sendStatus(204);
+});
+
+/**
+ * Account owners can update the contact methods used in their applications.
+ * Updating those methods immediately invalidates any open case's approval;
+ * previously displayed contact information must not be re-released without
+ * new permission from BOTH participants.
+ */
+router.get("/me/contact-methods/:purpose", requireAuth, async(req,res):Promise<void>=>{
+  const purpose=String(req.params.purpose);
+  if(purpose!=="volunteer"&&purpose!=="help"){res.status(400).json({error:"Invalid contact context"});return;}
+  res.setHeader("Cache-Control","private, no-store");
+  res.json({methods:await getContactSelection(getSessionUserId(req)!,purpose)});
+});
+router.put("/me/contact-methods/:purpose", requireAuth, async(req,res,next):Promise<void>=>{
+  try{
+    const purpose=String(req.params.purpose);
+    if(purpose!=="volunteer"&&purpose!=="help"){res.status(400).json({error:"Invalid contact context"});return;}
+    const parsed=parseContactSelection(req.body);
+    if(!parsed.value){res.status(400).json({error:parsed.error});return;}
+    const userId=getSessionUserId(req)!;
+    const before=await getContactSelection(userId,purpose);
+    const changed=JSON.stringify(before)!==JSON.stringify(parsed.value);
+    await db.transaction(async tx=>{
+      await tx.insert(memberContactMethodsTable).values(saveContactValues(userId,purpose,parsed.value!))
+        .onConflictDoUpdate({
+          target:[memberContactMethodsTable.userId,memberContactMethodsTable.purpose],
+          set:{...parsed.value!,updatedAt:new Date()},
+        });
+      if(!changed)return;
+      const rows=await tx.select().from(supportMessagesTable)
+        .where(eq(supportMessagesTable.type,CONNECTION_META_TYPE));
+      for(const row of rows){
+        const state=parseConnectionState(row.message);
+        if(!state||!["invited","accepted","contact_problem"].includes(state.stage))continue;
+        if(state.requesterUserId!==userId&&state.volunteerUserId!==userId)continue;
+        if(purpose==="volunteer"&&state.volunteerUserId!==userId)continue;
+        if(purpose==="help"&&state.requesterUserId!==userId)continue;
+        const updated={...clearConsentForNewReview(state),stage:"needs_reapproval" as const,
+          invitedAt:null,updatedBy:userId};
+        const [saved]=await tx.update(supportMessagesTable).set({message:JSON.stringify(updated)})
+          .where(and(eq(supportMessagesTable.id,row.id),eq(supportMessagesTable.message,row.message)))
+          .returning({id:supportMessagesTable.id});
+        if(!saved)throw Error("A connection was updated concurrently. Please retry.");
+      }
+    });
+    if(changed){
+      await notifyStaff("A member updated private contact channels. Open introductions require renewed personal approvals.",
+        "/founder","admin_member_connection");
+    }
+    res.json({saved:true,approvalsInvalidated:changed});
+  }catch(e){next(e);}
 });
 
 export default router;
