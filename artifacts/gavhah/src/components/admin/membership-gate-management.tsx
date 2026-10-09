@@ -15,6 +15,10 @@ const SECTIONS: Array<{ key: MemberGateSection; en: string; yi: string }> = [
   { key:"projects",en:"Community Projects",yi:"קהילה פראיעקטן" },
   { key:"groups",en:"Member Groups",yi:"גרופעס" },
   { key:"connections",en:"Member Connections",yi:"פארבינדונגען" },
+  { key:"communications",en:"Communications",yi:"קאמוניקאציע" },
+  { key:"minyans",en:"Minyan Directory",yi:"מנינים" },
+  { key:"united",en:"United In Kindness",yi:"אחדות און חסד" },
+  { key:"profile",en:"My Profile",yi:"מיין פראפיל" },
   { key:"general",en:"Other Membership Gates",yi:"אנדערע מעמבערשיפ־טויערן" },
 ];
 type GateResponse = { fallback:GateDesign; draft:GateDesign|null; published:GateDesign|null; publishedAt:string|null };
