@@ -45,12 +45,6 @@ const NEED_LABELS: Record<string, string> = {
   transportation: "Transportation", financial: "Financial", other: "Other",
 };
 
-const SKILLS_OPTIONS = [
-  "Bikur Cholim", "Hospital Visits", "Medical Transport", "Hachnosas Kallah",
-  "Wedding Assistance", "Fundraising", "Housing Support", "Financial Aid",
-  "Crisis Counseling", "Community Organizing", "Special Needs", "Food Distribution",
-  "Driver / Transport", "Translation", "Government Liaison",
-];
 
 const PROJECT_TYPES = [
   { value: "all", label: "All Types", icon: FolderKanban },
@@ -531,8 +525,9 @@ function RegisterVolunteerDialog() {
   const [open, setOpen] = useState(false);
 
   const nickname = (user as any)?.nickname || user?.name || "";
-  const [form, setForm] = useState({ userName: "", location: "", availability: "weekends", bio: "" });
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const { lang } = useLanguage(), yi = lang === "yi";
+  const [form, setForm] = useState({ userName: "", location: "", availability: "anytime", bio: "" });
+  const [skillsText, setSkillsText] = useState("");
   const [contactMethods, setContactMethods] = useState<ContactMethodsForm>(initialContactMethods);
   const createVol = useCreateVolunteer();
 
@@ -544,26 +539,24 @@ function RegisterVolunteerDialog() {
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
-  const toggleSkill = (skill: string) =>
-    setSelectedSkills(prev => prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.userName.trim() || !form.location.trim() || selectedSkills.length === 0) {
-      toast({ title: "Please complete the required fields", description: "Display name, location, and at least one area of help are required.", variant: "destructive" });
+    const skills = skillsText.split(/[,;\n]+/).map(v=>v.trim()).filter(Boolean).slice(0,30);
+    if (!form.userName.trim() || !form.location.trim() || skills.length === 0) {
+      toast({ title: "Please complete the required fields", description: yi ? "נאמען, געגנט און אן אייגענע קאטאגאריע זענען פארלאנגט." : "Name, location, and your custom area of help are required.", variant: "destructive" });
       return;
     }
     if (!contactReady(contactMethods)) {
       toast({ title: "Enter the main contact method and any selected backup", variant: "destructive" });return;
     }
     createVol.mutate(
-      { data: { userName: form.userName, location: form.location, availability: form.availability, bio: form.bio || undefined, skills: selectedSkills, contactMethods } as any },
+      { data: { userName: form.userName, location: form.location, availability: "anytime", bio: form.bio || undefined, skills, contactMethods } as any },
       {
         onSuccess: (volunteer) => {
           // The volunteer registry is private to administration. Never populate a public cache.
           setOpen(false);
-          setForm({ userName: nickname, location: "", availability: "weekends", bio: "" });
-          setSelectedSkills([]);
+          setForm({ userName: nickname, location: "", availability: "anytime", bio: "" });
+          setSkillsText("");
           setContactMethods(initialContactMethods());
           toast({ title: "Application received", description: "Your private volunteer registration is available to Gavhah staff only." });
         },
@@ -592,43 +585,31 @@ function RegisterVolunteerDialog() {
             <div className="space-y-1.5">
               <Label className="font-semibold">Display Name</Label>
               <Input value={form.userName} onChange={set("userName")} placeholder="Your nickname" className="h-11" required />
-              <p className="text-xs text-muted-foreground">Activists Directory shows nicknames only to protect privacy.</p>
+              <p className="text-xs text-muted-foreground">This is a private application. Only Gavhah staff sees your details.</p>
             </div>
             <div className="space-y-1.5">
               <Label className="font-semibold">City / Community *</Label>
               <Input value={form.location} onChange={set("location")} placeholder="Brooklyn, NY" className="h-11" required />
             </div>
             <div className="space-y-1.5">
-              <Label className="font-semibold">Availability</Label>
-              <Select value={form.availability} onValueChange={set("availability")}>
-                <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weekdays">Weekdays</SelectItem>
-                  <SelectItem value="weekends">Weekends</SelectItem>
-                  <SelectItem value="evenings">Evenings</SelectItem>
-                  <SelectItem value="anytime">Anytime</SelectItem>
-                  <SelectItem value="by_appointment">By Appointment</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="font-semibold">{yi ? "ווען קענסטו העלפן?" : "Availability"}</Label>
+              <div className="border rounded-md bg-muted/20 p-3 text-sm font-medium">
+                {yi ? "אין יעדע צייט" : "Anytime"}
+              </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="font-semibold">Areas of Help *</Label>
-              <p className="text-xs text-muted-foreground">Select all that apply</p>
-              <div className="flex flex-wrap gap-2">
-                {SKILLS_OPTIONS.map(skill => (
-                  <button key={skill} type="button" onClick={() => toggleSkill(skill)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedSkills.includes(skill) ? "bg-secondary text-white border-secondary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
-                    {skill}
-                  </button>
-                ))}
-              </div>
+              <Label className="font-semibold">{yi ? "אין וועלכע זאכן קענסטו העלפן? *" : "Your own areas of help *"}</Label>
+              <Textarea value={skillsText} onChange={e=>setSkillsText(e.target.value)} maxLength={1800}
+                className="min-h-24" dir="auto" required
+                placeholder={yi ? "שרייב אליין די קאטאגאריע אדער קענטענישן, אויף באזונדערע שורות." : "Write your own help category or skills, one per line."} />
+              <p className="text-xs text-muted-foreground">{yi ? "קיין פארגעשריבענע קאטאגאריעס. נאר די מערכת זעט די פרטים." : "No preset categories. Staff only; not published."}</p>
             </div>
             <div className="space-y-1.5">
               <Label className="font-semibold">Brief Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
               <Textarea value={form.bio} onChange={set("bio")} placeholder="A few words about your background or how you like to help..." className="resize-none min-h-20" />
             </div>
             <ContactMethodPicker value={contactMethods} onChange={setContactMethods} />
-            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createVol.isPending || selectedSkills.length === 0 || !form.location.trim() || !contactReady(contactMethods)}>
+            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createVol.isPending || !skillsText.trim() || !form.location.trim() || !contactReady(contactMethods)}>
               {createVol.isPending ? "Registering..." : "Register as Volunteer"}
             </Button>
           </form>
@@ -644,7 +625,8 @@ function SubmitRequestDialog() {
   const { toast } = useToast();
   const { isAuthenticated, isLoaded } = useAuth();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", needType: "medical", urgency: "medium", location: "" });
+  const { lang } = useLanguage(), yi = lang === "yi";
+  const [form, setForm] = useState({ name: "", description: "", needType: "", urgency: "medium", location: "" });
   const createReq = useCreateHelpRequest();
   const [contactMethods, setContactMethods] = useState<ContactMethodsForm>(initialContactMethods);
 
@@ -653,7 +635,9 @@ function SubmitRequestDialog() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.description) return;
+    if (!form.name.trim() || !form.description.trim() || !form.needType.trim()) {
+      toast({title: yi ? "שרייב דיין קאטאגאריע און די בקשה" : "Enter a custom category and request description",variant:"destructive"}); return;
+    }
     if (!contactReady(contactMethods)) {
       toast({ title: "Enter your main contact method and any selected backup", variant: "destructive" });return;
     }
@@ -662,7 +646,7 @@ function SubmitRequestDialog() {
       {
         onSuccess: () => {
           setOpen(false);
-          setForm({ name: "", description: "", needType: "medical", urgency: "medium", location: "" });
+          setForm({ name: "", description: "", needType: "", urgency: "medium", location: "" });
           setContactMethods(initialContactMethods());
           toast({
             title: "Request submitted for review",
@@ -692,34 +676,12 @@ function SubmitRequestDialog() {
               <Label className="font-semibold">Name / Reference *</Label>
               <Input value={form.name} onChange={set("name")} placeholder="First name or family name only" className="h-11" required />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="font-semibold">Type of Need</Label>
-                <Select value={form.needType} onValueChange={set("needType")}>
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="medical">Medical</SelectItem>
-                    <SelectItem value="wedding">Wedding / Simcha</SelectItem>
-                    <SelectItem value="food">Food Assistance</SelectItem>
-                    <SelectItem value="housing">Housing</SelectItem>
-                    <SelectItem value="transportation">Transportation</SelectItem>
-                    <SelectItem value="financial">Financial</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="font-semibold">Urgency</Label>
-                <Select value={form.urgency} onValueChange={set("urgency")}>
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="critical">Critical</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-1.5">
+              <Label className="font-semibold">{yi ? "וואס פאר הילף דארפסטו? — אייגענע קאטאגאריע *" : "Kind of help — write your own category *"}</Label>
+              <Input value={form.needType} onChange={set("needType")} dir="auto" maxLength={120}
+                placeholder={yi ? "שרייב אליין וואס דו דארפסט" : "Describe the kind of help in your own words"}
+                className="h-11" required />
+              <p className="text-xs text-muted-foreground">{yi ? "גארנישט ווערט נישט פובליק." : "Private to Gavhah; no preset categories."}</p>
             </div>
             <div className="space-y-1.5">
               <Label className="font-semibold">Location <span className="font-normal text-muted-foreground">(optional)</span></Label>
@@ -730,7 +692,7 @@ function SubmitRequestDialog() {
               <Textarea value={form.description} onChange={set("description")} placeholder="Describe the situation and what kind of help is needed..." className="resize-none min-h-28" required />
             </div>
             <ContactMethodPicker value={contactMethods} onChange={setContactMethods} />
-            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createReq.isPending || !contactReady(contactMethods)}>
+            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createReq.isPending || !form.needType.trim() || !contactReady(contactMethods)}>
               {createReq.isPending ? "Submitting..." : "Submit Request"}
             </Button>
           </form>
@@ -1206,7 +1168,8 @@ export default function Directory() {
           "Introductions are coordinated by Gavhah only. Both participants must personally consent, followed by separate final Gavhah authorization, before any contact details are shared."}</p>
       </div>
 
-      <CommunityProjectsContent />    </div>
+      <CommunityProjectsContent />
+    </div>
   </Layout>;
 }
 
