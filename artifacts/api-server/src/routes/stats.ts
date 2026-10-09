@@ -119,6 +119,7 @@ router.get("/stats/activity", async (req, res): Promise<void> => {
 });
 
 router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
+  res.setHeader("Cache-Control","no-store");
   // Filter earlier public activity records created before this privacy change, too.
   const activities = await db.select().from(activityLogTable)
     .where(notInArray(activityLogTable.type, ["volunteer", "help_request"]))
