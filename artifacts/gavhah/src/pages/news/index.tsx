@@ -385,7 +385,7 @@ export default function NewsPage() {
         )}
 
         {/* Category filter */}
-        <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
+        <div className="flex max-w-full flex-wrap gap-2 mb-8 pb-2">
           {CATEGORIES.map(cat => (
             <Button
               key={cat.value}
