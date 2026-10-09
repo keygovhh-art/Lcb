@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/context/language-context";
+import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 
 type WorkflowState = {
@@ -137,6 +138,8 @@ export function OperationsInbox() {
   const { lang } = useLanguage();
   const yi = lang === "yi";
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canFinalRelease = user?.role === "admin" || user?.role === "super_admin";
   const [data, setData] = useState<InboxResponse>(EMPTY);
   const [history, setHistory] = useState<CompletedCase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,6 +151,7 @@ export function OperationsInbox() {
   const [legacyVolunteerIds, setLegacyVolunteerIds] = useState<Record<string, string>>({});
   const [closureReasons, setClosureReasons] = useState<Record<string, string>>({});
   const [followupDrafts, setFollowupDrafts] = useState<Record<string, string>>({});
+  const [releaseReasons, setReleaseReasons] = useState<Record<string, string>>({});
   const [requesterChoices,setRequesterChoices] = useState<Record<string,"primary"|"backup">>({});
   const [volunteerChoices,setVolunteerChoices] = useState<Record<string,"primary"|"backup">>({});
 
@@ -208,10 +212,11 @@ export function OperationsInbox() {
     }
   };
 
-  const connectionAction = async (item: OperationItem, action: "link" | "invite" | "close" | "retry") => {
+  const connectionAction = async (item: OperationItem, action: "link" | "invite" | "close" | "retry" | "final-release") => {
     const volunteerId = Number(legacyVolunteerIds[item.key]);
     const reason = (closureReasons[item.key] || "").trim();
     const followup = (followupDrafts[item.key] || "").trim();
+    const releaseReason = (releaseReasons[item.key] || "").trim();
     if (action === "link" && (!Number.isSafeInteger(volunteerId) || volunteerId <= 0)) {
       toast({ title: yi ? "שרייב א ריכטיגן וואלונטיר־נומער" : "Enter a valid volunteer ID", variant: "destructive" });
       return;
@@ -223,6 +228,16 @@ export function OperationsInbox() {
     if (action === "retry" && (followup.length < 10 || followup.length > 500)) {
       toast({ title: yi ? "שרייב קודם וואס מען האט פאקטיש פארראכטן" : "Record the actual follow-up before retrying", variant: "destructive" });
       return;
+    }
+    if (action === "final-release") {
+      if (!canFinalRelease || releaseReason.length < 10 || releaseReason.length > 1000) {
+        toast({ title: yi ? "נאר א פולער אדמין קען ערלויבן דאס איבערגעבן. שרייב א הסבר פון כאטש צען אותיות." :
+          "Full administrator authorization and a written decision of at least 10 characters are required.",
+          variant: "destructive" }); return;
+      }
+      if (!window.confirm(yi
+        ? "ביסטו זיכער אז ביידע האבן מסכים געווען, און די מערכת ערלויבט יעצט בפירוש צו טיילן די אויסגעקליבענע קאנטאקט־פרטים נאר פאר דעם פאל?"
+        : "Do you give Gavhah's separate FINAL authorization, after BOTH people approved, to share only the selected contact details for this case?")) return;
     }
     if (action === "invite" && !window.confirm(
       yi
@@ -237,9 +252,9 @@ export function OperationsInbox() {
     try {
       const base = `/api/admin/member-connections/${item.id}`;
       await request(
-        base + (action === "link" ? "/link" : action === "invite" ? "/invite" : action === "retry" ? "/retry-contact" : "/close-unfulfilled"),
+        base + (action === "link" ? "/link" : action === "invite" ? "/invite" : action === "retry" ? "/retry-contact" : action === "final-release" ? "/final-release" : "/close-unfulfilled"),
         "POST",
-        action === "link" ? { volunteerId } : action === "close" ? { reason } : action === "retry" ? {followup,
+        action === "link" ? { volunteerId } : action === "close" ? { reason } : action === "final-release" ? {note:releaseReason,confirmRelease:true} : action === "retry" ? {followup,
           requesterChoice: requesterChoices[item.key] || "primary",
           volunteerChoice: volunteerChoices[item.key] || "primary",
         } : {},
@@ -292,7 +307,7 @@ export function OperationsInbox() {
       ],
       member_connection: [
         "איבערקוקן אליין איז נישט גענוג. ביידע צדדים דארפן אליין געבן רשות, און דער בעטער דארף פאקטיש באשטעטיגן אז די פארבינדונג איז געלונגען.",
-        "Staff may approve a MATCH only. Both users must personally consent before contact is disclosed; requester then confirms real contact.",
+        "Staff may approve a MATCH only. Both users must consent, then Gavhah must give a separate FINAL release authorization; requester then confirms real contact.",
       ],
     };
     const [yiddish, english] = descriptions[item.kind] || [
@@ -660,6 +675,34 @@ export function OperationsInbox() {
                             "Gavhah approved the proposal, NOT disclosure. Requester: " + (item.meta?.requesterApproved ? "approved" : "pending") + ". Volunteer: " + (item.meta?.volunteerApproved ? "approved" : "pending") + ". No contact is released until BOTH approve."}
                         </p>
                       )}
+                      {item.meta?.connectionStage === "awaiting_staff_release" && (
+                        <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+                          <p className="font-semibold text-sm">
+                            {yi ? "🚨 ביידע האבן מסכים געווען — ווארט אויף לעצטע גבהה־רשות" :
+                              "Both participants consented — FINAL Gavhah authorization required"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {yi ? "ביידע רשות'ן זענען שוין אריינגעקומען, אבער גארנישט ווערט איבערגעגעבן ביז א פולער אדמין באשטעטיגט באזונדער דאס ארויסגעבן. דער אדמין קען נישט באשטעטיגן אנשטאט איינעם פון די צוויי."
+                              : "Both people agreed, but contact remains PRIVATE until a full administrator separately authorizes release. Staff cannot consent for either member."}
+                          </p>
+                          {canFinalRelease ? <>
+                            <textarea rows={3} maxLength={1000}
+                              value={releaseReasons[item.key] || ""}
+                              onChange={e=>setReleaseReasons(v=>({...v,[item.key]:e.target.value}))}
+                              placeholder={yi ? "דאקומענטיר פארוואס די מערכת ערלויבט דאס איבערגעבן (כאטש 10 אותיות)" :
+                                "Document why Gavhah finally approves the contact exchange (10+ characters)"}
+                              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                            />
+                            <Button className="w-full" disabled={busy!==null || (releaseReasons[item.key]||"").trim().length<10}
+                              onClick={()=>void connectionAction(item,"final-release")}>
+                              <Check className="h-4 w-4" />
+                              {yi ? "ערלויב דאס איבערגעבן — לעצטע אדמין־אישור" : "FINAL approve contact release"}
+                            </Button>
+                          </> : <p className="text-xs text-muted-foreground">
+                            {yi ? "נאר א פולער אדמין קען געבן די לעצטע רשות." : "Only a full administrator may authorize release."}
+                          </p>}
+                        </div>
+                      )}
                       {item.meta?.connectionStage === "accepted" && (
                         <p className="text-xs rounded-md bg-muted/30 p-2 border">
                           {yi ? "ביידע מענטשן האבן פערזענליך מסכים געווען. דער בעטער זעט דעם קאנטאקט אין 'מיינע פארבינדונגען'. דער פאל בלייבט אפן ביז דער בעטער באשטעטיגט הצלחה." :
@@ -716,7 +759,7 @@ export function OperationsInbox() {
                             "A participant declined. Enter a reason below to close this case as unsuccessful, NOT completed."}
                         </p>
                       )}
-                      {["new", "invited", "needs_reapproval", "accepted", "contact_problem", "consent_revoked", "declined"].includes(item.meta?.connectionStage) && (
+                      {["new", "invited", "needs_reapproval", "awaiting_staff_release", "accepted", "contact_problem", "consent_revoked", "declined"].includes(item.meta?.connectionStage) && (
                         <div className="space-y-2">
                           <Input
                             value={closureReasons[item.key] || ""}
