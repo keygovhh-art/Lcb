@@ -21,12 +21,12 @@ const PRIMARY_DEPTS = [
   { label: "Minyans", fullLabel: "Minyan Directory", href: "/minyans", icon: <Clock className="h-4 w-4" /> },
   { label: "Groups", fullLabel: "Group Center", href: "/groups", icon: <Users className="h-4 w-4" /> },
   { label: "My Askanus", fullLabel: "My Askanus", href: "/my", icon: <Star className="h-4 w-4" /> },
-  { label: "My Connections", fullLabel: "Volunteer Connections", href: "/connections", icon: <Handshake className="h-4 w-4" /> },
 ];
 
 const MORE_DEPTS = [
   { label: "Communications", fullLabel: "Olam Hachesed Communications", href: "/communications", icon: <Radio className="h-4 w-4" /> },
   { label: "Reservations", fullLabel: "Gavhah Office Reservations", href: "/reservations", icon: <CalendarDays className="h-4 w-4" /> },
+  { label: "My Connections", fullLabel: "Volunteer Connections", href: "/connections", icon: <Handshake className="h-4 w-4" /> },
   { label: "Koach Harabim", fullLabel: "Koach Harabim Dashboard", href: "/dashboard", icon: <BarChart3 className="h-4 w-4" /> },
 ];
 
