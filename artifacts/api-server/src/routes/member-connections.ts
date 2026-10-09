@@ -4,7 +4,7 @@ import { db, supportMessagesTable, usersTable, volunteerProfilesTable } from "@w
 import { getSessionUserId, requireAdmin, requireAuth } from "../middlewares/auth";
 import { notifyStaff, notifyUser } from "../lib/notify";
 import {
-  createConnectionMeta, getConnectionMeta, updateConnectionMeta, newConnectionState, CONNECTION_META_TYPE,
+  createConnectionMeta, getConnectionMeta, updateConnectionMeta, finishConnection, newConnectionState, CONNECTION_META_TYPE,
   type ConnectionState,
 } from "../lib/member-connections";
 
@@ -57,7 +57,7 @@ router.get("/member-connections/mine", requireAuth, async (req, res, next): Prom
       if (!Number.isSafeInteger(requestId) || requestId <= 0) continue;
       let state: ConnectionState | null = null;
       try { state = JSON.parse(row.message) as ConnectionState; } catch { continue; }
-      if (!state || !["new", "invited", "accepted", "declined", "connected", "closed_unfulfilled"].includes(state.stage)) continue;
+      if (!state || !["new", "invited", "accepted", "contact_problem", "declined", "connected", "closed_unfulfilled"].includes(state.stage)) continue;
       if (state.requesterUserId !== userId && state.volunteerUserId !== userId) continue;
       if (selected.some(x => x.id === requestId)) continue;
       selected.push({ id: requestId, state });
@@ -88,6 +88,7 @@ router.get("/member-connections/mine", requireAuth, async (req, res, next): Prom
           : null,
         guidance: noContactMessage(item.state.stage),
         closureReason: item.state.stage === "closed_unfulfilled" ? item.state.closureReason : null,
+        contactIssue: item.state.stage === "contact_problem" ? item.state.contactIssue : null,
       };
     }));
     res.json(results.filter(Boolean));
@@ -200,15 +201,71 @@ router.post("/member-connections/:id/confirm", requireAuth, async (req, res, nex
     if (state.stage !== "accepted" || request.status !== "open") {
       res.status(409).json({ error: "The volunteer must accept before contact can be confirmed" }); return;
     }
-    if (!await updateConnectionMeta(row, {
+    if (!await finishConnection(id, row, {
       ...state, stage: "connected", confirmedAt: new Date().toISOString(),
       updatedBy: getSessionUserId(req)!,
     })) { res.status(409).json({ error: "Request changed; refresh and retry" }); return; }
-    await db.update(supportMessagesTable).set({ status: "resolved" }).where(eq(supportMessagesTable.id, id));
     await notifyStaff(`Requester confirmed successful contact for request #${id}`, "/founder", "admin_member_connection");
     await notifyUser(state.volunteerUserId, "connection_request_update",
       "The requester confirmed that contact was successful. Thank you!", "/connections");
     res.json({ stage: "connected" });
+  } catch (error) { next(error); }
+});
+
+// The requester can flag a failed attempt without pretending the introduction
+// succeeded. The case remains open for staff follow-up.
+router.post("/member-connections/:id/problem", requireAuth, async (req, res, next): Promise<void> => {
+  try {
+    const id = idFromRequest(req.params.id);
+    const description = String(req.body?.description || "").trim();
+    if (!id || description.length < 10 || description.length > 500) {
+      res.status(400).json({ error: "Explain the contact problem (10–500 characters)" }); return;
+    }
+    const request = await originalRequest(id);
+    const { row, state } = await getConnectionMeta(id);
+    if (!request || request.status !== "open" || !row || !state) {
+      res.status(404).json({ error: "Open connection request not found" }); return;
+    }
+    if (state.requesterUserId !== getSessionUserId(req)) {
+      res.status(403).json({ error: "Only the requester can report a failed contact attempt" }); return;
+    }
+    if (state.stage !== "accepted") {
+      res.status(409).json({ error: "Contact must first be approved by the volunteer" }); return;
+    }
+    if (!await updateConnectionMeta(row, {
+      ...state, stage: "contact_problem", contactIssue: description,
+      updatedBy: getSessionUserId(req)!,
+    })) { res.status(409).json({ error: "Request changed; refresh it" }); return; }
+    await notifyStaff(`Requester needs help contacting volunteer for case #${id}: ${description}`, "/founder", "admin_member_connection");
+    res.json({ stage: "contact_problem" });
+  } catch (error) { next(error); }
+});
+
+// After staff has actually followed up and corrected the issue, the same
+// requester may attempt contact and confirm the real result.
+router.post("/admin/member-connections/:id/retry-contact", requireAdmin, async (req, res, next): Promise<void> => {
+  try {
+    const id = idFromRequest(req.params.id);
+    if (!id) { res.status(400).json({ error: "Invalid request ID" }); return; }
+    const request = await originalRequest(id);
+    const { row, state } = await getConnectionMeta(id);
+    if (!request || request.status !== "open" || !row || !state) {
+      res.status(404).json({ error: "Open connection request not found" }); return;
+    }
+    if (state.stage !== "contact_problem") {
+      res.status(409).json({ error: "Request is not awaiting help with a failed contact attempt" }); return;
+    }
+    const followup = String(req.body?.followup || "").trim();
+    if (followup.length < 10 || followup.length > 500) {
+      res.status(400).json({ error: "Record what was fixed before inviting another attempt" }); return;
+    }
+    if (!await updateConnectionMeta(row, {
+      ...state, stage: "accepted", contactIssue: null,
+      updatedBy: getSessionUserId(req)!,
+    })) { res.status(409).json({ error: "Request changed; refresh it" }); return; }
+    await notifyUser(state.requesterUserId, "connection_request_update",
+      "The team followed up on your connection problem. Please try again and confirm the result.", "/connections");
+    res.json({ stage: "accepted" });
   } catch (error) { next(error); }
 });
 
@@ -227,11 +284,10 @@ router.post("/admin/member-connections/:id/close-unfulfilled", requireAdmin, asy
     if (state.stage === "connected" || state.stage === "closed_unfulfilled") {
       res.status(409).json({ error: "Request was already closed" }); return;
     }
-    if (!await updateConnectionMeta(row, {
+    if (!await finishConnection(id, row, {
       ...state, stage: "closed_unfulfilled", closedAt: new Date().toISOString(),
       closureReason: reason, updatedBy: getSessionUserId(req)!,
     })) { res.status(409).json({ error: "Request changed; refresh and retry" }); return; }
-    await db.update(supportMessagesTable).set({ status: "resolved" }).where(eq(supportMessagesTable.id, id));
     await notifyUser(state.requesterUserId, "connection_request_update",
       "Your connection request could not be completed. Please check My Connections for an explanation.", "/connections");
     res.json({ stage: "closed_unfulfilled" });
