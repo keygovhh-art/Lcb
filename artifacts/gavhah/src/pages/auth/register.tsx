@@ -333,7 +333,7 @@ export default function Register() {
             <div className="mt-6 pt-6 border-t text-center">
               <p className="text-sm text-muted-foreground">
                 Already have an account?{" "}
-                <Link href="/login" className="text-secondary font-semibold hover:underline">Sign in</Link>
+                <Link href={`/login?return=${encodeURIComponent(new URLSearchParams(window.location.search).get("return") || "/")}`} className="text-secondary font-semibold hover:underline">Sign in</Link>
               </p>
             </div>
           </div>
