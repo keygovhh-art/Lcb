@@ -1,0 +1,27 @@
+name: Gavhah staging build check
+on:
+  push:
+    branches:
+      - feature/forum-free-topics-admin-workflow-20261008
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install exactly locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check frontend and API TypeScript
+        run: pnpm run typecheck
+      - name: Build frontend and API exactly as Render
+        run: |
+          pnpm --filter @workspace/gavhah run build
+          pnpm --filter @workspace/api-server run build
