@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   useListReports, useResolveReport, useDismissReport, useListUsers, useBanUser, useSuspendUser,
   useListAnnouncements, useCreateAnnouncement, useDeleteAnnouncement, useGetAdminStats,
@@ -50,6 +50,7 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
 }
 
 export default function FounderDashboard() {
+  const [, navigate] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user, isLoaded, isAdmin } = useAuth();
@@ -599,7 +600,7 @@ export default function FounderDashboard() {
                       size="sm"
                       variant="outline"
                       className="gap-2"
-                      onClick={() => { window.location.href = reportContentPath(report.contentType, report.contentId)!; }}
+                      onClick={() => navigate(reportContentPath(report.contentType, report.contentId)!)}
                     >
                       <ExternalLink className="h-4 w-4" /> View Content
                     </Button>
