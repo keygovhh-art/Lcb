@@ -29,6 +29,7 @@ import { SiteCopyManagement } from "@/components/admin/site-copy-management";
 import { MembershipGateManagement } from "@/components/admin/membership-gate-management";
 import { AdvancedMemberManagement } from "@/components/admin/advanced-member-management";
 import { OperationsInbox } from "@/components/admin/operations-inbox";
+import { PrivateAssistanceManagement } from "@/components/admin/private-assistance-management";
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 
@@ -282,6 +283,9 @@ export default function FounderDashboard() {
                 <span className="bg-destructive text-white text-xs rounded-full px-1.5 py-0.5">{supportMessages.filter(m => m.status === "open").length}</span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="private-assistance" className="gap-2">
+              <HandHeart className="h-4 w-4" /> {yi ? "פריוואטער הילף־צענטער" : "Private Assistance Matching"}
+            </TabsTrigger>
             <TabsTrigger value="help-requests" className="gap-2">
               <HandHeart className="h-4 w-4" /> Help Requests
               {adminHelpRequests.filter(r => r.status === "open").length > 0 && (
@@ -511,11 +515,15 @@ export default function FounderDashboard() {
             )}
           </TabsContent>
 
+          <TabsContent value="private-assistance" className="space-y-6">
+            <PrivateAssistanceManagement />
+          </TabsContent>
+
           {/* ─── Help Requests ─── */}
           <TabsContent value="help-requests" className="space-y-4">
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary">Help Requests</h2>
-              <p className="text-muted-foreground text-sm mt-1">{yi ? "באשטעטיגן שטעלט א הילף־בקשה אין דער עפנטליכער ליסטע — דאס מיינט נישט אז די הילף איז שוין געלונגען. קאנטאקט־פרטים זענען נאר פארן אדמין." : "Approving publishes the request, not evidence of help delivered. Private contact details are visible only to staff."}</p>
+              <p className="text-muted-foreground text-sm mt-1">{yi ? "יעדע בקשה בלייבט גענצליך פריוואט. באשטעטיגן מיינט נאר אז די מערכת נעמט איבער דעם פאל. זוך דעם פאסיגן עסקן אינעם פריוואטן הילף־צענטער." : "All help requests remain private. Approve means staff accepts the case internally, NEVER public publication. Find a suitable helper in Private Assistance Matching."}</p>
             </div>
             {adminHelpRequests.map(req => (
               <div key={req.id} className="bg-card border rounded-xl p-5">
@@ -549,7 +557,7 @@ export default function FounderDashboard() {
                             }
                           }}
                         >
-                          <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
+                          <CheckCircle className="h-3.5 w-3.5 mr-1" /> {yi ? "נעם איבער אינערליך" : "Accept Privately"}
                         </Button>
                         <Button
                           size="sm"
@@ -572,8 +580,8 @@ export default function FounderDashboard() {
                     {req.status === "open" && (
                       <div className="w-full sm:max-w-xs space-y-2">
                         <p className="text-xs text-muted-foreground">
-                          {yi ? "די בקשה איז שוין פובליק. שרייב וועלכע הילף איז טאקע געגעבן געווארן איידער דו פארמאכסט דעם פאל." :
-                            "This request is already public. Record what help was actually delivered before closing."}
+                          {yi ? "די בקשה ווערט אינערליך באהאנדלט, נישט פובליק. שרייב וועלכע הילף איז טאקע געגעבן געווארן איידער דו פארמאכסט דעם פאל." :
+                            "This request is being handled privately by staff, NOT publicly. Record assistance delivered before closing."}
                         </p>
                         <Textarea rows={2}
                           value={helpResolutionNotes[req.id] || ""}
