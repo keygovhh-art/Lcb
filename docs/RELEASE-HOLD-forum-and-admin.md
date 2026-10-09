@@ -154,3 +154,42 @@ Run and verify `lib/db/migrations/20261009_member_mailing.sql` in the **confirme
 - [ ] The old staff-only consent endpoint returns 410 and cannot bypass either person's permission.
 - [ ] Release action remains in the staff inbox, marked high priority, until completed or closed.
 - [ ] Verify API and client builds and private-mode route tests off Render before considering any release.
+
+
+## Strict private assistance and volunteer applications (2026-10-09)
+
+**HOLD: no Render deploy, no changes to main, no production DB migration.**
+
+Owner's decision: the "I need help" and "I want to help" registries are COMPLETELY private. A logged-in member may submit an application but cannot browse other members' help or volunteer records. Only authorized Gavhah staff can inspect these records inside administration.
+
+### Backend privacy enforcement
+- `GET /volunteers`, `/featured/volunteers`, `/help-requests`, and `/featured/requests` now require staff authorization (not just login).
+- `GET /volunteers/:id` and `GET /help-requests/:id` are owner-or-staff only, regardless of review/featured status.
+- Global search no longer queries volunteer applications.
+- Existing historic volunteer/help public activity entries are suppressed in the public activity endpoint; new submissions no longer create them.
+- Public stats endpoints do not reveal volunteer/help applicant counts. True internal counts stay in admin-only endpoints.
+- Arbitrary member-initiated `volunteer_contact` requests via `/member-requests` are rejected: members submit a private HELP form and staff choose the helper.
+- Volunteer social follow/save types are disabled and historic private volunteer follow/save rows are filtered from member lists.
+- No status transition, including staff "approve", publishes a help request. `pending -> open` means **internal case accepted**, not public listing.
+
+### Staff matching workflow
+- New admin-only `GET /admin/private-assistance` provides private help applications and volunteer registry data including location, skills, availability, and staff-only private contact preferences.
+- Suggests matching volunteers by help category/skill keywords and location overlap, with availability as a bonus. Scores are assistive, not an autonomous final decision or guarantee.
+- New `POST /admin/private-assistance/:helpId/match` creates a PRIVATE support connection and metadata in a transaction, uses a request-scoped advisory lock and blocks another active match for the same help request.
+- The staff dashboard has a new Private Assistance Matching tab. Staff may choose a suggested volunteer or search the complete private list and record why the match is appropriate.
+- After a match, staff use Operations Inbox to invite both people, await their separate consent, and grant the **additional** final Gavhah authorization before releasing any selected contact details. A requester later confirms actual contact.
+
+### Member experience
+- /directory is now confidential intake ONLY: I Need Help and I Want To Help forms requiring member sign-in. It does not render or fetch applicant listings or names.
+- Unrelated community projects remain under /community-projects; project search results link to that independent page, not to applicant lists.
+- Public homepage/menu/metrics no longer promise an open volunteer database.
+
+### Must-pass pre-release tests
+- [ ] Unauthenticated and logged-in ordinary members: GET public/list/featured help and volunteers return forbidden, details for others cannot be read.
+- [ ] Admin can list/manage private volunteers and help requests; ordinary members can only manage their own application.
+- [ ] Private pending/open/resolved/rejected help requests never appear in public search, stats, activity, public directory, or profile follows/saved lists.
+- [ ] A logged-in member submits each form; only staff receive applicant notifications and records remain private after approval.
+- [ ] Admin searches skills/location, selects candidate, creates case; attempt second active match for same request is rejected.
+- [ ] Applicant cannot guess volunteerId through the old member-requests endpoint to bypass staff.
+- [ ] Both personal approvals and separate final Gavhah administrator release are enforced before any contact detail is shared.
+- [ ] Full TypeScript typecheck, frontend build, API integration tests, mobile view, and database permissions reviewed WITHOUT deploying to Render.
