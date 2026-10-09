@@ -66,6 +66,7 @@ function labelForKind(kind: string, yi: boolean) {
     cause_submission: "Cause Review",
     minyan_submission: "Minyan Review",
     member_connection: "Member Connection",
+    help_offer: "Help Offer",
     volunteer_registration: "Volunteer Registration",
     project_join: "Project Participation",
     cause_join: "Cause Participation",
@@ -88,6 +89,7 @@ function labelForKind(kind: string, yi: boolean) {
     cause_submission: "צוועק־איבערזיכט",
     minyan_submission: "מנין־איבערזיכט",
     member_connection: "פארבינדן מיטגלידער",
+    help_offer: "הילף אנבאט",
     volunteer_registration: "נייער העלפער",
     project_join: "אנטייל אין פראיעקט",
     cause_join: "אנטייל אין צוועק",
@@ -304,7 +306,9 @@ export function OperationsInbox() {
       } else if (item.kind === "comment_review") {
         await request(`/api/admin/pending-comments/${item.id}/${action === "approve" ? "approve" : "reject"}`);
       } else {
-        await request(`/api/admin/support-messages/${item.id}`, "PATCH", { status: "resolved" });
+        await request(`/api/admin/support-messages/${item.id}`, "PATCH", {
+          status: "resolved", resolutionNote: item.workflow.notes[item.workflow.notes.length - 1]?.text || "",
+        });
       }
 
       toast({ title: yi ? "די אקציע איז אפגעהיטן — זע די ערקלערונג אויבן" : "Action completed — see the outcome explanation" });
@@ -549,8 +553,9 @@ export function OperationsInbox() {
                         onClick={() => {
                           const note = (noteDrafts[item.key] || "").trim();
                           if (!note) return;
-                          setNoteDrafts(prev => ({ ...prev, [item.key]: "" }));
-                          void updateWorkflow(item, { note });
+                          void updateWorkflow(item, { note }).then(() => {
+                            setNoteDrafts(prev => ({ ...prev, [item.key]: "" }));
+                          });
                         }}
                         className="gap-1.5 shrink-0"
                       >
