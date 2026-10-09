@@ -209,7 +209,9 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
       key: `support:${m.id}`,
       kind: m.type === "volunteer_contact" ? "member_connection" : m.type,
       id: m.id,
-      priority: m.type === "report" || m.type === "system_error" ? "high" : "normal",
+      priority: m.type === "report" || m.type === "system_error" ||
+        (m.type === "volunteer_contact" && connectionsByRequest.get(m.id)?.stage === "awaiting_staff_release")
+          ? "high" : "normal",
       title: m.subject,
       summary: m.message,
       createdAt: m.createdAt,
@@ -221,6 +223,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
         connectionIssue: connectionsByRequest.get(m.id)?.contactIssue ?? null,
         requesterApproved: Boolean(connectionsByRequest.get(m.id)?.approvals.requester),
         volunteerApproved: Boolean(connectionsByRequest.get(m.id)?.approvals.volunteer),
+        staffFinalReleased: Boolean(connectionsByRequest.get(m.id)?.staffReleasedAt),
         requesterChoice: connectionsByRequest.get(m.id)?.requesterChoice ?? "primary",
         volunteerChoice: connectionsByRequest.get(m.id)?.volunteerChoice ?? "primary",
         volunteerId: connectionsByRequest.get(m.id)?.volunteerId ?? null,
