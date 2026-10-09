@@ -63,18 +63,7 @@ export interface UserUpdate {
   preferredLanguage?: string;
 }
 
-export type DiscussionCategory = typeof DiscussionCategory[keyof typeof DiscussionCategory];
-
-
-export const DiscussionCategory = {
-  medical: 'medical',
-  shidduchim: 'shidduchim',
-  livelihood: 'livelihood',
-  education: 'education',
-  charity: 'charity',
-  community: 'community',
-  general: 'general',
-} as const;
+export type DiscussionCategory = string;
 
 export interface Discussion {
   id: number;
