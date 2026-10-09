@@ -36,9 +36,9 @@ export default function Dashboard() {
   const statCards = [
     { label: "Total Members", value: stats?.totalMembers ?? 0, icon: <Users className="h-6 w-6" />, link: "/directory", color: "text-primary bg-primary/10" },
     { label: "Active Discussions", value: stats?.totalDiscussions ?? 0, icon: <MessageSquare className="h-6 w-6" />, link: "/forum", color: "text-secondary bg-secondary/10" },
-    { label: "Active Volunteers", value: stats?.activeVolunteers ?? 0, icon: <HandHeart className="h-6 w-6" />, link: "/directory", color: "text-accent bg-accent/10" },
+    { label: "Public News Updates", value: stats?.totalNewsArticles ?? 0, icon: <HandHeart className="h-6 w-6" />, link: "/news", color: "text-accent bg-accent/10" },
     { label: "Community Groups", value: stats?.activeGroups ?? 0, icon: <Globe className="h-6 w-6" />, link: "/groups", color: "text-primary bg-primary/10" },
-    { label: "People Helped", value: stats?.totalPeopleHelped ?? 0, icon: <Heart className="h-6 w-6" />, link: "/directory", color: "text-secondary bg-secondary/10" },
+    { label: "Confidential Assistance", value: "Handled privately", icon: <Heart className="h-6 w-6" />, link: "/directory", color: "text-secondary bg-secondary/10" },
     { label: "Recorded Donations", value: `$${Number(stats?.donationsRaised ?? 0).toLocaleString()}`, icon: <Activity className="h-6 w-6" />, link: "/charity", color: "text-accent bg-accent/10" },
   ];
 
@@ -117,7 +117,7 @@ export default function Dashboard() {
             {[
               { label: "Global Chesed News", href: "/news", icon: <Activity className="h-5 w-5" /> },
               { label: "Askanim Forum", href: "/forum", icon: <MessageSquare className="h-5 w-5" /> },
-              { label: "Activists Directory", href: "/directory", icon: <HandHeart className="h-5 w-5" /> },
+              { label: "Private Assistance", href: "/directory", icon: <HandHeart className="h-5 w-5" /> },
               { label: "Today's Charity", href: "/charity", icon: <Heart className="h-5 w-5" /> },
               { label: "Minyan Center", href: "/minyans", icon: <Clock className="h-5 w-5" /> },
               { label: "Group Center", href: "/groups", icon: <Globe className="h-5 w-5" /> },
