@@ -8,6 +8,7 @@ export type ConnectionStage =
   | "invited"
   | "accepted"
   | "contact_problem"
+  | "consent_revoked"
   | "declined"
   | "connected"
   | "closed_unfulfilled";
@@ -59,7 +60,7 @@ function parseConnectionState(raw: string): ConnectionState | null {
       !Number.isSafeInteger(value.volunteerId) || value.volunteerId <= 0 ||
       !Number.isSafeInteger(value.volunteerUserId) || value.volunteerUserId <= 0 ||
       !Number.isSafeInteger(value.requesterUserId) || value.requesterUserId <= 0 ||
-      !["new", "invited", "accepted", "contact_problem", "declined", "connected", "closed_unfulfilled"].includes(value.stage)
+      !["new", "invited", "accepted", "contact_problem", "consent_revoked", "declined", "connected", "closed_unfulfilled"].includes(value.stage)
     ) return null;
     return {
       volunteerId: value.volunteerId,
