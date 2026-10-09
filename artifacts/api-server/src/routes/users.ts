@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, inArray, sql } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db, usersTable, discussionsTable, helpRequestsTable, memberMailingTable } from "@workspace/db";
 import { mailingValues, parseMailingInput, publicMailingStatus } from "../lib/member-mailing";
 import { count } from "drizzle-orm";
@@ -65,8 +65,8 @@ router.get("/users", requireAdmin, async (req, res): Promise<void> => {
 router.post("/users", registrationLimiter, async (req, res): Promise<void> => {
   const { name, nickname, email, phone, password, location, bio } = req.body as Record<string, string>;
   const providedMailing = req.body?.mailingAddress;
-  const mailing = providedMailing === undefined || providedMailing === null
-    ? { value: null as ReturnType<typeof parseMailingInput>["value"] }
+  const mailing: ReturnType<typeof parseMailingInput> = providedMailing === undefined || providedMailing === null
+    ? { value: null }
     : parseMailingInput(providedMailing);
   if (mailing.error) { res.status(400).json({ error: mailing.error }); return; }
 
