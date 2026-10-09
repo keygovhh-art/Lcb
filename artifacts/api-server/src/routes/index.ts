@@ -53,5 +53,8 @@ router.use(likesRouter);
 router.use(mediaRouter);
 router.use(searchRouter);
 router.use(siteCopyRouter);
+router.use(systemErrorsRouter);
+router.use(engagementRouter);
+router.use(pinnedAnnouncementsRouter);
 
 export default router;
