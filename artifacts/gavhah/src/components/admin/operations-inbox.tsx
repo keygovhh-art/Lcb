@@ -30,6 +30,17 @@ type OperationItem = {
   ageHours: number;
 };
 
+type CompletedCase = {
+  id: number;
+  kind: string;
+  title: string;
+  requester: string;
+  outcome: "confirmed_success" | "unsuccessful" | "staff_closed" | "legacy_closed";
+  closedAt: string;
+  summary: string | null;
+  actorId: number | null;
+};
+
 type StaffMember = {
   id: number;
   name: string;
@@ -127,6 +138,7 @@ export function OperationsInbox() {
   const yi = lang === "yi";
   const { toast } = useToast();
   const [data, setData] = useState<InboxResponse>(EMPTY);
+  const [history, setHistory] = useState<CompletedCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -143,12 +155,17 @@ export function OperationsInbox() {
   const load = async () => {
     setLoading(true);
     try {
-      const [res, usersRes] = await Promise.all([
+      const [res, usersRes, historyRes] = await Promise.all([
         fetch("/api/admin/operations-inbox", { credentials: "include", cache: "no-store" }),
         fetch("/api/users", { credentials: "include", cache: "no-store" }),
+        fetch("/api/admin/operations-history", { credentials: "include", cache: "no-store" }),
       ]);
       if (!res.ok) throw new Error("Could not load management inbox");
       setData(await res.json());
+      if (historyRes.ok) {
+        const completed = await historyRes.json();
+        setHistory(Array.isArray(completed.items) ? completed.items : []);
+      }
       if (usersRes.ok) {
         const allUsers = await usersRes.json() as StaffMember[];
         setStaff(allUsers.filter(user =>
@@ -747,6 +764,41 @@ export function OperationsInbox() {
           ))}
         </div>
       )}
+
+      <details className="rounded-xl border bg-card p-4 sm:p-5">
+        <summary className="cursor-pointer text-sm font-semibold text-primary">
+          {yi ? `פארמאכטע פעלער — לעצטע ${history.length} רעקארדס` :
+            `Completed and unsuccessful cases — last ${history.length} records`}
+        </summary>
+        <p className="text-xs text-muted-foreground mt-3">
+          {yi ? "היסטאריע וועט נישט אויסמעקן ווערן ווען א בקשה פארשווינדט פונעם אפענעם אינבאקס. 'נישט געלונגען' איז נישט קיין הצלחה." :
+            "Closed cases remain visible for review. Unsuccessful introductions are never counted as successes."}
+        </p>
+        <div className="mt-3 max-h-[35rem] overflow-y-auto space-y-2">
+          {history.length === 0 && <p className="text-sm text-muted-foreground">
+            {yi ? "נאך נישטא קיין פארמאכטע פעלער." : "No closed cases yet."}
+          </p>}
+          {history.map(entry => (
+            <div key={entry.id} className="rounded-lg border p-3 space-y-1 text-xs">
+              <div className="flex flex-wrap justify-between gap-2 items-center">
+                <span className="font-semibold text-sm break-words">{entry.title}</span>
+                <Badge variant={entry.outcome === "confirmed_success" ? "default" : "secondary"}>
+                  {entry.outcome === "confirmed_success"
+                    ? (yi ? "בעטער האט באשטעטיגט הצלחה" : "Requester confirmed success")
+                    : entry.outcome === "unsuccessful"
+                      ? (yi ? "נישט געלונגען" : "Unsuccessful")
+                      : (yi ? "פארמאכט נאך באהאנדלונג" : "Closed after review")}
+                </Badge>
+              </div>
+              <p className="text-muted-foreground">
+                {entry.requester} · {new Date(entry.closedAt).toLocaleString()}
+                {entry.actorId ? ` · ${yi ? "אדמין" : "Staff"} #${entry.actorId}` : ""}
+              </p>
+              {entry.summary && <p className="whitespace-pre-wrap break-words">{entry.summary}</p>}
+            </div>
+          ))}
+        </div>
+      </details>
 
       <div className="rounded-xl border bg-muted/20 p-4 text-xs text-muted-foreground flex items-start gap-2">
         <Clock className="h-4 w-4 shrink-0 mt-0.5" />
