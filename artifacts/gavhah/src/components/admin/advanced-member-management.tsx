@@ -61,6 +61,10 @@ export function AdvancedMemberManagement() {
     finally{setBusy(null);}
   };
   const safeCount=(n:number)=>Number.isFinite(n)?n:0;
+  const displayed = items.filter(member =>
+    (roleFilter==="all" || member.role===roleFilter) &&
+    (accountFilter==="all" || member.status===accountFilter)
+  );
   return <section className="space-y-5" dir={yi?"rtl":"ltr"}>
     <div>
       <h2 className="flex gap-2 items-center font-semibold text-2xl text-primary"><Users className="h-6 w-6"/>
@@ -95,12 +99,22 @@ export function AdvancedMemberManagement() {
         <option value="all">{yi?"אלע":"All"}</option>
         {Object.entries(STATUS_LABELS).map(([key,label])=><option key={key} value={key}>{label[yi?0:1]}</option>)}
       </select>
+      <select value={roleFilter} onChange={e=>setRoleFilter(e.target.value)}
+        className="h-10 border rounded-md px-2 bg-background">
+        <option value="all">{yi?"אלע ראלעס":"All roles"}</option>
+        {["member","moderator","admin","super_admin","group_owner"].map(role=><option key={role} value={role}>{role}</option>)}
+      </select>
+      <select value={accountFilter} onChange={e=>setAccountFilter(e.target.value)}
+        className="h-10 border rounded-md px-2 bg-background">
+        <option value="all">{yi?"אלע אקאונט־מצבים":"All account statuses"}</option>
+        {["active","suspended","banned"].map(status=><option key={status} value={status}>{status}</option>)}
+      </select>
       <Button variant="outline" onClick={()=>void load()} disabled={loading}><RefreshCcw className="h-4 w-4"/></Button>
     </div>
     {loading?<p className="border rounded-xl p-8">{yi?"לאדנט מעמבערס...":"Loading members..."}</p>:
-      items.length===0?<p className="border rounded-xl p-8 text-muted-foreground">{yi?"קיינער נישט געפונען":"No members match"}</p>:
+      displayed.length===0?<p className="border rounded-xl p-8 text-muted-foreground">{yi?"קיינער נישט געפונען":"No members match"}</p>:
       <div className="space-y-2">
-        {items.map(member=><article key={member.id} className="border rounded-xl bg-card p-4 space-y-2">
+        {displayed.map(member=><article key={member.id} className="border rounded-xl bg-card p-4 space-y-2">
           <div className="flex flex-wrap justify-between items-center gap-2">
             <div>
               <p className="font-semibold">{member.nickname||member.name} <span className="text-xs text-muted-foreground">#{member.id}</span></p>
