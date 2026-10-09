@@ -6,8 +6,8 @@ import { requireAuth, getSessionUserId } from "../middlewares/auth";
 
 const router = Router();
 
-const FOLLOW_TYPES = new Set(["volunteer", "group", "project", "cause", "discussion", "news", "user"]);
-const SAVED_TYPES = new Set(["discussion", "news", "cause", "group", "project", "volunteer", "minyan"]);
+const FOLLOW_TYPES = new Set(["group", "project", "cause", "discussion", "news", "user"]);
+const SAVED_TYPES = new Set(["discussion", "news", "cause", "group", "project", "minyan"]);
 
 const fmt = (r: typeof followsTable.$inferSelect) => ({ ...r, createdAt: r.createdAt.toISOString() });
 const fmtS = (r: typeof savedItemsTable.$inferSelect) => ({ ...r, createdAt: r.createdAt.toISOString() });
@@ -17,7 +17,7 @@ const fmtS = (r: typeof savedItemsTable.$inferSelect) => ({ ...r, createdAt: r.c
 router.get("/follows", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
   const rows = await db.select().from(followsTable).where(eq(followsTable.userId, userId));
-  res.json(rows.map(fmt));
+  res.json(rows.filter(x=>x.entityType!=="volunteer").map(fmt));
 });
 
 router.get("/follows/check", requireAuth, async (req, res) => {
@@ -71,7 +71,7 @@ router.delete("/follows/:id", requireAuth, async (req, res) => {
 router.get("/saved", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
   const rows = await db.select().from(savedItemsTable).where(eq(savedItemsTable.userId, userId));
-  res.json(rows.map(fmtS));
+  res.json(rows.filter(x=>x.contentType!=="volunteer").map(fmtS));
 });
 
 router.get("/saved/check", requireAuth, async (req, res) => {
