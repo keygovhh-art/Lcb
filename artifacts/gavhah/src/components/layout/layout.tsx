@@ -76,10 +76,10 @@ export function Layout({ children }: { children: ReactNode }) {
   const browserSuffix = typeof window !== "undefined" ? window.location.search + window.location.hash : "";
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-background">
+    <div className="min-h-[100dvh] w-full max-w-full min-w-0 overflow-x-hidden flex flex-col bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-3">
+        <div className="container mx-auto px-4 h-14 min-w-0 max-w-full flex items-center justify-between gap-3">
           {/* Logo */}
           <Link href="/" className="flex items-center shrink-0">
             <span className="font-serif text-xl font-bold text-primary tracking-wide">GAVHAH</span>
