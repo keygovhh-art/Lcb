@@ -221,40 +221,42 @@ function NewsCard({ article, large = false }: { article: any; large?: boolean })
           </div>
         )}
 
-        {/* Image or placeholder */}
-        <div className={`${large ? "aspect-[16/9]" : "aspect-[4/3]"} bg-muted relative overflow-hidden`}>
-          {article.imageUrl ? (
-            <img src={article.imageUrl} alt={article.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-          ) : (
-            <div className={`w-full h-full flex items-center justify-center ${
-              isBreaking ? "bg-gradient-to-br from-red-50 to-red-100/30" :
-              isHigh ? "bg-gradient-to-br from-orange-50 to-amber-100/30" :
-              "bg-gradient-to-br from-primary/5 to-secondary/5"
-            }`}>
-              <div className={`${isBreaking ? "text-red-300" : isHigh ? "text-orange-300" : "text-primary/20"}`}>
-                {CATEGORY_ICONS[article.category] ? (
-                  <div className="scale-[3]">{CATEGORY_ICONS[article.category]}</div>
-                ) : (
-                  <Globe className="h-12 w-12" />
-                )}
-              </div>
+        {/* Only reserve media space when this update actually has an image. */}
+        {article.imageUrl && (
+          <div className={`${large ? "aspect-[16/9]" : "aspect-[4/3]"} bg-muted relative overflow-hidden`}>
+            <img
+              src={article.imageUrl}
+              alt={article.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            />
+            <div className="absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] gap-2 flex-wrap">
+              <span className="px-2.5 py-1 bg-background/90 backdrop-blur text-xs font-semibold uppercase tracking-wider rounded-full shadow-sm text-primary flex items-center gap-1">
+                {CATEGORY_ICONS[article.category] && <span className="opacity-70">{CATEGORY_ICONS[article.category]}</span>}
+                {CATEGORY_LABELS[article.category] ?? article.category}
+              </span>
+              {article.isFeatured && (
+                <span className="px-2.5 py-1 bg-accent/90 backdrop-blur text-xs font-semibold rounded-full shadow-sm text-accent-foreground flex items-center gap-1">
+                  <Star className="h-3 w-3 fill-current" /> Featured
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="p-5 flex min-w-0 flex-col flex-1">
+          {!article.imageUrl && (
+            <div className="mb-3 flex max-w-full flex-wrap gap-2">
+              <span className="px-2.5 py-1 bg-secondary/10 text-secondary text-xs font-semibold uppercase tracking-wider rounded-full flex items-center gap-1">
+                {CATEGORY_ICONS[article.category] && <span className="opacity-70">{CATEGORY_ICONS[article.category]}</span>}
+                {CATEGORY_LABELS[article.category] ?? article.category}
+              </span>
+              {article.isFeatured && (
+                <span className="px-2.5 py-1 bg-accent/20 text-accent-foreground text-xs font-semibold rounded-full flex items-center gap-1">
+                  <Star className="h-3 w-3 fill-current" /> Featured
+                </span>
+              )}
             </div>
           )}
-          {/* Category + featured badges */}
-          <div className="absolute top-3 left-3 flex gap-2 flex-wrap">
-            <span className="px-2.5 py-1 bg-background/90 backdrop-blur text-xs font-semibold uppercase tracking-wider rounded-full shadow-sm text-primary flex items-center gap-1">
-              {CATEGORY_ICONS[article.category] && <span className="opacity-70">{CATEGORY_ICONS[article.category]}</span>}
-              {CATEGORY_LABELS[article.category] ?? article.category}
-            </span>
-            {article.isFeatured && (
-              <span className="px-2.5 py-1 bg-accent/90 backdrop-blur text-xs font-semibold rounded-full shadow-sm text-accent-foreground flex items-center gap-1">
-                <Star className="h-3 w-3 fill-current" /> Featured
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="p-5 flex flex-col flex-1">
           {/* Meta row */}
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 flex-wrap gap-2">
             <span>{format(new Date(article.createdAt), "MMM d, yyyy")}</span>
@@ -286,7 +288,7 @@ function NewsCard({ article, large = false }: { article: any; large?: boolean })
             {article.summary || article.content.substring(0, 150) + "..."}
           </p>
 
-          <div className="flex items-center justify-between">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center justify-between gap-2">
             <div className="flex items-center text-accent font-semibold text-xs group-hover:gap-2 transition-all">
               Read Full Update <ChevronRight className="h-3.5 w-3.5 ml-1" />
             </div>
