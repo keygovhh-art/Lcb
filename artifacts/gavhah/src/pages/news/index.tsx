@@ -198,6 +198,8 @@ function PostUpdateDialog() {
 }
 
 function NewsCard({ article, large = false }: { article: any; large?: boolean }) {
+  const { data: engagementSettings } = useEngagementSettings();
+  const newsEngagement = settingFor(engagementSettings, "news");
   const { isLiked, likeCount, toggle } = useLikeArticle(article.id, article.likeCount ?? 0);
   const urgencyStyle = URGENCY_STYLE[article.urgency ?? "normal"] ?? URGENCY_STYLE.normal;
 
