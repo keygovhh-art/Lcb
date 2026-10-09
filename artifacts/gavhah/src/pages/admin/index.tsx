@@ -438,7 +438,7 @@ export default function FounderDashboard() {
             </TabsContent>
           )}
 
-          {/* ─── Live Site Editor ─── */
+          {/* ─── Live Site Editor ─── */}
           <TabsContent value="site-copy" className="space-y-6">
             <SiteCopyManagement />
           </TabsContent>
