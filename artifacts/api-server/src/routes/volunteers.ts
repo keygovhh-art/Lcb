@@ -34,7 +34,8 @@ function isStaffRole(role?: string) {
   return role === "admin" || role === "moderator" || role === "super_admin";
 }
 
-const HELP_TYPES = new Set(["medical", "wedding", "food", "housing", "transportation", "financial", "other"]);
+const validCustomCategory = (value: string) =>
+  value.length > 0 && value.length <= 120 && !/[\u0000-\u001f\u007f]/.test(value);
 const HELP_URGENCIES = new Set(["low", "medium", "high", "critical"]);
 const HELP_STATUSES = new Set(["pending", "open", "rejected", "resolved"]);
 const VOLUNTEER_AVAILABILITY = new Set(["weekdays", "evenings", "weekends", "flexible", "on_call", "anytime", "by_appointment"]);
@@ -73,9 +74,9 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   const { userName, skills, availability, location, bio, areasOfInterest } = req.body;
   const contact = parseContactSelection(req.body?.contactMethods);
   if (!contact.value) { res.status(400).json({ error: contact.error || "Contact method required" }); return; }
-  const cleanAvailability = String(availability || "");
+  const cleanAvailability = "anytime"; // Only current signup choice; legacy values remain stored safely.
   const cleanLocation = String(location || "").trim();
-  if (!VOLUNTEER_AVAILABILITY.has(cleanAvailability) || !cleanLocation) {
+  if (!cleanLocation) {
     res.status(400).json({ error: "valid availability and location required" });
     return;
   }
@@ -202,11 +203,11 @@ router.post("/help-requests", requireAuth, async (req, res): Promise<void> => {
   const userId = getSessionUserId(req)!;
   const { name, needType, description, urgency, location } = req.body;
   const cleanName = String(name || "").trim();
-  const cleanNeedType = String(needType || "");
+  const cleanNeedType = String(needType || "").trim();
   const cleanDescription = String(description || "").trim();
   const cleanUrgency = String(urgency || "medium");
-  if (!cleanName || !cleanDescription || !HELP_TYPES.has(cleanNeedType)) {
-    res.status(400).json({ error: "name, valid needType, and description are required" });
+  if (!cleanName || !cleanDescription || !validCustomCategory(cleanNeedType)) {
+    res.status(400).json({ error: "name, custom category (1–120 characters), and description are required" });
     return;
   }
   if (!HELP_URGENCIES.has(cleanUrgency)) {
