@@ -5,7 +5,7 @@ import type { ContactPoint } from "./member-contact-methods";
 export const CONNECTION_META_TYPE = "__member_connection_meta__";
 export const PHONE_NOTICE_TYPE = "__connection_phone_notice__";
 export type ConnectionStage =
-  | "new" | "invited" | "needs_reapproval" | "accepted"
+  | "new" | "invited" | "needs_reapproval" | "awaiting_staff_release" | "accepted"
   | "contact_problem" | "consent_revoked" | "declined"
   | "connected" | "closed_unfulfilled";
 type Approvals = { requester: string | null; volunteer: string | null };
@@ -28,6 +28,9 @@ export type ConnectionState = {
   volunteerChoice: "primary" | "backup";
   approvals: Approvals;
   agreedContacts: Shared | null;
+  /** Final, case-specific Gavhah permission AFTER both members approve. */
+  staffReleasedAt: string | null;
+  staffReleasedBy: number | null;
   proposedContacts: Partial<Shared>;
   // Former staff-recorded consent fields are retained ONLY for audit, and
   // can NEVER authorize disclosure to the other person.
@@ -38,7 +41,7 @@ export type ConnectionState = {
 };
 
 const stages = new Set<ConnectionStage>([
-  "new","invited","needs_reapproval","accepted","contact_problem",
+  "new","invited","needs_reapproval","awaiting_staff_release","accepted","contact_problem",
   "consent_revoked","declined","connected","closed_unfulfilled",
 ]);
 const validPoint = (raw: unknown): ContactPoint | null => {
@@ -55,7 +58,8 @@ export function newConnectionState(input: {
     ...input, stage:"new", invitedAt:null,respondedAt:null,confirmedAt:null,closedAt:null,
     closureReason:null,contactIssue:null,contactFollowups:[],
     requesterChoice:"primary",volunteerChoice:"primary",
-    approvals:{requester:null,volunteer:null},agreedContacts:null,proposedContacts:{},
+    approvals:{requester:null,volunteer:null},agreedContacts:null,
+    staffReleasedAt:null,staffReleasedBy:null,proposedContacts:{},
     consentMethod:null,consentNote:null,consentVerifiedBy:null,updatedBy:null,
   };
 }
@@ -72,9 +76,11 @@ export function parseConnectionState(raw: string): ConnectionState | null {
     };
     const requester = validPoint(v.agreedContacts?.requester);
     const volunteer = validPoint(v.agreedContacts?.volunteer);
-    const bothConsented = Boolean(approvals.requester&&approvals.volunteer&&requester&&volunteer);
-    // Historic "accepted" rows are not grandfathered into sharing.
-    const stage:ConnectionStage = ["accepted","connected","contact_problem"].includes(v.stage)&&!bothConsented
+    const staffReleasedAt = typeof v.staffReleasedAt === "string" ? v.staffReleasedAt : null;
+    const staffReleasedBy = Number.isSafeInteger(v.staffReleasedBy) && v.staffReleasedBy > 0 ? v.staffReleasedBy : null;
+    const released = Boolean(approvals.requester && approvals.volunteer && requester && volunteer && staffReleasedAt && staffReleasedBy);
+    // Earlier single/dual approvals NEVER authorize release without separate, later staff approval.
+    const stage:ConnectionStage = ["accepted","connected","contact_problem"].includes(v.stage)&&!released
       ? "needs_reapproval" : v.stage;
     return {
       volunteerId:v.volunteerId, volunteerUserId:v.volunteerUserId,requesterUserId:v.requesterUserId,
@@ -88,7 +94,8 @@ export function parseConnectionState(raw: string): ConnectionState | null {
         typeof a?.note==="string"&&Number.isSafeInteger(a.actorId)&&typeof a.at==="string").slice(-50):[],
       requesterChoice:v.requesterChoice==="backup"?"backup":"primary",
       volunteerChoice:v.volunteerChoice==="backup"?"backup":"primary",
-      approvals,agreedContacts:bothConsented?{requester:requester!,volunteer:volunteer!}:null,
+      approvals,agreedContacts:released?{requester:requester!,volunteer:volunteer!}:null,
+      staffReleasedAt:released?staffReleasedAt:null,staffReleasedBy:released?staffReleasedBy:null,
       proposedContacts:{
         ...(validPoint(v.proposedContacts?.requester)?{requester:validPoint(v.proposedContacts.requester)!}:{}),
         ...(validPoint(v.proposedContacts?.volunteer)?{volunteer:validPoint(v.proposedContacts.volunteer)!}:{}),
@@ -101,7 +108,13 @@ export function parseConnectionState(raw: string): ConnectionState | null {
   } catch { return null; }
 }
 export function hasMutualConsent(state: ConnectionState): boolean {
-  return Boolean(state.approvals.requester&&state.approvals.volunteer&&state.agreedContacts?.requester&&state.agreedContacts?.volunteer);
+  return Boolean(state.approvals.requester && state.approvals.volunteer &&
+    state.proposedContacts.requester && state.proposedContacts.volunteer);
+}
+/** Only this predicate permits disclosure or a completed introduction. */
+export function hasReleaseAuthorization(state: ConnectionState): boolean {
+  return Boolean(hasMutualConsent(state) && state.staffReleasedAt && state.staffReleasedBy &&
+    state.agreedContacts?.requester && state.agreedContacts?.volunteer);
 }
 export function clearConsentForNewReview(state: ConnectionState, choices?:{
   requesterChoice?:"primary"|"backup";volunteerChoice?:"primary"|"backup";
@@ -109,6 +122,7 @@ export function clearConsentForNewReview(state: ConnectionState, choices?:{
   return {...state,
     stage:"invited",invitedAt:new Date().toISOString(),respondedAt:null,
     approvals:{requester:null,volunteer:null},agreedContacts:null,proposedContacts:{},
+    staffReleasedAt:null,staffReleasedBy:null,
     requesterChoice:choices?.requesterChoice??state.requesterChoice,
     volunteerChoice:choices?.volunteerChoice??state.volunteerChoice,
     consentMethod:null,consentNote:null,consentVerifiedBy:null,
