@@ -285,7 +285,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
 // Completed support and volunteer-connection history is deliberately separate
 // from the open queue. Completed does not automatically mean successful.
 router.get("/admin/operations-history", requireAdmin, async (_req, res) => {
-  const [cases, consentRecords, closeRecords] = await Promise.all([
+  const [cases, consentRecords, closeRecords, fulfilledHelp, helpAudits] = await Promise.all([
     db.select().from(supportMessagesTable)
       .where(eq(supportMessagesTable.status, "resolved"))
       .orderBy(desc(supportMessagesTable.id)).limit(300),
@@ -295,6 +295,12 @@ router.get("/admin/operations-history", requireAdmin, async (_req, res) => {
     db.select().from(supportMessagesTable)
       .where(eq(supportMessagesTable.type, "__support_resolution__"))
       .orderBy(desc(supportMessagesTable.id)).limit(400),
+    db.select().from(helpRequestsTable)
+      .where(eq(helpRequestsTable.status, "resolved"))
+      .orderBy(desc(helpRequestsTable.id)).limit(150),
+    db.select().from(supportMessagesTable)
+      .where(eq(supportMessagesTable.type, "__help_resolution__"))
+      .orderBy(desc(supportMessagesTable.id)).limit(300),
   ]);
 
   const connections = new Map<number, ConnectionState>();
@@ -308,7 +314,21 @@ router.get("/admin/operations-history", requireAdmin, async (_req, res) => {
     const requestId = Number(row.subject.match(/^support:(\d+)$/)?.[1]);
     if (Number.isSafeInteger(requestId) && !closures.has(requestId)) closures.set(requestId, row);
   }
-  const items = cases.filter(row => !row.type.startsWith("__")).map(row => {
+  const fulfilledNotes = new Map<number, typeof helpAudits[number]>();
+  for (const audit of helpAudits) {
+    const requestId = Number(audit.subject.match(/^help:(\d+)$/)?.[1]);
+    if (Number.isSafeInteger(requestId) && !fulfilledNotes.has(requestId)) fulfilledNotes.set(requestId, audit);
+  }
+  const helpOutcomes = fulfilledHelp.map(row => {
+    const audit = fulfilledNotes.get(row.id);
+    return {
+      id: row.id, kind: "help_request", title: `Help request: ${row.name}`,
+      requester: row.name, outcome: "confirmed_help" as const,
+      closedAt: audit?.createdAt || row.createdAt, summary: audit?.message || null,
+      actorId: audit?.userId || null,
+    };
+  });
+  const items = [...cases.filter(row => !row.type.startsWith("__")).map(row => {
     const connection = row.type === "volunteer_contact" ? connections.get(row.id) : null;
     const audit = closures.get(row.id);
     const outcome =
@@ -322,7 +342,8 @@ router.get("/admin/operations-history", requireAdmin, async (_req, res) => {
       summary: connection?.closureReason || audit?.message || null,
       actorId: connection?.updatedBy || audit?.userId || null,
     };
-  }).sort((a,b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime()).slice(0,150);
+  }), ...helpOutcomes]
+    .sort((a,b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime()).slice(0,150);
   res.json({ items });
 });
 
