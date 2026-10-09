@@ -177,6 +177,7 @@ router.get("/admin/support-messages", requireAdmin, async (_req, res): Promise<v
 router.patch("/admin/support-messages/:id", requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   const status = String(req.body?.status || "");
+  const resolutionNote = cleanText(req.body?.resolutionNote, 2000);
   if (!["open", "resolved"].includes(status)) {
     res.status(400).json({ error: "Invalid support status" });
     return;
@@ -195,8 +196,38 @@ router.patch("/admin/support-messages/:id", requireAdmin, async (req, res): Prom
     return;
   }
 
+  if (status === "resolved") {
+    if (existing.status !== "open") {
+      res.status(409).json({ error: "This request is already closed" }); return;
+    }
+    if (resolutionNote.length < 10) {
+      res.status(400).json({ error: "Document the real follow-up (at least 10 characters) before closing" });
+      return;
+    }
+    const updated = await db.transaction(async tx => {
+      const [changed] = await tx.update(supportMessagesTable)
+        .set({ status: "resolved" })
+        .where(and(eq(supportMessagesTable.id, id), eq(supportMessagesTable.status, "open")))
+        .returning();
+      if (!changed) return null;
+      await tx.insert(supportMessagesTable).values({
+        userId: getSessionUserId(req)!,
+        name: "Support Closure Audit",
+        email: "audit@internal.invalid",
+        type: "__support_resolution__",
+        subject: `support:${id}`,
+        message: resolutionNote,
+        status: "resolved",
+      });
+      return changed;
+    });
+    if (!updated) { res.status(409).json({ error: "Request changed; reload and retry" }); return; }
+    res.json(updated);
+    return;
+  }
+
   const [updated] = await db.update(supportMessagesTable)
-    .set({ status })
+    .set({ status: "open" })
     .where(eq(supportMessagesTable.id, id))
     .returning();
   if (!updated) { res.status(404).json({ error: "Not found" }); return; }
