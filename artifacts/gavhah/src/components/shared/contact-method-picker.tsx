@@ -8,11 +8,11 @@ export type ContactMethodsForm = {
   primaryValue: string;
   backupMethod: ContactWay | null;
   backupValue: string | null;
-  mayConsiderSharing: "yes" | "no";
+  mayConsiderSharing: "" | "yes" | "no";
 };
 export const initialContactMethods = (): ContactMethodsForm => ({
   primaryMethod:"phone", primaryValue:"", backupMethod:null, backupValue:null,
-  mayConsiderSharing:"no",
+  mayConsiderSharing:"",
 });
 const METHODS: ContactWay[] = ["phone","email","sms"];
 export function ContactMethodPicker({value,onChange}:{
@@ -85,8 +85,8 @@ export function ContactMethodPicker({value,onChange}:{
         {yi?"ניין, נאר די מערכת זאל פארמיטלען. נישט איבערגעבן מיינע פרטים":"No — only Gavhah may mediate; do not disclose my details"}
       </label>
       <p className="text-xs text-muted-foreground">
-        {yi?"די מערכת קען נישט מסכים זיין אנשטאט דיר. דו קענסט אליין געבן אדער צוריקנעמען רשות ביי יעדן ספעציפישן פאל.":
-          "Administration cannot consent on your behalf. You decide again for each particular case."}
+        {yi?"מען מוז אויסקלייבן יא אדער ניין. די מערכת קען נישט מסכים זיין אנשטאט דיר. דו קענסט אליין געבן אדער צוריקנעמען רשות ביי יעדן ספעציפישן פאל.":
+          "Please explicitly choose Yes or No. Administration cannot consent on your behalf; you decide again for each specific case."}
       </p>
     </fieldset>
   </div>;
