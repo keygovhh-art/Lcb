@@ -27,6 +27,26 @@ function isStaffRole(role?: string) {
   return role === "admin" || role === "moderator" || role === "super_admin";
 }
 
+/** Home addresses are more sensitive than normal moderation content. */
+const privateMailingAdmin: import("express").RequestHandler = (req, res, next) => {
+  const role = getSessionUserRole(req);
+  if (role !== "admin" && role !== "super_admin") {
+    res.status(403).json({ error: "Postal addresses are restricted to administrators" }); return;
+  }
+  next();
+};
+
+const sameOrigin: import("express").RequestHandler = (req, res, next) => {
+  const origin = req.get("origin");
+  if (!origin) { next(); return; }
+  try {
+    if (new URL(origin).host !== req.get("host")) {
+      res.status(403).json({ error: "Cross-origin changes are not permitted" }); return;
+    }
+  } catch { res.status(403).json({ error: "Invalid origin" }); return; }
+  next();
+};
+
 router.get("/users", requireAdmin, async (req, res): Promise<void> => {
   const { role, search } = req.query as Record<string, string>;
   let query = db.select().from(usersTable).$dynamic();
@@ -130,7 +150,7 @@ router.get("/me/mailing-address", requireAuth, async (req, res): Promise<void> =
   res.json({ address, status: publicMailingStatus(row) });
 });
 
-router.put("/me/mailing-address", requireAuth, async (req, res): Promise<void> => {
+router.put("/me/mailing-address", sameOrigin, requireAuth, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "private, no-store");
   const parsed = parseMailingInput(req.body);
   if (parsed.error || !parsed.value) {
@@ -168,12 +188,12 @@ router.put("/me/mailing-address", requireAuth, async (req, res): Promise<void> =
   res.json({ status: publicMailingStatus(row), saved: true });
 });
 
-router.delete("/me/mailing-address", requireAuth, async (req, res): Promise<void> => {
+router.delete("/me/mailing-address", sameOrigin, requireAuth, async (req, res): Promise<void> => {
   await db.delete(memberMailingTable).where(eq(memberMailingTable.userId, getSessionUserId(req)!));
   res.json({ status: "no_address", deleted: true });
 });
 
-router.get("/admin/members/mailing", requireAdmin, async (req, res): Promise<void> => {
+router.get("/admin/members/mailing", requireAdmin, privateMailingAdmin, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "private, no-store");
   const [members, addresses] = await Promise.all([
     db.select({
@@ -212,7 +232,7 @@ router.get("/admin/members/mailing", requireAdmin, async (req, res): Promise<voi
   });
 });
 
-router.patch("/admin/members/:id/mailing", requireAdmin, async (req, res): Promise<void> => {
+router.patch("/admin/members/:id/mailing", sameOrigin, requireAdmin, privateMailingAdmin, async (req, res): Promise<void> => {
   res.setHeader("Cache-Control", "private, no-store");
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id) || id <= 0) {
