@@ -282,6 +282,50 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
   });
 });
 
+// Completed support and volunteer-connection history is deliberately separate
+// from the open queue. Completed does not automatically mean successful.
+router.get("/admin/operations-history", requireAdmin, async (_req, res) => {
+  const [cases, consentRecords, closeRecords] = await Promise.all([
+    db.select().from(supportMessagesTable)
+      .where(eq(supportMessagesTable.status, "resolved"))
+      .orderBy(desc(supportMessagesTable.id)).limit(300),
+    db.select().from(supportMessagesTable)
+      .where(eq(supportMessagesTable.type, CONNECTION_META_TYPE))
+      .orderBy(desc(supportMessagesTable.id)).limit(400),
+    db.select().from(supportMessagesTable)
+      .where(eq(supportMessagesTable.type, "__support_resolution__"))
+      .orderBy(desc(supportMessagesTable.id)).limit(400),
+  ]);
+
+  const connections = new Map<number, ConnectionState>();
+  for (const row of consentRecords) {
+    const requestId = Number(row.subject.match(/^support:(\d+)$/)?.[1]);
+    if (!Number.isSafeInteger(requestId) || connections.has(requestId)) continue;
+    try { connections.set(requestId, JSON.parse(row.message) as ConnectionState); } catch {}
+  }
+  const closures = new Map<number, typeof closeRecords[number]>();
+  for (const row of closeRecords) {
+    const requestId = Number(row.subject.match(/^support:(\d+)$/)?.[1]);
+    if (Number.isSafeInteger(requestId) && !closures.has(requestId)) closures.set(requestId, row);
+  }
+  const items = cases.filter(row => !row.type.startsWith("__")).map(row => {
+    const connection = row.type === "volunteer_contact" ? connections.get(row.id) : null;
+    const audit = closures.get(row.id);
+    const outcome =
+      connection?.stage === "connected" ? "confirmed_success" :
+      connection?.stage === "closed_unfulfilled" ? "unsuccessful" :
+      row.type === "volunteer_contact" ? "legacy_closed" : "staff_closed";
+    return {
+      id: row.id, kind: row.type, title: row.subject, requester: row.name,
+      outcome,
+      closedAt: connection?.confirmedAt || connection?.closedAt || audit?.createdAt || row.createdAt,
+      summary: connection?.closureReason || audit?.message || null,
+      actorId: connection?.updatedBy || audit?.userId || null,
+    };
+  }).sort((a,b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime()).slice(0,150);
+  res.json({ items });
+});
+
 router.patch("/admin/operations-workflow", requireAdmin, async (req, res): Promise<void> => {
   const actorId = getSessionUserId(req)!;
   const key = String(req.body?.key || "").trim();
