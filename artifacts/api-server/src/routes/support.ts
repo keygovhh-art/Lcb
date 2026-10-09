@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq } from "drizzle-orm";
-import { db, supportMessagesTable, usersTable, volunteerProfilesTable } from "@workspace/db";
+import { db, supportMessagesTable, usersTable, volunteerProfilesTable, memberContactMethodsTable } from "@workspace/db";
 import { CONNECTION_META_TYPE, newConnectionState } from "../lib/member-connections";
+import { parseContactSelection, saveContactValues } from "../lib/member-contact-methods";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { createRateLimiter } from "../middlewares/rate-limit";
 import { notifyStaff } from "../lib/notify";
@@ -78,6 +79,11 @@ router.post("/member-requests", requireAuth, async (req, res): Promise<void> => 
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
   if (type === "volunteer_contact") {
+    const selected = parseContactSelection(req.body?.contactMethods);
+    if (!selected.value) {
+      res.status(400).json({ error: selected.error || "Please choose a primary contact method" });
+      return;
+    }
     const volunteerId = Number(req.body?.volunteerId);
     if (!Number.isSafeInteger(volunteerId) || volunteerId <= 0) {
       res.status(400).json({ error: "Select a verified volunteer profile to request contact" });
@@ -124,6 +130,13 @@ router.post("/member-requests", requireAuth, async (req, res): Promise<void> => 
 
     const cleanNote = message.slice(0, 1500);
     const [created] = await db.transaction(async tx => {
+      // The requester can supply their private method while requesting this
+      // introduction, even if they never submitted a public help request.
+      await tx.insert(memberContactMethodsTable).values(saveContactValues(userId, "help", selected.value!))
+        .onConflictDoUpdate({
+          target:[memberContactMethodsTable.userId,memberContactMethodsTable.purpose],
+          set:{...selected.value!,updatedAt:new Date()},
+        });
       const [item] = await tx.insert(supportMessagesTable).values({
         userId, name: user.nickname || user.name,
         email: user.email || user.phone || "Gavhah member",
