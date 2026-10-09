@@ -276,7 +276,7 @@ export default function FounderDashboard() {
               <TabsTrigger value="member-management" className="gap-2">
                 <Users className="h-4 w-4" /> {yi ? "מעמבער־פארוואלטונג" : "Advanced Members"}
               </TabsTrigger>
-            )
+            )}
             <TabsTrigger value="support" className="gap-2">
               <MessageSquare className="h-4 w-4" /> Support
               {supportMessages.filter(m => m.status === "open").length > 0 && (
