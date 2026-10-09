@@ -6,7 +6,7 @@ import { notifyStaff, notifyUser } from "../lib/notify";
 import { getContactSelection, pointFor, type ContactPoint } from "../lib/member-contact-methods";
 import {
   getConnectionMeta, updateConnectionMeta, finishConnection, newConnectionState,
-  createConnectionMeta, parseConnectionState, hasMutualConsent,
+  createConnectionMeta, parseConnectionState, hasMutualConsent, hasReleaseAuthorization,
   clearConsentForNewReview, queuePhoneNotice, CONNECTION_META_TYPE,
   type ConnectionState,
 } from "../lib/member-connections";
@@ -95,7 +95,7 @@ router.get("/member-connections/mine",requireAuth,async(req,res,next):Promise<vo
       ]);
       const choice=party==="requester"?state.requesterChoice:state.volunteerChoice;
       const ownContact=prefs?pointFor(prefs,choice):null;
-      const released=["accepted","connected"].includes(state.stage)&&hasMutualConsent(state)&&
+      const released=["accepted","connected"].includes(state.stage)&&hasReleaseAuthorization(state)&&
         requester?.status==="active"&&volunteer?.status==="active";
       const otherContact=released?state.agreedContacts?.[other]:null;
       return {
@@ -103,6 +103,7 @@ router.get("/member-connections/mine",requireAuth,async(req,res,next):Promise<vo
         volunteerName:volunteer?.nickname||volunteer?.name||"Volunteer",
         requesterName:requester?.nickname||requester?.name||"Member",
         myApproved:Boolean(state.approvals[party]),otherApproved:Boolean(state.approvals[other]),
+        finalStaffApproved:Boolean(state.staffReleasedAt && state.staffReleasedBy),
         myContact:ownContact,needsMyContact:!ownContact,
         contact:otherContact?.value||null,contactMethod:otherContact?.method||null,
         backupAvailable:Boolean(prefs?.backupMethod),
@@ -203,32 +204,30 @@ router.post("/member-connections/:id/respond",requireAuth,async(req,res,next):Pr
     const otherParty=party==="requester"?"volunteer":"requester";
     const approvals={...state.approvals,[party]:new Date().toISOString()};
     const proposedContacts={...state.proposedContacts,[party]:point};
-    const shared=approvals[otherParty] && proposedContacts.requester && proposedContacts.volunteer
-      ? {requester:proposedContacts.requester,volunteer:proposedContacts.volunteer}:null;
+    const bothApproved=Boolean(approvals[otherParty] && proposedContacts.requester && proposedContacts.volunteer);
+    // Even after BOTH individuals agree, Gavhah must separately authorize
+    // the actual release. There is NO contact snapshot to disclose yet.
     const finalState:ConnectionState={...state,approvals,proposedContacts,
-      agreedContacts:shared,stage:shared?"accepted":"invited",
+      agreedContacts:null,staffReleasedAt:null,staffReleasedBy:null,
+      stage:bothApproved?"awaiting_staff_release":"invited",
       respondedAt:new Date().toISOString(),updatedBy:actor,
       consentMethod:"in_app",consentNote:null,consentVerifiedBy:null};
     if(!await updateConnectionMeta(row,finalState)){res.status(409).json({error:"Case changed; refresh"});return;}
-    if(shared){
+    if(bothApproved){
       await Promise.all([
-        alertParty(state.requesterUserId,"connection_mutual_approval",
-          "Both members personally approved this Gavhah connection. Your approved contact exchange is available in My Connections. Do not redistribute details."),
-        alertParty(state.volunteerUserId,"connection_mutual_approval",
-          "Both members personally approved this Gavhah connection. Your approved contact exchange is available in My Connections. Do not redistribute details."),
+        alertParty(state.requesterUserId,"connection_waiting_staff_release",
+          "Both participants consented, but Gavhah must still give FINAL authorization. Contact details remain hidden."),
+        alertParty(state.volunteerUserId,"connection_waiting_staff_release",
+          "Both participants consented, but Gavhah must still give FINAL authorization. Contact details remain hidden."),
       ]);
-      await Promise.all([
-        queuePhoneNotice(id,state.requesterUserId,"mutual_consent"),
-        queuePhoneNotice(id,state.volunteerUserId,"mutual_consent"),
-      ]);
-      await notifyStaff(`Case #${id}: mutual approval recorded; contact released to the two participants only.`,
+      await notifyStaff(`Case #${id}: both people consented; final Gavhah authorization is REQUIRED before sharing any contact.`,
         "/founder","admin_member_connection");
     }else{
       await alertParty(state.requesterUserId===actor?state.volunteerUserId:state.requesterUserId,
         "connection_waiting_second_approval","One participant approved this Gavhah proposal. Please respond in My Connections; no contact has been shared.");
     }
     res.json({stage:finalState.stage,myApproved:true,otherApproved:Boolean(approvals[otherParty]),
-      contactShared:Boolean(shared),phoneNotice:"queued_but_not_sent"});
+      contactShared:false,requiresFinalGavhahApproval:bothApproved});
   }catch(e){next(e);}
 });
 
@@ -238,8 +237,8 @@ router.post("/member-connections/:id/confirm",requireAuth,async(req,res,next):Pr
     const request=await originalRequest(id),{row,state}=await getConnectionMeta(id);
     if(!request||!row||!state){res.status(404).json({error:"Case not found"});return;}
     if(state.requesterUserId!==getSessionUserId(req)){res.status(403).json({error:"Only requester confirms real contact"});return;}
-    if(state.stage==="connected"&&hasMutualConsent(state)){res.json({stage:"connected"});return;}
-    if(request.status!=="open"||state.stage!=="accepted"||!hasMutualConsent(state)){
+    if(state.stage==="connected"&&hasReleaseAuthorization(state)){res.json({stage:"connected"});return;}
+    if(request.status!=="open"||state.stage!=="accepted"||!hasReleaseAuthorization(state)){
       res.status(409).json({error:"Both members must explicitly approve before any successful contact is recorded"});return;
     }
     if(!await finishConnection(id,row,{...state,stage:"connected",confirmedAt:new Date().toISOString(),updatedBy:getSessionUserId(req)!})){
@@ -259,12 +258,12 @@ router.post("/member-connections/:id/revoke",requireAuth,async(req,res,next):Pro
     if(!id||!row||!state||!request||request.status!=="open"){res.status(404).json({error:"Open case not found"});return;}
     const actor=getSessionUserId(req)!,party=ownParty(state,actor);
     if(!party){res.status(403).json({error:"Only the two participants can withdraw"});return;}
-    if(!["invited","accepted","contact_problem"].includes(state.stage)){
+    if(!["invited","awaiting_staff_release","accepted","contact_problem"].includes(state.stage)){
       res.status(409).json({error:"No active consent in this case"});return;
     }
     if(!await updateConnectionMeta(row,{...state,stage:"consent_revoked",
       approvals:{requester:null,volunteer:null},agreedContacts:null,proposedContacts:{},
-      updatedBy:actor})){res.status(409).json({error:"Case changed; refresh"});return;}
+      staffReleasedAt:null,staffReleasedBy:null,updatedBy:actor})){res.status(409).json({error:"Case changed; refresh"});return;}
     const other=party==="requester"?state.volunteerUserId:state.requesterUserId;
     await alertParty(other,"connection_consent_revoked",
       "Permission for this Gavhah connection was withdrawn. Do not share or use contact information. Gavhah will follow up.");
@@ -288,13 +287,13 @@ router.post("/member-connections/:id/problem",requireAuth,async(req,res,next):Pr
     }
     const party=ownParty(state,getSessionUserId(req)!);
     if(!party){res.status(403).json({error:"Only the two participants can flag a channel problem"});return;}
-    if(state.stage!=="accepted"||!hasMutualConsent(state)){
+    if(state.stage!=="accepted"||!hasReleaseAuthorization(state)){
       res.status(409).json({error:"A contact exchange must first be approved by both members"});return;
     }
     const issue=`${party}:${code}${description?": "+description:""}`;
     const nextState:ConnectionState={...state,stage:"contact_problem",contactIssue:issue,
       approvals:{requester:null,volunteer:null},agreedContacts:null,proposedContacts:{},
-      updatedBy:getSessionUserId(req)!};
+      staffReleasedAt:null,staffReleasedBy:null,updatedBy:getSessionUserId(req)!};
     if(!await updateConnectionMeta(row,nextState)){res.status(409).json({error:"Case changed; refresh"});return;}
     const other=party==="requester"?state.volunteerUserId:state.requesterUserId;
     await alertParty(other,"connection_contact_issue",
@@ -358,7 +357,7 @@ router.post("/admin/member-connections/:id/close-unfulfilled",requireAdmin,async
     }
     if(!await finishConnection(id,row,{...state,stage:"closed_unfulfilled",
       approvals:{requester:null,volunteer:null},agreedContacts:null,proposedContacts:{},
-      closedAt:new Date().toISOString(),closureReason:reason,updatedBy:getSessionUserId(req)!})){
+      staffReleasedAt:null,staffReleasedBy:null,closedAt:new Date().toISOString(),closureReason:reason,updatedBy:getSessionUserId(req)!})){
       res.status(409).json({error:"Case changed; refresh"});return;
     }
     await Promise.all([
