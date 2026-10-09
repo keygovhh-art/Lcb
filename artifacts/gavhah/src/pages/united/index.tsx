@@ -314,7 +314,7 @@ export default function United() {
               The Gavhah committee selects one community cause at a time. Submit a cause for consideration below.
             </p>
             {isLoaded && !isAuthenticated ? (
-              <MemberGate compact action="submit a cause">{null}</MemberGate>
+              <MemberGate gate="united" compact action="submit a cause">{null}</MemberGate>
             ) : (
               <Button className="bg-secondary hover:bg-secondary/90 text-white gap-2 mt-4" onClick={() => setSubmitOpen(true)}>
                 <SendHorizonal className="h-4 w-4" /> Submit a Cause for Review
@@ -392,7 +392,7 @@ export default function United() {
 
                 {/* Actions */}
                 {isLoaded && !isAuthenticated ? (
-                  <MemberGate compact action="join this cause">{null}</MemberGate>
+                  <MemberGate gate="united" compact action="join this cause">{null}</MemberGate>
                 ) : (
                   <div className="flex flex-col sm:flex-row gap-3">
                     <Button
@@ -476,7 +476,7 @@ export default function United() {
                 Submit a cause and we will review it for future consideration.
               </p>
               {isLoaded && !isAuthenticated ? (
-                <MemberGate compact action="submit a cause for review">{null}</MemberGate>
+                <MemberGate gate="united" compact action="submit a cause for review">{null}</MemberGate>
               ) : (
                 <Button
                   variant="outline"
