@@ -147,7 +147,7 @@ export default function ForumDetail() {
     if (!discussion) return;
     setEditTitle(discussion.title);
     setEditContent(discussion.content);
-    setEditCategory(discussion.category);
+    setEditCategory(visibleForumTopic(discussion.category));
     setEditOpen(true);
   };
 
