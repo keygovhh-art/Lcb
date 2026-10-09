@@ -14,9 +14,13 @@ function isStaffRole(role?: string) {
   return role === "admin" || role === "moderator" || role === "super_admin";
 }
 
-const DISCUSSION_CATEGORIES = new Set([
-  "medical", "shidduchim", "livelihood", "education", "charity", "community", "general",
-]);
+function cleanForumTopic(input: unknown): string | null {
+  if (input === undefined || input === null) return "";
+  if (typeof input !== "string") return null;
+  const value = input.trim().replace(/\\s+/g, " ");
+  if (value.length > 100 || /[\\u0000-\\u001F\\u007F]/.test(value)) return null;
+  return value;
+}
 
 router.get("/discussions/trending", async (_req, res): Promise<void> => {
   const trending = await db.select().from(discussionsTable)
@@ -37,13 +41,13 @@ router.post("/discussions", requireAuth, async (req, res): Promise<void> => {
   const { title, content, category, authorName } = req.body;
   const cleanTitle = String(title || "").trim();
   const cleanContent = String(content || "").trim();
-  const cleanCategory = String(category || "general");
+  const cleanCategory = cleanForumTopic(category);
   if (!cleanTitle || !cleanContent) {
     res.status(400).json({ error: "title and content required" });
     return;
   }
-  if (!DISCUSSION_CATEGORIES.has(cleanCategory)) {
-    res.status(400).json({ error: "invalid category" });
+  if (cleanCategory === null) {
+    res.status(400).json({ error: "topic must be text of at most 100 characters" });
     return;
   }
   const userId = getSessionUserId(req)!;
@@ -90,8 +94,8 @@ router.patch("/discussions/:id", requireAuth, async (req, res): Promise<void> =>
     updates.content = clean.slice(0, 30000);
   }
   if (category !== undefined) {
-    const clean = String(category);
-    if (!DISCUSSION_CATEGORIES.has(clean)) { res.status(400).json({ error: "invalid category" }); return; }
+    const clean = cleanForumTopic(category);
+    if (clean === null) { res.status(400).json({ error: "topic must be text of at most 100 characters" }); return; }
     updates.category = clean;
   }
   if (isPinned !== undefined) {
