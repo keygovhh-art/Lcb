@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   Bell, Search, Menu, X, Globe, MessageSquare, HandHeart, Heart, Clock,
   Users, BarChart3, Shield, Home, ChevronRight, ChevronDown, Network,
-  Radio, CalendarDays, Star, User, LogOut,
+  Radio, CalendarDays, Star, User, LogOut, Handshake,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
@@ -21,6 +21,7 @@ const PRIMARY_DEPTS = [
   { label: "Minyans", fullLabel: "Minyan Directory", href: "/minyans", icon: <Clock className="h-4 w-4" /> },
   { label: "Groups", fullLabel: "Group Center", href: "/groups", icon: <Users className="h-4 w-4" /> },
   { label: "My Askanus", fullLabel: "My Askanus", href: "/my", icon: <Star className="h-4 w-4" /> },
+  { label: "My Connections", fullLabel: "Volunteer Connections", href: "/connections", icon: <Handshake className="h-4 w-4" /> },
 ];
 
 const MORE_DEPTS = [
@@ -210,6 +211,7 @@ export function Layout({ children }: { children: ReactNode }) {
                     {[
                       { label: "My Profile", href: "/profile" },
                       { label: "My Askanus", href: "/my" },
+                      { label: "My Connections", href: "/connections" },
                       { label: "Notifications", href: "/notifications" },
                       { label: "Help & Support", href: "/system" },
                     ].map(item => (
@@ -367,6 +369,15 @@ export function Layout({ children }: { children: ReactNode }) {
                     )}
                   </div>
                 </Link>
+                <Link href="/connections">
+                  <div onClick={() => setMobileOpen(false)} className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${isActive("/connections") ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-foreground"}`}>
+                    <div className="flex items-center gap-3">
+                      <Handshake className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">My Connections</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 opacity-40" />
+                  </div>
+                </Link>
                 <Link href="/profile">
                   <div onClick={() => setMobileOpen(false)} className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${isActive("/profile") ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-foreground"}`}>
                     <div className="flex items-center gap-3">
@@ -438,7 +449,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div>
               <p className="font-semibold text-primary-foreground/80 mb-3 uppercase tracking-wider text-xs">Platform</p>
               <nav className="space-y-1.5">
-                {[["My Askanus", "/my"], ["Koach Harabim", "/dashboard"], ["Notifications", "/notifications"], ["My Profile", "/profile"]].map(([l, h]) => (
+                {[["My Askanus", "/my"], ["My Connections", "/connections"], ["Koach Harabim", "/dashboard"], ["Notifications", "/notifications"], ["My Profile", "/profile"]].map(([l, h]) => (
                   <Link key={h} href={h} className="block text-primary-foreground/60 hover:text-accent transition-colors text-xs">{l}</Link>
                 ))}
               </nav>
