@@ -107,10 +107,6 @@ router.post("/admin/private-assistance/:helpId/match",requireAdmin,async(req,res
       ]);
       if(a[0]?.status!=="active"||b[0]?.status!=="active")
         return {status:409 as const,error:"Both members must be active"};
-      const open=await tx.select({id:supportMessagesTable.id})
-        .from(supportMessagesTable)
-        .where(and(eq(supportMessagesTable.type,"volunteer_contact"),
-          eq(supportMessagesTable.status,"open")));
       // We only match one current helper at a time; a failed case may later be replaced.
       const existing=await tx.select({id:supportMessagesTable.id,subject:supportMessagesTable.subject})
         .from(supportMessagesTable)
