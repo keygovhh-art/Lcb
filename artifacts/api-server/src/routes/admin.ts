@@ -104,7 +104,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     connectionRows,
   ] = await Promise.all([
     db.select().from(reportsTable).where(eq(reportsTable.status, "pending")).orderBy(desc(reportsTable.createdAt)),
-    db.select().from(helpRequestsTable).where(eq(helpRequestsTable.status, "pending")).orderBy(desc(helpRequestsTable.createdAt)),
+    db.select().from(helpRequestsTable).where(inArray(helpRequestsTable.status, ["pending", "open"])).orderBy(desc(helpRequestsTable.createdAt)),
     db.select().from(groupMembersTable).where(eq(groupMembersTable.status, "pending")).orderBy(desc(groupMembersTable.joinedAt)),
     db.select({ id: groupsTable.id, name: groupsTable.name }).from(groupsTable),
     db.select().from(causeSubmissionsTable).where(eq(causeSubmissionsTable.status, "pending")).orderBy(desc(causeSubmissionsTable.createdAt)),
@@ -159,7 +159,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
       title: `Help request: ${r.name}`,
       summary: r.description,
       createdAt: r.createdAt,
-      meta: { needType: r.needType, urgency: r.urgency, location: r.location, userId: r.userId },
+      meta: { needType: r.needType, urgency: r.urgency, location: r.location, userId: r.userId, helpStatus: r.status },
     })),
     ...groupMembers.map(m => ({
       key: `group:${m.id}`,
