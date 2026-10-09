@@ -6,7 +6,8 @@ import {
   followsTable, savedItemsTable, supportMessagesTable, helpRequestsTable,
   groupMembersTable, causeSubmissionsTable, minyansTable, reservationsTable,
 } from "@workspace/db/schema";
-import { count, eq, desc } from "drizzle-orm";
+import { count, eq, desc, inArray } from "drizzle-orm";
+import { CONNECTION_META_TYPE, type ConnectionState } from "../lib/member-connections";
 import { requireAdmin, getSessionUserId } from "../middlewares/auth";
 
 const router = Router();
@@ -100,6 +101,7 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     supportRows,
     reservations,
     workflowRows,
+    connectionRows,
   ] = await Promise.all([
     db.select().from(reportsTable).where(eq(reportsTable.status, "pending")).orderBy(desc(reportsTable.createdAt)),
     db.select().from(helpRequestsTable).where(eq(helpRequestsTable.status, "pending")).orderBy(desc(helpRequestsTable.createdAt)),
@@ -110,7 +112,29 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
     db.select().from(supportMessagesTable).where(eq(supportMessagesTable.status, "open")).orderBy(desc(supportMessagesTable.createdAt)),
     db.select().from(reservationsTable).where(eq(reservationsTable.status, "confirmed")).orderBy(desc(reservationsTable.createdAt)),
     db.select().from(supportMessagesTable).where(eq(supportMessagesTable.type, WORKFLOW_META_TYPE)).orderBy(desc(supportMessagesTable.createdAt)),
+    db.select().from(supportMessagesTable).where(eq(supportMessagesTable.type, CONNECTION_META_TYPE)).orderBy(desc(supportMessagesTable.id)),
   ]);
+
+  const connectionsByRequest = new Map<number, ConnectionState>();
+  for (const row of connectionRows) {
+    const id = Number(row.subject.match(/^support:(\d+)$/)?.[1]);
+    if (!Number.isSafeInteger(id) || id <= 0 || connectionsByRequest.has(id)) continue;
+    try {
+      const state = JSON.parse(row.message) as ConnectionState;
+      if (Number.isSafeInteger(state.volunteerId) && Number.isSafeInteger(state.volunteerUserId) &&
+          Number.isSafeInteger(state.requesterUserId) && typeof state.stage === "string") {
+        connectionsByRequest.set(id, state);
+      }
+    } catch { /* Malformed metadata stays unavailable; the case remains open. */ }
+  }
+  const contactIds = [...new Set([...connectionsByRequest.values()].map(s => s.volunteerUserId))];
+  const contactUsers = contactIds.length
+    ? await db.select({
+        id: usersTable.id, name: usersTable.name, nickname: usersTable.nickname,
+        email: usersTable.email, phone: usersTable.phone,
+      }).from(usersTable).where(inArray(usersTable.id, contactIds))
+    : [];
+  const volunteersById = new Map(contactUsers.map(u => [u.id, u]));
 
   const groupNames = new Map(groups.map(g => [g.id, g.name]));
   const pendingComments = supportRows.filter(m => m.type === "__pending_comment__");
@@ -194,7 +218,23 @@ router.get("/admin/operations-inbox", requireAdmin, async (_req, res) => {
       title: m.subject,
       summary: m.message,
       createdAt: m.createdAt,
-      meta: { type: m.type, userId: m.userId, name: m.name, contact: m.email },
+      meta: {
+        type: m.type, userId: m.userId, name: m.name, contact: m.email,
+        connectionStage: m.type === "volunteer_contact"
+          ? (connectionsByRequest.get(m.id)?.stage ?? "legacy")
+          : null,
+        volunteerId: connectionsByRequest.get(m.id)?.volunteerId ?? null,
+        volunteerName: connectionsByRequest.get(m.id)?.volunteerUserId
+          ? (volunteersById.get(connectionsByRequest.get(m.id)!.volunteerUserId)?.nickname ||
+             volunteersById.get(connectionsByRequest.get(m.id)!.volunteerUserId)?.name ||
+             "Volunteer")
+          : null,
+        volunteerContact: connectionsByRequest.get(m.id)?.volunteerUserId
+          ? (volunteersById.get(connectionsByRequest.get(m.id)!.volunteerUserId)?.phone ||
+             volunteersById.get(connectionsByRequest.get(m.id)!.volunteerUserId)?.email ||
+             null)
+          : null,
+      },
     })),
     ...reservations.map(r => ({
       key: `reservation:${r.id}`,
