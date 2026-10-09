@@ -17,8 +17,8 @@ function isStaffRole(role?: string) {
 function cleanForumTopic(input: unknown): string | null {
   if (input === undefined || input === null) return "";
   if (typeof input !== "string") return null;
-  const value = input.trim().replace(/\\s+/g, " ");
-  if (value.length > 100 || /[\\u0000-\\u001F\\u007F]/.test(value)) return null;
+  const value = input.trim().replace(/\s+/g, " ");
+  if (value.length > 100 || /[\u0000-\u001F\u007F]/.test(value)) return null;
   return value;
 }
 
