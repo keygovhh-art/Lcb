@@ -62,6 +62,7 @@ export default function FounderDashboard() {
   const { lang } = useLanguage();
   const yi = lang === "yi";
   const { user, isLoaded, isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState("overview");
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
   const [editAnnId, setEditAnnId] = useState<number | null>(null);
@@ -338,7 +339,7 @@ export default function FounderDashboard() {
       </div>
 
       <div className="container mx-auto px-4 py-10">
-        <Tabs defaultValue="overview" className="space-y-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="bg-muted/50 flex flex-wrap h-auto gap-1 p-1">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" /> Overview
@@ -583,7 +584,7 @@ export default function FounderDashboard() {
           </TabsContent>
 
           <TabsContent value="private-assistance" className="space-y-6">
-            <PrivateAssistanceManagement />
+            <PrivateAssistanceManagement onOpenOperations={() => { setActiveTab("operations"); window.scrollTo({top:0,behavior:"smooth"}); }} />
           </TabsContent>
 
           {/* ─── Help Requests ─── */}
