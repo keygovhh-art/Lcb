@@ -106,7 +106,11 @@ if (typeof window !== "undefined" && !(window as any).__gavhahApiRefetchInstalle
 
       return response;
     } catch (error) {
-      if (!url.includes("/api/system-errors")) {
+      const expectedCancellation = init?.signal?.aborted ||
+        (input instanceof Request && input.signal.aborted) ||
+        (error instanceof Error && error.name === "AbortError") ||
+        (error instanceof Error && /signal is aborted|operation was aborted/i.test(error.message));
+      if (!expectedCancellation && !url.includes("/api/system-errors")) {
         void reportSystemError({
           type: "fetch_failure",
           message: error instanceof Error ? error.message : "Network request failed",
