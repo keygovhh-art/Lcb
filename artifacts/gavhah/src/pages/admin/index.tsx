@@ -442,7 +442,7 @@ export default function FounderDashboard() {
 
           {/* ─── Operations Inbox ─── */}
           <TabsContent value="operations" className="space-y-6">
-            <OperationsInbox />
+            <OperationsInbox onOpenPrivateAssistance={() => {setActiveTab("private-assistance"); window.scrollTo({top:0,behavior:"smooth"});}} />
           </TabsContent>
 
           {/* ─── Comments, Replies & Views ─── */}
