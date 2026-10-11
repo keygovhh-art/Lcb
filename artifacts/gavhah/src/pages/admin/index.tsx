@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  useListReports, useResolveReport, useDismissReport, useListUsers, useBanUser, useSuspendUser,
+  useListReports, useListUsers, useBanUser, useSuspendUser,
   useListAnnouncements, useCreateAnnouncement, useDeleteAnnouncement, useGetAdminStats,
   useListFeaturedCauses, useListCommunityProjects, useUpdateMinyan,
   getListReportsQueryKey, getListUsersQueryKey, getListAnnouncementsQueryKey, getGetAdminStatsQueryKey,
@@ -145,8 +145,30 @@ export default function FounderDashboard() {
   const { data: featuredCauses } = useListFeaturedCauses({}, { query: { queryKey: getListFeaturedCausesQueryKey({}), enabled: isAdmin } });
   const { data: projects } = useListCommunityProjects({}, { query: { queryKey: getListCommunityProjectsQueryKey({}), enabled: isAdmin } });
 
-  const resolveReport = useResolveReport();
-  const dismissReport = useDismissReport();
+  const [reportActionBusy, setReportActionBusy] = useState<number | null>(null);
+  const [reportActionError, setReportActionError] = useState("");
+  const handleReportAction = async (reportId:number, action:"resolve"|"dismiss") => {
+    if(reportActionBusy!==null)return;
+    setReportActionBusy(reportId);
+    setReportActionError("");
+    try {
+      const response = await fetch(`/api/reports/${reportId}/${action}`,{
+        method:"POST",credentials:"include",
+      });
+      if(!response.ok){
+        const details=await response.json().catch(()=>({})) as {error?:string};
+        throw Error(details.error || `HTTP ${response.status}`);
+      }
+      await qc.invalidateQueries({queryKey:getListReportsQueryKey({})});
+      await qc.invalidateQueries({queryKey:getGetAdminStatsQueryKey()});
+      toast({title:action==="resolve"?"רעפארט איבערגעקוקט":"רעפארט אפגעווארפן",
+        description:action==="resolve"?"דער רעפארט איז באצייכנט אלס איבערגעקוקט. דער אינהאלט איז נישט אויטאמאטיש געמעקט געווארן.":"דער רעפארט איז באהאנדלט געווארן."});
+    } catch(error) {
+      const message=error instanceof Error?error.message:"Could not save report decision";
+      setReportActionError(message);
+      toast({title:"די רעפארט־אקציע איז נישט געלונגען",description:message,variant:"destructive"});
+    } finally {setReportActionBusy(null);}
+  };
   const banUser = useBanUser();
   const suspendUser = useSuspendUser();
   const createAnn = useCreateAnnouncement();
@@ -719,6 +741,8 @@ export default function FounderDashboard() {
           {/* ─── Reports ─── */}
           <TabsContent value="reports" className="space-y-4">
             <h2 className="font-serif text-2xl font-bold text-primary">Content Reports</h2>
+            <p className="text-sm text-muted-foreground" dir="auto">רעפארטס קומען אהער צו דער מערכת. איבערקוקן אדער אפווארפן א רעפארט מעקט נישט אויטאמאטיש דעם אינהאלט.</p>
+            {reportActionError && <p role="alert" className="rounded-md border p-3 text-sm text-destructive" dir="auto">{reportActionError}</p>}
             {reports?.length === 0 && (
               <div className="text-center py-12 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">No reports to review.</div>
             )}
@@ -747,13 +771,13 @@ export default function FounderDashboard() {
                   {report.status === "pending" && (
                     <>
                       <Button size="sm" variant="outline" className="gap-2"
-                        onClick={() => resolveReport.mutate({ id: report.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) }) })}
-                        disabled={resolveReport.isPending}>
+                        onClick={() => void handleReportAction(report.id,"resolve")}
+                        disabled={reportActionBusy !== null}>
                         <CheckCircle className="h-4 w-4 text-green-600" /> Resolve
                       </Button>
                       <Button size="sm" variant="ghost" className="gap-2 text-muted-foreground"
-                        onClick={() => dismissReport.mutate({ id: report.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) }) })}
-                        disabled={dismissReport.isPending}>
+                        onClick={() => void handleReportAction(report.id,"dismiss")}
+                        disabled={reportActionBusy !== null}>
                         Dismiss
                       </Button>
                     </>
