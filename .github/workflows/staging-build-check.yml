@@ -5,6 +5,7 @@ on:
       - feature/forum-free-topics-admin-workflow-20261008
       - fix/restore-campaigns-custom-help-20261009
       - fix/admin-mobile-actions-20261011
+      - fix/restore-founder-reports-help-20261011
   workflow_dispatch:
 jobs:
   verify:
@@ -36,13 +37,22 @@ jobs:
           const inbox = fs.readFileSync('artifacts/gavhah/src/components/admin/operations-inbox.tsx','utf8');
           const matching = fs.readFileSync('artifacts/gavhah/src/components/admin/private-assistance-management.tsx','utf8');
           const gates = fs.readFileSync('artifacts/gavhah/src/components/admin/membership-gate-management.tsx','utf8');
-          assert(admin.includes('admin-section-select'));
-          assert(admin.includes('onValueChange={selectAdminTab}'));
+          const reporter = fs.readFileSync('artifacts/gavhah/src/components/shared/report-button.tsx','utf8');
+          const backend = fs.readFileSync('artifacts/api-server/src/routes/private-assistance.ts','utf8');
+          assert(admin.includes('useState("overview")'));
+          assert(admin.includes('flex flex-wrap h-auto gap-1 p-1'));
+          assert(!admin.includes('admin-section-select'));
           assert(inbox.includes('operations-filter'));
           assert(inbox.includes('pendingConfirmation'));
           assert(inbox.includes('availableVolunteers.map'));
           assert(matching.includes('pendingMatch'));
+          assert(matching.includes('onOpenOperations'));
+          assert(matching.includes('requestPrivateContact'));
+          assert(reporter.includes('response.status === 409'));
+          assert(reporter.includes('role="alert"'));
+          assert(backend.includes('request-contact-details'));
+          assert(backend.includes('availableActiveVolunteers'));
           assert(gates.includes('setPending({type:"publish"})'));
           for(const file of [admin,inbox,matching,gates]) assert(!file.includes('window.confirm('));
-          console.log('Verified responsive navigation and in-app case confirmations');
+          console.log('Verified restored admin Overview, reports, private help cases and confirmations');
           NODE
