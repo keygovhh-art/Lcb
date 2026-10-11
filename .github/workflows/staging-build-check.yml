@@ -6,6 +6,7 @@ on:
       - fix/restore-campaigns-custom-help-20261009
       - fix/admin-mobile-actions-20261011
       - fix/restore-founder-reports-help-20261011
+      - fix/stabilize-react-blank-pages-batch-20261011
   workflow_dispatch:
 jobs:
   verify:
@@ -55,4 +56,24 @@ jobs:
           assert(gates.includes('setPending({type:"publish"})'));
           for(const file of [admin,inbox,matching,gates]) assert(!file.includes('window.confirm('));
           console.log('Verified restored admin Overview, reports, private help cases and confirmations');
+          NODE
+
+      - name: Verify page stability and error reporter regression safeguards
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const assert=require('node:assert/strict');
+          const html=fs.readFileSync('artifacts/gavhah/index.html','utf8');
+          const app=fs.readFileSync('artifacts/gavhah/src/App.tsx','utf8');
+          const reporter=fs.readFileSync('artifacts/gavhah/src/lib/system-error-reporter.ts','utf8');
+          const api=fs.readFileSync('artifacts/api-server/src/routes/system-errors.ts','utf8');
+          assert(html.includes('translate="no"'));
+          assert(html.includes('name="google" content="notranslate"'));
+          assert(app.includes('<AppErrorBoundary key={route}>'));
+          assert(app.includes('expectedCancellation'));
+          assert(reporter.includes('isExpectedCancellation'));
+          assert(!reporter.includes('addEventListener("submit"'));
+          assert(!reporter.includes('event.preventDefault()'));
+          assert(api.includes('expected_request_cancellation'));
+          console.log('Page root stability and automatic report regression checks passed');
           NODE
