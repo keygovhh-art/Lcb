@@ -20,6 +20,13 @@ function currentRoute() {
   return window.location.pathname || "/";
 }
 
+// Cancellation during route changes is normal; it does not mean a page failed.
+function isExpectedCancellation(value: unknown): boolean {
+  if (value instanceof Error && value.name === "AbortError") return true;
+  const message = typeof value === "string" ? value : value instanceof Error ? value.message : "";
+  return /signal is aborted|operation was aborted|aborted without reason/i.test(message);
+}
+
 function safeText(value: unknown) {
   if (value instanceof Error) return value.message;
   if (typeof value === "string") return value;
@@ -89,6 +96,7 @@ async function send(payload: SystemErrorPayload) {
 }
 
 export async function reportSystemError(payload: SystemErrorPayload) {
+  if (payload.type === "fetch_failure" && isExpectedCancellation(payload.message)) return;
   const normalized: SystemErrorPayload = {
     ...payload,
     route: payload.route || currentRoute(),
@@ -157,6 +165,7 @@ export function installGlobalErrorReporting() {
 
   const onRejection = (event: PromiseRejectionEvent) => {
     const reason = event.reason;
+    if (isExpectedCancellation(reason)) return;
     void reportSystemError({
       type: "unhandled_promise",
       message: safeText(reason),
