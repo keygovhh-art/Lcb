@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarClock, Check, CheckCircle2, Clock, Flag, HandHeart, Inbox, MessageSquareText, RefreshCcw, Search, UserCog, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -148,6 +148,8 @@ export function OperationsInbox() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [availableVolunteers, setAvailableVolunteers] = useState<Array<{ id: number; userName: string; location: string }>>([]);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [legacyVolunteerIds, setLegacyVolunteerIds] = useState<Record<string, string>>({});
   const [closureReasons, setClosureReasons] = useState<Record<string, string>>({});
@@ -165,16 +167,21 @@ export function OperationsInbox() {
   const load = async () => {
     setLoading(true);
     try {
-      const [res, usersRes, historyRes] = await Promise.all([
+      const [res, usersRes, historyRes, volunteersRes] = await Promise.all([
         fetch("/api/admin/operations-inbox", { credentials: "include", cache: "no-store" }),
         fetch("/api/users", { credentials: "include", cache: "no-store" }),
         fetch("/api/admin/operations-history", { credentials: "include", cache: "no-store" }),
+        fetch("/api/volunteers", { credentials: "include", cache: "no-store" }),
       ]);
       if (!res.ok) throw new Error("Could not load management inbox");
       setData(await res.json());
       if (historyRes.ok) {
         const completed = await historyRes.json();
         setHistory(Array.isArray(completed.items) ? completed.items : []);
+      }
+      if (volunteersRes.ok) {
+        const all = await volunteersRes.json() as Array<{id:number;userName:string;location:string}>;
+        setAvailableVolunteers(Array.isArray(all) ? all : []);
       }
       if (usersRes.ok) {
         const allUsers = await usersRes.json() as StaffMember[];
@@ -194,6 +201,23 @@ export function OperationsInbox() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  const filterOptions = [
+    ["all", yi ? "אלעס" : "All"],
+    ["urgent", yi ? "וויכטיג" : "Priority"],
+    ["report", yi ? "רעפארטס" : "Reports"],
+    ["help_request", yi ? "נצרכים" : "Help"],
+    ["group_join", yi ? "גרופעס" : "Groups"],
+    ["member_connection", yi ? "פארבינדונגען" : "Connections"],
+    ["system_error", yi ? "טעכנישע פראבלעמען" : "System Errors"],
+    ["comment_review", yi ? "ריפליי־ריוויו" : "Reply Reviews"],
+  ];
+  const chooseFilter = (value: string) => {
+    setFilter(value);
+    if (typeof window !== "undefined" && window.innerWidth < 640) {
+      requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -516,29 +540,27 @@ export function OperationsInbox() {
             className="pl-9"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
-          {[
-            ["all", yi ? "אלעס" : "All"],
-            ["urgent", yi ? "וויכטיג" : "Priority"],
-            ["report", yi ? "רעפארטס" : "Reports"],
-            ["help_request", yi ? "נצרכים" : "Help"],
-            ["group_join", yi ? "גרופעס" : "Groups"],
-            ["member_connection", yi ? "פארבינדונגען" : "Connections"],
-            ["system_error", yi ? "טעכנישע פראבלעמען" : "System Errors"],
-            ["comment_review", yi ? "ריפליי־ריוויו" : "Reply Reviews"],
-          ].map(([value, label]) => (
-            <Button
-              key={value}
-              size="sm"
+        <div className="sm:hidden">
+          <label htmlFor="operations-filter" className="text-sm font-semibold block mb-2">
+            {yi ? "וועלכע פעלער ווילסטו זען?" : "Which cases should be shown?"}
+          </label>
+          <select id="operations-filter" value={filter} onChange={e => chooseFilter(e.target.value)}
+            className="w-full h-12 bg-background border-2 border-primary/25 rounded-lg px-3 font-medium">
+            {filterOptions.map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </div>
+        <div className="hidden sm:flex flex-wrap gap-2">
+          {filterOptions.map(([value, label]) => (
+            <Button key={value} size="sm"
               variant={filter === value ? "default" : "outline"}
-              onClick={() => setFilter(value)}
-            >
-              {label}
-            </Button>
+              onClick={() => chooseFilter(value)}>{label}</Button>
           ))}
         </div>
       </div>
 
+      <div ref={resultsRef} className="scroll-mt-24 text-sm font-semibold text-primary" aria-live="polite">
+        {yi ? "געפונענע פעלער" : "Cases in this view"}: {loading ? "…" : filtered.length}
+      </div>
       {loading ? (
         <div className="rounded-xl border p-10 text-center text-muted-foreground">
           {yi ? "לאדנט דעם אינבאקס..." : "Loading inbox..."}
@@ -695,14 +717,19 @@ export function OperationsInbox() {
                             {yi ? "אלטע בקשה: דער וואלונטיר איז נאך נישט באשטעטיגט. שרייב דעם ריכטיגן וואלונטיר־נומער צו פארבינדן דעם פאל." :
                               "Older request: verify the volunteer profile ID before continuing."}
                           </p>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={legacyVolunteerIds[item.key] || ""}
-                            onChange={e => setLegacyVolunteerIds(prev => ({ ...prev, [item.key]: e.target.value }))}
-                            placeholder={yi ? "וואלונטיר נומער" : "Volunteer profile ID"}
-                            className="h-9"
-                          />
+                          <label className="block text-xs font-semibold">
+                            {yi ? "קלייב אויס אן עסקן פון דער פריוואטער ליסטע" : "Choose a verified volunteer"}
+                            <select className="w-full h-11 rounded-md border bg-background px-2 mt-2"
+                              value={legacyVolunteerIds[item.key] || ""}
+                              onChange={e => setLegacyVolunteerIds(prev => ({ ...prev, [item.key]: e.target.value }))}>
+                              <option value="">{yi ? "קלייב אויס" : "Select a volunteer"}</option>
+                              {availableVolunteers.map(vol => (
+                                <option key={vol.id} value={vol.id}>
+                                  {vol.userName} · {vol.location} (#{vol.id})
+                                </option>
+                              ))}
+                            </select>
+                          </label>
                           <Button className="w-full" disabled={busy !== null} onClick={() => void connectionAction(item, "link")}>
                             {yi ? "באשטעטיג דעם וואלונטיר" : "Verify and link volunteer"}
                           </Button>
