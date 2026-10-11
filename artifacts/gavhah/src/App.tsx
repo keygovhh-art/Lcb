@@ -160,9 +160,11 @@ function RequireForumMembership({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
+  const [route] = useLocation();
   return (
     <>
       <ScrollToTop />
+      <AppErrorBoundary key={route}>
       <Switch>
       <Route path="/" component={Home} />
       <Route path="/news" component={NewsList} />
@@ -193,6 +195,7 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route component={NotFound} />
       </Switch>
+      </AppErrorBoundary>
     </>
   );
 }
