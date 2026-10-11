@@ -27,3 +27,20 @@ jobs:
         run: |
           pnpm --filter @workspace/gavhah run build
           pnpm --filter @workspace/api-server run build
+      - name: Verify admin mobile interactions
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const admin = fs.readFileSync('artifacts/gavhah/src/pages/admin/index.tsx','utf8');
+          const inbox = fs.readFileSync('artifacts/gavhah/src/components/admin/operations-inbox.tsx','utf8');
+          const matching = fs.readFileSync('artifacts/gavhah/src/components/admin/private-assistance-management.tsx','utf8');
+          assert(admin.includes('admin-section-select'));
+          assert(admin.includes('onValueChange={selectAdminTab}'));
+          assert(inbox.includes('operations-filter'));
+          assert(inbox.includes('pendingConfirmation'));
+          assert(inbox.includes('availableVolunteers.map'));
+          assert(matching.includes('pendingMatch'));
+          for(const file of [admin,inbox,matching]) assert(!file.includes('window.confirm('));
+          console.log('Verified responsive navigation and in-app case confirmations');
+          NODE
