@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   useListReports, useResolveReport, useDismissReport, useListUsers, useBanUser, useSuspendUser,
@@ -62,39 +62,6 @@ export default function FounderDashboard() {
   const { lang } = useLanguage();
   const yi = lang === "yi";
   const { user, isLoaded, isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState("operations");
-  const contentAnchor = useRef<HTMLDivElement>(null);
-  const selectAdminTab = (value: string) => {
-    setActiveTab(value);
-    // The enormous tab menu used to sit several screens above its content on
-    // Android. Always bring the selected panel into view after a selection.
-    requestAnimationFrame(() => {
-      contentAnchor.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  };
-  const adminSections = [
-    ["operations", yi ? "אפעראציע־אינבאקס" : "Operations Inbox"],
-    ["overview", yi ? "איבערבליק" : "Overview"],
-    ["engagement", yi ? "קאמענטארן און קוקן" : "Comments & Views"],
-    ["site-copy", yi ? "וועבסייט־עדיטאר" : "Live Site Editor"],
-    ["welcome-pages", yi ? "ברוכים־הבאים־בלעטער" : "Welcome Page Designer"],
-    ...((user?.role === "admin" || user?.role === "super_admin")
-      ? [["member-management", yi ? "מעמבער־פארוואלטונג" : "Advanced Members"]] : []),
-    ["support", yi ? "קאנטאקט און שטיצע" : "Support"],
-    ["private-assistance", yi ? "פריוואטער הילף־צענטער" : "Private Assistance Matching"],
-    ["help-requests", yi ? "הילף־בקשות" : "Help Requests"],
-    ["reservations", yi ? "באשטעלונגען" : "Reservations"],
-    ["reports", yi ? "רעפארטס" : "Reports"],
-    ["users", yi ? "מעמבערס" : "Members"],
-    ["charity", yi ? "צדקה" : "Charity"],
-    ["featured", yi ? "אויסגעצייכנט" : "Featured"],
-    ["causes", yi ? "צוועקן" : "Causes"],
-    ["submissions", yi ? "צוועק־איבערקוק" : "Cause Reviews"],
-    ["projects", yi ? "פראיעקטן" : "Projects"],
-    ["minyans", yi ? "מנינים" : "Minyans"],
-    ["announcements", yi ? "מעלדונגען" : "Announcements"],
-  ];
-
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
   const [editAnnId, setEditAnnId] = useState<number | null>(null);
@@ -349,26 +316,13 @@ export default function FounderDashboard() {
       </div>
 
       <div className="container mx-auto px-4 py-10">
-        <Tabs value={activeTab} onValueChange={selectAdminTab} className="space-y-5">
-          <div className="sm:hidden sticky top-0 z-20 bg-background/95 border rounded-xl p-3 shadow-sm backdrop-blur" dir={yi ? "rtl" : "ltr"}>
-            <label htmlFor="admin-section-select" className="block font-semibold text-sm mb-2">
-              {yi ? "וועלכע אדמיניסטראציע־אפטיילונג ווילסטו עפענען?" : "Choose administration section"}
-            </label>
-            <select id="admin-section-select" aria-label={yi ? "אדמיניסטראציע־אפטיילונג" : "Administration section"}
-              className="h-12 w-full rounded-lg border-2 border-primary/25 bg-background px-3 text-base font-medium"
-              value={activeTab} onChange={event => selectAdminTab(event.target.value)}>
-              {adminSections.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-            <p className="text-xs text-muted-foreground mt-2">
-              {yi ? "די אויסגעקליבענע אפטיילונג ווערט גלייך געעפנט אונטן." : "Selecting a section opens it directly below."}
-            </p>
-          </div>
-          <TabsList className="bg-muted/50 hidden sm:flex flex-wrap h-auto gap-1 p-1">
-            <TabsTrigger value="operations" className="gap-2">
-              <AlertTriangle className="h-4 w-4" /> Operations Inbox
-            </TabsTrigger>
+        <Tabs defaultValue="overview" className="space-y-8">
+          <TabsList className="bg-muted/50 flex flex-wrap h-auto gap-1 p-1">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" /> Overview
+            </TabsTrigger>
+            <TabsTrigger value="operations" className="gap-2">
+              <AlertTriangle className="h-4 w-4" /> Operations Inbox
             </TabsTrigger>
             <TabsTrigger value="engagement" className="gap-2">
               <MessageSquare className="h-4 w-4" /> Comments & Views
@@ -443,8 +397,8 @@ export default function FounderDashboard() {
               </p>
               <p>
                 <strong className="text-foreground">{yi ? "באשטעטיגן:" : "Approve:"}</strong>{" "}
-                {yi ? "מיינט אין יעדע אפטיילונג אן אנדער זאך: פובליקירן א הילף־בקשה, ערלויבן א גרופע־מיטגליד, אדער אננעמען א ריפליי. דאס איז נישט קיין באווייז אז די הילף איז שוין געלונגען." :
-                  "Its effect depends on the section: publishing a help request, admitting a group member, or publishing a reply. It never proves that real assistance was delivered."}
+                {yi ? "מיינט אין יעדע אפטיילונג אן אנדער זאך: אינערליך אננעמען א פריוואטע הילף־בקשה, ערלויבן א גרופע־מיטגליד, אדער אננעמען א ריפליי. קיין הילף־בקשה ווערט נישט פובליק." :
+                  "Its effect depends on the section: accepting a PRIVATE help request for staff review, admitting a group member, or publishing a reply. Help applications NEVER become public."}
               </p>
               <p>
                 <strong className="text-foreground">{yi ? "פארמאכן:" : "Close:"}</strong>{" "}
@@ -463,10 +417,6 @@ export default function FounderDashboard() {
             </div>
           </details>
 
-          <div ref={contentAnchor} className="scroll-mt-24" aria-hidden="true" />
-          <div className="sm:hidden rounded-lg border bg-muted/20 px-4 py-3 font-semibold text-primary">
-            {adminSections.find(([value]) => value === activeTab)?.[1]}
-          </div>
           {/* ─── Operations Inbox ─── */}
           <TabsContent value="operations" className="space-y-6">
             <OperationsInbox />
@@ -487,7 +437,7 @@ export default function FounderDashboard() {
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Community</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard icon={<Users className="h-5 w-5" />} label="Total Members" value={stats?.totalMembers ?? "—"} sub={stats ? `${stats.activeMembers} active` : undefined} />
-                <StatCard icon={<UserCheck className="h-5 w-5" />} label="Volunteers" value={stats?.totalVolunteers ?? "—"} sub="in directory" />
+                <StatCard icon={<UserCheck className="h-5 w-5" />} label="Private Volunteers" value={stats?.totalVolunteers ?? "—"} sub="staff registry" />
                 <StatCard icon={<UserPlus className="h-5 w-5" />} label="Follows" value={stats?.totalFollows ?? "—"} sub="connections" />
                 <StatCard icon={<BookmarkCheck className="h-5 w-5" />} label="Saved Items" value={stats?.totalSaved ?? "—"} sub="bookmarked" />
               </div>
@@ -517,7 +467,7 @@ export default function FounderDashboard() {
                 {[
                   { label: "Chesed News Center", sub: "Articles and global news", active: true },
                   { label: "Askanim Forum", sub: "Discussion boards", active: true },
-                  { label: "Activists Directory", sub: "Volunteer profiles and projects", active: true },
+                  { label: "Private Assistance & Projects", sub: "Confidential applicant registry and separate projects", active: true },
                   { label: "United In Kindness", sub: "Featured cause system", active: true },
                   { label: "Today's Cause", sub: "Charity spotlight active; online payments not connected", active: true },
                   { label: "Minyan Directory", sub: "Worldwide minyan times", active: true },
