@@ -135,7 +135,7 @@ function localDateTime(value: string | null) {
   return local.toISOString().slice(0, 16);
 }
 
-export function OperationsInbox() {
+export function OperationsInbox({onOpenPrivateAssistance}:{onOpenPrivateAssistance?:()=>void} = {}) {
   const { lang } = useLanguage();
   const yi = lang === "yi";
   const { toast } = useToast();
@@ -845,16 +845,23 @@ export function OperationsInbox() {
                         </div>
                       )}
                     </div>
-                  ) : item.kind === "help_request" && item.meta?.helpStatus === "open" ? (
+                  ) : item.kind === "help_request" ? (
                     <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground max-w-[18rem]">
-                        {yi ? "די בקשה איז נאר ביי דער מערכת. דער פאל בלייבט אפן ביז מען האט פאקטיש געהאלפן." :
-                          "Private to staff. Keep following up until assistance is actually provided."}
+                      <p className="text-xs text-muted-foreground max-w-[22rem]">
+                        {yi ? "די בקשה בלייבט פריוואט. די מערכת דארף זוכן אן אקטיוון עסקן, איבערקוקן צי ער איז פאסיג, און האנדלען די באשטעטיגונגען אינעם הילף־צענטער." :
+                          "This request remains private. Gavhah should find a suitable active helper and manage the introduction in the confidential matching center."}
                       </p>
-                      <Button size="sm" disabled={busy !== null} onClick={() => void act(item, "complete")}>
-                        <Check className="h-3.5 w-3.5" />
-                        {yi ? "באשטעטיג פאקטישע הילף" : "Confirm real help delivered"}
-                      </Button>
+                      {onOpenPrivateAssistance && <Button size="sm" variant="outline"
+                        onClick={onOpenPrivateAssistance}>
+                        <HandHeart className="h-3.5 w-3.5" />
+                        {yi ? "עפען דעם פריוואטן הילף־צענטער" : "Find and match a volunteer"}
+                      </Button>}
+                      {item.meta?.helpStatus === "open" && (
+                        <Button size="sm" disabled={busy !== null} onClick={() => void act(item, "complete")}>
+                          <Check className="h-3.5 w-3.5" />
+                          {yi ? "באשטעטיג נאר פאקטיש געגעבענע הילף" : "Confirm real assistance delivered"}
+                        </Button>
+                      )}
                     </div>
                   ) : reviewOnly(item) ? (
                     <Button size="sm" onClick={() => void act(item, "approve")} disabled={busy !== null} className="gap-1.5">

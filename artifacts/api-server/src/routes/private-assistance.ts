@@ -51,6 +51,7 @@ router.get("/admin/private-assistance",requireAdmin,async(_req,res,next):Promise
     const byUser=new Map(profiles.map(u=>[u.id,u]));
     const byContact=new Map(contacts.map(m=>[m.userId+":"+m.purpose,m]));
     const eligible=volunteers.filter(v=>byUser.get(v.userId)?.status==="active");
+    const unavailableCount=volunteers.length-eligible.length;
     const available=eligible.map(v=>{
       const methods=byContact.get(v.userId+":volunteer");
       return {id:v.id,userId:v.userId,userName:v.userName,location:v.location,
@@ -84,7 +85,60 @@ router.get("/admin/private-assistance",requireAdmin,async(_req,res,next):Promise
       };
     });
     res.json({requests:reqs,volunteers:available,
+      statistics:{totalRegisteredVolunteers:volunteers.length,
+        availableActiveVolunteers:eligible.length,
+        inactiveVolunteers:unavailableCount,
+        volunteersMissingContact:eligible.filter(v=>!byContact.get(v.userId+":volunteer")).length,
+        helpRequestsMissingContact:helps.filter(h=>!byContact.get(h.userId+":help")).length},
       note:"Internal-only staff matching. Scores are suggestions, not guarantees. Never publish a request or expose personal contact details until bilateral consent and separate final Gavhah authorization."});
+  }catch(e){next(e);}
+});
+
+/**
+ * Ask a member to fill their own confidential contact preferences.
+ * Staff can request but cannot enter consent for a person.
+ * These are website-bell notifications only, not an SMS or phone call.
+ */
+router.post("/admin/private-assistance/:helpId/request-contact-details",requireAdmin,async(req,res,next):Promise<void>=>{
+  try{
+    const helpId=Number(req.params.helpId),volunteerId=req.body?.volunteerId === undefined
+      ? null : Number(req.body.volunteerId);
+    if(!Number.isSafeInteger(helpId)||helpId<=0||
+       (volunteerId!==null&&(!Number.isSafeInteger(volunteerId)||volunteerId<=0))){
+      res.status(400).json({error:"Valid help case and optional volunteer are required"});return;
+    }
+    const [help]=await db.select().from(helpRequestsTable).where(eq(helpRequestsTable.id,helpId));
+    if(!help||!["pending","open"].includes(help.status)){
+      res.status(404).json({error:"Open help request not found"});return;
+    }
+    const candidates:Array<{id:number;purpose:"help"|"volunteer"}>=[
+      {id:help.userId,purpose:"help"},
+    ];
+    if(volunteerId!==null){
+      const [volunteer]=await db.select().from(volunteerProfilesTable)
+        .where(eq(volunteerProfilesTable.id,volunteerId));
+      if(!volunteer||volunteer.userId===help.userId){
+        res.status(409).json({error:"Choose a different eligible volunteer"});return;
+      }
+      candidates.push({id:volunteer.userId,purpose:"volunteer"});
+    }
+    const statuses=await db.select({id:usersTable.id,status:usersTable.status})
+      .from(usersTable);
+    const byId=new Map(statuses.map(u=>[u.id,u.status]));
+    if(candidates.some(c=>byId.get(c.id)!=="active")){
+      res.status(409).json({error:"Only active members may be contacted about private assistance"});return;
+    }
+    const contactPrefs=await db.select().from(memberContactMethodsTable);
+    const notified:number[]=[];
+    for(const candidate of candidates){
+      if(contactPrefs.some(p=>p.userId===candidate.id&&p.purpose===candidate.purpose))continue;
+      await notifyUser(candidate.id,"private_assistance_contact_needed",
+        "Gavhah is reviewing a private help request. Please add your confidential primary contact method in My Profile. An optional backup is not required. Nothing is shared automatically.",
+        "/profile");
+      notified.push(candidate.id);
+    }
+    res.json({notifiedCount:notified.length,
+      message:"Website notifications only. Existing consent cannot be entered by staff; no contact information is shared."});
   }catch(e){next(e);}
 });
 
