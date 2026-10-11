@@ -22,6 +22,13 @@ router.post("/system-errors", systemErrorLimiter, async (req, res): Promise<void
   const type = clean(req.body?.type, 60) || "unknown";
   const route = clean(req.body?.route, 300).split("?")[0].split("#")[0] || "/";
   const message = clean(req.body?.message, 1600) || "Unknown frontend error";
+  // Ignore expected request cancellation even from clients with an older
+  // reporter cached. It is not an application incident and must not notify staff.
+  if (["fetch_failure", "unhandled_promise"].includes(type) &&
+    /signal is aborted|aborted without reason|operation was aborted/i.test(message)) {
+    res.status(202).json({ ok: true, ignored: "expected_request_cancellation" });
+    return;
+  }
   const stack = clean(req.body?.stack, 5000);
   const componentStack = clean(req.body?.componentStack, 4000);
   const resource = clean(req.body?.resource, 500);
