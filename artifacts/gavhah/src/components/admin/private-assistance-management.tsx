@@ -19,24 +19,29 @@ type Volunteer = {
  id:number;userId:number;userName:string;location:string;skills:string[];
  areasOfInterest:string[];availability:string;bio:string|null;privateContact:Contact;
 };
-export function PrivateAssistanceManagement(){
+export function PrivateAssistanceManagement({onOpenOperations}:{onOpenOperations?:()=>void} = {}){
   const {lang}=useLanguage(),yi=lang==="yi",{toast}=useToast();
   const [requests,setRequests]=useState<Request[]>([]);
   const [volunteers,setVolunteers]=useState<Volunteer[]>([]);
+  const [eligibility,setEligibility]=useState<{
+    totalRegisteredVolunteers:number;availableActiveVolunteers:number;inactiveVolunteers:number;
+    volunteersMissingContact:number;helpRequestsMissingContact:number;
+  } | null>(null);
   const [search,setSearch]=useState("");
   const [filter,setFilter]=useState("active");
   const [selected,setSelected]=useState<Record<number,string>>({});
   const [notes,setNotes]=useState<Record<number,string>>({});
   const [volSearch,setVolSearch]=useState<Record<number,string>>({});
   const [busy,setBusy]=useState<number|null>(null);
-  const [pendingMatch,setPendingMatch]=useState<Request|null>(null);
+  const [pendingMatch,setPendingMatch]=useState<{help:Request;volunteerId:number}|null>(null);
+  const [contactNoticeBusy,setContactNoticeBusy]=useState<number|null>(null);
   const [loading,setLoading]=useState(true);
   const load=useCallback(async()=>{
     setLoading(true);
     try{
       const r=await fetch("/api/admin/private-assistance",{credentials:"include",cache:"no-store"});
       if(!r.ok)throw Error("Unable to load private assistance center");
-      const data=await r.json();setRequests(data.requests||[]);setVolunteers(data.volunteers||[]);
+      const data=await r.json();setRequests(data.requests||[]);setVolunteers(data.volunteers||[]);setEligibility(data.statistics||null);
     }catch(e){toast({title:e instanceof Error?e.message:"Unable to load",variant:"destructive"});}
     finally{setLoading(false);}
   },[toast]);
@@ -47,27 +52,41 @@ export function PrivateAssistanceManagement(){
     const q=search.trim().toLowerCase();
     return !q||[r.name,r.description,r.needType,r.location,r.id].some(x=>String(x||"").toLowerCase().includes(q));
   }),[requests,filter,search]);
-  const match=async(help:Request,confirmed=false)=>{
-    const candidate=Number(selected[help.id]||help.suggestions[0]?.volunteerId);
+  const match=async(help:Request,volunteerId:number,confirmed=false)=>{
     const note=(notes[help.id]||"").trim();
-    if(!Number.isSafeInteger(candidate)||candidate<=0||note.length<10){
-      toast({title:yi?"קלייב אויס אן עסקן און שרייב א הסבר":"Choose a volunteer and write a staff decision",variant:"destructive"});return;
+    if(!Number.isSafeInteger(volunteerId)||volunteerId<=0||note.length<10){
+      toast({title:yi?"קלייב אויס אן עסקן און שרייב א הסבר פון כאטש 10 אותיות":"Choose an eligible volunteer and record a reason (10+ characters)",variant:"destructive"});return;
     }
-    if(!confirmed){setPendingMatch(help);return;}
+    if(!confirmed){setPendingMatch({help,volunteerId});return;}
     setBusy(help.id);
     try{
       const r=await fetch(`/api/admin/private-assistance/${help.id}/match`,{
         method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({volunteerId:candidate,note}),
+        body:JSON.stringify({volunteerId,note}),
       });
       if(!r.ok){const e=await r.json().catch(()=>({}));throw Error(e.error||"Matching failed");}
       const result=await r.json();
-      toast({title:yi?"דער פריוואטער פאל איז געעפנט געווארן":"Private matching case created",
-        description:yi?`פאל #${result.caseId}. גיי צום אפעראציע־אינבאקס בעטן רשות פון ביידע.`:
-          `Case #${result.caseId}. Open Operations Inbox to request both participants' consent.`});
+      toast({title:yi?"דער פריוואטער פארבינדונג־פאל איז געעפנט געווארן":"Private connection case opened",
+        description:yi?`פאל #${result.caseId}. באשטעטיגונגען דארפן איצט גיין דורך דעם אפעראציע־אינבאקס.`:
+          `Case #${result.caseId}. Both personal permissions and final staff approval still required.`});
       await load();
     }catch(e){toast({title:e instanceof Error?e.message:"Match failed",variant:"destructive"});}
     finally{setBusy(null);}
+  };
+  const requestPrivateContact = async(help:Request,volunteerId:number|null)=>{
+    setContactNoticeBusy(help.id);
+    try {
+      const r=await fetch(`/api/admin/private-assistance/${help.id}/request-contact-details`,{
+        method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(volunteerId?{volunteerId}:{}),
+      });
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok)throw Error(data.error||"Could not send website notice");
+      toast({title:yi?"די מעמבער־מעלדונגען זענען צוגעגרייט":"Website notice sent",
+        description:yi?`פאר ${data.notifiedCount} מעמבער(ס) מיט פעלנדיקע פריוואטע קאנטאקט־פרטים.`:
+          `${data.notifiedCount} eligible members with missing details were notified in their website inbox. No phone/SMS delivery.`});
+    }catch(e){toast({title:e instanceof Error?e.message:"Could not notify",variant:"destructive"});}
+    finally{setContactNoticeBusy(null);}
   };
   return <section className="space-y-5" dir={yi?"rtl":"ltr"}>
     <Dialog open={pendingMatch!==null} onOpenChange={open=>{if(!open)setPendingMatch(null);}}>
@@ -82,7 +101,7 @@ export function PrivateAssistanceManagement(){
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={()=>setPendingMatch(null)}>{yi?"קענסל":"Cancel"}</Button>
           <Button disabled={busy!==null} onClick={()=>{
-            const help=pendingMatch;setPendingMatch(null);if(help)void match(help,true);
+            const proposal=pendingMatch;setPendingMatch(null);if(proposal)void match(proposal.help,proposal.volunteerId,true);
           }}>{yi?"יא, מאך דעם פאל":"Yes, create private case"}</Button>
         </div>
       </DialogContent>
@@ -98,8 +117,18 @@ export function PrivateAssistanceManagement(){
     </header>
     <div className="grid grid-cols-2 gap-3">
       <div className="border rounded-xl p-4 bg-card"><p className="text-xs text-muted-foreground">{yi?"הילף־בקשות":"Private help requests"}</p><p className="text-2xl font-bold">{requests.length}</p></div>
-      <div className="border rounded-xl p-4 bg-card"><p className="text-xs text-muted-foreground">{yi?"עסקנים־ליסטע":"Private volunteers"}</p><p className="text-2xl font-bold">{volunteers.length}</p></div>
+      <div className="border rounded-xl p-4 bg-card"><p className="text-xs text-muted-foreground">{yi?"אקטיווע עסקנים":"Eligible active volunteers"}</p><p className="text-2xl font-bold">{volunteers.length}</p></div>
     </div>
+    {eligibility && (eligibility.inactiveVolunteers>0||eligibility.volunteersMissingContact>0||eligibility.helpRequestsMissingContact>0)&&
+      <div className="rounded-xl border border-amber-500/40 bg-amber-50/10 p-4 text-sm space-y-2" dir={yi?"rtl":"ltr"}>
+        <p className="font-semibold">{yi?"אכטונג: דער סיסטעם קען נישט אליין פארבינדן יעדן פאל":"Matching needs staff attention"}</p>
+        <p>{yi?`${eligibility.inactiveVolunteers} עסקנים זענען נישט אקטיוו און ווערן נישט פארגעשלאגן פאר פארבינדונגען.`:
+          `${eligibility.inactiveVolunteers} volunteer accounts are inactive and excluded from matchmaking.`}</p>
+        <p>{yi?`${eligibility.volunteersMissingContact} אקטיווע עסקנים און ${eligibility.helpRequestsMissingContact} הילף־בעטער דארפן נאך אריינלייגן זייער פריוואטן קאנטאקט־וועג.`:
+          `${eligibility.volunteersMissingContact} active volunteers and ${eligibility.helpRequestsMissingContact} requesters have no private contact preference on file.`}</p>
+        <p className="text-xs text-muted-foreground">{yi?"די מערכת קען בעטן די מעמבערס דאס אויסצופילן. מיר אקטיווירן קיינעם נישט אויטאמאטיש און גיבן ארויס קיין פרטים אן רשות.":
+          "Staff can request missing details by website notification, but cannot reactivate accounts or authorize release on members' behalf."}</p>
+      </div>}
     <div className="flex gap-2 flex-wrap">
       <div className="flex-1 min-w-[12rem] relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"/>
         <Input value={search} className="pl-9" onChange={e=>setSearch(e.target.value)}
@@ -150,6 +179,8 @@ export function PrivateAssistanceManagement(){
           </div>
           {help.activeConnections.length>0&&<div className="rounded-md border p-3 text-sm font-medium">
             {yi?"דער פאל ווערט שוין באהאנדלט אין אפעראציע־אינבאקס":"Active introduction already in Operations Inbox"}
+            {onOpenOperations && <Button size="sm" variant="outline" className="w-full mt-2"
+              onClick={onOpenOperations}>{yi?"עפען די פארבינדונג־באשטעטיגונגען":"Open connection approvals"}</Button>}
             {" · "}{help.activeConnections.map(c=>"#"+c.caseId).join(", ")}
           </div>}
           {["pending","open"].includes(help.status)&&help.activeConnections.length===0&&<>
@@ -198,10 +229,21 @@ export function PrivateAssistanceManagement(){
                 onChange={e=>setNotes(x=>({...x,[help.id]:e.target.value}))}
                 placeholder={yi?"פארוואס איז דער עסקן פאסיג? שרייב אן אינערליכן באשלוס.":"Document why this volunteer is suitable (staff-only decision)."}/>
               <Button disabled={busy!==null||!selectedId||!options.some(v=>v.id===Number(selectedId))||(notes[help.id]||"").trim().length<10}
-                onClick={()=>void match(help)} className="gap-2">
+                onClick={()=>void match(help,Number(selectedId))} className="gap-2">
                 <ArrowRightLeft className="h-4 w-4"/>
                 {yi?"עפן א פריוואטן פארבינדונג־פאל":"Create private introduction case"}
               </Button>
+              {(!help.privateContact || (options.find(v=>v.id===Number(selectedId)) && !options.find(v=>v.id===Number(selectedId))?.privateContact)) && (
+                <div className="rounded-md border p-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">{yi?"דער בעטער אדער עסקן האט נאך נישט אריינגעלייגט זיין פריוואטן קאנטאקט. קען מען שיקן אן אינערליכע וועבסייט־מעלדונג עס אויסצופילן.":
+                    "The requester or selected helper has no private contact preference. Staff may request it through the member's website inbox."}</p>
+                  <Button type="button" variant="outline" size="sm"
+                    disabled={contactNoticeBusy!==null}
+                    onClick={()=>void requestPrivateContact(help,Number(selectedId)||null)}>
+                    {yi?"בעט פריוואטע קאנטאקט־פרטים":"Request missing private contact settings"}
+                  </Button>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground flex gap-2 items-start">
                 <ShieldCheck className="h-4 w-4 shrink-0"/>
                 {yi?"נאך דעם וועט דער אדמין אינעם אפעראציע־אינבאקס בעטן רשות פון ביידע, און געבן א באזונדערע לעצטע ערלויבעניש נאר נאכדעם."
