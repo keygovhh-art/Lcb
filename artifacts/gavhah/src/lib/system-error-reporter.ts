@@ -175,35 +175,18 @@ export function installGlobalErrorReporting() {
 
   const onOnline = () => { void flushQueuedSystemErrors(); };
 
-  const onSubmit = (event: SubmitEvent) => {
-    const submitter = event.submitter;
-    if (!(submitter instanceof HTMLButtonElement)) return;
-    if (submitter.hasAttribute("type")) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    void reportSystemError({
-      type: "accidental_form_submit_blocked",
-      message: "Blocked a form refresh caused by a button without an explicit type.",
-      resource: [
-        submitter.id ? `#${submitter.id}` : "",
-        submitter.name ? `name=${submitter.name}` : "",
-        submitter.textContent?.trim().slice(0, 120) || "",
-      ].filter(Boolean).join(" "),
-    });
-  };
+  // Do NOT intercept 'submit' globally. The former reporter prevented
+  // normal form actions merely because a submit button omitted type="submit".
+  // Individual forms own validation and preventDefault when appropriate.
 
   window.addEventListener("error", onError, true);
   window.addEventListener("unhandledrejection", onRejection);
   window.addEventListener("online", onOnline);
-  window.addEventListener("submit", onSubmit, true);
   void flushQueuedSystemErrors();
 
   return () => {
     window.removeEventListener("error", onError, true);
     window.removeEventListener("unhandledrejection", onRejection);
     window.removeEventListener("online", onOnline);
-    window.removeEventListener("submit", onSubmit, true);
   };
 }
