@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { useCreateReport, getListReportsQueryKey } from "@workspace/api-client-react";
+import { getListReportsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
@@ -37,12 +37,14 @@ export function ReportButton({ contentType, contentId, variant = "ghost", size =
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
-  const createReport = useCreateReport();
+  const [submitting, setSubmitting] = useState(false);
+  const [submissionMessage, setSubmissionMessage] = useState("");
 
   function handleClose() {
     setOpen(false);
     setReason("");
     setDescription("");
+    setSubmissionMessage("");
   }
 
   function handleOpen() {
@@ -54,18 +56,43 @@ export function ReportButton({ contentType, contentId, variant = "ghost", size =
     setOpen(true);
   }
 
-  const handleSubmit = () => {
-    if (!reason) return;
-    createReport.mutate(
-      { data: { contentType, contentId, reason, description } },
-      {
-        onSuccess: () => {
-          handleClose();
-          qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) });
-          toast({ title: "Report submitted", description: "Our moderation team will review this." });
-        },
+  const handleSubmit = async () => {
+    if (!reason || submitting) return;
+    setSubmitting(true);
+    setSubmissionMessage("");
+    try {
+      const response = await fetch("/api/reports", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType, contentId, reason, description }),
+      });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({})) as { error?: string };
+        if (response.status === 409) {
+          const message = "איר האט שוין אריינגעשיקט א רעפארט אויף דעם אינהאלט. ער ווארט נאך אויף איבערקוק דורך דער מערכת.";
+          setSubmissionMessage(message);
+          toast({ title: "רעפארט איז שוין אויפגענומען", description: message });
+          return;
+        }
+        if (response.status === 429) {
+          throw new Error("צו פיל רעפארטס אין א קורצע צייט. פרובירט שפעטער נאכאמאל.");
+        }
+        throw new Error(detail.error || `Report could not be submitted (HTTP ${response.status})`);
       }
-    );
+      handleClose();
+      void qc.invalidateQueries({ queryKey: getListReportsQueryKey({}) });
+      toast({
+        title: "רעפארט ערפאלגרייך געשיקט",
+        description: "די מערכת האט באקומען דעם רעפארט און וועט אים איבערקוקן.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "דער רעפארט האט זיך נישט געשיקט.";
+      setSubmissionMessage(message);
+      toast({ title: "נישט געקענט שיקן דעם רעפארט", description: message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -118,14 +145,15 @@ export function ReportButton({ contentType, contentId, variant = "ghost", size =
               />
             </div>
           </div>
+          {submissionMessage && <div role="alert" className="rounded-md border border-amber-400/60 bg-muted/20 px-3 py-2 text-sm" dir="auto">{submissionMessage}</div>}
           <DialogFooter>
             <Button variant="ghost" onClick={handleClose}>Cancel</Button>
             <Button
-              onClick={handleSubmit}
-              disabled={!reason || createReport.isPending}
+              onClick={() => void handleSubmit()}
+              disabled={!reason || submitting}
               className="bg-destructive hover:bg-destructive/90 text-white"
             >
-              {createReport.isPending ? "Submitting..." : "Submit Report"}
+              {submitting ? "שיקט..." : "שיק רעפארט"}
             </Button>
           </DialogFooter>
         </DialogContent>
