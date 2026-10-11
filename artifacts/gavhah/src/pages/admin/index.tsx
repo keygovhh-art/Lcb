@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   Shield, Users, Flag, Megaphone, CheckCircle, Ban, Clock, Trash2, Edit3, BarChart3,
@@ -107,6 +108,9 @@ export default function FounderDashboard() {
   const [adminReservations, setAdminReservations] = useState<any[]>([]);
   const [adminHelpRequests, setAdminHelpRequests] = useState<any[]>([]);
   const [helpResolutionNotes, setHelpResolutionNotes] = useState<Record<number, string>>({});
+  const [pendingAdminConfirmation,setPendingAdminConfirmation] =
+    useState<{kind:"support"|"help";id:number}|null>(null);
+  const [confirmBusy,setConfirmBusy]=useState(false);
   const [causeActivity, setCauseActivity] = useState<any[]>([]);
 
 
@@ -213,6 +217,43 @@ export default function FounderDashboard() {
     }
   };
 
+  const confirmCompletion = async () => {
+    const pending=pendingAdminConfirmation;
+    if (!pending || confirmBusy) return;
+    const note = (pending.kind === "support"
+      ? supportResolutionNotes[pending.id] : helpResolutionNotes[pending.id])?.trim() || "";
+    if (note.length < 10) {
+      toast({title: yi ? "שרייב קודם א קלארע נאטיץ" : "A note of at least 10 characters is required",variant:"destructive"});
+      setPendingAdminConfirmation(null);
+      return;
+    }
+    setConfirmBusy(true);
+    try {
+      const path=pending.kind === "support"
+        ? `/api/admin/support-messages/${pending.id}`
+        : `/api/help-requests/${pending.id}`;
+      const result=await fetch(path,{method:"PATCH",credentials:"include",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({status:"resolved",resolutionNote:note})});
+      if(!result.ok){
+        const problem=await result.json().catch(()=>({}));
+        throw Error(problem.error || "Could not complete this case");
+      }
+      setPendingAdminConfirmation(null);
+      if(pending.kind==="support"){
+        await loadSupportMessages();
+        setSupportResolutionNotes(prev=>({...prev,[pending.id]:""}));
+      } else {
+        await loadAdminHelpRequests();
+        void qc.invalidateQueries({queryKey:["/api/help-requests"]});
+        setHelpResolutionNotes(prev=>({...prev,[pending.id]:""}));
+      }
+      toast({title:yi?"דער פאל איז פארמאכט געווארן מיט דער נאטיץ":"Case closed with documentation"});
+    }catch(e){
+      toast({title:e instanceof Error?e.message:"Could not close",variant:"destructive"});
+    }finally{setConfirmBusy(false);}
+  };
+
   const pendingReports = reports?.filter(r => r.status === "pending") ?? [];
 
   const statusColor = (status: string) => {
@@ -275,6 +316,26 @@ export default function FounderDashboard() {
 
   return (
     <Layout>
+      <Dialog open={pendingAdminConfirmation !== null}
+        onOpenChange={open=>{if(!open&&!confirmBusy)setPendingAdminConfirmation(null);}}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-xl" dir={yi?"rtl":"ltr"}>
+          <DialogHeader>
+            <DialogTitle>{yi?"באשטעטיג דעם ערלעדיגטן פאל":"Confirm actual case completion"}</DialogTitle>
+            <DialogDescription>
+              {yi?"דער פאל ווערט נאר פארמאכט נאכן אמתן ערלעדיגן. איז די ארבעט טאקע געטאן געווארן?"
+                :"This closes the case as actually completed with your written note. Was the work truly done?"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" disabled={confirmBusy} onClick={()=>setPendingAdminConfirmation(null)}>
+              {yi?"ניין, קענסל":"Cancel"}
+            </Button>
+            <Button disabled={confirmBusy} onClick={()=>void confirmCompletion()}>
+              {confirmBusy?(yi?"היט אפ...":"Saving..."):(yi?"יא, פארמאך":"Yes, close case")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <div className="bg-muted/30 border-b">
         <div className="container mx-auto px-4 py-10">
           <div className="flex items-center gap-3 mb-2">
@@ -533,23 +594,7 @@ export default function FounderDashboard() {
                         <Button
                           size="sm" variant="outline"
                           disabled={(supportResolutionNotes[msg.id] || "").trim().length < 10}
-                          onClick={async () => {
-                            if (!window.confirm(yi
-                              ? "האסטו פאקטיש ערלעדיגט די זאך? דער פאל וועט פארשווינדן פונעם אפענעם אינבאקס."
-                              : "Was the stated action really completed? This closes the open case.")) return;
-                            const res = await fetch(`/api/admin/support-messages/${msg.id}`, {
-                              method: "PATCH", credentials: "include",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ status: "resolved", resolutionNote: supportResolutionNotes[msg.id].trim() }),
-                            });
-                            if (res.ok) {
-                              await loadSupportMessages();
-                              setSupportResolutionNotes(prev => ({ ...prev, [msg.id]: "" }));
-                            } else {
-                              const error = await res.json().catch(() => ({}));
-                              toast({ title: error.error || "Could not close the request", variant: "destructive" });
-                            }
-                          }}
+                          onClick={() => setPendingAdminConfirmation({kind:"support",id:msg.id})}
                         >
                           <CheckCircle className="h-3.5 w-3.5 mr-1" />
                           {yi ? "פארמאך נאכן ערלעדיגן" : "Close after follow-up"}
@@ -640,26 +685,7 @@ export default function FounderDashboard() {
                         />
                         <Button size="sm" variant="outline"
                           disabled={(helpResolutionNotes[req.id] || "").trim().length < 10}
-                          onClick={async () => {
-                            if (!window.confirm(yi
-                              ? "איז די הילף טאקע געגעבן געווארן? דער פאל וועט ווערן פארמאכט."
-                              : "Was real help delivered? This will mark the case fulfilled.")) return;
-                            const res = await fetch(`/api/help-requests/${req.id}`, {
-                              method: "PATCH", credentials: "include",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                status: "resolved", isFeatured: req.isFeatured,
-                                resolutionNote: helpResolutionNotes[req.id].trim(),
-                              }),
-                            });
-                            if (res.ok) {
-                              await loadAdminHelpRequests();
-                              void qc.invalidateQueries({ queryKey: ["/api/help-requests"] });
-                            } else {
-                              const error = await res.json().catch(() => ({}));
-                              toast({ title: error.error || "Could not complete help request", variant: "destructive" });
-                            }
-                          }}
+                          onClick={() => setPendingAdminConfirmation({kind:"help",id:req.id})}
                         >
                           <CheckCircle className="h-3.5 w-3.5 mr-1" />
                           {yi ? "באשטעטיג אז די הילף איז געגעבן" : "Confirm real assistance delivered"}
