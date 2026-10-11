@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { defaultGateDesign, GateWelcome, type GateDesign, type MemberGateSection } from "@/components/shared/member-gate";
 import { useLanguage } from "@/context/language-context";
@@ -34,6 +35,10 @@ export function MembershipGateManagement() {
   const [loading,setLoading] = useState(true);
   const [busy,setBusy] = useState(false);
   const [dirty,setDirty] = useState(false);
+  const [pending,setPending] = useState<
+    {type:"publish"} | {type:"switch-section";next:MemberGateSection}
+    | {type:"switch-language";next:"en"|"yi"} | null
+  >(null);
   useEffect(()=>{
     let active=true;
     setLoading(true);setDirty(false);
@@ -54,7 +59,6 @@ export function MembershipGateManagement() {
       const res=await fetch(path,{method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(design)});
       if(!res.ok){const e=await res.json().catch(()=>({}));throw Error(e.error||"Could not save draft");}
       if(publishNow){
-        if(!window.confirm(yi?"די ברוכים־הבאים־בלאט וועט ווערן אויטאמאטיש פאר אלע נייע באזוכער ווען די סיסטעם איז שוין לייוו. ווייטער?":"Publish this welcome page to visitors after deployment?"))return;
         const publishedResult=await fetch(path+"/publish",{method:"POST",credentials:"include"});
         if(!publishedResult.ok)throw Error("Could not publish gate design");
         setPublished(design);setPublishedAt(new Date().toISOString());
@@ -76,6 +80,32 @@ export function MembershipGateManagement() {
     </div>
   );
   return <section className="space-y-5" dir={yi?"rtl":"ltr"}>
+    <Dialog open={pending!==null} onOpenChange={open=>{if(!open)setPending(null);}}>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-xl">
+        <DialogHeader>
+          <DialogTitle>{yi?"באשטעטיג דעם באשלוס":"Confirm changes"}</DialogTitle>
+          <DialogDescription>
+            {pending?.type==="publish"
+              ? (yi?"דאס וועט פובלישירן דעם ברוכים־הבאים־בלאט פאר די באזוכער. ווילסטו ווייטערגיין?":
+                  "Publish this welcome page to visitors now?")
+              : (yi?"עס זענען דא נישט־אפגעהיטענע ענדערונגען. ביסטו זיכער אז דו ווילסט זיי פארלירן?":
+                  "You have unsaved changes. Discard them and switch sections?")}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" disabled={busy} onClick={()=>setPending(null)}>
+            {yi?"קענסל":"Cancel"}
+          </Button>
+          <Button disabled={busy} onClick={()=>{
+            const action=pending;setPending(null);if(!action)return;
+            if(action.type==="publish"){void save(true);return;}
+            setDirty(false);
+            if(action.type==="switch-section")setSection(action.next);
+            else setLang(action.next);
+          }}>{yi?"יא, ווייטער":"Yes, continue"}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
     <div>
       <h2 className="text-2xl font-semibold text-primary flex items-center gap-2"><Paintbrush className="h-6 w-6"/>
         {yi?"ברוכים־הבאים־בלעטער — באזונדער פאר יעדע אפטיילונג":"Membership Welcome Page Designer"}
@@ -87,13 +117,15 @@ export function MembershipGateManagement() {
     </div>
     <div className="grid sm:grid-cols-2 gap-3">
       <label className="space-y-1"><span className="text-sm">{yi?"אפטיילונג":"Section"}</span>
-        <select value={section} onChange={e=>{if(dirty&&!window.confirm("Discard unsaved changes?"))return;setSection(e.target.value as MemberGateSection);}}
+        <select value={section} onChange={e=>{const next=e.target.value as MemberGateSection;
+          if(dirty)setPending({type:"switch-section",next});else setSection(next);}}
           className="w-full h-10 border rounded-md bg-background px-3">
           {SECTIONS.map(item=><option key={item.key} value={item.key}>{yi?item.yi:item.en}</option>)}
         </select>
       </label>
       <label className="space-y-1"><span className="text-sm">{yi?"שפראך":"Language"}</span>
-        <select value={lang} onChange={e=>{if(dirty&&!window.confirm("Discard unsaved changes?"))return;setLang(e.target.value as "en"|"yi");}}
+        <select value={lang} onChange={e=>{const next=e.target.value as "en"|"yi";
+          if(dirty)setPending({type:"switch-language",next});else setLang(next);}}
           className="w-full h-10 border rounded-md bg-background px-3">
           <option value="yi">אידיש</option><option value="en">English</option>
         </select>
@@ -143,7 +175,7 @@ export function MembershipGateManagement() {
         <Button disabled={busy||!design.title||!design.body} onClick={()=>void save(false)}>
           <Save className="h-4 w-4 me-2"/>{yi?"היט אפ א דראפט — נישט פובלישירן":"Save draft — don't publish"}
         </Button>
-        <Button variant="outline" disabled={busy||!design.title||!design.body} onClick={()=>void save(true)}>
+        <Button variant="outline" disabled={busy||!design.title||!design.body} onClick={()=>setPending({type:"publish"})}>
           <Send className="h-4 w-4 me-2"/>{yi?"פובלישיר בלויז דעם אויסשטעל (שפעטער)":"Publish this page (later)"}
         </Button>
       </div>
