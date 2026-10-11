@@ -4,6 +4,7 @@ on:
     branches:
       - feature/forum-free-topics-admin-workflow-20261008
       - fix/restore-campaigns-custom-help-20261009
+      - fix/admin-mobile-actions-20261011
   workflow_dispatch:
 jobs:
   verify:
