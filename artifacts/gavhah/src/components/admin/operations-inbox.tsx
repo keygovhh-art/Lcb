@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/context/language-context";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 type WorkflowState = {
   assignedTo: number | null;
@@ -152,6 +153,12 @@ export function OperationsInbox() {
   const [closureReasons, setClosureReasons] = useState<Record<string, string>>({});
   const [followupDrafts, setFollowupDrafts] = useState<Record<string, string>>({});
   const [releaseReasons, setReleaseReasons] = useState<Record<string, string>>({});
+  // Native window.confirm is unreliable in several Android in-app browsers.
+  // Keep confirmations inside the app so a tap always has visible feedback.
+  const [pendingConfirmation, setPendingConfirmation] = useState<
+    { type: "connection"; item: OperationItem; action: "invite" | "close" | "final-release"; message: string }
+    | { type: "case"; item: OperationItem; action: string; message: string } | null
+  >(null);
   const [requesterChoices,setRequesterChoices] = useState<Record<string,"primary"|"backup">>({});
   const [volunteerChoices,setVolunteerChoices] = useState<Record<string,"primary"|"backup">>({});
 
@@ -212,7 +219,7 @@ export function OperationsInbox() {
     }
   };
 
-  const connectionAction = async (item: OperationItem, action: "link" | "invite" | "close" | "retry" | "final-release") => {
+  const connectionAction = async (item: OperationItem, action: "link" | "invite" | "close" | "retry" | "final-release", confirmed = false) => {
     const volunteerId = Number(legacyVolunteerIds[item.key]);
     const reason = (closureReasons[item.key] || "").trim();
     const followup = (followupDrafts[item.key] || "").trim();
@@ -235,19 +242,31 @@ export function OperationsInbox() {
           "Full administrator authorization and a written decision of at least 10 characters are required.",
           variant: "destructive" }); return;
       }
-      if (!window.confirm(yi
-        ? "ביסטו זיכער אז ביידע האבן מסכים געווען, און די מערכת ערלויבט יעצט בפירוש צו טיילן די אויסגעקליבענע קאנטאקט־פרטים נאר פאר דעם פאל?"
-        : "Do you give Gavhah's separate FINAL authorization, after BOTH people approved, to share only the selected contact details for this case?")) return;
+      if (!confirmed) {
+        setPendingConfirmation({ type: "connection", item, action,
+          message: yi
+            ? "ביידע האבן פערזענליך מסכים געווען. איז די מערכת גרייט צו געבן איר באזונדערן לעצטן אישור, נאר פאר דעם פאל?"
+            : "Both members personally agreed. Do you now grant Gavhah's separate FINAL permission to disclose only the selected contacts for this case?"
+        });
+        return;
+      }
     }
-    if (action === "invite" && !window.confirm(
-      yi
-        ? "דאס שיקט א פארלאנג דורך דער וועבסייט צום וואלונטיר. עס שיקט דערווייל נישט קיין SMS אדער אימעיל. ווייטער?"
-        : "This asks BOTH members for in-app permission. Phone notices are queued but NOT sent. Continue?"
-    )) return;
-    if (action === "close" && !window.confirm(
-      yi ? "דער פאל וועט ווערן פארמאכט אלס נישט געלונגען, נישט אלס מצליח געווען. ווייטער?" :
-        "Close this case as unsuccessful? It will NOT be counted as a successful connection."
-    )) return;
+    if (action === "invite" && !confirmed) {
+      setPendingConfirmation({ type: "connection", item, action,
+        message: yi
+          ? "דאס שיקט ביידע מיטגלידער א בקשה צו געבן פערזענליכע רשות אינעם וועבסייט־אינבאקס. קיין SMS ווערט דערווייל נישט געשיקט."
+          : "Ask BOTH members for in-app permission? SMS or phone notices are NOT delivered."
+      });
+      return;
+    }
+    if (action === "close" && !confirmed) {
+      setPendingConfirmation({ type: "connection", item, action,
+        message: yi
+          ? "דער פאל ווערט פארמאכט אלס נישט געלונגען, נישט אלס הצלחה. ביסטו זיכער?"
+          : "Close this case as unsuccessful, NOT as a completed successful connection?"
+      });
+      return;
+    }
     setBusy(item.key + action);
     try {
       const base = `/api/admin/member-connections/${item.id}`;
@@ -317,37 +336,37 @@ export function OperationsInbox() {
     return yi ? yiddish : english;
   };
 
-  const act = async (item: OperationItem, action: string) => {
+  const act = async (item: OperationItem, action: string, confirmed = false) => {
     if (item.kind === "member_connection") {
       toast({ title: yi ? "פארבינדונגען מוז מען פירן דורך דעם פולן פארבינדונג־פראצעס" :
         "Use the connection workflow; review alone cannot close this case", variant: "destructive" });
       return;
     }
     if (item.kind === "help_request" && action === "complete") {
-      if (!item.workflow.notes.length || !window.confirm(
-        yi ? "איז די הילף טאקע געגעבן געווארן? דאס וועט פארמאכן דעם פאל אלס ערלעדיגט." :
-          "Was real assistance delivered? This will close the request as fulfilled."
-      )) {
-        if (!item.workflow.notes.length) toast({
-          title: yi ? "שרייב קודם א אינערליכע נאטיץ וואס איז פאקטיש געגעבן געווארן" :
-            "Document what help was delivered before marking fulfilled", variant: "destructive",
-        });
+      if (!item.workflow.notes.length) {
+        toast({ title: yi ? "שרייב קודם וואסערע הילף איז באמת געגעבן געווארן" :
+          "Document actual assistance delivered before marking fulfilled", variant: "destructive" });
+        return;
+      }
+      if (!confirmed) {
+        setPendingConfirmation({ type: "case", item, action,
+          message: yi ? "איז די הילף טאקע געגעבן געווארן? דער פאל וועט ווערן פארמאכט אלס ערלעדיגט." :
+            "Was real assistance delivered? This will close the request as fulfilled." });
         return;
       }
     }
     if (reviewOnly(item)) {
       if (!item.workflow.notes.length) {
-        toast({
-          title: yi ? "לייג קודם א אינערליכע נאטיץ וואס איז פאקטיש געטאן געווארן" :
-            "Record the actual follow-up as an internal note before closing",
-          variant: "destructive",
-        });
+        toast({ title: yi ? "לייג קודם אן אינערליכע נאטיץ וואס איז פאקטיש געטאן געווארן" :
+          "Record the real follow-up before closing", variant: "destructive" });
         return;
       }
-      if (!window.confirm(yi
-        ? "האסטו טאקע דורכגעפירט די ארבעט וואס שטייט אין די נאטיצן? דער פאל וועט פארשווינדן פונעם אפענעם אינבאקס."
-        : "Has the work described in the notes actually been done? This closes the case in the open inbox."
-      )) return;
+      if (!confirmed) {
+        setPendingConfirmation({ type: "case", item, action,
+          message: yi ? "האסטו דורכגעפירט די ארבעט אין די נאטיצן? דער פאל וועט ווערן פארמאכט." :
+            "Confirm that the documented work was actually done. This closes the open case." });
+        return;
+      }
     }
     setBusy(item.key + action);
     try {
@@ -419,6 +438,31 @@ export function OperationsInbox() {
 
   return (
     <div className="space-y-6">
+      <Dialog open={pendingConfirmation !== null} onOpenChange={isOpen => { if (!isOpen) setPendingConfirmation(null); }}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-xl" dir={yi ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle>{yi ? "באשטעטיג די אדמין־אקציע" : "Confirm administration action"}</DialogTitle>
+            <DialogDescription className="leading-relaxed">
+              {pendingConfirmation?.message}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setPendingConfirmation(null)} disabled={busy !== null}>
+              {yi ? "ניין, קענסל" : "Cancel"}
+            </Button>
+            <Button disabled={busy !== null} onClick={() => {
+              const pending = pendingConfirmation;
+              if (!pending) return;
+              setPendingConfirmation(null);
+              if (pending.type === "connection") {
+                void connectionAction(pending.item, pending.action, true);
+              } else {
+                void act(pending.item, pending.action, true);
+              }
+            }}>{yi ? "יא, פיהר אויס" : "Yes, confirm action"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
