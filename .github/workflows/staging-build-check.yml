@@ -4,6 +4,7 @@ on:
     branches:
       - feature/forum-free-topics-admin-workflow-20261008
       - fix/restore-campaigns-custom-help-20261009
+      - fix/admin-mobile-actions-20261011
   workflow_dispatch:
 jobs:
   verify:
@@ -26,3 +27,22 @@ jobs:
         run: |
           pnpm --filter @workspace/gavhah run build
           pnpm --filter @workspace/api-server run build
+      - name: Verify admin mobile interactions
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const admin = fs.readFileSync('artifacts/gavhah/src/pages/admin/index.tsx','utf8');
+          const inbox = fs.readFileSync('artifacts/gavhah/src/components/admin/operations-inbox.tsx','utf8');
+          const matching = fs.readFileSync('artifacts/gavhah/src/components/admin/private-assistance-management.tsx','utf8');
+          const gates = fs.readFileSync('artifacts/gavhah/src/components/admin/membership-gate-management.tsx','utf8');
+          assert(admin.includes('admin-section-select'));
+          assert(admin.includes('onValueChange={selectAdminTab}'));
+          assert(inbox.includes('operations-filter'));
+          assert(inbox.includes('pendingConfirmation'));
+          assert(inbox.includes('availableVolunteers.map'));
+          assert(matching.includes('pendingMatch'));
+          assert(gates.includes('setPending({type:"publish"})'));
+          for(const file of [admin,inbox,matching,gates]) assert(!file.includes('window.confirm('));
+          console.log('Verified responsive navigation and in-app case confirmations');
+          NODE

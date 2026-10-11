@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarClock, Check, CheckCircle2, Clock, Flag, HandHeart, Inbox, MessageSquareText, RefreshCcw, Search, UserCog, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/context/language-context";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 type WorkflowState = {
   assignedTo: number | null;
@@ -147,27 +148,40 @@ export function OperationsInbox() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [availableVolunteers, setAvailableVolunteers] = useState<Array<{ id: number; userName: string; location: string }>>([]);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [legacyVolunteerIds, setLegacyVolunteerIds] = useState<Record<string, string>>({});
   const [closureReasons, setClosureReasons] = useState<Record<string, string>>({});
   const [followupDrafts, setFollowupDrafts] = useState<Record<string, string>>({});
   const [releaseReasons, setReleaseReasons] = useState<Record<string, string>>({});
+  // Native window.confirm is unreliable in several Android in-app browsers.
+  // Keep confirmations inside the app so a tap always has visible feedback.
+  const [pendingConfirmation, setPendingConfirmation] = useState<
+    { type: "connection"; item: OperationItem; action: "invite" | "close" | "final-release"; message: string }
+    | { type: "case"; item: OperationItem; action: string; message: string } | null
+  >(null);
   const [requesterChoices,setRequesterChoices] = useState<Record<string,"primary"|"backup">>({});
   const [volunteerChoices,setVolunteerChoices] = useState<Record<string,"primary"|"backup">>({});
 
   const load = async () => {
     setLoading(true);
     try {
-      const [res, usersRes, historyRes] = await Promise.all([
+      const [res, usersRes, historyRes, volunteersRes] = await Promise.all([
         fetch("/api/admin/operations-inbox", { credentials: "include", cache: "no-store" }),
         fetch("/api/users", { credentials: "include", cache: "no-store" }),
         fetch("/api/admin/operations-history", { credentials: "include", cache: "no-store" }),
+        fetch("/api/volunteers", { credentials: "include", cache: "no-store" }),
       ]);
       if (!res.ok) throw new Error("Could not load management inbox");
       setData(await res.json());
       if (historyRes.ok) {
         const completed = await historyRes.json();
         setHistory(Array.isArray(completed.items) ? completed.items : []);
+      }
+      if (volunteersRes.ok) {
+        const all = await volunteersRes.json() as Array<{id:number;userName:string;location:string}>;
+        setAvailableVolunteers(Array.isArray(all) ? all : []);
       }
       if (usersRes.ok) {
         const allUsers = await usersRes.json() as StaffMember[];
@@ -187,6 +201,23 @@ export function OperationsInbox() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  const filterOptions = [
+    ["all", yi ? "אלעס" : "All"],
+    ["urgent", yi ? "וויכטיג" : "Priority"],
+    ["report", yi ? "רעפארטס" : "Reports"],
+    ["help_request", yi ? "נצרכים" : "Help"],
+    ["group_join", yi ? "גרופעס" : "Groups"],
+    ["member_connection", yi ? "פארבינדונגען" : "Connections"],
+    ["system_error", yi ? "טעכנישע פראבלעמען" : "System Errors"],
+    ["comment_review", yi ? "ריפליי־ריוויו" : "Reply Reviews"],
+  ];
+  const chooseFilter = (value: string) => {
+    setFilter(value);
+    if (typeof window !== "undefined" && window.innerWidth < 640) {
+      requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -212,7 +243,7 @@ export function OperationsInbox() {
     }
   };
 
-  const connectionAction = async (item: OperationItem, action: "link" | "invite" | "close" | "retry" | "final-release") => {
+  const connectionAction = async (item: OperationItem, action: "link" | "invite" | "close" | "retry" | "final-release", confirmed = false) => {
     const volunteerId = Number(legacyVolunteerIds[item.key]);
     const reason = (closureReasons[item.key] || "").trim();
     const followup = (followupDrafts[item.key] || "").trim();
@@ -235,19 +266,31 @@ export function OperationsInbox() {
           "Full administrator authorization and a written decision of at least 10 characters are required.",
           variant: "destructive" }); return;
       }
-      if (!window.confirm(yi
-        ? "ביסטו זיכער אז ביידע האבן מסכים געווען, און די מערכת ערלויבט יעצט בפירוש צו טיילן די אויסגעקליבענע קאנטאקט־פרטים נאר פאר דעם פאל?"
-        : "Do you give Gavhah's separate FINAL authorization, after BOTH people approved, to share only the selected contact details for this case?")) return;
+      if (!confirmed) {
+        setPendingConfirmation({ type: "connection", item, action,
+          message: yi
+            ? "ביידע האבן פערזענליך מסכים געווען. איז די מערכת גרייט צו געבן איר באזונדערן לעצטן אישור, נאר פאר דעם פאל?"
+            : "Both members personally agreed. Do you now grant Gavhah's separate FINAL permission to disclose only the selected contacts for this case?"
+        });
+        return;
+      }
     }
-    if (action === "invite" && !window.confirm(
-      yi
-        ? "דאס שיקט א פארלאנג דורך דער וועבסייט צום וואלונטיר. עס שיקט דערווייל נישט קיין SMS אדער אימעיל. ווייטער?"
-        : "This asks BOTH members for in-app permission. Phone notices are queued but NOT sent. Continue?"
-    )) return;
-    if (action === "close" && !window.confirm(
-      yi ? "דער פאל וועט ווערן פארמאכט אלס נישט געלונגען, נישט אלס מצליח געווען. ווייטער?" :
-        "Close this case as unsuccessful? It will NOT be counted as a successful connection."
-    )) return;
+    if (action === "invite" && !confirmed) {
+      setPendingConfirmation({ type: "connection", item, action,
+        message: yi
+          ? "דאס שיקט ביידע מיטגלידער א בקשה צו געבן פערזענליכע רשות אינעם וועבסייט־אינבאקס. קיין SMS ווערט דערווייל נישט געשיקט."
+          : "Ask BOTH members for in-app permission? SMS or phone notices are NOT delivered."
+      });
+      return;
+    }
+    if (action === "close" && !confirmed) {
+      setPendingConfirmation({ type: "connection", item, action,
+        message: yi
+          ? "דער פאל ווערט פארמאכט אלס נישט געלונגען, נישט אלס הצלחה. ביסטו זיכער?"
+          : "Close this case as unsuccessful, NOT as a completed successful connection?"
+      });
+      return;
+    }
     setBusy(item.key + action);
     try {
       const base = `/api/admin/member-connections/${item.id}`;
@@ -317,37 +360,37 @@ export function OperationsInbox() {
     return yi ? yiddish : english;
   };
 
-  const act = async (item: OperationItem, action: string) => {
+  const act = async (item: OperationItem, action: string, confirmed = false) => {
     if (item.kind === "member_connection") {
       toast({ title: yi ? "פארבינדונגען מוז מען פירן דורך דעם פולן פארבינדונג־פראצעס" :
         "Use the connection workflow; review alone cannot close this case", variant: "destructive" });
       return;
     }
     if (item.kind === "help_request" && action === "complete") {
-      if (!item.workflow.notes.length || !window.confirm(
-        yi ? "איז די הילף טאקע געגעבן געווארן? דאס וועט פארמאכן דעם פאל אלס ערלעדיגט." :
-          "Was real assistance delivered? This will close the request as fulfilled."
-      )) {
-        if (!item.workflow.notes.length) toast({
-          title: yi ? "שרייב קודם א אינערליכע נאטיץ וואס איז פאקטיש געגעבן געווארן" :
-            "Document what help was delivered before marking fulfilled", variant: "destructive",
-        });
+      if (!item.workflow.notes.length) {
+        toast({ title: yi ? "שרייב קודם וואסערע הילף איז באמת געגעבן געווארן" :
+          "Document actual assistance delivered before marking fulfilled", variant: "destructive" });
+        return;
+      }
+      if (!confirmed) {
+        setPendingConfirmation({ type: "case", item, action,
+          message: yi ? "איז די הילף טאקע געגעבן געווארן? דער פאל וועט ווערן פארמאכט אלס ערלעדיגט." :
+            "Was real assistance delivered? This will close the request as fulfilled." });
         return;
       }
     }
     if (reviewOnly(item)) {
       if (!item.workflow.notes.length) {
-        toast({
-          title: yi ? "לייג קודם א אינערליכע נאטיץ וואס איז פאקטיש געטאן געווארן" :
-            "Record the actual follow-up as an internal note before closing",
-          variant: "destructive",
-        });
+        toast({ title: yi ? "לייג קודם אן אינערליכע נאטיץ וואס איז פאקטיש געטאן געווארן" :
+          "Record the real follow-up before closing", variant: "destructive" });
         return;
       }
-      if (!window.confirm(yi
-        ? "האסטו טאקע דורכגעפירט די ארבעט וואס שטייט אין די נאטיצן? דער פאל וועט פארשווינדן פונעם אפענעם אינבאקס."
-        : "Has the work described in the notes actually been done? This closes the case in the open inbox."
-      )) return;
+      if (!confirmed) {
+        setPendingConfirmation({ type: "case", item, action,
+          message: yi ? "האסטו דורכגעפירט די ארבעט אין די נאטיצן? דער פאל וועט ווערן פארמאכט." :
+            "Confirm that the documented work was actually done. This closes the open case." });
+        return;
+      }
     }
     setBusy(item.key + action);
     try {
@@ -419,6 +462,31 @@ export function OperationsInbox() {
 
   return (
     <div className="space-y-6">
+      <Dialog open={pendingConfirmation !== null} onOpenChange={isOpen => { if (!isOpen) setPendingConfirmation(null); }}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-xl" dir={yi ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle>{yi ? "באשטעטיג די אדמין־אקציע" : "Confirm administration action"}</DialogTitle>
+            <DialogDescription className="leading-relaxed">
+              {pendingConfirmation?.message}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setPendingConfirmation(null)} disabled={busy !== null}>
+              {yi ? "ניין, קענסל" : "Cancel"}
+            </Button>
+            <Button disabled={busy !== null} onClick={() => {
+              const pending = pendingConfirmation;
+              if (!pending) return;
+              setPendingConfirmation(null);
+              if (pending.type === "connection") {
+                void connectionAction(pending.item, pending.action, true);
+              } else {
+                void act(pending.item, pending.action, true);
+              }
+            }}>{yi ? "יא, פיהר אויס" : "Yes, confirm action"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -472,29 +540,27 @@ export function OperationsInbox() {
             className="pl-9"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
-          {[
-            ["all", yi ? "אלעס" : "All"],
-            ["urgent", yi ? "וויכטיג" : "Priority"],
-            ["report", yi ? "רעפארטס" : "Reports"],
-            ["help_request", yi ? "נצרכים" : "Help"],
-            ["group_join", yi ? "גרופעס" : "Groups"],
-            ["member_connection", yi ? "פארבינדונגען" : "Connections"],
-            ["system_error", yi ? "טעכנישע פראבלעמען" : "System Errors"],
-            ["comment_review", yi ? "ריפליי־ריוויו" : "Reply Reviews"],
-          ].map(([value, label]) => (
-            <Button
-              key={value}
-              size="sm"
+        <div className="sm:hidden">
+          <label htmlFor="operations-filter" className="text-sm font-semibold block mb-2">
+            {yi ? "וועלכע פעלער ווילסטו זען?" : "Which cases should be shown?"}
+          </label>
+          <select id="operations-filter" value={filter} onChange={e => chooseFilter(e.target.value)}
+            className="w-full h-12 bg-background border-2 border-primary/25 rounded-lg px-3 font-medium">
+            {filterOptions.map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </div>
+        <div className="hidden sm:flex flex-wrap gap-2">
+          {filterOptions.map(([value, label]) => (
+            <Button key={value} size="sm"
               variant={filter === value ? "default" : "outline"}
-              onClick={() => setFilter(value)}
-            >
-              {label}
-            </Button>
+              onClick={() => chooseFilter(value)}>{label}</Button>
           ))}
         </div>
       </div>
 
+      <div ref={resultsRef} className="scroll-mt-24 text-sm font-semibold text-primary" aria-live="polite">
+        {yi ? "געפונענע פעלער" : "Cases in this view"}: {loading ? "…" : filtered.length}
+      </div>
       {loading ? (
         <div className="rounded-xl border p-10 text-center text-muted-foreground">
           {yi ? "לאדנט דעם אינבאקס..." : "Loading inbox..."}
@@ -651,14 +717,19 @@ export function OperationsInbox() {
                             {yi ? "אלטע בקשה: דער וואלונטיר איז נאך נישט באשטעטיגט. שרייב דעם ריכטיגן וואלונטיר־נומער צו פארבינדן דעם פאל." :
                               "Older request: verify the volunteer profile ID before continuing."}
                           </p>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={legacyVolunteerIds[item.key] || ""}
-                            onChange={e => setLegacyVolunteerIds(prev => ({ ...prev, [item.key]: e.target.value }))}
-                            placeholder={yi ? "וואלונטיר נומער" : "Volunteer profile ID"}
-                            className="h-9"
-                          />
+                          <label className="block text-xs font-semibold">
+                            {yi ? "קלייב אויס אן עסקן פון דער פריוואטער ליסטע" : "Choose a verified volunteer"}
+                            <select className="w-full h-11 rounded-md border bg-background px-2 mt-2"
+                              value={legacyVolunteerIds[item.key] || ""}
+                              onChange={e => setLegacyVolunteerIds(prev => ({ ...prev, [item.key]: e.target.value }))}>
+                              <option value="">{yi ? "קלייב אויס" : "Select a volunteer"}</option>
+                              {availableVolunteers.map(vol => (
+                                <option key={vol.id} value={vol.id}>
+                                  {vol.userName} · {vol.location} (#{vol.id})
+                                </option>
+                              ))}
+                            </select>
+                          </label>
                           <Button className="w-full" disabled={busy !== null} onClick={() => void connectionAction(item, "link")}>
                             {yi ? "באשטעטיג דעם וואלונטיר" : "Verify and link volunteer"}
                           </Button>

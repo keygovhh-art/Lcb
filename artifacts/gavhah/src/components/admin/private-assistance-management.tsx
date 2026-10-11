@@ -3,6 +3,7 @@ import { useLanguage } from "@/context/language-context";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { HandHeart, Users, Search, RefreshCcw, ShieldCheck, ArrowRightLeft } from "lucide-react";
@@ -28,6 +29,7 @@ export function PrivateAssistanceManagement(){
   const [notes,setNotes]=useState<Record<number,string>>({});
   const [volSearch,setVolSearch]=useState<Record<number,string>>({});
   const [busy,setBusy]=useState<number|null>(null);
+  const [pendingMatch,setPendingMatch]=useState<Request|null>(null);
   const [loading,setLoading]=useState(true);
   const load=useCallback(async()=>{
     setLoading(true);
@@ -45,15 +47,13 @@ export function PrivateAssistanceManagement(){
     const q=search.trim().toLowerCase();
     return !q||[r.name,r.description,r.needType,r.location,r.id].some(x=>String(x||"").toLowerCase().includes(q));
   }),[requests,filter,search]);
-  const match=async(help:Request)=>{
+  const match=async(help:Request,confirmed=false)=>{
     const candidate=Number(selected[help.id]||help.suggestions[0]?.volunteerId);
     const note=(notes[help.id]||"").trim();
     if(!Number.isSafeInteger(candidate)||candidate<=0||note.length<10){
       toast({title:yi?"קלייב אויס אן עסקן און שרייב א הסבר":"Choose a volunteer and write a staff decision",variant:"destructive"});return;
     }
-    if(!window.confirm(yi
-      ?"די מערכת וועט מאכן א פריוואטן פארבינדונג־פאל. קיינער'ס פרטים ווערן נישט איבערגעגעבן ביז ביידע זענען מסכים און גבהה גיט דעם לעצטן אישור. ווייטער?"
-      :"Create a PRIVATE introduction case? Contact stays hidden pending both personal approvals AND separate final Gavhah authorization."))return;
+    if(!confirmed){setPendingMatch(help);return;}
     setBusy(help.id);
     try{
       const r=await fetch(`/api/admin/private-assistance/${help.id}/match`,{
@@ -70,6 +70,23 @@ export function PrivateAssistanceManagement(){
     finally{setBusy(null);}
   };
   return <section className="space-y-5" dir={yi?"rtl":"ltr"}>
+    <Dialog open={pendingMatch!==null} onOpenChange={open=>{if(!open)setPendingMatch(null);}}>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-xl">
+        <DialogHeader>
+          <DialogTitle>{yi?"באשטעטיג א פריוואטע פארבינדונג":"Confirm private connection case"}</DialogTitle>
+          <DialogDescription>
+            {yi?"דער פאל ווערט נאר געהאנדלט דורך דער מערכת. ביידע מענטשן מוזן אליין מסכים זיין, און גבהה מוז שפעטער געבן א באזונדערן לעצטן אישור. קיין קאנטאקט ווערט יעצט נישט איבערגעגעבן.":
+              "Only staff can manage this case. BOTH participants must consent and Gavhah must give separate final permission. No contact is released by this action."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={()=>setPendingMatch(null)}>{yi?"קענסל":"Cancel"}</Button>
+          <Button disabled={busy!==null} onClick={()=>{
+            const help=pendingMatch;setPendingMatch(null);if(help)void match(help,true);
+          }}>{yi?"יא, מאך דעם פאל":"Yes, create private case"}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
     <header>
       <h2 className="text-2xl font-semibold text-primary flex items-center gap-2">
         <HandHeart className="h-6 w-6"/>{yi?"גבהה — פריוואטער הילף־פארבינדונג צענטער":"Private Assistance Matching Center"}
