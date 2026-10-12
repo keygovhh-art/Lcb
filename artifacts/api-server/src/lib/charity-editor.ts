@@ -39,7 +39,7 @@ export function validateDonationUrl(value: unknown): string | null | undefined {
   const host = url.hostname.toLowerCase();
   if (url.protocol !== "https:" || url.username || url.password || !host ||
       host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") ||
-      host === "127.0.0.1" || host === "0.0.0.0" || host === "::1" ||
+      host === "127.0.0.1" || host === "0.0.0.0" || host === "::1" || host === "[::1]" ||
       /^(?:10|127|169\.254|192\.168)\./.test(host) ||
       /^172\.(?:1[6-9]|2\d|3[01])\./.test(host)) {
     throw new Error("Donation link must be an external, secure https address");

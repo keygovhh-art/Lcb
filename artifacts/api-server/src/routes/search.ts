@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, lte, or, sql } from "drizzle-orm";
 import {
   db,
   newsTable,
@@ -113,7 +113,10 @@ router.get("/search", async (req, res): Promise<void> => {
       title: charitiesTable.name,
       description: charitiesTable.description,
     }).from(charitiesTable).where(and(
-      eq(charitiesTable.isActive, true),
+      or(
+        and(eq(charitiesTable.publicationState, "live"), eq(charitiesTable.isActive, true)),
+        and(eq(charitiesTable.publicationState, "scheduled"), lte(charitiesTable.scheduledAt, new Date())),
+      ),
       or(contains(charitiesTable.name, q), contains(charitiesTable.description, q)),
     )).limit(8),
   ]);

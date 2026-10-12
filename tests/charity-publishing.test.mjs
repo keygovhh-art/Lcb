@@ -47,11 +47,14 @@ test("endpoints do not leak queue or future scheduled campaigns", () => {
   const schema = readFileSync("lib/db/src/schema/charity.ts", "utf8");
   const sql = readFileSync("lib/db/migrations/20261012_charity_release_queue_donations.sql", "utf8");
   const admin = readFileSync("artifacts/gavhah/src/components/admin/charity-management.tsx", "utf8");
+  const search = readFileSync("artifacts/api-server/src/routes/search.ts", "utf8");
   const publicPage = readFileSync("artifacts/gavhah/src/pages/charity/index.tsx", "utf8");
   const buttons = readFileSync("artifacts/gavhah/src/components/shared/campaign-donation-actions.tsx", "utf8");
   assert.match(api, /const publicCampaign =/);
   assert.match(api, /lte\(charitiesTable.scheduledAt, new Date\(\)\)/);
   assert.match(api, /requireAdmin/);
+  assert.match(search, /eq\(charitiesTable.publicationState, "scheduled"\)/);
+  assert.match(search, /lte\(charitiesTable.scheduledAt, new Date\(\)\)/);
   assert.match(api, /publicationState === "scheduled"/);
   assert.match(api, /Cache-Control", "no-store"/);
   assert.match(admin, /Waiting Line/);
