@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq, lte, or, sql } from "drizzle-orm";
-import { db, charitiesTable, donationsTable } from "@workspace/db";
+import { db, charitiesTable, donationsTable, charityNativeDonationSettingsTable } from "@workspace/db";
 import { requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { resolveMemberDisplayName } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
@@ -10,7 +10,16 @@ import {
   validateDonationUrl, validateButtonText, isButtonStyle, isButtonLayout,
 } from "../lib/charity-editor";
 
+import { NATIVE_CHECKOUT_INTEGRATED, nativeDonationDefaults, validateNativePreferences, type NativeDonationConfiguration } from "../lib/native-charity-donations";
+
 const router: IRouter = Router();
+
+async function nativeConfig(): Promise<NativeDonationConfiguration> {
+  const [row] = await db.select().from(charityNativeDonationSettingsTable)
+    .where(eq(charityNativeDonationSettingsTable.id, 1)).limit(1);
+  return row ?? nativeDonationDefaults;
+}
+
 const publicCampaign = () => or(
   and(eq(charitiesTable.publicationState, "live"), eq(charitiesTable.isActive, true)),
   and(eq(charitiesTable.publicationState, "scheduled"), lte(charitiesTable.scheduledAt, new Date())),
@@ -51,6 +60,15 @@ function validatePayload(input: Record<string, unknown>) {
     if (!isButtonStyle(input.buttonStyle)) throw new Error("Unknown button design");
     props.buttonStyle = input.buttonStyle;
   }
+  if ("nativeDonationEnabled" in input) {
+    if (typeof input.nativeDonationEnabled !== "boolean") throw new Error("Own donation setting must be true or false");
+    props.nativeDonationEnabled = input.nativeDonationEnabled;
+  }
+  if ("nativeDonationButtonText" in input) props.nativeDonationButtonText = validateButtonText(input.nativeDonationButtonText);
+  if ("nativeDonationButtonStyle" in input) {
+    if (!isButtonStyle(input.nativeDonationButtonStyle)) throw new Error("Invalid own donation design");
+    props.nativeDonationButtonStyle = input.nativeDonationButtonStyle;
+  }
   if ("buttonLayout" in input) {
     if (!isButtonLayout(input.buttonLayout)) throw new Error("Unknown button layout");
     props.buttonLayout = input.buttonLayout;
@@ -69,6 +87,32 @@ const currentFeaturedToClear = () => and(
     and(eq(charitiesTable.publicationState, "scheduled"), lte(charitiesTable.scheduledAt, new Date())),
   ),
 );
+
+/** Admin preferences only. Native processing is unavailable until a real integration exists. */
+router.get("/admin/charity/native-settings", requireAdmin, async (_req, res): Promise<void> => {
+  setNoStore(res);
+  res.json({ ...(await nativeConfig()), integrationReady: NATIVE_CHECKOUT_INTEGRATED });
+});
+
+router.patch("/admin/charity/native-settings", requireAdmin, async (req, res): Promise<void> => {
+  setNoStore(res);
+  let settings: NativeDonationConfiguration;
+  try {
+    settings = validateNativePreferences(
+      req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {},
+      await nativeConfig(),
+    );
+  } catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
+  const [saved] = await db.insert(charityNativeDonationSettingsTable).values({
+    id: 1, ...settings, updatedAt: new Date(),
+  }).onConflictDoUpdate({
+    target: charityNativeDonationSettingsTable.id,
+    set: { ...settings, updatedAt: new Date() },
+  }).returning();
+  const actor = await resolveMemberDisplayName(getSessionUserId(req)!);
+  await logActivity("charity", "Updated own-donation preferences (checkout remains disabled until integrated)", actor);
+  res.json({ ...saved, integrationReady: NATIVE_CHECKOUT_INTEGRATED });
+});
 
 router.get("/charity/today", async (_req, res): Promise<void> => {
   setNoStore(res);
