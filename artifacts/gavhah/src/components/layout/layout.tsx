@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { AccountSwitcher } from "@/components/shared/account-switcher";
 import {
   useGetUnreadNotificationCount,
   getGetUnreadNotificationCountQueryKey,
@@ -232,6 +233,7 @@ export function Layout({ children }: { children: ReactNode }) {
                         </Link>
                       </>
                     )}
+                    <div className="border-t px-3 py-2"><AccountSwitcher compact /></div>
                     <div className="my-1 border-t" />
                     <button
                       onClick={async () => { setUserOpen(false); await logout(); }}
@@ -395,6 +397,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   <div className="px-2 py-1 text-sm text-muted-foreground font-medium truncate">
                     Signed in as <span className="text-foreground font-semibold">{displayName}</span>
                   </div>
+                  <div className="w-full"><AccountSwitcher /></div>
                   <Button
                     variant="outline"
                     className="w-full gap-2"
