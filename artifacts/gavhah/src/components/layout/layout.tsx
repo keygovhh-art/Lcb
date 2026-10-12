@@ -39,6 +39,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [accountChooserOpen, setAccountChooserOpen] = useState(false);
   const [location] = useLocation();
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -233,7 +234,12 @@ export function Layout({ children }: { children: ReactNode }) {
                         </Link>
                       </>
                     )}
-                    <div className="border-t px-3 py-2"><AccountSwitcher compact /></div>
+                    <div className="border-t px-3 py-2">
+                      <Button variant="outline" size="sm" className="w-full gap-2"
+                        onClick={() => {setUserOpen(false);setAccountChooserOpen(true);}}>
+                        <Users className="h-4 w-4"/> Switch Account
+                      </Button>
+                    </div>
                     <div className="my-1 border-t" />
                     <button
                       onClick={async () => { setUserOpen(false); await logout(); }}
@@ -397,7 +403,10 @@ export function Layout({ children }: { children: ReactNode }) {
                   <div className="px-2 py-1 text-sm text-muted-foreground font-medium truncate">
                     Signed in as <span className="text-foreground font-semibold">{displayName}</span>
                   </div>
-                  <div className="w-full"><AccountSwitcher /></div>
+                  <Button variant="outline" className="w-full gap-2"
+                    onClick={() => {setMobileOpen(false);setAccountChooserOpen(true);}}>
+                    <Users className="h-4 w-4"/> טויש אקאונט
+                  </Button>
                   <Button
                     variant="outline"
                     className="w-full gap-2"
@@ -421,6 +430,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       )}
 
+      <AccountSwitcher open={accountChooserOpen} onOpenChange={setAccountChooserOpen} hideTrigger />
       <main className="flex-1 flex flex-col">{children}</main>
 
       {/* Footer */}
