@@ -32,6 +32,8 @@ jobs:
           pnpm --filter @workspace/api-server run build
       - name: Verify staged charity scheduling, private queue and donation buttons
         run: node --experimental-strip-types --test tests/charity-publishing.test.mjs
+      - name: Verify optional own donation safety gates, amounts and admin controls
+        run: node --experimental-strip-types --test tests/native-charity-donations.test.mjs
       - name: Verify real crash prevention and error-noise filtering
         run: node --experimental-strip-types --test tests/react-page-crash-protection.test.mjs
       - name: Verify nickname and anonymous posting identity
