@@ -19,6 +19,7 @@ import { SaveButton } from "@/components/shared/save-button";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
+import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { useToast } from "@/hooks/use-toast";
 import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
 import { DiscussionTicker } from "@/components/shared/discussion-ticker";
@@ -492,6 +493,7 @@ export default function ForumDetail() {
                     </p>
                   )}
                   <form onSubmit={handleComment} className="space-y-4">
+                     <ActiveAccountIdentity label="Signed-in account" />
                     <Textarea
                       value={reply}
                       onChange={e => setReply(e.target.value)}
