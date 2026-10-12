@@ -128,7 +128,7 @@ function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const { toast } = useToast();
   const { user } = useAuth();
   const submitCause = useSubmitCause();
-  const [form, setForm] = useState({ title: "", description: "", submittedBy: "", location: "", urgency: "normal" });
+  const [form, setForm] = useState({ title: "", description: "", location: "", urgency: "normal" });
   const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
@@ -142,7 +142,7 @@ function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => vo
       {
         onSuccess: () => {
           onClose();
-          setForm({ title: "", description: "", submittedBy: "", location: "", urgency: "normal" });
+          setForm({ title: "", description: "", location: "", urgency: "normal" });
           toast({ title: "Cause submitted for review", description: "The Gavhah committee will review your submission and be in touch." });
         },
         onError: () => toast({ title: "Error", description: "Could not submit. Please try again.", variant: "destructive" }),
@@ -165,16 +165,7 @@ function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => vo
             <Label className="font-semibold">Cause Title *</Label>
             <Input value={form.title} onChange={s("title")} placeholder="Brief, clear name for the cause" className="h-11" required />
           </div>
-          <div className="space-y-1.5">
-            <Label className="font-semibold">Your Name *</Label>
-            <Input
-              value={submittedByValue}
-              onChange={s("submittedBy")}
-              placeholder="Who is submitting this?"
-              className="h-11"
-              required
-            />
-          </div>
+          <ActiveAccountIdentity label="Submitting as account" />
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="font-semibold">Location</Label>
