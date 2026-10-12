@@ -16,10 +16,12 @@ function accountName(account:LinkedAccount) {
  * Passwords are used solely for an explicit add-account request and are never
  * written to localStorage, a cookie or a persisted account list.
  */
-export function AccountSwitcher({compact=false}:{compact?:boolean}){
+export function AccountSwitcher({compact=false,open:controlledOpen,onOpenChange,hideTrigger=false}:{compact?:boolean;open?:boolean;onOpenChange?:(open:boolean)=>void;hideTrigger?:boolean}){
   const {user,accounts,loadAccounts,addAccount,switchAccount,removeAccount}=useAuth();
   const {lang}=useLanguage(),yi=lang==="yi";
-  const [open,setOpen]=useState(false);
+  const [localOpen,setLocalOpen]=useState(false);
+  const open=controlledOpen??localOpen;
+  const setOpen=(value:boolean)=>{if(onOpenChange)onOpenChange(value);else setLocalOpen(value);};
   const [addOpen,setAddOpen]=useState(false);
   const [identifier,setIdentifier]=useState("");
   const [password,setPassword]=useState("");
@@ -53,13 +55,13 @@ export function AccountSwitcher({compact=false}:{compact?:boolean}){
     setBusy(false);
   };
   return <Dialog open={open} onOpenChange={setOpen}>
-    <DialogTrigger asChild>
+    {!hideTrigger&&<DialogTrigger asChild>
       <Button type="button" size={compact?"sm":"default"} variant="outline"
         className="gap-2 max-w-full" aria-label={yi?"טויש אקאונט":"Switch account"}>
         <Users className="h-4 w-4"/>
         {compact?(yi?"טויש אקאונט":"Switch Account"):(yi?"אקאונט אויסוואל":"Manage / Switch Accounts")}
       </Button>
-    </DialogTrigger>
+    </DialogTrigger>}
     <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[86dvh] overflow-y-auto"
       dir={yi?"rtl":"ltr"}>
       <DialogHeader>
