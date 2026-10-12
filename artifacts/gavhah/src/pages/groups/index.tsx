@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/context/auth-context";
+import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadField } from "@/components/shared/image-upload-field";
 
@@ -103,6 +104,7 @@ export default function GroupsList() {
             <DialogTitle className="font-serif text-2xl text-primary">Create Community Group</DialogTitle>
           </DialogHeader>
           <form onSubmit={submitGroup} className="space-y-4 pt-2">
+            <ActiveAccountIdentity label="Creating as account" />
             <div className="space-y-1.5">
               <Label className="font-semibold">Group Name *</Label>
               <Input
