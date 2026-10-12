@@ -13,6 +13,7 @@ import { Link } from "wouter";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
+import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { useLanguage } from "@/context/language-context";
 
 export default function ForumNew() {
@@ -69,6 +70,7 @@ export default function ForumNew() {
         <MemberGate action="start a discussion">
           <div className="bg-card border rounded-xl p-8 shadow-sm">
             <form onSubmit={handleSubmit} className="space-y-6">
+                <ActiveAccountIdentity label={yi?"דיין איינגעשריבענער אקאונט":"Signed-in account"} />
               <div className="space-y-2">
                 <Label htmlFor="category" className="font-semibold text-foreground">{yi ? "טעמע (אפטשענעל)" : "Topic (optional)"}</Label>
                 <Input

@@ -3,6 +3,7 @@ import { and, desc, eq, ne } from "drizzle-orm";
 import { db, reservationsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { notifyUser, notifyStaff } from "../lib/notify";
+import { resolveMemberDisplayName } from "../lib/user-display";
 
 const router: IRouter = Router();
 
@@ -61,7 +62,8 @@ router.get("/admin/reservations", requireAdmin, async (_req, res): Promise<void>
 
 router.post("/reservations", requireAuth, async (req, res): Promise<void> => {
   const { name, reservationDate, reservationTime, purpose, notes } = req.body;
-  const cleanName = String(name || "").trim();
+  // Never accept a manually typed identity for an authenticated member.
+  const cleanName = await resolveMemberDisplayName(getSessionUserId(req)!);
   const cleanDate = String(reservationDate || "");
   const cleanTime = String(reservationTime || "");
   const cleanPurpose = String(purpose || "").trim();

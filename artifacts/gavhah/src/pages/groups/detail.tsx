@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
+import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadField } from "@/components/shared/image-upload-field";
 import { UpvoteButton } from "@/components/shared/upvote-button";
@@ -370,6 +371,7 @@ export default function GroupDetail() {
                     <div className="bg-card border rounded-xl p-6">
                       <h3 className="font-semibold text-foreground mb-4">Share with the group</h3>
                       <form onSubmit={handlePost} className="space-y-4">
+                         <ActiveAccountIdentity label="Signed-in account" />
                         <Textarea
                           value={newPost}
                           onChange={e => setNewPost(e.target.value)}

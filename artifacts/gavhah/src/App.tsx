@@ -10,7 +10,7 @@ import { Layout } from "@/components/layout/layout";
 import { YiddishMirror } from "@/components/shared/yiddish-mirror";
 import { SiteCopyLayer } from "@/components/shared/site-copy-layer";
 import { AppErrorBoundary } from "@/components/shared/app-error-boundary";
-import { installGlobalErrorReporting, reportSystemError } from "@/lib/system-error-reporter";
+import { installGlobalErrorReporting, reportSystemError, isExpectedAbort } from "@/lib/system-error-reporter";
 import NotFound from "@/pages/not-found";
 
 import Home from "@/pages/home";
@@ -106,7 +106,9 @@ if (typeof window !== "undefined" && !(window as any).__gavhahApiRefetchInstalle
 
       return response;
     } catch (error) {
-      if (!url.includes("/api/system-errors")) {
+      // Cancellation of a stale navigation/data request is normal. Preserve
+      // the rejection for its caller but do NOT file a fake system incident.
+      if (!url.includes("/api/system-errors") && !isExpectedAbort(error)) {
         void reportSystemError({
           type: "fetch_failure",
           message: error instanceof Error ? error.message : "Network request failed",
@@ -156,9 +158,11 @@ function RequireForumMembership({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
+  const [route] = useLocation();
   return (
     <>
       <ScrollToTop />
+      <AppErrorBoundary key={route}>
       <Switch>
       <Route path="/" component={Home} />
       <Route path="/news" component={NewsList} />
@@ -189,6 +193,7 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route component={NotFound} />
       </Switch>
+      </AppErrorBoundary>
     </>
   );
 }

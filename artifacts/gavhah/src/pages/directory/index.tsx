@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
+import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { useLanguage } from "@/context/language-context";
 import { ContactMethodPicker, initialContactMethods, type ContactMethodsForm } from "@/components/shared/contact-method-picker";
 
@@ -75,14 +76,13 @@ function RegisterVolunteerDialog() {
 
   const nickname = (user as any)?.nickname || user?.name || "";
   const { lang } = useLanguage(), yi = lang === "yi";
-  const [form, setForm] = useState({ userName: "", location: "", availability: "anytime", bio: "" });
+  const [form, setForm] = useState({ location: "", availability: "anytime", bio: "" });
   const [skillsText, setSkillsText] = useState("");
   const [contactMethods, setContactMethods] = useState<ContactMethodsForm>(initialContactMethods);
   const createVol = useCreateVolunteer();
 
   const handleOpen = () => {
-    // Pre-fill userName with nickname (Activists Directory always uses nickname)
-    setForm(f => ({ ...f, userName: nickname }));
+    // Identity is always read from the active verified account, never an editable field.
     setOpen(true);
   };
 
@@ -91,7 +91,7 @@ function RegisterVolunteerDialog() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const skills = skillsText.split(/[,;\n]+/).map(v=>v.trim()).filter(Boolean).slice(0,30);
-    if (!form.userName.trim() || !form.location.trim() || skills.length === 0) {
+    if (!nickname.trim() || !form.location.trim() || skills.length === 0) {
       toast({ title: "Please complete the required fields", description: yi ? "נאמען, געגנט און אן אייגענע קאטאגאריע זענען פארלאנגט." : "Name, location, and your custom area of help are required.", variant: "destructive" });
       return;
     }
@@ -99,12 +99,12 @@ function RegisterVolunteerDialog() {
       toast({ title: "Enter the main contact method and any selected backup", variant: "destructive" });return;
     }
     createVol.mutate(
-      { data: { userName: form.userName, location: form.location, availability: "anytime", bio: form.bio || undefined, skills, contactMethods } as any },
+      { data: { userName: nickname, location: form.location, availability: "anytime", bio: form.bio || undefined, skills, contactMethods } as any },
       {
         onSuccess: (volunteer) => {
           // The volunteer registry is private to administration. Never populate a public cache.
           setOpen(false);
-          setForm({ userName: nickname, location: "", availability: "anytime", bio: "" });
+          setForm({ location: "", availability: "anytime", bio: "" });
           setSkillsText("");
           setContactMethods(initialContactMethods());
           toast({ title: "Application received", description: "Your private volunteer registration is available to Gavhah staff only." });
@@ -131,11 +131,8 @@ function RegisterVolunteerDialog() {
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle className="font-serif text-2xl text-primary">Register as a Volunteer</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Display Name</Label>
-              <Input value={form.userName} onChange={set("userName")} placeholder="Your nickname" className="h-11" required />
-              <p className="text-xs text-muted-foreground">This is a private application. Only Gavhah staff sees your details.</p>
-            </div>
+            <ActiveAccountIdentity label={yi?"עסקן־אקאונט":"Volunteer account"} />
+            <p className="text-xs text-muted-foreground">{yi?"דאס איז א פריוואטע אנמעלדונג. נאר די מערכת זעט דיינע פרטים.":"Private application, visible only to Gavhah staff."}</p>
             <div className="space-y-1.5">
               <Label className="font-semibold">City / Community *</Label>
               <Input value={form.location} onChange={set("location")} placeholder="Brooklyn, NY" className="h-11" required />
@@ -221,8 +218,9 @@ function SubmitRequestDialog() {
           <DialogHeader><DialogTitle className="font-serif text-2xl text-primary">Submit a Help Request</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
             <p className="text-sm text-muted-foreground">Your request will be reviewed by Gavhah staff. All information is handled with full discretion.</p>
+            <ActiveAccountIdentity label={yi?"ווער שיקט אריין די בקשה?":"Requesting account"} />
             <div className="space-y-1.5">
-              <Label className="font-semibold">Name / Reference *</Label>
+              <Label className="font-semibold">{yi?"נאמען אדער רעפערענץ פון דעם וואס דארף הילף *":"Person or family needing help — reference *"}</Label>
               <Input value={form.name} onChange={set("name")} placeholder="First name or family name only" className="h-11" required />
             </div>
             <div className="space-y-1.5">
@@ -259,11 +257,10 @@ function CreateProjectDialog() {
   const [open, setOpen] = useState(false);
 
   const displayName = (user as any)?.nickname || user?.name || "";
-  const [form, setForm] = useState({ title: "", description: "", type: "project", organizerName: "", location: "", goalDescription: "" });
+  const [form, setForm] = useState({ title: "", description: "", type: "project", location: "", goalDescription: "" });
   const createProject = useCreateCommunityProject();
 
   const handleOpen = () => {
-    setForm(f => ({ ...f, organizerName: f.organizerName || displayName }));
     setOpen(true);
   };
 
@@ -272,9 +269,9 @@ function CreateProjectDialog() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title || !form.description || !form.organizerName) return;
+    if (!form.title || !form.description || !displayName) return;
     createProject.mutate(
-      { data: { title: form.title, description: form.description, type: form.type, organizerName: form.organizerName, location: form.location || undefined, goalDescription: form.goalDescription || undefined } },
+      { data: { title: form.title, description: form.description, type: form.type, organizerName: displayName, location: form.location || undefined, goalDescription: form.goalDescription || undefined } },
       {
         onSuccess: (project) => {
           qc.setQueryData(getListCommunityProjectsQueryKey({}), (current: any) => {
@@ -283,7 +280,7 @@ function CreateProjectDialog() {
           });
           void qc.invalidateQueries({ queryKey: ["/api/community-projects"] });
           setOpen(false);
-          setForm({ title: "", description: "", type: "project", organizerName: displayName, location: "", goalDescription: "" });
+          setForm({ title: "", description: "", type: "project", location: "", goalDescription: "" });
           toast({ title: "Project created", description: "Your project is now listed in the directory." });
         },
         onError: () => toast({ title: "Error", description: "Could not create project.", variant: "destructive" }),
@@ -329,10 +326,7 @@ function CreateProjectDialog() {
               <Label className="font-semibold">Title *</Label>
               <Input value={form.title} onChange={set("title")} placeholder="Clear, descriptive project name" className="h-11" required />
             </div>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Organizer Name *</Label>
-              <Input value={form.organizerName} onChange={set("organizerName")} placeholder="Your name or organization" className="h-11" required />
-            </div>
+            <ActiveAccountIdentity label="Project organizer account" />
             <div className="space-y-1.5">
               <Label className="font-semibold">Description *</Label>
               <Textarea value={form.description} onChange={set("description")} placeholder="What is this project about? Who does it help? What is the plan?" className="resize-none min-h-28" required />
@@ -450,20 +444,19 @@ function ProjectCard({ project }: { project: any }) {
   };
 
     const handleJoinOpen = () => {
-    setJoinForm(f => ({ ...f, name: f.name || nickname }));
     setJoinOpen(true);
   };
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!joinForm.name) return;
+    if (!nickname) return;
     joinProject.mutate(
-      { id: project.id, data: { name: joinForm.name, role: joinForm.role, message: joinForm.message || undefined } },
+      { id: project.id, data: { name: nickname, role: joinForm.role, message: joinForm.message || undefined } },
       {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getListProjectMembersQueryKey(project.id) });
           setJoinOpen(false);
-          setJoinForm({ name: nickname, role: "volunteer", message: "" });
+          setJoinForm({ name: "", role: "volunteer", message: "" });
           toast({ title: "You have joined this project", description: "The organizer will be in touch to coordinate." });
         },
         onError: () => toast({ title: "Error", description: "Could not join.", variant: "destructive" }),
@@ -594,10 +587,7 @@ function ProjectCard({ project }: { project: any }) {
             <DialogTitle className="font-serif text-lg text-primary">Join: {project.title}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleJoin} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Your Name *</Label>
-              <Input value={joinForm.name} onChange={setF("name")} placeholder="Name or nickname" className="h-11" required />
-            </div>
+            <ActiveAccountIdentity label="Joining as account" />
             <div className="space-y-1.5">
               <Label className="font-semibold">Role</Label>
               <Select value={joinForm.role} onValueChange={setF("role")}>

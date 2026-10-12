@@ -6,6 +6,7 @@ on:
       - fix/restore-campaigns-custom-help-20261009
       - fix/admin-mobile-actions-20261011
       - fix/restore-founder-reports-help-20261011
+      - fix/react-page-crash-root-and-error-noise-20261011
   workflow_dispatch:
 jobs:
   verify:
@@ -28,6 +29,36 @@ jobs:
         run: |
           pnpm --filter @workspace/gavhah run build
           pnpm --filter @workspace/api-server run build
+      - name: Verify real crash prevention and error-noise filtering
+        run: node --experimental-strip-types --test tests/react-page-crash-protection.test.mjs
+      - name: Verify nickname and anonymous posting identity
+        run: node --experimental-strip-types --test tests/public-posting-identity.test.mjs
+      - name: Verify linked account and immutable posting identities
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict');
+          const read=p=>fs.readFileSync(p,'utf8');
+          const auth=read('artifacts/api-server/src/routes/auth.ts');
+          const ui=read('artifacts/gavhah/src/components/shared/account-switcher.tsx');
+          const dir=read('artifacts/gavhah/src/pages/directory/index.tsx');
+          assert(auth.includes('"/auth/accounts/switch"'));
+          assert(auth.includes('"/auth/accounts/add"'));
+          assert(auth.includes('req.session.regenerate('));
+          assert(auth.includes('linkedPasswordVersions'));
+          assert(auth.includes('Account password changed; please verify this account again'));
+          assert(auth.includes('verifyAccount(req.body?.identifier,req.body?.password)'));
+          const authUi=read('artifacts/gavhah/src/context/auth-context.tsx');
+          assert(authUi.includes('window.location.reload()'));
+          const resolver=read('artifacts/api-server/src/lib/user-display.ts');
+          assert(!resolver.includes('allowed.includes(cleanRequested)'));
+
+          assert(auth.includes('verifyPassword(password,user.passwordHash)'));
+          assert(!ui.includes('localStorage'));
+          assert((dir.match(/<ActiveAccountIdentity/g)||[]).length >= 4);
+          assert(!dir.includes('onChange={set("userName")}'));
+          assert(!dir.includes('onChange={set("organizerName")}'));
+          console.log('Account switching and immutable identity safeguards verified');
+          NODE
       - name: Verify admin mobile interactions
         run: |
           node - <<'NODE'

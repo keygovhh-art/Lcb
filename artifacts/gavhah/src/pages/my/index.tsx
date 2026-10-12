@@ -11,6 +11,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/context/auth-context";
+import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -130,6 +131,7 @@ function NewCaseDialog({ onAdded }: { onAdded: () => void }) {
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle className="font-serif text-2xl text-primary">Open New Case</DialogTitle></DialogHeader>
         <form onSubmit={submit} className="space-y-4 pt-2">
+          <ActiveAccountIdentity label="Opening case as account" />
           <div className="space-y-1.5"><Label className="font-semibold">Title *</Label><Input value={form.title} onChange={s("title")} placeholder="Brief case title" className="h-11" required /></div>
           <div className="space-y-1.5"><Label className="font-semibold">Contact Name</Label><Input value={form.contactName} onChange={s("contactName")} placeholder="Person's name" className="h-11" /></div>
           <div className="grid grid-cols-2 gap-4">
