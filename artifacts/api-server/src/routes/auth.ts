@@ -112,14 +112,11 @@ router.get("/auth/accounts", requireAuth, async(req,res):Promise<void>=>{
   for(const id of ids){
     const [user]=await db.select({
       id:usersTable.id,nickname:usersTable.nickname,name:usersTable.name,
-      role:usersTable.role,status:usersTable.status,
+      role:usersTable.role,status:usersTable.status,passwordHash:usersTable.passwordHash,
     }).from(usersTable).where(eq(usersTable.id,id));
     if(user && user.status!=="suspended" && user.status!=="banned" &&
        (id===req.session.userId ||
-        req.session.linkedPasswordVersions?.[id]===passwordVersion(
-          (await db.select({passwordHash:usersTable.passwordHash}).from(usersTable)
-             .where(eq(usersTable.id,id)))[0]?.passwordHash||""
-        ))){
+        req.session.linkedPasswordVersions?.[id]===passwordVersion(user.passwordHash))){
       accounts.push({id:user.id,nickname:user.nickname,name:user.name,role:user.role,active:user.id===req.session.userId});
     }
   }
