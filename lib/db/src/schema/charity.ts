@@ -12,6 +12,17 @@ export const charitiesTable = pgTable("charities", {
   raisedAmount: integer("raised_amount").notNull().default(0),
   isTodaysFeatured: boolean("is_todays_featured").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+  // Staged editorial workflow; legacy rows remain live after migration.
+  publicationState: text("publication_state").notNull().default("live"),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  featuredFrom: timestamp("featured_from", { withTimezone: true }),
+  phoneNumber: text("phone_number"),
+  phoneExtension: text("phone_extension"),
+  phoneButtonText: text("phone_button_text"),
+  donationUrl: text("donation_url"),
+  linkButtonText: text("link_button_text"),
+  buttonStyle: text("button_style").notNull().default("classic"),
+  buttonLayout: text("button_layout").notNull().default("stacked"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
