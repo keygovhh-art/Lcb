@@ -3,7 +3,8 @@ import { eq, desc, sql, and } from "drizzle-orm";
 import { db, newsTable, entityLikesTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
-import { resolveMemberDisplayName } from "../lib/user-display";
+import { resolvePublicPostingName } from "../lib/user-display";
+import { publicPostForViewer } from "../lib/public-posting-identity";
 import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 import { logActivity } from "../lib/activity";
 
@@ -23,9 +24,9 @@ function validOptionalDate(value: unknown) {
   return value === undefined || value === null || value === "" || /^\d{4}-\d{2}-\d{2}$/.test(String(value));
 }
 
-router.get("/news/featured", async (_req, res): Promise<void> => {
+router.get("/news/featured", async (req, res): Promise<void> => {
   const featured = await db.select().from(newsTable).where(eq(newsTable.isFeatured, true)).orderBy(desc(newsTable.createdAt)).limit(5);
-  res.json(featured);
+  res.json(featured.map(row => publicPostForViewer(row, getSessionUserId(req), getSessionUserRole(req))));
 });
 
 router.get("/news", async (req, res): Promise<void> => {
@@ -38,7 +39,7 @@ router.get("/news", async (req, res): Promise<void> => {
     (n.summary ?? "").toLowerCase().includes(search.toLowerCase()) ||
     (n.organization ?? "").toLowerCase().includes(search.toLowerCase())
   );
-  res.json(all);
+  res.json(all.map(row => publicPostForViewer(row, getSessionUserId(req), getSessionUserRole(req))));
 });
 
 router.post("/news", requireAuth, async (req, res): Promise<void> => {
@@ -64,7 +65,7 @@ router.post("/news", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const userId = getSessionUserId(req)!;
-  const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
+  const safeAuthorName = await resolvePublicPostingName(userId, authorName);
   const [article] = await db.insert(newsTable).values({
     title: cleanTitle.slice(0, 300),
     content: cleanContent.slice(0, 30000),
@@ -87,7 +88,7 @@ router.get("/news/:id", async (req, res): Promise<void> => {
   const id = parseInt(raw, 10);
   const [article] = await db.select().from(newsTable).where(eq(newsTable.id, id));
   if (!article) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(article);
+  res.json(publicPostForViewer(article, getSessionUserId(req), getSessionUserRole(req)));
 });
 
 router.post("/news/:id/like", requireAuth, async (req, res): Promise<void> => {

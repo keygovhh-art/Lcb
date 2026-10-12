@@ -31,6 +31,8 @@ jobs:
           pnpm --filter @workspace/api-server run build
       - name: Verify real crash prevention and error-noise filtering
         run: node --experimental-strip-types --test tests/react-page-crash-protection.test.mjs
+      - name: Verify nickname and anonymous posting identity
+        run: node --experimental-strip-types --test tests/public-posting-identity.test.mjs
       - name: Verify linked account and immutable posting identities
         run: |
           node - <<'NODE'

@@ -3,7 +3,8 @@ import { eq, desc, sql, and, inArray } from "drizzle-orm";
 import { db, discussionsTable, commentsTable, entityLikesTable, supportMessagesTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
-import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
+import { resolvePublicPostingName, getMemberIdentity } from "../lib/user-display";
+import { publicPostForViewer } from "../lib/public-posting-identity";
 import { logActivity } from "../lib/activity";
 import { notifyUser, notifyStaff } from "../lib/notify";
 import { getEngagementSetting } from "../lib/engagement-settings";
@@ -22,11 +23,11 @@ function cleanForumTopic(input: unknown): string | null {
   return value;
 }
 
-router.get("/discussions/trending", requireAuth, async (_req, res): Promise<void> => {
+router.get("/discussions/trending", requireAuth, async (req, res): Promise<void> => {
   const trending = await db.select().from(discussionsTable)
     .orderBy(desc(discussionsTable.views), desc(discussionsTable.likes))
     .limit(5);
-  res.json(trending);
+  res.json(trending.map(row => publicPostForViewer(row, getSessionUserId(req), getSessionUserRole(req))));
 });
 
 router.get("/discussions", requireAuth, async (req, res): Promise<void> => {
@@ -34,7 +35,7 @@ router.get("/discussions", requireAuth, async (req, res): Promise<void> => {
   let all = await db.select().from(discussionsTable).orderBy(desc(discussionsTable.createdAt));
   if (category) all = all.filter(d => d.category === category);
   if (search) all = all.filter(d => d.title.toLowerCase().includes(search.toLowerCase()) || d.content.toLowerCase().includes(search.toLowerCase()));
-  res.json(all);
+  res.json(all.map(row => publicPostForViewer(row, getSessionUserId(req), getSessionUserRole(req))));
 });
 
 router.post("/discussions", requireAuth, async (req, res): Promise<void> => {
@@ -51,7 +52,7 @@ router.post("/discussions", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const userId = getSessionUserId(req)!;
-  const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
+  const safeAuthorName = await resolvePublicPostingName(userId, authorName);
   const [disc] = await db.insert(discussionsTable).values({
     title: cleanTitle.slice(0, 300),
     content: cleanContent.slice(0, 30000),
@@ -69,7 +70,7 @@ router.get("/discussions/:id", requireAuth, async (req, res): Promise<void> => {
   const [disc] = await db.select().from(discussionsTable).where(eq(discussionsTable.id, id));
   if (!disc) { res.status(404).json({ error: "Not found" }); return; }
   await db.update(discussionsTable).set({ views: sql`${discussionsTable.views} + 1` }).where(eq(discussionsTable.id, id));
-  res.json({ ...disc, views: disc.views + 1 });
+  res.json(publicPostForViewer({ ...disc, views: disc.views + 1 }, getSessionUserId(req), getSessionUserRole(req)));
 });
 
 router.patch("/discussions/:id", requireAuth, async (req, res): Promise<void> => {
@@ -171,7 +172,7 @@ router.get("/discussions/:id/comments", requireAuth, async (req, res): Promise<v
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   const comments = await db.select().from(commentsTable).where(eq(commentsTable.discussionId, id)).orderBy(commentsTable.createdAt);
-  res.json(comments);
+  res.json(comments.map(row => publicPostForViewer(row, getSessionUserId(req), getSessionUserRole(req))));
 });
 
 router.patch("/discussions/:id/comments/:commentId", requireAuth, async (req, res): Promise<void> => {
@@ -288,7 +289,7 @@ router.post("/discussions/:id/comments", requireAuth, async (req, res): Promise<
     }
   }
 
-  const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
+  const safeAuthorName = await resolvePublicPostingName(userId, authorName);
   const engagement = await getEngagementSetting("forum");
 
   if (engagement.replyMode === "off") {

@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
+import { resolveRequestedPublicName } from "./public-posting-identity";
 
 export async function getMemberIdentity(userId: number) {
   const [user] = await db.select({
@@ -22,4 +23,10 @@ export async function resolveMemberDisplayName(userId: number, _requested?: stri
   const user = await getMemberIdentity(userId);
   if (!user) return "Community Member";
   return user.nickname?.trim() || user.name?.trim() || "Community Member";
+}
+
+/** Only an authenticated account's actual name or nickname can appear publicly. */
+export async function resolvePublicPostingName(userId: number, requested?: unknown) {
+  const user = await getMemberIdentity(userId);
+  return resolveRequestedPublicName(user, requested);
 }

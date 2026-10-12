@@ -1,5 +1,6 @@
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
 
 export type DisplayAs = "nickname" | "realname" | "anonymous";
 
@@ -17,19 +18,21 @@ export function getDisplayName(displayAs: DisplayAs, user: { name?: string | nul
 
 export function DisplayAsSelector({ value, onChange }: DisplayAsSelectorProps) {
   const { user } = useAuth();
+  const { lang } = useLanguage();
+  const yi = lang === "yi";
   if (!user) return null;
 
   const hasRealName = user.name && user.name !== (user as any).nickname;
 
   const options: { id: DisplayAs; label: string; sub: string }[] = [
-    ...(hasRealName ? [{ id: "realname" as DisplayAs, label: user.name!, sub: "Your full name" }] : []),
-    { id: "nickname", label: (user as any).nickname || user.name || "Nickname", sub: "Your community nickname" },
-    { id: "anonymous", label: "Anonymous", sub: "No name shown" },
+    ...(hasRealName ? [{ id: "realname" as DisplayAs, label: user.name!, sub: yi ? "דיין פולער נאמען" : "Your full name" }] : []),
+    { id: "nickname", label: (user as any).nickname || user.name || "Nickname", sub: yi ? "דיין ניק־נאמען" : "Your community nickname" },
+    { id: "anonymous", label: yi ? "אנאנים" : "Anonymous", sub: yi ? "דיין נאמען ווערט נישט געוויזן עפנטליך. די מערכת קען אבער וויסן ווער עס האט געשריבן." : "Your name is hidden publicly. Moderators can still identify the author." },
   ];
 
   return (
     <div className="space-y-1.5">
-      <Label className="font-semibold">Display As</Label>
+      <Label className="font-semibold">{yi ? "ווי זאל דער נאמען ווערן געוויזן?" : "Display As"}</Label>
       <div className="flex flex-wrap gap-2">
         {options.map(opt => (
           <button

@@ -3,7 +3,8 @@ import { eq, desc, sql, and, inArray } from "drizzle-orm";
 import { db, groupsTable, groupMembersTable, groupPostsTable, usersTable, entityLikesTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
-import { resolveMemberDisplayName } from "../lib/user-display";
+import { resolveMemberDisplayName, resolvePublicPostingName } from "../lib/user-display";
+import { publicPostForViewer } from "../lib/public-posting-identity";
 import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 import { logActivity } from "../lib/activity";
 import { notifyUser, notifyStaff, queueStaffReview } from "../lib/notify";
@@ -357,7 +358,8 @@ router.get("/groups/:id/posts", async (req, res): Promise<void> => {
   }
 
   const posts = await db.select().from(groupPostsTable).where(eq(groupPostsTable.groupId, id)).orderBy(desc(groupPostsTable.createdAt));
-  res.json(posts);
+  const viewer = await getCurrentSessionUser(req);
+  res.json(posts.map(row => publicPostForViewer(row, viewer?.id, viewer?.role)));
 });
 
 router.patch("/groups/:id/posts/:postId", requireAuth, async (req, res): Promise<void> => {
@@ -464,7 +466,7 @@ router.post("/groups/:id/posts", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
-  const safeAuthorName = await resolveMemberDisplayName(userId, authorName);
+  const safeAuthorName = await resolvePublicPostingName(userId, authorName);
   const [post] = await db.insert(groupPostsTable).values({
     content: cleanContent,
     groupId,
