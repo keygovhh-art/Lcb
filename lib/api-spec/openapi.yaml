@@ -2814,7 +2814,7 @@ components:
     # ---- CHARITY ----
     Charity:
       type: object
-      required: [id, name, description, goalAmount, raisedAmount, isTodaysFeatured, createdAt]
+      required: [id, name, description, goalAmount, raisedAmount, isTodaysFeatured, isActive, publicationState, buttonStyle, buttonLayout, createdAt]
       properties:
         id:
           type: integer
@@ -2832,6 +2832,33 @@ components:
           type: integer
         isTodaysFeatured:
           type: boolean
+        isActive:
+          type: boolean
+        publicationState:
+          type: string
+          enum: [live, queued, scheduled, archived]
+        scheduledAt:
+          type: ["string", "null"]
+          format: date-time
+        featuredFrom:
+          type: ["string", "null"]
+          format: date-time
+        phoneNumber:
+          type: ["string", "null"]
+        phoneExtension:
+          type: ["string", "null"]
+        phoneButtonText:
+          type: ["string", "null"]
+        donationUrl:
+          type: ["string", "null"]
+        linkButtonText:
+          type: ["string", "null"]
+        buttonStyle:
+          type: string
+          enum: [classic, gold, outline, soft]
+        buttonLayout:
+          type: string
+          enum: [stacked, inline]
         createdAt:
           type: string
 
@@ -2850,6 +2877,33 @@ components:
           type: integer
         isTodaysFeatured:
           type: boolean
+        isActive:
+          type: boolean
+        publicationState:
+          type: string
+          enum: [live, queued, scheduled, archived]
+        scheduledAt:
+          type: ["string", "null"]
+          format: date-time
+        featuredFrom:
+          type: ["string", "null"]
+          format: date-time
+        phoneNumber:
+          type: ["string", "null"]
+        phoneExtension:
+          type: ["string", "null"]
+        phoneButtonText:
+          type: ["string", "null"]
+        donationUrl:
+          type: ["string", "null"]
+        linkButtonText:
+          type: ["string", "null"]
+        buttonStyle:
+          type: string
+          enum: [classic, gold, outline, soft]
+        buttonLayout:
+          type: string
+          enum: [stacked, inline]
 
     DonationInput:
       type: object

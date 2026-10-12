@@ -435,16 +435,37 @@ export interface Charity {
   goalAmount: number;
   raisedAmount: number;
   isTodaysFeatured: boolean;
+  isActive: boolean;
+  publicationState: "live" | "queued" | "scheduled" | "archived";
+  scheduledAt?: string | null;
+  featuredFrom?: string | null;
+  phoneNumber?: string | null;
+  phoneExtension?: string | null;
+  phoneButtonText?: string | null;
+  donationUrl?: string | null;
+  linkButtonText?: string | null;
+  buttonStyle: "classic" | "gold" | "outline" | "soft";
+  buttonLayout: "stacked" | "inline";
   createdAt: string;
 }
 
 export interface CharityUpdate {
   name?: string;
   description?: string;
-  successStories?: string;
-  imageUrl?: string;
+  successStories?: string | null;
+  imageUrl?: string | null;
   goalAmount?: number;
   isTodaysFeatured?: boolean;
+  isActive?: boolean;
+  publicationState?: "live" | "queued" | "scheduled" | "archived";
+  scheduledAt?: string | null;
+  phoneNumber?: string | null;
+  phoneExtension?: string | null;
+  phoneButtonText?: string | null;
+  donationUrl?: string | null;
+  linkButtonText?: string | null;
+  buttonStyle?: "classic" | "gold" | "outline" | "soft";
+  buttonLayout?: "stacked" | "inline";
 }
 
 export interface DonationInput {
