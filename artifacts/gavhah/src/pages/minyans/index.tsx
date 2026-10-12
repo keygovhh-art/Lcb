@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Search, Heart, MapPin, Clock, Plus } from "lucide-react";
 import { useCreateMinyan } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth-context";
+import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { MemberGate } from "@/components/shared/member-gate";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -69,6 +70,7 @@ function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
             <DialogTitle className="font-serif text-2xl text-primary">Add a Minyan</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+            <ActiveAccountIdentity label="Submitting as account" />
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 space-y-1.5">
                 <Label className="font-semibold">Synagogue Name *</Label>
