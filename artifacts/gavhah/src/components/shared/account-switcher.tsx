@@ -14,7 +14,7 @@ function accountName(account:LinkedAccount) {
 /**
  * The active identity is set only by the verified server session.
  * Passwords are used solely for an explicit add-account request and are never
- * written to localStorage, a cookie or a persisted account list.
+ * written to device storage, a cookie or a persisted account list.
  */
 export function AccountSwitcher({compact=false,open:controlledOpen,onOpenChange,hideTrigger=false}:{compact?:boolean;open?:boolean;onOpenChange?:(open:boolean)=>void;hideTrigger?:boolean}){
   const {user,accounts,loadAccounts,addAccount,switchAccount,removeAccount}=useAuth();
