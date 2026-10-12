@@ -15,6 +15,28 @@ const SEEN_KEY = "gavhah:system-error-seen";
 const COOLDOWN_MS = 2 * 60 * 1000;
 const MAX_QUEUE = 25;
 
+/**
+ * An AbortController commonly cancels obsolete requests when the user
+ * navigates or React Query replaces a request. That cancellation is not a
+ * system outage and must not enter the automatic crash-report inbox.
+ * Keep network failures, HTTP errors and true exceptions reportable.
+ */
+export function isExpectedAbort(reason: unknown): boolean {
+  if (reason && typeof reason === "object") {
+    const error = reason as { name?: unknown; message?: unknown; code?: unknown };
+    if (error.name === "AbortError" || error.code === 20) return true;
+    if (typeof error.message !== "string") return false;
+    return /^(?:signal is aborted|the operation was aborted|this operation was aborted|the user aborted a request)(?:\b|[ .:])/i.test(error.message.trim());
+  }
+  return typeof reason === "string" &&
+    /^(?:signal is aborted|the operation was aborted|this operation was aborted)(?:\b|[ .:])/i.test(reason.trim());
+}
+
+function expectedCancellationReport(payload: SystemErrorPayload): boolean {
+  return ["fetch_failure", "unhandled_promise"].includes(payload.type) &&
+    isExpectedAbort(payload.message);
+}
+
 function currentRoute() {
   if (typeof window === "undefined") return "/";
   return window.location.pathname || "/";
@@ -98,6 +120,7 @@ export async function reportSystemError(payload: SystemErrorPayload) {
     resource: payload.resource?.slice(0, 500),
   };
 
+  if (expectedCancellationReport(normalized)) return;
   if (recentlyReported(normalized)) return;
   const sent = await send(normalized);
   if (!sent) queue(normalized);
@@ -115,6 +138,8 @@ export async function flushQueuedSystemErrors() {
 
   const remaining: SystemErrorPayload[] = [];
   for (const item of items.slice(-MAX_QUEUE)) {
+    // Discard cancellation noise previously queued before this fix.
+    if (expectedCancellationReport(item)) continue;
     const ok = await send(item);
     if (!ok) remaining.push(item);
   }
@@ -157,6 +182,7 @@ export function installGlobalErrorReporting() {
 
   const onRejection = (event: PromiseRejectionEvent) => {
     const reason = event.reason;
+    if (isExpectedAbort(reason)) return;
     void reportSystemError({
       type: "unhandled_promise",
       message: safeText(reason),
@@ -166,35 +192,18 @@ export function installGlobalErrorReporting() {
 
   const onOnline = () => { void flushQueuedSystemErrors(); };
 
-  const onSubmit = (event: SubmitEvent) => {
-    const submitter = event.submitter;
-    if (!(submitter instanceof HTMLButtonElement)) return;
-    if (submitter.hasAttribute("type")) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    void reportSystemError({
-      type: "accidental_form_submit_blocked",
-      message: "Blocked a form refresh caused by a button without an explicit type.",
-      resource: [
-        submitter.id ? `#${submitter.id}` : "",
-        submitter.name ? `name=${submitter.name}` : "",
-        submitter.textContent?.trim().slice(0, 120) || "",
-      ].filter(Boolean).join(" "),
-    });
-  };
+  // Do not intercept browser form submissions globally. Blocking every
+  // implicit button submit can suppress legitimate member/admin actions.
+  // Individual controls own their type="button" vs type="submit" behavior.
 
   window.addEventListener("error", onError, true);
   window.addEventListener("unhandledrejection", onRejection);
   window.addEventListener("online", onOnline);
-  window.addEventListener("submit", onSubmit, true);
   void flushQueuedSystemErrors();
 
   return () => {
     window.removeEventListener("error", onError, true);
     window.removeEventListener("unhandledrejection", onRejection);
     window.removeEventListener("online", onOnline);
-    window.removeEventListener("submit", onSubmit, true);
   };
 }
