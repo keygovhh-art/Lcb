@@ -42,9 +42,17 @@ jobs:
           assert(auth.includes('"/auth/accounts/switch"'));
           assert(auth.includes('"/auth/accounts/add"'));
           assert(auth.includes('req.session.regenerate('));
+          assert(auth.includes('linkedPasswordVersions'));
+          assert(auth.includes('Account password changed; please verify this account again'));
+          assert(auth.includes('verifyAccount(req.body?.identifier,req.body?.password)'));
+          const authUi=read('artifacts/gavhah/src/context/auth-context.tsx');
+          assert(authUi.includes('window.location.reload()'));
+          const resolver=read('artifacts/api-server/src/lib/user-display.ts');
+          assert(!resolver.includes('allowed.includes(cleanRequested)'));
+
           assert(auth.includes('verifyPassword(password,user.passwordHash)'));
           assert(!ui.includes('localStorage'));
-          assert(dir.includes('<ActiveAccountIdentity'));
+          assert((dir.match(/<ActiveAccountIdentity/g)||[]).length >= 4);
           assert(!dir.includes('onChange={set("userName")}'));
           assert(!dir.includes('onChange={set("organizerName")}'));
           console.log('Account switching and immutable identity safeguards verified');
