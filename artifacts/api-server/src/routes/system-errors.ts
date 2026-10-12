@@ -22,6 +22,13 @@ router.post("/system-errors", systemErrorLimiter, async (req, res): Promise<void
   const type = clean(req.body?.type, 60) || "unknown";
   const route = clean(req.body?.route, 300).split("?")[0].split("#")[0] || "/";
   const message = clean(req.body?.message, 1600) || "Unknown frontend error";
+  // Older cached mobile clients may still send routine abort messages.
+  // Such canceled requests must not create incidents or alert staff.
+  if (["fetch_failure", "unhandled_promise"].includes(type) &&
+      /^(?:signal is aborted|the operation was aborted|this operation was aborted|the user aborted a request)(?:\b|[ .:])/i.test(message.trim())) {
+    res.status(202).json({ ok: true, ignored: "expected_request_cancellation" });
+    return;
+  }
   const stack = clean(req.body?.stack, 5000);
   const componentStack = clean(req.body?.componentStack, 4000);
   const resource = clean(req.body?.resource, 500);

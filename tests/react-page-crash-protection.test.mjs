@@ -42,3 +42,11 @@ test('site copy only watches React subtree if published replacements are present
   assert.match(siteCopy, /if \(replacementMap\.size === 0\) return;/);
   assert.match(siteCopy, /observer\.observe\(document\.getElementById\("root"\)/);
 });
+
+test('per-route error boundary isolates page crashes and cached clients cannot create fake abort incidents', () => {
+  const app = readFileSync('artifacts/gavhah/src/App.tsx', 'utf8');
+  const server = readFileSync('artifacts/api-server/src/routes/system-errors.ts', 'utf8');
+  assert.match(app, /<AppErrorBoundary key={route}>/);
+  assert.match(server, /expected_request_cancellation/);
+  assert.match(server, /\["fetch_failure", "unhandled_promise"\]/);
+});
