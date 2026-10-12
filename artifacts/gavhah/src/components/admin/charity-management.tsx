@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ImageUploadField } from "@/components/shared/image-upload-field";
 import { CampaignDonationActions } from "@/components/shared/campaign-donation-actions";
+import { NativeDonationSettings } from "@/components/admin/native-donation-settings";
 import { useToast } from "@/hooks/use-toast";
 
 type CampaignState = "live" | "queued" | "scheduled" | "archived";
@@ -19,6 +20,8 @@ type Charity = {
   phoneNumber: string | null; phoneExtension: string | null;
   phoneButtonText: string | null; donationUrl: string | null;
   linkButtonText: string | null; buttonStyle: string; buttonLayout: string;
+  nativeDonationEnabled: boolean; nativeDonationButtonText: string | null;
+  nativeDonationButtonStyle: string;
 };
 type CampaignForm = {
   name: string; description: string; successStories: string;
@@ -26,6 +29,8 @@ type CampaignForm = {
   phoneNumber: string; phoneExtension: string; phoneButtonText: string;
   donationUrl: string; linkButtonText: string;
   buttonStyle: string; buttonLayout: string; scheduledLocal: string; featured: boolean;
+  nativeDonationEnabled: boolean; nativeDonationButtonText: string;
+  nativeDonationButtonStyle: string;
 };
 const emptyForm: CampaignForm = {
   name: "", description: "", successStories: "", imageUrl: "", goalAmount: "",
@@ -33,6 +38,8 @@ const emptyForm: CampaignForm = {
   donationUrl: "", linkButtonText: "Donate Online",
   buttonStyle: "classic", buttonLayout: "stacked",
   scheduledLocal: "", featured: false,
+  nativeDonationEnabled: false, nativeDonationButtonText: "Donate Securely",
+  nativeDonationButtonStyle: "gold",
 };
 function toLocal(utc: string | null): string {
   if (!utc) return "";
@@ -54,6 +61,9 @@ function formFrom(item: Charity): CampaignForm {
     donationUrl: item.donationUrl || "", linkButtonText: item.linkButtonText || "Donate Online",
     buttonStyle: item.buttonStyle || "classic", buttonLayout: item.buttonLayout || "stacked",
     scheduledLocal: toLocal(item.scheduledAt), featured: !!item.isTodaysFeatured,
+    nativeDonationEnabled: item.nativeDonationEnabled ?? false,
+    nativeDonationButtonText: item.nativeDonationButtonText || "Donate Securely",
+    nativeDonationButtonStyle: item.nativeDonationButtonStyle || "gold",
   };
 }
 function publicNow(item: Charity): boolean {
@@ -125,6 +135,37 @@ function CampaignFields({ form, onChange, showSchedule = false }: {
     <div className="rounded-xl border p-4 space-y-3">
       <p className="text-sm font-semibold">Live preview of donation buttons</p>
       <CampaignDonationActions campaign={form} />
+    </div>
+    <div className="rounded-xl border border-amber-600/30 p-4 bg-amber-50/30 dark:bg-amber-950/10 space-y-3">
+      <h4 className="font-semibold">אונזער אייגענע נדבה־סיסטעם · Optional native checkout</h4>
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input type="checkbox" checked={form.nativeDonationEnabled}
+          onChange={e => input("nativeDonationEnabled", e.target.checked)} className="h-4 w-4 accent-primary" />
+        Prepare this campaign for our own donation system (OFF unless activated)
+      </label>
+      <p className="text-xs text-muted-foreground">
+        Setup is only saved for the future. No payment button appears to donors until a real
+        native processor is implemented AND the system-wide master switch is explicitly enabled.
+      </p>
+      {form.nativeDonationEnabled && <div className="grid sm:grid-cols-2 gap-3">
+        <div><Label>Own-system donation button wording</Label>
+          <Input maxLength={65} value={form.nativeDonationButtonText}
+            onChange={e => input("nativeDonationButtonText", e.target.value)}/></div>
+        <div><Label>Own-system button design</Label>
+          <select value={form.nativeDonationButtonStyle}
+            onChange={e => input("nativeDonationButtonStyle", e.target.value)}
+            className="h-10 w-full rounded-md border bg-background px-3">
+            <option value="classic">Classic navy</option>
+            <option value="gold">Gold</option>
+            <option value="soft">Soft</option>
+            <option value="outline">Outline</option>
+          </select>
+        </div>
+        <button type="button" className="sm:col-span-2 rounded-xl bg-muted/30 border border-dashed p-3
+          text-sm text-muted-foreground cursor-not-allowed" disabled>
+          {form.nativeDonationButtonText || "Donate Securely"} · Preview only (unavailable)
+        </button>
+      </div>}
     </div>
     {showSchedule && <div className="rounded-xl border border-accent/50 p-4 space-y-2">
       <Label htmlFor="charity-publish-time">Publication date & time (your device's local timezone)</Label>
@@ -200,6 +241,9 @@ export function CharityManagement() {
       donationUrl: draft.donationUrl.trim() || null,
       linkButtonText: draft.linkButtonText.trim() || null,
       buttonStyle: draft.buttonStyle, buttonLayout: draft.buttonLayout,
+      nativeDonationEnabled: draft.nativeDonationEnabled,
+      nativeDonationButtonText: draft.nativeDonationButtonText.trim() || null,
+      nativeDonationButtonStyle: draft.nativeDonationButtonStyle,
       publicationState: mode, ...(scheduledAt ? { scheduledAt } : {}),
       isTodaysFeatured: mode === "queued" || mode === "archived" ? false : draft.featured,
     };
@@ -285,6 +329,7 @@ export function CharityManagement() {
       </div>
     </div>}
 
+    <NativeDonationSettings />
     <div className="rounded-xl bg-muted/20 border p-3 flex gap-2 flex-wrap" role="group" aria-label="Filter charity campaigns">
       {([
         ["all", "All"], ["queued", "Waiting Line"], ["scheduled", "Scheduled"],
