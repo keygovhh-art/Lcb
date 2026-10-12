@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/auth-context";
+import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { useToast } from "@/hooks/use-toast";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
@@ -170,12 +171,12 @@ export default function Reservations() {
       toast({ title: "Sign in to book a slot", description: "Join Gavhah free to make reservations." });
       return;
     }
-    setForm(f => ({ ...f, name: f.name || user?.nickname || user?.name || "" }));
+    // Reservation identity is tied to the active account, not a user-editable field.
     setBookingOpen(true);
   };
 
   const confirmReservation = async () => {
-    if (!form.name.trim() || !form.purpose || !selectedDate || !selectedTime) {
+    if (!(user?.nickname || user?.name) || !form.purpose || !selectedDate || !selectedTime) {
       toast({ title: "Please complete the required fields", variant: "destructive" });
       return;
     }
@@ -187,7 +188,7 @@ export default function Reservations() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: form.name.trim(),
+          name: user?.nickname || user?.name,
           reservationDate: selectedDate,
           reservationTime: selectedTime,
           purpose: form.purpose,
@@ -323,10 +324,7 @@ export default function Reservations() {
                       <span className="font-semibold">{selectedTime} (30 minutes)</span>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-semibold">Your Name</Label>
-                    <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" className="h-11" />
-                  </div>
+                  <ActiveAccountIdentity label="Booking as account" />
                   <div className="space-y-2">
                     <Label className="font-semibold">Purpose of Visit</Label>
                     <Select value={form.purpose} onValueChange={v => setForm(f => ({ ...f, purpose: v }))}>
