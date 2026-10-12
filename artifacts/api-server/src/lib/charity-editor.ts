@@ -44,7 +44,7 @@ export function validateDonationUrl(value: unknown): string | null | undefined {
       /^172\.(?:1[6-9]|2\d|3[01])\./.test(host)) {
     throw new Error("Donation link must be an external, secure https address");
   }
-  url.hash = ""; // Never include browser fragments or password-reset tokens in donations.
+  // Preserve the complete admin-entered checkout URL, including #/payment SPA routes.
   return url.toString();
 }
 

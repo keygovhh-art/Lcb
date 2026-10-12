@@ -32,6 +32,7 @@ test("phone, DTMF extension, external link and button labels are validated", () 
   assert.throws(() => validatePhone("tel:+16053138165"), /phone number/i);
   assert.throws(() => validateExtension("#33,123"), /extension/i);
   assert.equal(validateDonationUrl("https://donations.example.org/pay?amount=50"), "https://donations.example.org/pay?amount=50");
+  assert.equal(validateDonationUrl("https://donations.example.org/#/checkout"), "https://donations.example.org/#/checkout");
   for (const bad of ["javascript:alert(1)", "http://example.com", "https://127.0.0.1/", "https://localhost/", "https://staff:pass@example.com/"]) {
     assert.throws(() => validateDonationUrl(bad), /secure|https/i);
   }
