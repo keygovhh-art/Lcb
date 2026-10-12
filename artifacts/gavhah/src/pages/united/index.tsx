@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
+import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { useLocation } from "wouter";
 
 const PLEDGE_LABELS: Record<string, string> = {
@@ -43,16 +44,11 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
   const joinCause = useJoinFeaturedCause();
   const [form, setForm] = useState({ name: "", pledgeType: "volunteer", pledgeAmount: "", message: "", location: "" });
   const accountName = (user as any)?.nickname || user?.name || "";
-  const joinName = form.name || accountName;
+  const joinName = accountName;
   const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
-  // Pre-fill name from user nickname when dialog opens
-  const handleOpen = () => {
-    if (user && !(form.name)) {
-      setForm(f => ({ ...f, name: (user as any).nickname || user.name || "" }));
-    }
-  };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,17 +78,14 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
   };
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); else handleOpen(); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-serif text-xl text-primary">Join This Cause</DialogTitle>
           <p className="text-sm text-muted-foreground">Register your commitment. Gavhah will coordinate with you directly.</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          <div className="space-y-1.5">
-            <Label className="font-semibold">Your Name *</Label>
-            <Input value={joinName} onChange={s("name")} placeholder="First name or nickname" className="h-11" required />
-          </div>
+          <ActiveAccountIdentity label="Joining this cause as account" />
           <div className="space-y-1.5">
             <Label className="font-semibold">Location <span className="font-normal text-muted-foreground">(optional)</span></Label>
             <Input value={form.location} onChange={s("location")} placeholder="City or neighborhood" className="h-11" />
@@ -139,7 +132,7 @@ function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
-  const submittedByValue = form.submittedBy || ((user as any)?.nickname || user?.name || "");
+  const submittedByValue = user?.nickname || user?.name || "";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
