@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createHash } from "node:crypto";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "../lib/crypto";
@@ -10,11 +11,14 @@ declare module "express-session" {
     userId?: number;
     userRole?: string;
     linkedUserIds?: number[];
+    linkedPasswordVersions?: Record<string,string>;
   }
 }
 
 const router = Router();
 const MAX_LINKED_ACCOUNTS = 8;
+const passwordVersion=(hash:string)=>createHash("sha256").update(hash).digest("hex");
+
 const linkedUsers = (ids: unknown, current?: number) =>
   [...new Set([...(Array.isArray(ids) ? ids : []).filter(
     (id): id is number => Number.isSafeInteger(id) && id > 0
@@ -87,12 +91,14 @@ router.post("/auth/login", loginLimiter, async (req, res): Promise<void> => {
   if(!result.user){res.status(result.status||401).json({error:result.error});return;}
   const user=result.user;
   const linked=linkedUsers(req.session.linkedUserIds,req.session.userId);
+  const linkedVersions={...req.session.linkedPasswordVersions};
   await new Promise<void>((resolve, reject) => {
     req.session.regenerate(err => err ? reject(err) : resolve());
   });
   req.session.userId = user.id;
   req.session.userRole = user.role;
   req.session.linkedUserIds=linkedUsers([...linked,user.id]);
+  req.session.linkedPasswordVersions={...linkedVersions,[user.id]:passwordVersion(user.passwordHash)};
   res.setHeader("Cache-Control","private, no-store");
   res.json({ user: safeUser(user) });
 });
@@ -108,7 +114,12 @@ router.get("/auth/accounts", requireAuth, async(req,res):Promise<void>=>{
       id:usersTable.id,nickname:usersTable.nickname,name:usersTable.name,
       role:usersTable.role,status:usersTable.status,
     }).from(usersTable).where(eq(usersTable.id,id));
-    if(user && user.status!=="suspended" && user.status!=="banned"){
+    if(user && user.status!=="suspended" && user.status!=="banned" &&
+       (id===req.session.userId ||
+        req.session.linkedPasswordVersions?.[id]===passwordVersion(
+          (await db.select({passwordHash:usersTable.passwordHash}).from(usersTable)
+             .where(eq(usersTable.id,id)))[0]?.passwordHash||""
+        ))){
       accounts.push({id:user.id,nickname:user.nickname,name:user.name,role:user.role,active:user.id===req.session.userId});
     }
   }
@@ -124,6 +135,7 @@ router.post("/auth/accounts/add",requireAuth,loginLimiter,async(req,res):Promise
   const result=await verifyAccount(req.body?.identifier,req.body?.password);
   if(!result.user){res.status(result.status||401).json({error:result.error});return;}
   req.session.linkedUserIds=linkedUsers([...linked,result.user.id]);
+  req.session.linkedPasswordVersions={...(req.session.linkedPasswordVersions||{}),[result.user.id]:passwordVersion(result.user.passwordHash)};
   await new Promise<void>((resolve,reject)=>req.session.save(err=>err?reject(err):resolve()));
   res.setHeader("Cache-Control","private, no-store");
   res.json({ok:true,id:result.user.id,nickname:result.user.nickname});
@@ -142,10 +154,15 @@ router.post("/auth/accounts/switch",requireAuth,async(req,res):Promise<void>=>{
   if(!user||user.status==="banned"||user.status==="suspended"){
     res.status(403).json({error:"Account unavailable"});return;
   }
+  if(req.session.linkedPasswordVersions?.[id]!==passwordVersion(user.passwordHash)){
+    res.status(403).json({error:"Account password changed; please verify this account again"});return;
+  }
+  const verifiedVersions={...req.session.linkedPasswordVersions};
   await new Promise<void>((resolve,reject)=>req.session.regenerate(err=>err?reject(err):resolve()));
   req.session.userId=user.id;
   req.session.userRole=user.role;
   req.session.linkedUserIds=linked;
+  req.session.linkedPasswordVersions=verifiedVersions;
   await new Promise<void>((resolve,reject)=>req.session.save(err=>err?reject(err):resolve()));
   res.setHeader("Cache-Control","private, no-store");
   res.json({ok:true,user:safeUser(user)});
@@ -160,6 +177,7 @@ router.post("/auth/accounts/remove",requireAuth,async(req,res):Promise<void>=>{
   const ids=linkedUsers(req.session.linkedUserIds,req.session.userId);
   if(!ids.includes(id)){res.status(404).json({error:"Linked account not found"});return;}
   req.session.linkedUserIds=ids.filter(v=>v!==id);
+  if(req.session.linkedPasswordVersions)delete req.session.linkedPasswordVersions[id];
   res.setHeader("Cache-Control","private, no-store");
   res.json({ok:true});
 });
@@ -193,6 +211,7 @@ router.post("/auth/change-password", requireAuth, async (req, res): Promise<void
 
   const passwordHash = await hashPassword(newPassword);
   await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
+  req.session.linkedPasswordVersions={...(req.session.linkedPasswordVersions||{}),[userId]:passwordVersion(passwordHash)};
   res.json({ ok: true });
 });
 
