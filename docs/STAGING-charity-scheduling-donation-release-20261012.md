@@ -10,6 +10,14 @@ OWNER RELEASE HOLD: no GitHub main merge, no Render deploy, no production Neon w
 - Admin-configured separate phone and HTTPS payment link CTA with independent button labels and style/layout choices. Phone extension can be entered with #3333. Most dialers will open the number; auto-sending the DTMF extension is not universal, so UI shows a manual/copy fallback.
 - The website does not handle payment credentials or claim external payment success; only staff can log offline donations.
 
+
+## Reserved optional native donation system (NOT READY)
+- Per campaign: `nativeDonationEnabled` (default OFF), custom button label and style. Editor shows a **disabled preview only**, not an active checkout link.
+- Global admin-only settings at `/api/admin/charity/native-settings`: master enable flag (default OFF), default button label, minimum/maximum USD amounts, up to 8 suggested amounts, custom amount, future recurring gifts, anonymous donations, optional receipts. All optional defaults.
+- `NATIVE_CHECKOUT_INTEGRATED = false` is a server hard gate: **even a stored checkbox cannot initiate a transaction**. Turning on master enable while the processor is unimplemented is rejected by the API. No user-facing native Donate action is created.
+- No card details, bank data, API secrets or webhook credentials are stored. No payment gateway, payout, refunds, settlement, verified receipts, recurring charge execution, or provider webhooks are implemented.
+- Before the owner may activate native donations in future: implement PCI-safe hosted/tokenized checkout with verified provider account, authenticated charity mapping, signed webhooks, deduplicated donations, proper refunds/reconciliation, fraud controls, and end-to-end tests. Activation requires separately authorized work.
+
 ## Safe production release sequence — only after owner approval
 1. Take a new, verified Neon production backup branch; confirm the app connects to that project, not an older unrelated project.
 2. Apply `lib/db/migrations/20261012_charity_release_queue_donations.sql` to the correct production database BEFORE deploying the new app. This is additive and idempotent, retains all existing campaigns and donation records. NEVER run the migration against Neon before approval.

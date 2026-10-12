@@ -446,6 +446,9 @@ export interface Charity {
   linkButtonText?: string | null;
   buttonStyle: "classic" | "gold" | "outline" | "soft";
   buttonLayout: "stacked" | "inline";
+  nativeDonationEnabled: boolean;
+  nativeDonationButtonText?: string | null;
+  nativeDonationButtonStyle: "classic" | "gold" | "outline" | "soft";
   createdAt: string;
 }
 
@@ -466,6 +469,9 @@ export interface CharityUpdate {
   linkButtonText?: string | null;
   buttonStyle?: "classic" | "gold" | "outline" | "soft";
   buttonLayout?: "stacked" | "inline";
+  nativeDonationEnabled?: boolean;
+  nativeDonationButtonText?: string | null;
+  nativeDonationButtonStyle?: "classic" | "gold" | "outline" | "soft";
 }
 
 export interface DonationInput {

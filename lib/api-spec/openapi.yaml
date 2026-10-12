@@ -2859,6 +2859,13 @@ components:
         buttonLayout:
           type: string
           enum: [stacked, inline]
+        nativeDonationEnabled:
+          type: boolean
+        nativeDonationButtonText:
+          type: ["string", "null"]
+        nativeDonationButtonStyle:
+          type: string
+          enum: [classic, gold, outline, soft]
         createdAt:
           type: string
 
@@ -2904,6 +2911,13 @@ components:
         buttonLayout:
           type: string
           enum: [stacked, inline]
+        nativeDonationEnabled:
+          type: boolean
+        nativeDonationButtonText:
+          type: ["string", "null"]
+        nativeDonationButtonStyle:
+          type: string
+          enum: [classic, gold, outline, soft]
 
     DonationInput:
       type: object
