@@ -78,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       setUser(null);
+      setAccounts([]);
     } finally {
       setIsLoaded(true);
     }
@@ -125,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result=await response.json().catch(()=>({}));
       if(!response.ok)return {ok:false,error:result.error||"Could not switch accounts"};
       // Account-bound React Query caches, permissions and forms are reset.
-      window.location.replace(window.location.pathname+window.location.search+window.location.hash);
+      window.location.reload();
       return {ok:true};
     }catch{return {ok:false,error:"Connection error"};}
   },[]);
