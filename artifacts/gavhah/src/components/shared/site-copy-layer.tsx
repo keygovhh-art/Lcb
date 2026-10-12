@@ -145,6 +145,11 @@ export function SiteCopyLayer() {
   }, [replacementMap]);
 
   useEffect(() => {
+    // A full-document MutationObserver is unnecessary when no published copy
+    // overrides exist. It can also increase render-time contention with React.
+    // There are currently no published overrides; keep the editor functionality
+    // available whenever a real override is later published.
+    if (replacementMap.size === 0) return;
     applyOverrides();
     const first = window.setTimeout(applyOverrides, 0);
     const second = window.setTimeout(applyOverrides, 80);
@@ -156,7 +161,7 @@ export function SiteCopyLayer() {
         applyOverrides();
       }, 25);
     });
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.getElementById("root") ?? document.body, { childList: true, subtree: true, characterData: true });
 
     return () => {
       observer.disconnect();
@@ -164,7 +169,7 @@ export function SiteCopyLayer() {
       window.clearTimeout(second);
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
     };
-  }, [applyOverrides, location, lang]);
+  }, [applyOverrides, location, lang, replacementMap]);
 
   useEffect(() => {
     if (!editMode) return;
