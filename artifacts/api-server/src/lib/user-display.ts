@@ -13,14 +13,13 @@ export async function getMemberIdentity(userId: number) {
   return user ?? null;
 }
 
-export async function resolveMemberDisplayName(userId: number, requested?: string | null) {
+/**
+ * Posting identity must come from the authenticated owner, not any
+ * client-provided name. Beneficiary/reference fields on confidential
+ * help requests remain separate, freely editable content.
+ */
+export async function resolveMemberDisplayName(userId: number, _requested?: string | null) {
   const user = await getMemberIdentity(userId);
   if (!user) return "Community Member";
-
-  const allowed = [user.nickname, user.name].filter((v): v is string => !!v?.trim());
-  const cleanRequested = requested?.trim();
-  if (cleanRequested === "Anonymous") return "Anonymous";
-  if (cleanRequested && allowed.includes(cleanRequested)) return cleanRequested;
-
-  return user.nickname || user.name || "Community Member";
+  return user.nickname?.trim() || user.name?.trim() || "Community Member";
 }
