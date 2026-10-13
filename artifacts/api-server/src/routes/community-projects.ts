@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and } from "drizzle-orm";
-import { db, communityProjectsTable, projectMembersTable, supportMessagesTable } from "@workspace/db";
+import { eq, desc, and, sql } from "drizzle-orm";
+import { db, communityProjectsTable, projectMembersTable, supportMessagesTable, askanuscases, caseActivityLog } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
@@ -46,24 +46,33 @@ router.post("/community-projects", requireAuth, async (req, res): Promise<void> 
   }
 
   const safeOrganizerName = await resolveMemberDisplayName(userId, organizerName);
-  const [project] = await db.insert(communityProjectsTable).values({
-    ownerId: userId,
-    title: cleanTitle.slice(0, 240),
-    description: cleanDescription.slice(0, 5000),
-    type: cleanType,
-    organizerName: safeOrganizerName,
-    location: location ? String(location).trim().slice(0, 200) : null,
-    goalDescription: goalDescription ? String(goalDescription).trim().slice(0, 1000) : null,
-    status: "active",
-  }).returning();
-
-  await db.insert(projectMembersTable).values({
-    userId,
-    projectId: project.id,
-    name: safeOrganizerName,
-    role: "organizer",
-    message: null,
-  }).onConflictDoNothing();
+  // An organizer joins their own project automatically, so their private
+  // My Askanus case must be created in the very same transaction.
+  const project = await db.transaction(async tx => {
+    const [created] = await tx.insert(communityProjectsTable).values({
+      ownerId: userId, title: cleanTitle.slice(0, 240),
+      description: cleanDescription.slice(0, 5000), type: cleanType,
+      organizerName: safeOrganizerName,
+      location: location ? String(location).trim().slice(0, 200) : null,
+      goalDescription: goalDescription ? String(goalDescription).trim().slice(0, 1000) : null,
+      status: "active",
+    }).returning();
+    await tx.insert(projectMembersTable).values({
+      userId, projectId: created.id, name: safeOrganizerName,
+      role: "organizer", message: null,
+    });
+    const [personal] = await tx.insert(askanuscases).values({
+      userId, title: created.title, description: created.description,
+      category: "General", contactName: safeOrganizerName,
+      notes: "Your organized community project. Add tasks, follow-ups and actual work here.",
+      sourceType: "community_project", sourceId: created.id,
+    }).onConflictDoNothing().returning();
+    if (personal) await tx.insert(caseActivityLog).values({
+      caseId: personal.id, date: new Date().toISOString().slice(0, 10),
+      type: "status_change", note: "Created and joined official community project",
+    });
+    return created;
+  });
 
   await logActivity("project", `Created community project "${project.title}"`, safeOrganizerName);
   const creator = await getMemberIdentity(userId);
@@ -167,20 +176,36 @@ router.post("/community-projects/:id/join", requireAuth, async (req, res): Promi
     return;
   }
 
-  const [existing] = await db.select().from(projectMembersTable).where(and(
-    eq(projectMembersTable.projectId, projectId),
-    eq(projectMembersTable.userId, userId),
-  ));
-  if (existing) { res.json(existing); return; }
-
   const safeName = await resolveMemberDisplayName(userId, name);
-  const [member] = await db.insert(projectMembersTable).values({
-    userId,
-    projectId,
-    name: safeName,
-    role: cleanRole,
-    message: message ? String(message).trim().slice(0, 1500) : null,
-  }).returning();
+  // Prevent repeated joins from creating duplicate memberships or case files.
+  const result = await db.transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"community_project:" + projectId}), ${userId})`);
+    const [existing] = await tx.select().from(projectMembersTable).where(and(
+      eq(projectMembersTable.projectId, projectId),
+      eq(projectMembersTable.userId, userId),
+    )).limit(1);
+    const [personal] = await tx.insert(askanuscases).values({
+      userId,
+      title: project.title.slice(0, 240),
+      description: project.description.slice(0, 5000),
+      category: "General",
+      contactName: project.organizerName.slice(0, 240),
+      notes: "Joined community project. Track what you actually do in your private workspace.",
+      sourceType: "community_project", sourceId: projectId,
+    }).onConflictDoNothing().returning();
+    if (personal) await tx.insert(caseActivityLog).values({
+      caseId: personal.id, date: new Date().toISOString().slice(0, 10),
+      type: "status_change", note: "Joined community project",
+    });
+    if (existing) return { member: existing, alreadyJoined: true };
+    const [member] = await tx.insert(projectMembersTable).values({
+      userId, projectId, name: safeName, role: cleanRole,
+      message: message ? String(message).trim().slice(0, 1500) : null,
+    }).returning();
+    return { member, alreadyJoined: false };
+  });
+  if (result.alreadyJoined) { res.json(result.member); return; }
+  const member = result.member;
 
   if (project.ownerId !== userId) {
     await notifyUser(
