@@ -303,6 +303,16 @@ export const MinyanStatus = {
   rejected: 'rejected',
 } as const;
 
+export interface MinyanWeekdayEntry {
+  time: string;
+  days: number[];
+}
+export interface MinyanWeekdaySchedules {
+  shacharis: MinyanWeekdayEntry[];
+  mincha: MinyanWeekdayEntry[];
+  maariv: MinyanWeekdayEntry[];
+}
+
 export interface Minyan {
   id: number;
   synagogueName: string;
@@ -314,6 +324,7 @@ export interface Minyan {
   shacharis: string;
   mincha: string;
   maariv: string;
+  weekdaySchedules?: MinyanWeekdaySchedules | null;
   /** @nullable */
   notes?: string | null;
   likes: number;
@@ -330,6 +341,7 @@ export interface MinyanInput {
   shacharis?: string;
   mincha?: string;
   maariv?: string;
+  weekdaySchedules?: MinyanWeekdaySchedules;
   notes?: string;
 }
 
@@ -338,6 +350,7 @@ export interface MinyanUpdate {
   shacharis?: string;
   mincha?: string;
   maariv?: string;
+  weekdaySchedules?: MinyanWeekdaySchedules;
   notes?: string;
   status?: string;
 }

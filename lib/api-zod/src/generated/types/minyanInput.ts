@@ -15,5 +15,10 @@ export interface MinyanInput {
   shacharis?: string;
   mincha?: string;
   maariv?: string;
+  weekdaySchedules?: {
+    shacharis: { time: string; days: number[] }[];
+    mincha: { time: string; days: number[] }[];
+    maariv: { time: string; days: number[] }[];
+  };
   notes?: string;
 }
