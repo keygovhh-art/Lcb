@@ -76,10 +76,12 @@ export const groupPostRepliesTable = pgTable("group_post_replies", {
 
 export const groupReportsTable = pgTable("group_post_reports", {
   id: serial("id").primaryKey(),
-  groupId: integer("group_id").notNull().references(() => groupsTable.id,{onDelete:"cascade"}),
-  postId: integer("post_id").notNull().references(() => groupPostsTable.id,{onDelete:"cascade"}),
+  // Preserve reports even if the source post or group is later deleted.
+  groupId: integer("group_id").notNull(),
+  postId: integer("post_id").notNull(),
   reporterId: integer("reporter_id").notNull(),
   reason: text("reason").notNull(),
+  postExcerpt: text("post_excerpt").notNull().default(""),
   // NEVER expose toStaff to group owners or group admins, even if group was a recipient.
   toGroup: boolean("to_group").notNull(),
   toStaff: boolean("to_staff").notNull(),

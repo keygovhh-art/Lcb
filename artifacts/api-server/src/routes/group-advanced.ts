@@ -242,6 +242,7 @@ router.post("/groups/:id/posts/:postId/report",requireAuth,async(req,res):Promis
   // escalate a group report to the platform team, without exposing that to group admins.
   await db.insert(groupReportsTable).values({
     groupId:gid,postId:pid,reporterId:ctx.userId!,reason,
+    postExcerpt:post.content.slice(0,4000),
     toGroup:destination!=="staff",toStaff:destination!=="group",
   }).onConflictDoUpdate({
     target:[groupReportsTable.postId,groupReportsTable.reporterId],
@@ -261,7 +262,8 @@ router.get("/groups/:id/reports",requireAuth,async(req,res):Promise<void>=>{
     .orderBy(desc(groupReportsTable.createdAt));
   res.setHeader("Cache-Control","private, no-store");
   // Explicit allowlist, never serialize toStaff or staffStatus, even in nested object.
-  res.json(rows.map(r=>({id:r.id,postId:r.postId,reason:r.reason,status:r.groupStatus,createdAt:r.createdAt.toISOString()})));
+  res.json(rows.map(r=>({id:r.id,postId:r.postId,reason:r.reason,
+    postExcerpt:r.postExcerpt,status:r.groupStatus,createdAt:r.createdAt.toISOString()})));
 });
 router.patch("/groups/:id/reports/:reportId",requireAuth,async(req,res):Promise<void>=>{
   const gid=getGroup(req,res),rid=id(req.params.reportId);if(!gid||!rid)return;
@@ -279,7 +281,7 @@ router.get("/admin/group-reports",requireAdmin,async(req,res):Promise<void>=>{
     .orderBy(desc(groupReportsTable.createdAt)).limit(200);
   res.setHeader("Cache-Control","private, no-store");
   res.json(reports.map(r=>({id:r.id,groupId:r.groupId,postId:r.postId,reason:r.reason,
-    status:r.staffStatus,createdAt:r.createdAt.toISOString()})));
+    postExcerpt:r.postExcerpt,status:r.staffStatus,createdAt:r.createdAt.toISOString()})));
 });
 router.patch("/admin/group-reports/:id",requireAdmin,async(req,res):Promise<void>=>{
   const rid=id(req.params.id);if(!rid)return;

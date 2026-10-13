@@ -40,10 +40,12 @@ CREATE TABLE IF NOT EXISTS public.group_post_replies (
 CREATE INDEX IF NOT EXISTS group_post_replies_post_idx ON public.group_post_replies(post_id);
 CREATE TABLE IF NOT EXISTS public.group_post_reports (
  id serial PRIMARY KEY,
- group_id integer NOT NULL REFERENCES public.groups(id) ON DELETE CASCADE,
- post_id integer NOT NULL REFERENCES public.group_posts(id) ON DELETE CASCADE,
+ -- Retain team report records and evidence after reported content is deleted.
+ group_id integer NOT NULL,
+ post_id integer NOT NULL,
  reporter_id integer NOT NULL,
  reason text NOT NULL,
+ post_excerpt text NOT NULL DEFAULT '',
  to_group boolean NOT NULL,
  to_staff boolean NOT NULL,
  group_status text NOT NULL DEFAULT 'open',
