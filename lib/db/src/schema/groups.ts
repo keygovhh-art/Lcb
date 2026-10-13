@@ -81,7 +81,8 @@ export const groupReportsTable = pgTable("group_post_reports", {
   // NEVER expose toStaff to group owners or group admins, even if group was a recipient.
   toGroup: boolean("to_group").notNull(),
   toStaff: boolean("to_staff").notNull(),
-  status: text("status").notNull().default("open"),
+  groupStatus: text("group_status").notNull().default("open"),
+  staffStatus: text("staff_status").notNull().default("open"),
   createdAt: timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
 });
 

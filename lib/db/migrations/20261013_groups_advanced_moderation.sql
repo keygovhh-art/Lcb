@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS public.group_post_reports (
  reason text NOT NULL,
  to_group boolean NOT NULL,
  to_staff boolean NOT NULL,
- status text NOT NULL DEFAULT 'open',
+ group_status text NOT NULL DEFAULT 'open',
+ staff_status text NOT NULL DEFAULT 'open',
  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS group_reports_group_target_idx ON public.group_post_reports(group_id,to_group,created_at);
