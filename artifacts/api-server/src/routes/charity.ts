@@ -26,6 +26,12 @@ const publicCampaign = () => or(
 );
 const setNoStore = (res: import("express").Response) => res.setHeader("Cache-Control", "no-store");
 
+/** The internal creator account ID is for ownership checks, never for public visitors. */
+function publicCharity<T extends { createdByUserId?: number | null }>(row: T) {
+  const { createdByUserId: _privateCreatorId, ...publicCampaignFields } = row;
+  return publicCampaignFields;
+}
+
 function validatePayload(input: Record<string, unknown>) {
   const props: Record<string, unknown> = {};
   if ("name" in input) {
@@ -120,13 +126,13 @@ router.get("/charity/today", async (_req, res): Promise<void> => {
     .where(and(eq(charitiesTable.isTodaysFeatured, true), publicCampaign()))
     .orderBy(desc(charitiesTable.featuredFrom), desc(charitiesTable.createdAt)).limit(1);
   if (!campaign) { res.status(404).json({ error: "No featured charity today" }); return; }
-  res.json(campaign);
+  res.json(publicCharity(campaign));
 });
 
 router.get("/charity", async (_req, res): Promise<void> => {
   setNoStore(res);
   const all = await db.select().from(charitiesTable).where(publicCampaign()).orderBy(desc(charitiesTable.createdAt));
-  res.json(all);
+  res.json(all.map(publicCharity));
 });
 
 router.get("/admin/charity", requireAdmin, async (_req, res): Promise<void> => {
@@ -179,7 +185,7 @@ router.get("/charity/:id", async (req, res): Promise<void> => {
   const [item] = await db.select().from(charitiesTable)
     .where(and(eq(charitiesTable.id, id), publicCampaign())).limit(1);
   if (!item) { res.status(404).json({ error: "Campaign not published" }); return; }
-  res.json(item);
+  res.json(publicCharity(item));
 });
 
 router.patch("/charity/:id", requireAdmin, async (req, res): Promise<void> => {
