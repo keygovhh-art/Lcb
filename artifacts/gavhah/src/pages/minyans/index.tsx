@@ -7,9 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Heart, MapPin, Clock, Plus } from "lucide-react";
+import { Search, Heart, MapPin, Clock, Plus, X } from "lucide-react";
 import { useCreateMinyan } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth-context";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
@@ -17,30 +16,58 @@ import { MemberGate } from "@/components/shared/member-gate";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
-const COMMUNITIES = ["", "Chassidish", "Yeshivish", "Modern Orthodox", "Sephardic", "Other"];
+type Prayer = "shacharis" | "mincha" | "maariv";
+type PrayerTimes = Record<Prayer, string[]>;
+const freshTimes = (): PrayerTimes => ({ shacharis: [""], mincha: [""], maariv: [""] });
+const PRAYERS: Array<{ key: Prayer; label: string; hint: string }> = [
+  { key: "shacharis", label: "שחרית", hint: "6:30 אינדערפרי" },
+  { key: "mincha", label: "מנחה", hint: "2:00 נאכמיטאג" },
+  { key: "maariv", label: "מעריב", hint: "9:00 ביינאכט" },
+];
+const timeEntries = (lines: string[]): string => lines.map(v => v.trim()).filter(Boolean).join("\n");
 
 function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
   const { isAuthenticated, isLoaded } = useAuth();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
-    synagogueName: "", community: "", city: "", country: "USA",
-    address: "", shacharis: "", mincha: "", maariv: "", notes: "",
+    synagogueName: "", city: "", country: "USA",
+    address: "", notes: "",
   });
+  const [times, setTimes] = useState<PrayerTimes>(freshTimes);
+  const [validationError, setValidationError] = useState("");
   const create = useCreateMinyan();
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
+  const changeTime = (key: Prayer, index: number, value: string) => {
+    setTimes(old => ({ ...old, [key]: old[key].map((text, i) => i === index ? value : text) }));
+    setValidationError("");
+  };
+  const addTime = (key: Prayer) => setTimes(old =>
+    old[key].length >= 24 ? old : { ...old, [key]: [...old[key], ""] }
+  );
+  const removeTime = (key: Prayer, index: number) => setTimes(old => ({
+    ...old, [key]: old[key].length === 1 ? [""] : old[key].filter((_, i) => i !== index),
+  }));
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    create.mutate({ data: form as any }, {
+    const shacharis = timeEntries(times.shacharis);
+    const mincha = timeEntries(times.mincha);
+    const maariv = timeEntries(times.maariv);
+    if (!shacharis && !mincha && !maariv) {
+      setValidationError("מען מוז אויספילן לכל הפחות איין זמן — שחרית, מנחה אדער מעריב.");
+      return;
+    }
+    setValidationError("");
+    create.mutate({ data: { ...form, shacharis, mincha, maariv } }, {
       onSuccess: () => {
         setOpen(false);
-        setForm({
-          synagogueName: "", community: "", city: "", country: "USA",
-          address: "", shacharis: "", mincha: "", maariv: "", notes: "",
-        });
+        setForm({ synagogueName: "", city: "", country: "USA", address: "", notes: "" });
+        setTimes(freshTimes());
+        setValidationError("");
         onSuccess();
         toast({
           title: "Minyan submitted",
@@ -77,16 +104,6 @@ function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
                 <Input value={form.synagogueName} onChange={set("synagogueName")} placeholder="Beis Medrash..." className="h-11" required />
               </div>
               <div className="space-y-1.5">
-                <Label className="font-semibold">Community</Label>
-                <Select value={form.community || "none"} onValueChange={v => setForm(f => ({ ...f, community: v === "none" ? "" : v }))}>
-                  <SelectTrigger className="h-11"><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Select community...</SelectItem>
-                    {COMMUNITIES.filter(Boolean).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
                 <Label className="font-semibold">Country</Label>
                 <Input value={form.country} onChange={set("country")} className="h-11" />
               </div>
@@ -99,22 +116,47 @@ function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
                 <Input value={form.address} onChange={set("address")} placeholder="123 Main St" className="h-11" />
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-1.5">
-                <Label className="font-semibold">Shacharis Times *</Label>
-                <Input value={form.shacharis} onChange={set("shacharis")} placeholder="6:30 AM, 7:00 AM, 8:00 AM" className="h-11" required />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="font-semibold">Mincha Times *</Label>
-                <Input value={form.mincha} onChange={set("mincha")} placeholder="2:00 PM (weekday)" className="h-11" required />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="font-semibold">Maariv Times *</Label>
-                <Input value={form.maariv} onChange={set("maariv")} placeholder="9:00 PM" className="h-11" required />
-              </div>
+            <div className="space-y-5">
+              <p className="text-sm font-medium text-foreground">
+                זמני מנינים — לכל הפחות איינס פון די דריי תפילות מוז זיין אויסגעפילט.
+              </p>
+              {PRAYERS.map(({ key, label, hint }) => (
+                <div key={key} className="rounded-xl border bg-muted/20 p-3 space-y-3">
+                  <div className="flex justify-between items-center gap-2">
+                    <Label className="font-semibold text-base">{label}</Label>
+                    <span className="text-xs text-muted-foreground">נישט מחויב אויב אן אנדער זמן איז אויסגעפילט</span>
+                  </div>
+                  {times[key].map((time, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        value={time}
+                        onChange={e => changeTime(key, index, e.target.value)}
+                        placeholder={hint}
+                        aria-label={`${label} — מנין ${index + 1}`}
+                        maxLength={100}
+                        className="h-11 min-w-0 flex-1"
+                        dir="auto"
+                      />
+                      {times[key].length > 1 && (
+                        <Button type="button" size="icon" variant="outline"
+                          aria-label={`נעם אראפ ${label} מנין ${index + 1}`}
+                          onClick={() => removeTime(key, index)} className="shrink-0 h-11 w-11">
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm"
+                    className="gap-2 h-10 w-full sm:w-auto"
+                    onClick={() => addTime(key)} disabled={times[key].length >= 24}>
+                    <Plus className="h-4 w-4" /> + לייג צו נאך א מנין
+                  </Button>
+                </div>
+              ))}
+              {validationError && <p role="alert" className="text-sm text-destructive font-semibold">{validationError}</p>}
               <div className="space-y-1.5">
                 <Label className="font-semibold">Additional Notes</Label>
-                <Textarea value={form.notes} onChange={set("notes")} placeholder="Shabbos minyanim, special shiurim, etc." className="resize-none" />
+                <Textarea value={form.notes} onChange={set("notes")} placeholder="שבת, ימים טובים, ספעציעלע שיעורים..." className="resize-none" />
               </div>
             </div>
             <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12" disabled={create.isPending}>
@@ -130,13 +172,12 @@ function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
 
 export default function Minyans() {
   const [city, setCity] = useState("");
-  const [community, setCommunity] = useState("");
   const qc = useQueryClient();
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const params = { city: city || undefined, community: community === "all" ? undefined : community || undefined };
+  const params = { city: city || undefined };
   const { data: minyans, isLoading } = useListMinyans(params, {
     query: { queryKey: getListMinyansQueryKey(params) },
   });
@@ -180,15 +221,6 @@ export default function Minyans() {
               onChange={e => setCity(e.target.value)}
             />
           </div>
-          <Select value={community || "all"} onValueChange={v => setCommunity(v === "all" ? "" : v)}>
-            <SelectTrigger className="h-11 w-full sm:w-52">
-              <SelectValue placeholder="All communities" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All communities</SelectItem>
-              {COMMUNITIES.filter(Boolean).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
         </div>
 
         {isLoading ? (
@@ -217,11 +249,6 @@ export default function Minyans() {
                         <MapPin className="h-3 w-3" />
                         {minyan.city}, {minyan.country}
                       </span>
-                      {minyan.community && (
-                        <span className="bg-secondary/10 text-secondary px-2 py-0.5 rounded-full text-xs font-medium">
-                          {minyan.community}
-                        </span>
-                      )}
                     </div>
                     {minyan.address && (
                       <p className="text-xs text-muted-foreground mt-1">{minyan.address}</p>
@@ -237,34 +264,22 @@ export default function Minyans() {
                   </button>
                 </div>
 
-                <div className="bg-muted/40 rounded-lg p-4 space-y-2">
-                  <div className="flex items-start gap-3">
-                    <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center mt-0.5 shrink-0">
-                      <Clock className="h-3 w-3 text-primary" />
+                <div className="bg-muted/40 rounded-lg p-4 space-y-3">
+                  {PRAYERS.filter(({ key }) => Boolean(minyan[key]?.trim())).map(({ key, label }) => (
+                    <div key={key} className="flex items-start gap-3">
+                      <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center mt-0.5 shrink-0">
+                        <Clock className="h-3 w-3 text-primary" />
+                      </div>
+                      <div className="text-sm min-w-0 flex-1">
+                        <span className="font-semibold text-foreground">{label}:</span>
+                        <div className="space-y-1 mt-1">
+                          {minyan[key].split(/\r?\n/).filter(Boolean).map((entry, i) =>
+                            <p key={i} className="text-muted-foreground break-words" dir="auto">{entry}</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm">
-                      <span className="font-semibold text-foreground">Shacharis: </span>
-                      <span className="text-muted-foreground">{minyan.shacharis}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center mt-0.5 shrink-0">
-                      <Clock className="h-3 w-3 text-primary" />
-                    </div>
-                    <div className="text-sm">
-                      <span className="font-semibold text-foreground">Mincha: </span>
-                      <span className="text-muted-foreground">{minyan.mincha}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center mt-0.5 shrink-0">
-                      <Clock className="h-3 w-3 text-primary" />
-                    </div>
-                    <div className="text-sm">
-                      <span className="font-semibold text-foreground">Maariv: </span>
-                      <span className="text-muted-foreground">{minyan.maariv}</span>
-                    </div>
-                  </div>
+                  ))}
                   {minyan.notes && (
                     <p className="text-xs text-muted-foreground border-t pt-2 mt-2 italic">{minyan.notes}</p>
                   )}
