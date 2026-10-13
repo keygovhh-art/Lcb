@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, featuredCauseSupportersTable, projectMembersTable } from "@workspace/db";
 import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes } from "@workspace/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
@@ -54,6 +54,29 @@ async function getCaseWithDetails(id: number, userId: number) {
     followUpNotes: followups.map(f => ({ ...f, createdAt: f.createdAt.toISOString() })),
   };
 }
+
+// Returns ONLY this signed-in member's official participation. No reliance on public names.
+router.get("/me/official-joins", requireAuth, async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  const userId = getSessionUserId(req)!;
+  const [causeJoins, projectJoins, personal] = await Promise.all([
+    db.select({ id: featuredCauseSupportersTable.causeId }).from(featuredCauseSupportersTable)
+      .where(eq(featuredCauseSupportersTable.userId, userId)),
+    db.select({ id: projectMembersTable.projectId }).from(projectMembersTable)
+      .where(eq(projectMembersTable.userId, userId)),
+    db.select({ id: askanuscases.id, type: askanuscases.sourceType, source: askanuscases.sourceId })
+      .from(askanuscases).where(eq(askanuscases.userId, userId)),
+  ]);
+  const keys = new Map(personal.map(c => [`${c.type}:${c.source}`, c.id]));
+  const result = new Map<string, { sourceType: string; sourceId: number; caseId: number | null }>();
+  for (const c of causeJoins) result.set(`featured_cause:${c.id}`, {
+    sourceType: "featured_cause", sourceId: c.id, caseId: keys.get(`featured_cause:${c.id}`) || null,
+  });
+  for (const p of projectJoins) result.set(`community_project:${p.id}`, {
+    sourceType: "community_project", sourceId: p.id, caseId: keys.get(`community_project:${p.id}`) || null,
+  });
+  res.json(Array.from(result.values()));
+});
 
 // --- Cases ---
 
@@ -160,6 +183,14 @@ router.delete("/askanus/cases/:id", requireAuth, async (req, res) => {
   );
   if (!owned) { res.status(404).json({ error: "Not found" }); return; }
 
+  // An official membership remains joined. Archive the private work by closing
+  // the case; do not erase its audit trail or break the original source link.
+  const [linked] = await db.select({ sourceType: askanuscases.sourceType })
+    .from(askanuscases).where(and(eq(askanuscases.id, id), eq(askanuscases.userId, userId)));
+  if (linked?.sourceType) {
+    res.status(409).json({ error: "Official joined cases can be closed but not deleted. Use Close to keep your history." });
+    return;
+  }
   await db.delete(caseActivityLog).where(eq(caseActivityLog.caseId, id));
   await db.delete(caseFollowups).where(eq(caseFollowups.caseId, id));
   await db.delete(askanuscases).where(eq(askanuscases.id, id));
