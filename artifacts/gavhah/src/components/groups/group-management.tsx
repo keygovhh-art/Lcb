@@ -31,6 +31,7 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
   const { toast }=useToast();
   const [options,setOptions]=useState(group);
   const [saving,setSaving]=useState(false);
+  const [nextOwner,setNextOwner]=useState<number|null>(null);
   const [busy,setBusy]=useState(false);
   const [pending,setPending]=useState<{posts:PendingPost[];replies:PendingReply[]}>({posts:[],replies:[]});
   const [reports,setReports]=useState<Report[]>([]);
@@ -109,10 +110,24 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
       <Button disabled={saving} onClick={()=>void save()}>{saving?"היט אפ...":"היט אפ אלע גרופ־סעטינגס"}</Button>
     </div>}
     {tab==="members"&&<div className="space-y-3">
+      {staff&&canChangeRoles&&<div className="rounded-xl border border-amber-500/30 bg-muted/20 p-3 space-y-2">
+        <p className="text-sm font-semibold">נאר גבהה־מערכת: איבערפירן הויפט־אדמין־רעכטן</p>
+        <p className="text-xs text-muted-foreground">א פארגעשריטענער סיסטעם־שריט. דער גרינדער קען נישט ווערן ארויסגענומען דורך א גרופ־אדמין.</p>
+        <select className="w-full rounded-lg border bg-background p-3" value={nextOwner??""}
+          onChange={e=>setNextOwner(e.target.value?Number(e.target.value):null)}>
+          <option value="">אויסקלייבן א נייער הויפט־אדמין</option>
+          {members.filter(m=>m.status==="approved"&&m.userId!==group.ownerId)
+            .map(m=><option key={m.id} value={m.userId}>{m.userName}</option>)}
+        </select>
+        <Button disabled={busy||!nextOwner} variant="outline" onClick={()=>{
+          if(nextOwner&&window.confirm("איבערפירן די הויפט־אדמין־רעכטן צו דעם נייעם מעמבער?"))
+            void update(`/api/admin/groups/${group.id}/owner`,{userId:nextOwner});
+        }}>באשטעטיגן איבערפירן רעכטן</Button>
+      </div>}
       {members.map(member=><div key={member.id} className="border rounded-xl p-3 space-y-2">
         <div className="flex justify-between items-start gap-2">
           <div><p className="font-semibold">{member.userName}</p>
-            <p className="text-xs text-muted-foreground">{member.role==="owner"?"גרינדער · הויפט־אדמין":member.role==="admin"?"גרופ־אדמין":"מעמבער"} · {statuses[member.status]||member.status}</p></div>
+            <p className="text-xs text-muted-foreground">{member.role==="owner"?"גרינדער · הויפט־אדמין":["admin","moderator"].includes(member.role)?"גרופ־אדמין":"מעמבער"} · {statuses[member.status]||member.status}</p></div>
           {member.userId===group.ownerId&&<span className="text-xs text-secondary font-semibold">באשיצט</span>}
         </div>
         {member.userId!==group.ownerId&&<div className="flex flex-wrap gap-1.5">
