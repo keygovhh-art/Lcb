@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, sql, and, inArray } from "drizzle-orm";
-import { db, groupsTable, groupMembersTable, groupPostsTable, usersTable, entityLikesTable } from "@workspace/db";
+import { db, groupsTable, groupMembersTable, groupPostsTable, groupPostDownvotesTable, usersTable, entityLikesTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName, resolvePublicPostingName } from "../lib/user-display";
@@ -509,6 +509,15 @@ router.post("/groups/:id/posts/:postId/like", requireAuth, async (req, res): Pro
       .where(eq(groupPostsTable.id, postId))
       .returning({ likes: groupPostsTable.likes });
     likes = updated.likes;
+  }
+  if(state.liked) {
+    const removed=await db.delete(groupPostDownvotesTable).where(and(
+      eq(groupPostDownvotesTable.postId,postId),
+      eq(groupPostDownvotesTable.userId,userId),
+    )).returning({id:groupPostDownvotesTable.id});
+    if(removed.length)await db.update(groupPostsTable).set({
+      downvotes:sql`GREATEST(0,${groupPostsTable.downvotes}-1)`,
+    }).where(eq(groupPostsTable.id,postId));
   }
   res.json({ likes, liked: state.liked });
 });

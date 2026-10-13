@@ -86,7 +86,7 @@ export const groupReportsTable = pgTable("group_post_reports", {
   groupStatus: text("group_status").notNull().default("open"),
   staffStatus: text("staff_status").notNull().default("open"),
   createdAt: timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
-});
+}, t => [uniqueIndex("group_reports_post_reporter_unique").on(t.postId,t.reporterId)]);
 
 export const insertGroupSchema = createInsertSchema(groupsTable).omit({ id: true, createdAt: true });
 export type InsertGroup = z.infer<typeof insertGroupSchema>;

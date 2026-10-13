@@ -205,7 +205,18 @@ router.post("/groups/:id/posts/:postId/downvote",requireAuth,async(req,res):Prom
     const [existing]=await tx.select().from(groupPostDownvotesTable).where(and(eq(groupPostDownvotesTable.postId,pid),eq(groupPostDownvotesTable.userId,ctx.userId!))).limit(1);
     const downvoted=!existing;
     if(existing) await tx.delete(groupPostDownvotesTable).where(eq(groupPostDownvotesTable.id,existing.id));
-    else await tx.insert(groupPostDownvotesTable).values({postId:pid,userId:ctx.userId!});
+    else {
+      await tx.insert(groupPostDownvotesTable).values({postId:pid,userId:ctx.userId!});
+      // Downvoting cancels a prior upvote on the same post.
+      const removed=await tx.delete(entityLikesTable).where(and(
+        eq(entityLikesTable.userId,ctx.userId!),
+        eq(entityLikesTable.entityType,"group_post"),
+        eq(entityLikesTable.entityId,pid),
+      )).returning({id:entityLikesTable.id});
+      if(removed.length) await tx.update(groupPostsTable).set({
+        likes:sql`GREATEST(0,${groupPostsTable.likes}-1)`,
+      }).where(eq(groupPostsTable.id,pid));
+    }
     await tx.update(groupPostsTable).set({downvotes:sql`GREATEST(0,${groupPostsTable.downvotes} + ${downvoted?1:-1})`})
       .where(eq(groupPostsTable.id,pid));
     return downvoted;
@@ -224,9 +235,17 @@ router.post("/groups/:id/posts/:postId/report",requireAuth,async(req,res):Promis
   if(!["group","staff","both"].includes(destination)||!reason||reason.length>2000){
     res.status(400).json({error:"Choose recipient and give a reason (max 2000 characters)"});return;
   }
+  // At most one report per member/post; repeated submissions can safely
+  // escalate a group report to the platform team, without exposing that to group admins.
   await db.insert(groupReportsTable).values({
     groupId:gid,postId:pid,reporterId:ctx.userId!,reason,
     toGroup:destination!=="staff",toStaff:destination!=="group",
+  }).onConflictDoUpdate({
+    target:[groupReportsTable.postId,groupReportsTable.reporterId],
+    set:{
+      toGroup:sql`${groupReportsTable.toGroup} OR ${destination!=="staff"}`,
+      toStaff:sql`${groupReportsTable.toStaff} OR ${destination!=="group"}`,
+    },
   });
   // Recipient choice is not echoed back: group team has no side-channel.
   res.status(201).json({ok:true});

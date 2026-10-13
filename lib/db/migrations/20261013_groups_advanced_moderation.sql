@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS public.group_post_reports (
  staff_status text NOT NULL DEFAULT 'open',
  created_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS group_reports_post_reporter_unique ON public.group_post_reports(post_id,reporter_id);
 CREATE INDEX IF NOT EXISTS group_reports_group_target_idx ON public.group_post_reports(group_id,to_group,created_at);
 CREATE INDEX IF NOT EXISTS group_reports_staff_target_idx ON public.group_post_reports(to_staff,created_at);
 COMMIT;
