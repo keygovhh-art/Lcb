@@ -323,13 +323,13 @@ export interface Minyan {
 
 export interface MinyanInput {
   synagogueName: string;
-  community: string;
   city: string;
   country: string;
   address?: string;
-  shacharis: string;
-  mincha: string;
-  maariv: string;
+  /** At least one of the three prayers must contain a time; each can contain multiple newline-separated minyanim. */
+  shacharis?: string;
+  mincha?: string;
+  maariv?: string;
   notes?: string;
 }
 

@@ -2670,11 +2670,9 @@ components:
 
     MinyanInput:
       type: object
-      required: [synagogueName, community, city, country, shacharis, mincha, maariv]
+      required: [synagogueName, city, country]
       properties:
         synagogueName:
-          type: string
-        community:
           type: string
         city:
           type: string
