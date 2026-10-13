@@ -29,7 +29,7 @@ async function groupAccess(groupId: number, req: Request) {
   const owner=!!userId && group.ownerId===userId && member?.status!=="suspended";
   const staff=isStaff(role);
   const elevated=isSystemAdmin(role);
-  const admin=staff||owner||(member?.role==="admin"&&member.status==="approved");
+  const admin=staff||owner||(["admin","moderator"].includes(member?.role||"")&&member?.status==="approved");
   const active=admin||(member?.status==="approved");
   const reader=group.privacy==="public"||active;
   return {group,userId,owner,staff,elevated,admin,active,reader,member};
@@ -179,6 +179,19 @@ router.post("/groups/:id/posts/:postId/view",requireAuth,async(req,res):Promise<
     return current?.views??0;
   });
   res.json({ok:true,viewRecorded:true,views:ctx.admin||ctx.group.showViewCounts?views:undefined});
+});
+
+// Return the current member's own vote, never the public total.
+router.get("/groups/:id/posts/:postId/downvote",requireAuth,async(req,res):Promise<void>=>{
+  const gid=getGroup(req,res),pid=id(req.params.postId);if(!gid||!pid)return;
+  const ctx=await groupAccess(gid,req);
+  const post=ctx?await postInGroup(gid,pid):null;
+  if(!ctx?.active||!post||post.moderationStatus!=="approved"){sendNotFound(res);return;}
+  if(!ctx.group.allowDownvotes){res.json({downvoted:false});return;}
+  const [existing]=await db.select({id:groupPostDownvotesTable.id}).from(groupPostDownvotesTable)
+    .where(and(eq(groupPostDownvotesTable.postId,pid),eq(groupPostDownvotesTable.userId,ctx.userId!))).limit(1);
+  res.setHeader("Cache-Control","private, no-store");
+  res.json({downvoted:!!existing});
 });
 
 // Public downvote totals are NEVER returned; only management sees totals.

@@ -19,7 +19,7 @@ async function isGroupManager(groupId:number,userId:number,role?:string,ownerId?
   if(isStaffRole(role)||userId===ownerId)return true;
   const [member]=await db.select().from(groupMembersTable).where(and(
     eq(groupMembersTable.groupId,groupId),eq(groupMembersTable.userId,userId),
-    eq(groupMembersTable.status,"approved"),eq(groupMembersTable.role,"admin"),
+    eq(groupMembersTable.status,"approved"),inArray(groupMembersTable.role,["admin","moderator"]),
   )).limit(1);
   return !!member;
 }
