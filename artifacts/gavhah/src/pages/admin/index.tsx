@@ -25,6 +25,7 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { CharityManagement } from "@/components/admin/charity-management";
+import { GroupReportsManagement } from "@/components/admin/group-reports-management";
 import { FeaturedCauseManagement } from "@/components/admin/featured-cause-management";
 import { SiteCopyManagement } from "@/components/admin/site-copy-management";
 import { MembershipGateManagement } from "@/components/admin/membership-gate-management";
@@ -388,6 +389,7 @@ export default function FounderDashboard() {
                 <span className="bg-destructive text-white text-xs rounded-full px-1.5 py-0.5">{pendingReports.length}</span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="group-team-reports" className="gap-2"><Flag className="h-4 w-4" /> Group Reports</TabsTrigger>
             <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" /> Members</TabsTrigger>
             <TabsTrigger value="charity" className="gap-2"><Heart className="h-4 w-4" /> Charity</TabsTrigger>
             <TabsTrigger value="featured" className="gap-2"><Sparkles className="h-4 w-4" /> Featured</TabsTrigger>
@@ -878,6 +880,8 @@ export default function FounderDashboard() {
               <div className="text-center py-8 text-muted-foreground font-serif italic border rounded-xl bg-muted/20">No members yet.</div>
             )}
           </TabsContent>
+
+          <TabsContent value="group-team-reports"><GroupReportsManagement /></TabsContent>
 
           {/* ─── Charity Management ─── */}
           <TabsContent value="charity">
