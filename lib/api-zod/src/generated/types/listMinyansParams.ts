@@ -9,7 +9,6 @@
 export type ListMinyansParams = {
 city?: string;
 country?: string;
-community?: string;
 synagogue?: string;
 page?: number;
 };

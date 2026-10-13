@@ -40,3 +40,12 @@ OWNER RELEASE HOLD: no GitHub main merge, no Render deploy, no production Neon w
 - Scheduled entries become public when their UTC instant passes; status is derived at read time. If the server is asleep, no permanently running cron job is needed. Homepage UI refreshes about once per minute while open.
 - Existing legacy campaigns stay live after migration with their existing isActive/isTodaysFeatured values.
 - Admin should only set donation URLs to an approved organization's real HTTPS payment page. No identity documents, cards, or personal data are collected by Gavhah itself.
+
+## Oct 13 — minyan forms: optional services and Add More (staged only)
+- Shacharis, Mincha and Maariv: none is individually required; at least **one actual nonempty** entry across the three is required by both browser form and API.
+- Each service offers an independent **+ לייג צו נאך א מנין** button and removable, individually labeled entries (up to 24 per service). Empty entries are discarded on save; multiple values are stored newline-separated in the existing text columns.
+- Old single-string times are preserved, no table changes needed and no new Neon migration for this feature.
+- Remove community selection from submission, search, public cards and founder moderation; keep country, city, address and notes. DB community column remains a blank legacy non-null field for compatibility, not a selectable category.
+- Founder PATCH validates final schedule as a group, so editing one prayer to empty is okay while another is filled. The public cards and admin review hide missing services and show multiple times on separate rows.
+- Regression tests: `tests/minyan-schedules.test.mjs`.
+- STRICT HOLD: no Render deploy, main merge or production Neon change before a later explicit instruction. Browser/on-device end-to-end check required before release.

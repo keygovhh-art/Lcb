@@ -1119,10 +1119,6 @@ paths:
           schema:
             type: string
         - in: query
-          name: community
-          schema:
-            type: string
-        - in: query
           name: synagogue
           schema:
             type: string
