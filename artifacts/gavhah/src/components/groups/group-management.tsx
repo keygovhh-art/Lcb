@@ -176,7 +176,7 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
         <p className="text-sm whitespace-pre-wrap">{report.reason}</p>
         {report.postExcerpt&&<p className="rounded-lg border p-2 text-xs text-muted-foreground whitespace-pre-wrap">
           באריכטעטע אינהאלט: {report.postExcerpt}
-        </p>
+        </p>}
         <div className="flex gap-2 items-center"><span className="text-xs">{report.status==="resolved"?"באהאנדלט":"ווארט אויף באהאנדלונג"}</span>
           {report.status!=="resolved"&&<Button disabled={busy} size="sm" variant="outline"
             onClick={()=>void update(`/api/groups/${group.id}/reports/${report.id}`,{status:"resolved"})}>באשטעטיגן באהאנדלט</Button>}
