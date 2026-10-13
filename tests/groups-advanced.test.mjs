@@ -55,6 +55,14 @@ test("view counts are unique to signed-in members, and downvote counts are secre
 test("group reports cannot disclose staff-only or shared routing to group admins",()=>{
  assert.match(schema,/toStaff: boolean\("to_staff"\)/);
  assert.match(schema,/groupStatus: text\("group_status"\)/);
+ assert.match(schema,/postExcerpt: text\("post_excerpt"\)/);
+ assert.match(advanced,/postExcerpt:post.content.slice\(0,4000\)/);
+ assert.match(advanced,/postExcerpt:r.postExcerpt/);
+ // Staff reports are retained when moderators delete a reported post/group.
+ const reportSchema=schema.slice(schema.indexOf("export const groupReportsTable"));
+ assert.doesNotMatch(reportSchema,/onDelete:"cascade"/);
+ const reportMigration=migration.slice(migration.indexOf("CREATE TABLE IF NOT EXISTS public.group_post_reports"));
+ assert.doesNotMatch(reportMigration,/REFERENCES public\.group_(?:posts|groups)\(id\) ON DELETE CASCADE/);
  assert.match(schema,/staffStatus: text\("staff_status"\)/);
  assert.match(advanced,/eq\(groupReportsTable\.toGroup,true\)/);
  assert.match(advanced,/status:r\.groupStatus/);

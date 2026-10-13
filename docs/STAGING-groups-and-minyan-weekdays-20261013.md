@@ -30,3 +30,8 @@
 3. Apply both additive migrations to the correct DB, validate table/column/status counts.
 4. Merge reviewed staging branch and trigger one manual Render deploy.
 5. Check public and admin flows with at least two different member accounts and a platform-admin account.
+
+## Team report retention after deletion
+- Historic group reports intentionally do NOT cascade-delete on source post/group removal.
+- A 4,000-character snapshot of the reported post is stored when submitted. Staff can investigate a report even after that post was deleted by its author or a moderator.
+- Reports addressed to group admins only remain grouped as before; staff-directed routes/status flags never appear to group admins.

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Flag, RefreshCw, CheckCircle } from "lucide-react";
 
-type Report = {id:number;groupId:number;postId:number;reason:string;status:"open"|"resolved";createdAt:string};
+type Report = {id:number;groupId:number;postId:number;reason:string;postExcerpt?:string;status:"open"|"resolved";createdAt:string};
 
 export function GroupReportsManagement() {
   const [items,setItems]=useState<Report[]>([]);
@@ -55,6 +55,9 @@ export function GroupReportsManagement() {
         <span className="text-xs text-muted-foreground">{item.createdAt.slice(0,10)} · {item.status==="resolved"?"באהאנדלט":"נאך אפן"}</span>
       </div>
       <p className="text-sm whitespace-pre-wrap break-words">{item.reason}</p>
+      {item.postExcerpt&&<p className="rounded-lg border bg-muted/20 p-3 text-xs whitespace-pre-wrap break-words">
+        אריגינעלער באריכטעטע אינהאלט: {item.postExcerpt}
+      </p>}
       <div className="flex flex-wrap gap-2 items-center">
         <Link href={`/groups/${item.groupId}`} className="text-sm underline text-secondary">עפענען גרופ</Link>
         {item.status!=="resolved"&&<Button size="sm" variant="outline" disabled={busy!==null}

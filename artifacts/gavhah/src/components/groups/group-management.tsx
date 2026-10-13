@@ -11,7 +11,7 @@ export type GroupOptions = {
 type Membership = { id:number;userId:number;userName:string;status:string;role:string };
 type PendingPost = {id:number;content:string;authorName:string;createdAt:string};
 type PendingReply = {id:number;postId:number;content:string;authorName:string;createdAt:string};
-type Report = {id:number;postId:number;groupId?:number;reason:string;status:string;createdAt:string};
+type Report = {id:number;postId:number;groupId?:number;reason:string;postExcerpt?:string;status:string;createdAt:string};
 const labels: Array<[keyof Omit<GroupOptions,"id"|"ownerId">,string,string]> = [
   ["membersCanPost","מעמבערס מעגן פובלישן פאוסטס","ווען אויסגעלאשן קענען נאר אדמינס פאוסטן"],
   ["postApproval","פאוסטס מוזן אדמין־אפראוועל","נייע מעמבער־פאוסטס בלייבן פריוואט ביז באשטעטיגט"],
@@ -174,6 +174,9 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
       {reports.map(report=><div key={report.id} className="rounded-xl border p-3 space-y-2">
         <p className="text-xs text-muted-foreground">פאוסט #{report.postId} · {report.createdAt.slice(0,10)}</p>
         <p className="text-sm whitespace-pre-wrap">{report.reason}</p>
+        {report.postExcerpt&&<p className="rounded-lg border p-2 text-xs text-muted-foreground whitespace-pre-wrap">
+          באריכטעטע אינהאלט: {report.postExcerpt}
+        </p>
         <div className="flex gap-2 items-center"><span className="text-xs">{report.status==="resolved"?"באהאנדלט":"ווארט אויף באהאנדלונג"}</span>
           {report.status!=="resolved"&&<Button disabled={busy} size="sm" variant="outline"
             onClick={()=>void update(`/api/groups/${group.id}/reports/${report.id}`,{status:"resolved"})}>באשטעטיגן באהאנדלט</Button>}
