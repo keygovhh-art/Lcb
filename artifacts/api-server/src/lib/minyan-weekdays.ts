@@ -1,6 +1,6 @@
 export type Prayer = "shacharis" | "mincha" | "maariv";
 export type Schedule = Record<Prayer, { time: string; days: number[] }[]>;
-export const WEEKDAYS = [1,2,3,4,5,6] as const;
+export const WEEKDAYS = [0,1,2,3,4,5] as const;
 export const PRAYERS: Prayer[] = ["shacharis", "mincha", "maariv"];
 export function legacySchedule(v: Record<Prayer,string>): Schedule {
   return Object.fromEntries(PRAYERS.map(p=>[p,(v[p]||"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(time=>({time,days:[...WEEKDAYS]}))])) as Schedule;
@@ -18,7 +18,7 @@ export function validateSchedule(raw: unknown): Schedule {
       if(!entry||typeof entry!=="object"||Array.isArray(entry))throw Error("Invalid minyan");
       const {time,days}=entry as Record<string,unknown>;
       if(typeof time!=="string"||!time.trim()||time.trim().length>100)throw Error("Invalid time");
-      if(!Array.isArray(days)||!days.length||days.length>6||days.some(d=>typeof d!=="number"||!Number.isInteger(d)||d<1||d>6)||new Set(days).size!==days.length)throw Error("Choose one or more weekdays");
+      if(!Array.isArray(days)||!days.length||days.length>6||days.some(d=>typeof d!=="number"||!Number.isInteger(d)||d<0||d>5)||new Set(days).size!==days.length)throw Error("Choose one or more weekdays");
       ++count;
       return {time:time.trim(),days:[...days].sort((a,b)=>a-b) as number[]};
     });
