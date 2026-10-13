@@ -450,7 +450,14 @@ router.patch("/groups/:id/posts/:postId", requireAuth, async (req, res): Promise
         .where(eq(groupsTable.id,groupId));
     return [updated];
   });
-  res.json(updated);
+  if(manager){
+    res.json(publicPostForViewer(updated,getSessionUserId(req)!,getSessionUserRole(req)));return;
+  }
+  // A post author is not necessarily a group admin; never leak hidden downvote
+  // counts through the edit response.
+  const safe=publicPostForViewer(updated,getSessionUserId(req)!,getSessionUserRole(req));
+  const {downvotes, ...publicRecord}=safe;
+  res.json({...publicRecord,views:group.showViewCounts?updated.views:null});
 });
 
 router.delete("/groups/:id/posts/:postId", requireAuth, async (req, res): Promise<void> => {
@@ -560,7 +567,11 @@ router.post("/groups/:id/posts", requireAuth, async (req, res): Promise<void> =>
     .set({ postCount: sql`${groupsTable.postCount} + 1` })
     .where(eq(groupsTable.id, groupId));
 
-  res.status(201).json(post);
+  if(manager){
+    res.status(201).json(post);return;
+  }
+  const {downvotes, ...publicRecord}=post;
+  res.status(201).json({...publicRecord,views:group.showViewCounts?post.views:null});
 });
 
 export default router;
