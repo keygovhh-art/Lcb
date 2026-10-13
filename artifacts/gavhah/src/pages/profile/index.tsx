@@ -20,6 +20,9 @@ import { MemberGate } from "@/components/shared/member-gate";
 import { MemberMailingProfile } from "@/components/shared/member-mailing-profile";
 import { MemberContactProfile } from "@/components/shared/member-contact-profile";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/context/language-context";
+import { MyCreatedContent } from "@/components/profile/my-created-content";
+import { FolderOpen } from "lucide-react";
 
 const ENTITY_TYPE_LABEL: Record<string, string> = {
   volunteer: "Volunteer",
@@ -45,6 +48,8 @@ export default function ProfilePage() {
   const qc = useQueryClient();
   const { user, isAuthenticated, isLoaded, refresh } = useAuth();
   const { toast } = useToast();
+  const { lang } = useLanguage();
+  const yi = lang === "yi";
   const [editOpen, setEditOpen] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -280,23 +285,26 @@ export default function ProfilePage() {
       </div>
 
       <div className="container mx-auto px-4 py-10">
-        <Tabs defaultValue="following" className="space-y-6">
-          <TabsList className="bg-muted/50 p-1">
+        <Tabs defaultValue="created" className="space-y-6">
+          <TabsList className="bg-muted/50 p-1 flex flex-wrap h-auto gap-1">
+            <TabsTrigger value="created" className="gap-2"><FolderOpen className="h-4 w-4" />{yi ? "וואס איך האב געעפנט" : "My Creations"}</TabsTrigger>
             <TabsTrigger value="following" className="gap-2">
               <UserPlus className="h-4 w-4" />
-              Following
+              {yi ? "וואס איך פאלג נאך" : "Following"}
               {follows && follows.length > 0 && (
                 <span className="bg-primary/10 text-primary text-xs rounded-full px-1.5 py-0.5">{follows.length}</span>
               )}
             </TabsTrigger>
             <TabsTrigger value="saved" className="gap-2">
               <BookmarkCheck className="h-4 w-4" />
-              Saved
+              {yi ? "אפגעהיטן" : "Saved"}
               {saved && saved.length > 0 && (
                 <span className="bg-primary/10 text-primary text-xs rounded-full px-1.5 py-0.5">{saved.length}</span>
               )}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="created"><MyCreatedContent /></TabsContent>
 
           {/* ─── Following ─── */}
           <TabsContent value="following" className="space-y-3">
@@ -308,8 +316,8 @@ export default function ProfilePage() {
             {!followsLoading && (!follows || follows.length === 0) && (
               <div className="text-center py-16 border rounded-xl bg-muted/20">
                 <UserPlus className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-                <p className="font-serif text-lg font-semibold text-primary mb-1">No follows yet</p>
-                <p className="text-sm text-muted-foreground mb-4">Follow volunteers, groups, projects, and more.</p>
+                <p className="font-serif text-lg font-semibold text-primary mb-1">{yi ? "דו פאלגסט דערווייל קיינעם נישט נאך" : "You are not following anything yet"}</p>
+                <p className="text-sm text-muted-foreground mb-4">{yi ? "דא וועלן זיך ווייזן מענטשן, גרופעס און פראיעקטן וואס דו פאלגסט נאך. דאס איז נישט די Follow-up היסטאריע אין מיין עסקנות." : "Follow people, groups and projects here. This is separate from My Askanus follow-up history."}</p>
                 <Link href="/directory">
                   <Button variant="outline" size="sm" className="gap-2">
                     Browse the Directory <ArrowRight className="h-3.5 w-3.5" />
