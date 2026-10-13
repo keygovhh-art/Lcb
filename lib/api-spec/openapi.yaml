@@ -2035,6 +2035,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/AskanusCase"
 
+  /askanus/followups/{id}:
+    delete:
+      operationId: deleteCaseFollowup
+      tags: [askanus]
+      summary: Permanently delete a follow-up owned by the authenticated case member
+      description: Checking a follow-up completed keeps it in history. Only an explicit DELETE removes it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The follow-up was permanently deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, deletedId]
+                properties:
+                  ok:
+                    type: boolean
+                  deletedId:
+                    type: integer
+        "404":
+          description: Follow-up not found or does not belong to the signed-in member
+
   /askanus/followups/{id}/toggle:
     patch:
       operationId: toggleCaseFollowup
