@@ -408,7 +408,7 @@ router.get("/groups/:id/posts", async (req, res): Promise<void> => {
 
   const viewer = await getCurrentSessionUser(req);
   const manager = viewer ? await isGroupManager(id,viewer.id,viewer.role,group.ownerId) : false;
-  const rows = await db.select().from(groupPostsTable).where(eq(groupPostsTable.groupId,id)).orderBy(desc(groupPostsTable.createdAt));
+  const rows = await db.select().from(groupPostsTable).where(eq(groupPostsTable.groupId,id)).orderBy(desc(groupPostsTable.isPinned),desc(groupPostsTable.createdAt));
   res.setHeader("Cache-Control","private, no-store");
   res.json(rows.filter(row => row.moderationStatus==="approved"||manager||row.authorId===viewer?.id).map(row=>{
     const safe=publicPostForViewer(row,viewer?.id,viewer?.role);

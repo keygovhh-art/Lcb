@@ -53,6 +53,24 @@ const getGroup=(req:Request,res:Response) => {
   return groupId;
 };
 
+// Group administrators can pin and lock a post. Moderation decisions remain separate.
+router.patch("/groups/:id/posts/:postId/options", requireAuth, async (req,res):Promise<void>=>{
+  const gid=getGroup(req,res),pid=id(req.params.postId);if(!gid||!pid)return;
+  const ctx=await groupAccess(gid,req);
+  if(!ctx?.admin){res.status(403).json({error:"Group admin required"});return;}
+  if(!await postInGroup(gid,pid)){sendNotFound(res);return;}
+  const values:Record<string,boolean>={};
+  for(const setting of ["isPinned","isLocked"] as const){
+    if(req.body?.[setting]!==undefined){
+      if(typeof req.body[setting]!=="boolean"){res.status(400).json({error:"Invalid post setting"});return;}
+      values[setting]=req.body[setting];
+    }
+  }
+  if(!Object.keys(values).length){res.status(400).json({error:"No changes"});return;}
+  const [updated]=await db.update(groupPostsTable).set(values).where(eq(groupPostsTable.id,pid)).returning();
+  res.json(updated);
+});
+
 // Mod/admin view, edit post approval — status changes must adjust public post count.
 router.patch("/groups/:id/posts/:postId/review",requireAuth,async(req,res):Promise<void>=>{
   const gid=getGroup(req,res),pid=id(req.params.postId);
@@ -112,6 +130,7 @@ router.post("/groups/:id/posts/:postId/replies",requireAuth,async(req,res):Promi
   if(!ctx.admin&&!ctx.group.membersCanReply){res.status(403).json({error:"Member replies disabled"});return;}
   const post=await postInGroup(gid,pid);
   if(!post||!allowedPost(post,ctx)||post.moderationStatus!=="approved"){sendNotFound(res);return;}
+  if(post.isLocked&&!ctx.admin){res.status(403).json({error:"Replies are locked for this post"});return;}
   const content=req.body?.content;
   if(typeof content!=="string"||!content.trim()||content.length>3000){res.status(400).json({error:"Reply must be 1–3000 characters"});return;}
   const authorName=await resolvePublicPostingName(ctx.userId!,req.body?.authorName);

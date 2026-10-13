@@ -11,7 +11,9 @@ ALTER TABLE public.groups
  ADD COLUMN IF NOT EXISTS allow_downvotes boolean NOT NULL DEFAULT false;
 ALTER TABLE public.group_posts
  ADD COLUMN IF NOT EXISTS downvotes integer NOT NULL DEFAULT 0,
- ADD COLUMN IF NOT EXISTS moderation_status text NOT NULL DEFAULT 'approved';
+ ADD COLUMN IF NOT EXISTS moderation_status text NOT NULL DEFAULT 'approved',
+ ADD COLUMN IF NOT EXISTS is_pinned boolean NOT NULL DEFAULT false,
+ ADD COLUMN IF NOT EXISTS is_locked boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS public.group_post_views (
  id serial PRIMARY KEY,
  post_id integer NOT NULL REFERENCES public.group_posts(id) ON DELETE CASCADE,

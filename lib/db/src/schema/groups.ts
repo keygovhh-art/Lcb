@@ -43,6 +43,8 @@ export const groupPostsTable = pgTable("group_posts", {
   views: integer("views").notNull().default(0),
   downvotes: integer("downvotes").notNull().default(0),
   moderationStatus: text("moderation_status").notNull().default("approved"),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  isLocked: boolean("is_locked").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
