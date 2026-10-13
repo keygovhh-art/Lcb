@@ -46,7 +46,7 @@ test("Private requests and case notes never leak into a public user directory",(
  assert.match(component,/פריוואט/);
  assert.doesNotMatch(api,/res\.json\(groups\)/);
  assert.doesNotMatch(api,/contactInfo|passwordHash|memberContactMethodsTable/);
- assert.match(api,/type:OwnedItemType/);
+ assert.match(api,/type:\s*OwnedItemType/);
  assert.match(api,/helpRequests\.forEach/);
 });
 test("My Profile explicitly separates owned items, following and saved",()=>{
