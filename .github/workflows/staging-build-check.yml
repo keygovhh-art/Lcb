@@ -43,6 +43,8 @@ jobs:
         run: node --experimental-strip-types --test tests/minyan-weekdays.test.mjs
       - name: Verify group moderation, founder rights and report-target confidentiality
         run: node --test tests/groups-advanced.test.mjs
+      - name: Verify member My Creations privacy and independent help roles
+        run: node --test tests/my-profile-created-content.test.mjs
       - name: Verify optional and multiple minyan schedule form and API
         run: node --experimental-strip-types --test tests/minyan-schedules.test.mjs
       - name: Verify real crash prevention and error-noise filtering
