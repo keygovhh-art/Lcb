@@ -39,6 +39,10 @@ jobs:
         run: node --test tests/official-cause-join.test.mjs
       - name: Verify follow-up history, owner-only deletion and undo completion
         run: node --experimental-strip-types --test tests/case-followup-history.test.mjs
+      - name: Verify independent weekday selections for each minyan
+        run: node --experimental-strip-types --test tests/minyan-weekdays.test.mjs
+      - name: Verify group moderation, founder rights and report-target confidentiality
+        run: node --test tests/groups-advanced.test.mjs
       - name: Verify optional and multiple minyan schedule form and API
         run: node --experimental-strip-types --test tests/minyan-schedules.test.mjs
       - name: Verify real crash prevention and error-noise filtering
