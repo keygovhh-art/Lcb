@@ -162,6 +162,7 @@ router.post("/charity", requireAdmin, async (req, res): Promise<void> => {
       publicationState,
       scheduledAt,
       isActive: publicationState === "live",
+      createdByUserId: getSessionUserId(req)!,
       isTodaysFeatured: featured,
       featuredFrom: featured ? (scheduledAt ?? now) : null,
     }).returning();
