@@ -18,6 +18,16 @@ OWNER RELEASE HOLD: no GitHub main merge, no Render deploy, no production Neon w
 - No card details, bank data, API secrets or webhook credentials are stored. No payment gateway, payout, refunds, settlement, verified receipts, recurring charge execution, or provider webhooks are implemented.
 - Before the owner may activate native donations in future: implement PCI-safe hosted/tokenized checkout with verified provider account, authenticated charity mapping, signed webhooks, deduplicated donations, proper refunds/reconciliation, fraud controls, and end-to-end tests. Activation requires separately authorized work.
 
+## Additional staged feature — official join → member-private case
+- A signed-in member joining the active featured cause gets an automatically created, unique, owner-private My Askanus case. Repeated joins do not increase supporter totals, create duplicate workspaces or inflate financial figures.
+- Organizers and joined Community Projects also get unique linked private cases; existing memberships are imported by the idempotent SQL migration below.
+- The United page changes the button to **איך בין אקטיוו אי״ה** when that account has joined, and displays **עפען קאמפיין אין מיין פריוואטער סיסטעם** under Share. Clicking brings the member to the case in `/my?case=<id>`.
+- Community Projects have joined-state buttons and links to their respective personal case.
+- Personal cases support tasks, follow-ups, notes, real progress, activity history, status, and returning to the public source. Official linked records cannot be deleted, but they may be closed to retain history.
+- Own-account status comes from `GET /api/me/official-joins` protected by `requireAuth`, NOT from names in the public supporter list. Switching accounts rechecks their respective memberships.
+- SQL to apply ONLY AFTER owner approval, BEFORE deploying this code: `lib/db/migrations/20261013_official_joins_to_my_askanus.sql`. It adds source columns, a unique index and safely backfills previous joins without copying public donations/pledges as personal funds.
+- Neither this SQL nor the prior charity migration was applied to production. No emails/push notifications were sent by staging work.
+
 ## Safe production release sequence — only after owner approval
 1. Take a new, verified Neon production backup branch; confirm the app connects to that project, not an older unrelated project.
 2. Apply `lib/db/migrations/20261012_charity_release_queue_donations.sql` to the correct production database BEFORE deploying the new app. This is additive and idempotent, retains all existing campaigns and donation records. NEVER run the migration against Neon before approval.

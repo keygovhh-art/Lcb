@@ -771,6 +771,8 @@ export interface AskanusCase {
   fundsPromised: number;
   fundsReceived: number;
   notes: string;
+  sourceType?: "featured_cause" | "community_project" | null;
+  sourceId?: number | null;
   createdAt: string;
   lastUpdated: string;
   activityLog: ActivityEntry[];

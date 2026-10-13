@@ -3349,6 +3349,12 @@ components:
           type: number
         notes:
           type: string
+        sourceType:
+          type: ["string", "null"]
+          description: Linked official cause or project; null for private cases
+        sourceId:
+          type: ["integer", "null"]
+          description: ID of the joined official source
         createdAt:
           type: string
         lastUpdated:
