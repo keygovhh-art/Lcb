@@ -2578,6 +2578,20 @@ components:
           type: integer
         postCount:
           type: integer
+        allowReplies:
+          type: boolean
+        replyApproval:
+          type: boolean
+        postApproval:
+          type: boolean
+        membersCanPost:
+          type: boolean
+        membersCanReply:
+          type: boolean
+        showViewCounts:
+          type: boolean
+        allowDownvotes:
+          type: boolean
         createdAt:
           type: string
 
@@ -2599,6 +2613,20 @@ components:
     GroupUpdate:
       type: object
       properties:
+        allowReplies:
+          type: boolean
+        replyApproval:
+          type: boolean
+        postApproval:
+          type: boolean
+        membersCanPost:
+          type: boolean
+        membersCanReply:
+          type: boolean
+        showViewCounts:
+          type: boolean
+        allowDownvotes:
+          type: boolean
         name:
           type: string
         description:
@@ -2622,10 +2650,10 @@ components:
           type: integer
         role:
           type: string
-          enum: [owner, moderator, member]
+          enum: [owner, moderator, admin, member]
         status:
           type: string
-          enum: [approved, pending]
+          enum: [approved, pending, rejected, suspended, removed]
         joinedAt:
           type: string
 
@@ -2646,7 +2674,15 @@ components:
         likes:
           type: integer
         views:
+          type: ["integer", "null"]
+        moderationStatus:
+          type: string
+        downvotes:
           type: integer
+        isPinned:
+          type: boolean
+        isLocked:
+          type: boolean
         createdAt:
           type: string
 

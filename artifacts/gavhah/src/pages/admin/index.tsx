@@ -1042,7 +1042,17 @@ export default function FounderDashboard() {
                     ] as const).filter(([key]) => Boolean(m[key]?.trim())).map(([key, label]) => (
                       <div key={key} className="flex gap-2 items-start">
                         <span className="font-semibold shrink-0">{label}:</span>
-                        <div className="whitespace-pre-line break-words">{m[key]}</div>
+                        <div className="space-y-1">
+                          {(m.weekdaySchedules?.[key] || m[key]?.split(/\r?\n/).filter(Boolean).map((time:string) => ({time,days:[0,1,2,3,4,5]})) || []).map((entry:any,i:number) => (
+                            <div key={i} className="rounded-md border bg-muted/20 p-1.5">
+                              <span className="break-words">{entry.time}</span>
+                              <span className="block text-muted-foreground text-[11px]">
+                                {entry.days?.length===6 ? "יעדן וואכנטאג" :
+                                  (entry.days || []).map((d:number) => ["זונטאג","מאנטאג","דינסטאג","מיטוואך","דאנערשטאג","פרייטאג"][d]).filter(Boolean).join(" · ")}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
