@@ -26,7 +26,7 @@ import { UpvoteButton } from "@/components/shared/upvote-button";
 import { useUpvoteStates } from "@/hooks/use-upvote-states";
 import { GroupManagement } from "@/components/groups/group-management";
 import { GroupPostExtras } from "@/components/groups/group-post-extras";
-import { Pin, Lock, Clock3 } from "lucide-react";
+import { Pin, Clock3 } from "lucide-react";
 
 const privacyIcon = (p: string) => {
   if (p === "private") return <Lock className="h-4 w-4" />;
@@ -66,8 +66,8 @@ export default function GroupDetail() {
     (ownMembership?.status === "approved" && ["admin","moderator"].includes(ownMembership?.role)));
   const isPendingMember = ownMembership?.status === "pending";
   const isMember = !!user && (isOwner || ownMembership?.status === "approved");
-  const canWritePosts = isMember && (canManageGroup || group?.membersCanPost);
-  const canReplyPosts = isMember && (canManageGroup || group?.membersCanReply);
+  const canWritePosts = isMember && (canManageGroup || !!group?.membersCanPost);
+  const canReplyPosts = isMember && (canManageGroup || !!group?.membersCanReply);
   const canReadPosts = !!group && (group.privacy === "public" || isMember || isAdmin);
 
   const { data: posts } = useListGroupPosts(numId, {
