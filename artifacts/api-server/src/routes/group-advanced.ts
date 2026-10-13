@@ -6,7 +6,7 @@ import {
   groupPostDownvotesTable, groupReportsTable, usersTable,
   entityLikesTable,
 } from "@workspace/db";
-import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
+import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { resolvePublicPostingName } from "../lib/user-display";
 import { publicPostForViewer } from "../lib/public-posting-identity";
 
@@ -21,8 +21,11 @@ const sendNotFound = (res: Response) => res.status(404).json({error:"Not found"}
 async function groupAccess(groupId: number, req: Request) {
   const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id,groupId));
   if(!group)return null;
-  const userId=getSessionUserId(req);
-  const role=getSessionUserRole(req);
+  // A stored session ID/role is NOT enough: banned or suspended
+  // platform members must never be treated as group staff or active members.
+  const current=await getCurrentSessionUser(req);
+  const userId=current?.id;
+  const role=current?.role;
   const [member]=userId?await db.select().from(groupMembersTable).where(and(
     eq(groupMembersTable.groupId,groupId),eq(groupMembersTable.userId,userId),
   )).limit(1):[undefined];

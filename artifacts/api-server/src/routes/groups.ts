@@ -266,8 +266,9 @@ router.get("/groups/:id/members", async (req, res): Promise<void> => {
   const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
   if (!group) { res.status(404).json({ error: "Group not found" }); return; }
 
-  const currentUserId = getSessionUserId(req);
-  if (currentUserId && await isGroupManager(groupId,currentUserId,getSessionUserRole(req),group.ownerId)) {
+  const verifiedCurrentUser = await getCurrentSessionUser(req);
+  const currentUserId = verifiedCurrentUser?.id;
+  if (currentUserId && await isGroupManager(groupId,currentUserId,verifiedCurrentUser.role,group.ownerId)) {
     res.setHeader("Cache-Control","private, no-store");
     res.json(await db.select().from(groupMembersTable).where(eq(groupMembersTable.groupId,groupId)));
     return;
