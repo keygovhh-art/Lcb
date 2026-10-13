@@ -24,6 +24,9 @@ import { useToast } from "@/hooks/use-toast";
 import { ImageUploadField } from "@/components/shared/image-upload-field";
 import { UpvoteButton } from "@/components/shared/upvote-button";
 import { useUpvoteStates } from "@/hooks/use-upvote-states";
+import { GroupManagement } from "@/components/groups/group-management";
+import { GroupPostExtras } from "@/components/groups/group-post-extras";
+import { Pin, Lock, Clock3 } from "lucide-react";
 
 const privacyIcon = (p: string) => {
   if (p === "private") return <Lock className="h-4 w-4" />;
@@ -58,10 +61,13 @@ export default function GroupDetail() {
   const createPost = useCreateGroupPost();
 
   const isOwner = !!user && group?.ownerId === user.id;
-  const canManageGroup = !!user && (isOwner || isAdmin);
   const ownMembership = !!user ? (members ?? []).find((member: any) => member.userId === user.id) : undefined;
+  const canManageGroup = !!user && (isOwner || isAdmin ||
+    (ownMembership?.status === "approved" && ["admin","moderator"].includes(ownMembership?.role)));
   const isPendingMember = ownMembership?.status === "pending";
   const isMember = !!user && (isOwner || ownMembership?.status === "approved");
+  const canWritePosts = isMember && (canManageGroup || group?.membersCanPost);
+  const canReplyPosts = isMember && (canManageGroup || group?.membersCanReply);
   const canReadPosts = !!group && (group.privacy === "public" || isMember || isAdmin);
 
   const { data: posts } = useListGroupPosts(numId, {
@@ -182,7 +188,10 @@ export default function GroupDetail() {
           return [post, ...items.filter((item: any) => item.id !== post.id)];
         });
         void qc.invalidateQueries({ queryKey: getGetGroupQueryKey(numId) });
-        toast({ title: "Post published", description: "It is now live in the group." });
+        toast({
+          title: post.moderationStatus==="pending" ? "פאוסט ווארט אויף אפראוועל" : "פאוסט פובלישירט",
+          description: post.moderationStatus==="pending" ? "עס וועט ערשיינען פארן ציבור נאר נאכן גרופ־אדמין רעוויאו." : "עס איז יעצט לעבעדיג.",
+        });
       },
       onError: (error: any) => toast({
         title: "Could not publish post",
@@ -302,7 +311,7 @@ export default function GroupDetail() {
                   )}
                   {isMember ? (
                     <Button variant="outline" className="shrink-0" disabled>
-                      <Users className="h-4 w-4 mr-2" /> {isOwner ? "Group Owner" : "Member"}
+                      <Users className="h-4 w-4 mr-2" /> {isOwner ? "Group Owner" : canManageGroup?"Group Admin":"Member"}
                     </Button>
                   ) : isPendingMember ? (
                     <Button variant="outline" className="shrink-0" disabled>
@@ -359,7 +368,18 @@ export default function GroupDetail() {
               </DialogContent>
             </Dialog>
 
-                        <Tabs defaultValue="posts" className="space-y-6">
+            {canManageGroup && <div className="mb-8">
+              <GroupManagement group={group} members={members||[]}
+                canChangeRoles={isOwner || ["admin","super_admin"].includes(user?.role||"")}
+                staff={isAdmin}
+                refresh={() => {
+                  void qc.invalidateQueries({queryKey:getGetGroupQueryKey(numId)});
+                  void qc.invalidateQueries({queryKey:getListGroupMembersQueryKey(numId)});
+                  void qc.invalidateQueries({queryKey:getListGroupPostsQueryKey(numId)});
+                }} />
+            </div>}
+
+            <Tabs defaultValue="posts" className="space-y-6">
               <TabsList className="bg-muted/50">
                 <TabsTrigger value="posts">Posts</TabsTrigger>
                 <TabsTrigger value="members">Members</TabsTrigger>
@@ -367,7 +387,7 @@ export default function GroupDetail() {
 
               <TabsContent value="posts" className="space-y-6">
                 <MemberGate gate="groups" action="post in this group" compact>
-                  {isMember ? (
+                  {canWritePosts ? (
                     <div className="bg-card border rounded-xl p-6">
                       <h3 className="font-semibold text-foreground mb-4">Share with the group</h3>
                       <form onSubmit={handlePost} className="space-y-4">
@@ -392,7 +412,7 @@ export default function GroupDetail() {
                     </div>
                   ) : (
                     <div className="bg-muted/30 border rounded-xl p-5 text-sm text-muted-foreground">
-                      Join this group before posting.
+                      {isMember ? "דאס פאוסטן איז דערווייל באגרעניצט צו גרופ־אדמינס." : "Join this group before posting."}
                     </div>
                   )}
                 </MemberGate>
@@ -405,7 +425,7 @@ export default function GroupDetail() {
                         <span className="text-xs text-muted-foreground">
                           {format(new Date(post.createdAt), "MMM d, yyyy")}
                         </span>
-                        {!!user && (post.authorId === user.id || user.role === "admin" || user.role === "moderator") && (
+                        {!!user && (post.authorId === user.id || canManageGroup) && (
                           <>
                             <Button
                               size="icon"
@@ -430,6 +450,14 @@ export default function GroupDetail() {
                         )}
                       </div>
                     </div>
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      {post.moderationStatus==="pending"&&
+                        <span className="text-xs text-amber-700 font-semibold flex items-center gap-1"><Clock3 className="h-3.5 w-3.5"/>ווארט אויף אפראוועל</span>}
+                      {post.moderationStatus==="rejected"&&
+                        <span className="text-xs text-destructive">נישט אפראוועט</span>}
+                      {post.isPinned&&<span className="text-xs text-secondary font-semibold flex items-center gap-1"><Pin className="h-3.5 w-3.5"/>צוגעפינט</span>}
+                      {post.isLocked&&<span className="text-xs text-muted-foreground flex items-center gap-1"><Lock className="h-3.5 w-3.5"/>רעפלייען פארשפארט</span>}
+                    </div>
                     {editingPostId === post.id ? (
                       <div className="space-y-2">
                         <Textarea value={editingPostContent} onChange={e => setEditingPostContent(e.target.value)} className="min-h-24" />
@@ -442,13 +470,19 @@ export default function GroupDetail() {
                       <p className="text-foreground leading-relaxed whitespace-pre-wrap">{post.content}</p>
                     )}
                     <div className="flex items-center gap-4 mt-4 pt-4 border-t text-sm text-muted-foreground">
-                      <UpvoteButton
+                      {post.moderationStatus==="approved"&&<UpvoteButton
                         active={postUpvotes.isLiked(post.id)}
                         count={post.likes}
                         onClick={() => void handlePostLike(post.id)}
                         title={postUpvotes.isLiked(post.id) ? "Remove upvote" : "Upvote post"}
-                      />
+                      />}
                     </div>
+                    <GroupPostExtras group={group} post={post} manager={canManageGroup}
+                      canReply={canReplyPosts}
+                      onChanged={() => {
+                        void qc.invalidateQueries({queryKey:getListGroupPostsQueryKey(numId)});
+                        void qc.invalidateQueries({queryKey:getGetGroupQueryKey(numId)});
+                      }} />
                   </div>
                 ))}
                 {posts?.length === 0 && (
