@@ -8,12 +8,12 @@
 
 export interface MinyanInput {
   synagogueName: string;
-  community: string;
   city: string;
   country: string;
   address?: string;
-  shacharis: string;
-  mincha: string;
-  maariv: string;
+  /** At least one of these prayer schedules must contain a time. Multiple minyanim are newline-separated. */
+  shacharis?: string;
+  mincha?: string;
+  maariv?: string;
   notes?: string;
 }

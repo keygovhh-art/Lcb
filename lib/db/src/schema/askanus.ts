@@ -19,6 +19,8 @@ export const askanuscases = pgTable("askanus_cases", {
   fundsPromised: numeric("funds_promised", { precision: 12, scale: 2 }).notNull().default("0"),
   fundsReceived: numeric("funds_received", { precision: 12, scale: 2 }).notNull().default("0"),
   notes: text("notes").notNull().default(""),
+  sourceType: text("source_type"),
+  sourceId: integer("source_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastUpdated: timestamp("last_updated").defaultNow().notNull(),
 });

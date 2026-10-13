@@ -5,6 +5,7 @@ import { requireAuth, requireAdmin, getSessionUserId, getCurrentSessionUser } fr
 import { setLikeState } from "../lib/entity-likes";
 import { logActivity } from "../lib/activity";
 import { notifyStaff } from "../lib/notify";
+import { normalizeMinyanTimes, hasAtLeastOneMinyanTime } from "../lib/minyan-times";
 
 const router: IRouter = Router();
 
@@ -18,36 +19,43 @@ router.get("/admin/minyans", requireAdmin, async (_req, res): Promise<void> => {
 });
 
 router.get("/minyans", async (req, res): Promise<void> => {
-  const { city, country, community, synagogue } = req.query as Record<string, string>;
+  const { city, country, synagogue } = req.query as Record<string, string>;
   let all = await db.select().from(minyansTable).where(eq(minyansTable.status, "approved"));
   if (city) all = all.filter(m => m.city.toLowerCase().includes(city.toLowerCase()));
   if (country) all = all.filter(m => m.country.toLowerCase().includes(country.toLowerCase()));
-  if (community) all = all.filter(m => m.community.toLowerCase().includes(community.toLowerCase()));
   if (synagogue) all = all.filter(m => m.synagogueName.toLowerCase().includes(synagogue.toLowerCase()));
   res.json(all);
 });
 
 router.post("/minyans", requireAuth, async (req, res): Promise<void> => {
-  const { synagogueName, community, city, country, address, shacharis, mincha, maariv, notes } = req.body;
+  const { synagogueName, city, country, address, shacharis, mincha, maariv, notes } = req.body;
   const cleanName = String(synagogueName || "").trim();
   const cleanCity = String(city || "").trim();
   const cleanCountry = String(country || "").trim();
-  const cleanShacharis = String(shacharis || "").trim();
-  const cleanMincha = String(mincha || "").trim();
-  const cleanMaariv = String(maariv || "").trim();
-  if (!cleanName || !cleanCity || !cleanCountry || !cleanShacharis || !cleanMincha || !cleanMaariv) {
-    res.status(400).json({ error: "Synagogue, city, country, and all three minyan times are required" }); return;
+  let cleanShacharis: string, cleanMincha: string, cleanMaariv: string;
+  try {
+    cleanShacharis = normalizeMinyanTimes(shacharis);
+    cleanMincha = normalizeMinyanTimes(mincha);
+    cleanMaariv = normalizeMinyanTimes(maariv);
+  } catch (error) {
+    res.status(400).json({ error: (error as Error).message }); return;
+  }
+  if (!cleanName || !cleanCity || !cleanCountry) {
+    res.status(400).json({ error: "Synagogue, city and country are required" }); return;
+  }
+  if (!hasAtLeastOneMinyanTime(cleanShacharis, cleanMincha, cleanMaariv)) {
+    res.status(400).json({ error: "Please provide at least one Shacharis, Mincha or Maariv time" }); return;
   }
   const [minyan] = await db.insert(minyansTable).values({
     submittedByUserId: getSessionUserId(req)!,
     synagogueName: cleanName.slice(0, 240),
-    community: community ? String(community).trim().slice(0, 200) : "",
+    community: "", // legacy non-null storage only; no community classification
     city: cleanCity.slice(0, 160),
     country: cleanCountry.slice(0, 160),
     address: address ? String(address).trim().slice(0, 300) : null,
-    shacharis: cleanShacharis.slice(0, 160),
-    mincha: cleanMincha.slice(0, 160),
-    maariv: cleanMaariv.slice(0, 160),
+    shacharis: cleanShacharis,
+    mincha: cleanMincha,
+    maariv: cleanMaariv,
     notes: notes ? String(notes).trim().slice(0, 3000) : null,
     status: "pending",
   }).returning();
@@ -78,14 +86,13 @@ router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
   const [existing] = await db.select().from(minyansTable).where(eq(minyansTable.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
-  const { synagogueName, shacharis, mincha, maariv, notes, status, community, city, country, address } = req.body;
+  const { synagogueName, shacharis, mincha, maariv, notes, status, city, country, address } = req.body;
   const updates: Record<string, unknown> = {};
   if (synagogueName !== undefined) {
     const clean = String(synagogueName).trim();
     if (!clean) { res.status(400).json({ error: "synagogueName required" }); return; }
     updates.synagogueName = clean.slice(0, 240);
   }
-  if (community !== undefined) updates.community = String(community ?? "").trim().slice(0, 200);
   if (city !== undefined) {
     const clean = String(city).trim();
     if (!clean) { res.status(400).json({ error: "city required" }); return; }
@@ -97,20 +104,21 @@ router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
     updates.country = clean.slice(0, 160);
   }
   if (address !== undefined) updates.address = address ? String(address).trim().slice(0, 300) : null;
-  if (shacharis !== undefined) {
-    const clean = String(shacharis).trim();
-    if (!clean) { res.status(400).json({ error: "shacharis required" }); return; }
-    updates.shacharis = clean.slice(0, 160);
-  }
-  if (mincha !== undefined) {
-    const clean = String(mincha).trim();
-    if (!clean) { res.status(400).json({ error: "mincha required" }); return; }
-    updates.mincha = clean.slice(0, 160);
-  }
-  if (maariv !== undefined) {
-    const clean = String(maariv).trim();
-    if (!clean) { res.status(400).json({ error: "maariv required" }); return; }
-    updates.maariv = clean.slice(0, 160);
+  if (shacharis !== undefined || mincha !== undefined || maariv !== undefined) {
+    let nextShacharis: string, nextMincha: string, nextMaariv: string;
+    try {
+      nextShacharis = normalizeMinyanTimes(shacharis === undefined ? existing.shacharis : shacharis);
+      nextMincha = normalizeMinyanTimes(mincha === undefined ? existing.mincha : mincha);
+      nextMaariv = normalizeMinyanTimes(maariv === undefined ? existing.maariv : maariv);
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message }); return;
+    }
+    if (!hasAtLeastOneMinyanTime(nextShacharis, nextMincha, nextMaariv)) {
+      res.status(400).json({ error: "At least one Shacharis, Mincha or Maariv time is required" }); return;
+    }
+    updates.shacharis = nextShacharis;
+    updates.mincha = nextMincha;
+    updates.maariv = nextMaariv;
   }
   if (notes !== undefined) updates.notes = notes ? String(notes).trim().slice(0, 3000) : null;
 

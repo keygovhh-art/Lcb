@@ -6,7 +6,8 @@ import {
   useListCommunityProjects, useCreateCommunityProject, useJoinCommunityProject, useListProjectMembers,
   getListCommunityProjectsQueryKey, getListProjectMembersQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -349,6 +350,7 @@ function CreateProjectDialog() {
 // ---- Project Card ----
 function ProjectCard({ project }: { project: any }) {
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const { isAuthenticated, isLoaded, user, isAdmin } = useAuth();
   const [joinOpen, setJoinOpen] = useState(false);
@@ -364,6 +366,22 @@ function ProjectCard({ project }: { project: any }) {
     goalDescription: project.goalDescription ?? "",
     status: project.status ?? "active",
   });
+
+  // Signed-in account specific memberships, not matching public display names.
+  const { data: officialJoins = [] } = useQuery<Array<{
+    sourceType: string; sourceId: number; caseId: number | null;
+  }>>({
+    queryKey: ["/api/me/official-joins", user?.id],
+    enabled: isAuthenticated && !!user?.id,
+    queryFn: async () => {
+      const r = await fetch("/api/me/official-joins", { credentials: "include", cache: "no-store" });
+      if (!r.ok) throw new Error("Could not load your joined projects");
+      return r.json();
+    },
+  });
+  const myOfficialProject = officialJoins.find(
+    r => r.sourceType === "community_project" && r.sourceId === project.id
+  );
 
   const nickname = (user as any)?.nickname || user?.name || "";
   const [joinForm, setJoinForm] = useState({ name: "", role: "volunteer", message: "" });
@@ -455,6 +473,7 @@ function ProjectCard({ project }: { project: any }) {
       {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getListProjectMembersQueryKey(project.id) });
+          qc.invalidateQueries({ queryKey: ["/api/me/official-joins"] });
           setJoinOpen(false);
           setJoinForm({ name: "", role: "volunteer", message: "" });
           toast({ title: "You have joined this project", description: "The organizer will be in touch to coordinate." });
@@ -522,8 +541,12 @@ function ProjectCard({ project }: { project: any }) {
           {isLoaded && !isAuthenticated ? (
             <MemberGate gate="projects" action="join this project">{null}</MemberGate>
           ) : (
-            <Button size="sm" className="flex-1 bg-secondary hover:bg-secondary/90 text-white gap-1.5" onClick={handleJoinOpen}>
-              <UserPlus className="h-3.5 w-3.5" /> Join / Volunteer
+            <Button size="sm" className="flex-1 bg-secondary hover:bg-secondary/90 text-white gap-1.5"
+              onClick={myOfficialProject
+                ? () => navigate(myOfficialProject.caseId ? `/my?case=${myOfficialProject.caseId}` : "/my")
+                : handleJoinOpen}>
+              <UserPlus className="h-3.5 w-3.5" />
+              {myOfficialProject ? "איך בין אקטיוו אי״ה" : "Join / Volunteer"}
             </Button>
           )}
           <Button size="sm" variant="outline" className="bg-white/50 gap-1.5" onClick={() => setShowMembers(v => !v)}>
@@ -531,6 +554,11 @@ function ProjectCard({ project }: { project: any }) {
             Members
           </Button>
         </div>
+        {myOfficialProject && <button type="button"
+          className="w-full mt-3 rounded-lg border px-3 py-2 text-sm font-semibold text-primary hover:bg-white/30"
+          onClick={() => navigate(myOfficialProject.caseId ? `/my?case=${myOfficialProject.caseId}` : "/my")}>
+          עפען קאמפיין אין מיין פריוואטער סיסטעם
+        </button>}
       </div>
 
       {/* Members list */}

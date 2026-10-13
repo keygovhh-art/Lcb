@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
-  Heart, Users, MapPin, Clock, DollarSign, CheckCircle,
+  Heart, Users, MapPin, Clock, DollarSign, CheckCircle, HandHeart,
   UserPlus, Share2, ChevronDown, ChevronUp, SendHorizonal, Star
 } from "lucide-react";
 import {
@@ -20,7 +20,7 @@ import {
   getGetActiveFeaturedCauseQueryKey,
   getListFeaturedCauseSupportersQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useAuth } from "@/context/auth-context";
@@ -68,6 +68,7 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getGetActiveFeaturedCauseQueryKey() });
           qc.invalidateQueries({ queryKey: getListFeaturedCauseSupportersQueryKey(causeId) });
+          qc.invalidateQueries({ queryKey: ["/api/me/official-joins"] });
           onClose();
           setForm({ name: "", pledgeType: "volunteer", pledgeAmount: "", message: "", location: "" });
           toast({ title: "Thank you for joining this cause", description: "Your commitment has been recorded. Gavhah will be in touch to coordinate." });
@@ -233,15 +234,35 @@ export default function United() {
   const [joinOpen, setJoinOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [showAllSupporters, setShowAllSupporters] = useState(false);
-  const { isAuthenticated, isLoaded } = useAuth();
+  const { isAuthenticated, isLoaded, user } = useAuth();
   const { toast } = useToast();
-  const [, setLocation] = useState<string>("");
+  const [, navigate] = useLocation();
 
   const { data: cause, isLoading } = useGetActiveFeaturedCause({
     query: { queryKey: getGetActiveFeaturedCauseQueryKey() },
   });
 
   const causeId = cause?.id ?? 0;
+  // Membership is determined by signed-in account ID, never by public supporter names.
+  // The server returns only the active account's joined official cases.
+  const { data: officialJoins = [] } = useQuery<Array<{
+    sourceType: string; sourceId: number; caseId: number | null;
+  }>>({
+    queryKey: ["/api/me/official-joins", user?.id],
+    enabled: isAuthenticated && !!user?.id,
+    queryFn: async () => {
+      const res = await fetch("/api/me/official-joins", { credentials: "include", cache: "no-store" });
+      if (!res.ok) throw new Error("Could not load your joined causes");
+      return res.json();
+    },
+    refetchOnWindowFocus: true,
+  });
+  const myJoin = officialJoins.find(j => j.sourceType === "featured_cause" && j.sourceId === causeId);
+  const openMyCampaign = () => {
+    if (!isAuthenticated) { navigate("/login"); return; }
+    if (!myJoin) { setJoinOpen(true); return; }
+    navigate(myJoin.caseId ? `/my?case=${myJoin.caseId}` : "/my");
+  };
   const { data: supporters } = useListFeaturedCauseSupporters(
     causeId,
     { query: { queryKey: getListFeaturedCauseSupportersQueryKey(causeId), enabled: !!causeId } }
@@ -378,12 +399,14 @@ export default function United() {
                 {isLoaded && !isAuthenticated ? (
                   <MemberGate gate="united" compact action="join this cause">{null}</MemberGate>
                 ) : (
-                  <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
                     <Button
                       className="flex-1 bg-secondary hover:bg-secondary/90 text-white h-13 text-base font-semibold gap-2 py-3"
-                      onClick={() => setJoinOpen(true)}
+                      onClick={myJoin ? openMyCampaign : () => setJoinOpen(true)}
                     >
-                      <Heart className="h-5 w-5 fill-current" /> Join This Cause
+                      <Heart className="h-5 w-5 fill-current" />
+                      {myJoin ? "איך בין אקטיוו אי״ה" : "Join This Cause"}
                     </Button>
                     <Button
                       variant="outline"
@@ -398,6 +421,15 @@ export default function United() {
                     >
                       <Share2 className="h-5 w-5" /> Share This Cause
                     </Button>
+                    </div>
+                    <Button variant="outline" className="w-full h-auto min-h-12 py-3 px-3 whitespace-normal text-center gap-2 border-secondary/40"
+                      onClick={openMyCampaign}>
+                      <HandHeart className="h-5 w-5 shrink-0" />
+                      עפען קאמפיין אין מיין פריוואטער סיסטעם
+                    </Button>
+                    {!myJoin && <p className="text-xs text-muted-foreground text-center">
+                      ווען דו שליסט זיך אן, וועט דער קעיס אויטאמאטיש אפגעהיטן ווערן אין מיין עסקנות.
+                    </p>}
                   </div>
                 )}
 
@@ -428,8 +460,10 @@ export default function United() {
                     <span className="ml-2 text-base font-normal text-muted-foreground">({(supporters ?? []).length})</span>
                   </h3>
                   {isAuthenticated && (
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setJoinOpen(true)}>
-                      <UserPlus className="h-3.5 w-3.5" /> Join Them
+                    <Button variant="outline" size="sm" className="gap-1.5"
+                      onClick={myJoin ? openMyCampaign : () => setJoinOpen(true)}>
+                      <UserPlus className="h-3.5 w-3.5" />
+                      {myJoin ? "איך בין אקטיוו אי״ה" : "Join Them"}
                     </Button>
                   )}
                 </div>

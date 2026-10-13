@@ -7,6 +7,8 @@ import {
   causeSubmissionsTable,
   notificationsTable,
   supportMessagesTable,
+  askanuscases,
+  caseActivityLog,
 } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
@@ -215,39 +217,53 @@ router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<
     }
   }
 
-  const [existing] = await db.select().from(featuredCauseSupportersTable).where(and(
-    eq(featuredCauseSupportersTable.causeId, causeId),
-    eq(featuredCauseSupportersTable.userId, userId),
-  ));
-  if (existing) {
-    res.status(409).json({ error: "You already joined this cause" });
-    return;
-  }
-
   const safeName = await resolveMemberDisplayName(userId, req.body?.name);
   const message = req.body?.message ? String(req.body.message).trim().slice(0, 1500) : null;
   const location = req.body?.location ? String(req.body.location).trim().slice(0, 200) : null;
 
-  const [supporter] = await db.insert(featuredCauseSupportersTable).values({
-    userId,
-    causeId,
-    name: safeName,
-    pledgeType,
-    pledgeAmount: pledgeAmount === null ? null : String(pledgeAmount),
-    message,
-    location,
-  }).returning();
-
-  await db.update(featuredCausesTable)
-    .set({ supporterCount: sql`${featuredCausesTable.supporterCount} + 1` })
-    .where(eq(featuredCausesTable.id, causeId));
-
-  if (pledgeAmount !== null) {
-    await db.update(featuredCausesTable)
-      .set({ amountRaised: sql`${featuredCausesTable.amountRaised} + ${pledgeAmount}` })
+  // Atomic membership and personal case creation; rejoining never doubles counts.
+  // The advisory lock serializes requests for the same member and official cause.
+  const result = await db.transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"featured_cause:" + causeId}), ${userId})`);
+    const [existing] = await tx.select().from(featuredCauseSupportersTable).where(and(
+      eq(featuredCauseSupportersTable.causeId, causeId),
+      eq(featuredCauseSupportersTable.userId, userId),
+    )).limit(1);
+    const [personal] = await tx.insert(askanuscases).values({
+      userId,
+      title: cause.title.slice(0, 240),
+      description: cause.description.slice(0, 5000),
+      category: "General",
+      contactName: (cause.organizerName || "").slice(0, 240),
+      notes: "Official community cause joined. Record your own efforts and follow-ups here.",
+      sourceType: "featured_cause",
+      sourceId: causeId,
+    }).onConflictDoNothing().returning();
+    if (personal) {
+      await tx.insert(caseActivityLog).values({
+        caseId: personal.id, date: new Date().toISOString().slice(0, 10),
+        type: "status_change", note: "Joined official community cause",
+      });
+    }
+    if (existing) return { supporter: existing, alreadyJoined: true };
+    const [supporter] = await tx.insert(featuredCauseSupportersTable).values({
+      userId, causeId, name: safeName, pledgeType,
+      pledgeAmount: pledgeAmount === null ? null : String(pledgeAmount),
+      message, location,
+    }).returning();
+    await tx.update(featuredCausesTable)
+      .set({ supporterCount: sql`${featuredCausesTable.supporterCount} + 1` })
       .where(eq(featuredCausesTable.id, causeId));
-  }
+    if (pledgeAmount !== null) {
+      await tx.update(featuredCausesTable)
+        .set({ amountRaised: sql`${featuredCausesTable.amountRaised} + ${pledgeAmount}` })
+        .where(eq(featuredCausesTable.id, causeId));
+    }
+    return { supporter, alreadyJoined: false };
+  });
 
+  if (result.alreadyJoined) { res.json(result.supporter); return; }
+  const supporter = result.supporter;
   const joiningUser = await getMemberIdentity(userId);
   await db.insert(supportMessagesTable).values({
     userId,

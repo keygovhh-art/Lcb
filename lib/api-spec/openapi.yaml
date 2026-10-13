@@ -1119,10 +1119,6 @@ paths:
           schema:
             type: string
         - in: query
-          name: community
-          schema:
-            type: string
-        - in: query
           name: synagogue
           schema:
             type: string
@@ -2670,11 +2666,9 @@ components:
 
     MinyanInput:
       type: object
-      required: [synagogueName, community, city, country, shacharis, mincha, maariv]
+      required: [synagogueName, city, country]
       properties:
         synagogueName:
-          type: string
-        community:
           type: string
         city:
           type: string
@@ -2814,7 +2808,7 @@ components:
     # ---- CHARITY ----
     Charity:
       type: object
-      required: [id, name, description, goalAmount, raisedAmount, isTodaysFeatured, createdAt]
+      required: [id, name, description, goalAmount, raisedAmount, isTodaysFeatured, isActive, publicationState, buttonStyle, buttonLayout, createdAt]
       properties:
         id:
           type: integer
@@ -2832,6 +2826,40 @@ components:
           type: integer
         isTodaysFeatured:
           type: boolean
+        isActive:
+          type: boolean
+        publicationState:
+          type: string
+          enum: [live, queued, scheduled, archived]
+        scheduledAt:
+          type: ["string", "null"]
+          format: date-time
+        featuredFrom:
+          type: ["string", "null"]
+          format: date-time
+        phoneNumber:
+          type: ["string", "null"]
+        phoneExtension:
+          type: ["string", "null"]
+        phoneButtonText:
+          type: ["string", "null"]
+        donationUrl:
+          type: ["string", "null"]
+        linkButtonText:
+          type: ["string", "null"]
+        buttonStyle:
+          type: string
+          enum: [classic, gold, outline, soft]
+        buttonLayout:
+          type: string
+          enum: [stacked, inline]
+        nativeDonationEnabled:
+          type: boolean
+        nativeDonationButtonText:
+          type: ["string", "null"]
+        nativeDonationButtonStyle:
+          type: string
+          enum: [classic, gold, outline, soft]
         createdAt:
           type: string
 
@@ -2850,6 +2878,40 @@ components:
           type: integer
         isTodaysFeatured:
           type: boolean
+        isActive:
+          type: boolean
+        publicationState:
+          type: string
+          enum: [live, queued, scheduled, archived]
+        scheduledAt:
+          type: ["string", "null"]
+          format: date-time
+        featuredFrom:
+          type: ["string", "null"]
+          format: date-time
+        phoneNumber:
+          type: ["string", "null"]
+        phoneExtension:
+          type: ["string", "null"]
+        phoneButtonText:
+          type: ["string", "null"]
+        donationUrl:
+          type: ["string", "null"]
+        linkButtonText:
+          type: ["string", "null"]
+        buttonStyle:
+          type: string
+          enum: [classic, gold, outline, soft]
+        buttonLayout:
+          type: string
+          enum: [stacked, inline]
+        nativeDonationEnabled:
+          type: boolean
+        nativeDonationButtonText:
+          type: ["string", "null"]
+        nativeDonationButtonStyle:
+          type: string
+          enum: [classic, gold, outline, soft]
 
     DonationInput:
       type: object
@@ -3281,6 +3343,12 @@ components:
           type: number
         notes:
           type: string
+        sourceType:
+          type: ["string", "null"]
+          description: Linked official cause or project; null for private cases
+        sourceId:
+          type: ["integer", "null"]
+          description: ID of the joined official source
         createdAt:
           type: string
         lastUpdated:

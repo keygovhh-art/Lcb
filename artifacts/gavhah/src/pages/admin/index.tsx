@@ -1035,8 +1035,17 @@ export default function FounderDashboard() {
                       {m.status}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">{m.city}, {m.country}{m.community ? ` · ${m.community}` : ""}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Shacharis: {m.shacharis} · Mincha: {m.mincha} · Maariv: {m.maariv}</p>
+                  <p className="text-sm text-muted-foreground">{m.city}, {m.country}</p>
+                  <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                    {([
+                      ["shacharis", "שחרית"], ["mincha", "מנחה"], ["maariv", "מעריב"],
+                    ] as const).filter(([key]) => Boolean(m[key]?.trim())).map(([key, label]) => (
+                      <div key={key} className="flex gap-2 items-start">
+                        <span className="font-semibold shrink-0">{label}:</span>
+                        <div className="whitespace-pre-line break-words">{m[key]}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   {m.status !== "approved" && (

@@ -323,13 +323,13 @@ export interface Minyan {
 
 export interface MinyanInput {
   synagogueName: string;
-  community: string;
   city: string;
   country: string;
   address?: string;
-  shacharis: string;
-  mincha: string;
-  maariv: string;
+  /** At least one of the three prayers must contain a time; each can contain multiple newline-separated minyanim. */
+  shacharis?: string;
+  mincha?: string;
+  maariv?: string;
   notes?: string;
 }
 
@@ -435,16 +435,43 @@ export interface Charity {
   goalAmount: number;
   raisedAmount: number;
   isTodaysFeatured: boolean;
+  isActive: boolean;
+  publicationState: "live" | "queued" | "scheduled" | "archived";
+  scheduledAt?: string | null;
+  featuredFrom?: string | null;
+  phoneNumber?: string | null;
+  phoneExtension?: string | null;
+  phoneButtonText?: string | null;
+  donationUrl?: string | null;
+  linkButtonText?: string | null;
+  buttonStyle: "classic" | "gold" | "outline" | "soft";
+  buttonLayout: "stacked" | "inline";
+  nativeDonationEnabled: boolean;
+  nativeDonationButtonText?: string | null;
+  nativeDonationButtonStyle: "classic" | "gold" | "outline" | "soft";
   createdAt: string;
 }
 
 export interface CharityUpdate {
   name?: string;
   description?: string;
-  successStories?: string;
-  imageUrl?: string;
+  successStories?: string | null;
+  imageUrl?: string | null;
   goalAmount?: number;
   isTodaysFeatured?: boolean;
+  isActive?: boolean;
+  publicationState?: "live" | "queued" | "scheduled" | "archived";
+  scheduledAt?: string | null;
+  phoneNumber?: string | null;
+  phoneExtension?: string | null;
+  phoneButtonText?: string | null;
+  donationUrl?: string | null;
+  linkButtonText?: string | null;
+  buttonStyle?: "classic" | "gold" | "outline" | "soft";
+  buttonLayout?: "stacked" | "inline";
+  nativeDonationEnabled?: boolean;
+  nativeDonationButtonText?: string | null;
+  nativeDonationButtonStyle?: "classic" | "gold" | "outline" | "soft";
 }
 
 export interface DonationInput {
@@ -744,6 +771,8 @@ export interface AskanusCase {
   fundsPromised: number;
   fundsReceived: number;
   notes: string;
+  sourceType?: "featured_cause" | "community_project" | null;
+  sourceId?: number | null;
   createdAt: string;
   lastUpdated: string;
   activityLog: ActivityEntry[];
@@ -922,7 +951,6 @@ page?: number;
 export type ListMinyansParams = {
 city?: string;
 country?: string;
-community?: string;
 synagogue?: string;
 page?: number;
 };

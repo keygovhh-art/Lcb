@@ -68,6 +68,8 @@ interface AskanusCase {
   lastUpdated: string;
   activityLog: ActivityEntry[];
   followUpNotes: FollowUp[];
+  sourceType?: string | null;
+  sourceId?: number | null;
 }
 
 const URGENCY_COLORS: Record<string, string> = {
@@ -301,8 +303,17 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
   );
 }
 
-function CaseCard({ c, onUpdated }: { c: AskanusCase; onUpdated: () => void }) {
-  const [expanded, setExpanded] = useState(false);
+function CaseCard({ c, onUpdated, highlighted = false }: {
+  c: AskanusCase; onUpdated: () => void; highlighted?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(highlighted);
+  useEffect(() => {
+    if (!highlighted) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`my-case-${c.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [c.id, highlighted]);
   const qc = useQueryClient();
   const updateCase = useUpdateAskanusCase();
   const deleteCase = useDeleteAskanusCase();
@@ -367,7 +378,7 @@ function CaseCard({ c, onUpdated }: { c: AskanusCase; onUpdated: () => void }) {
   };
 
   return (
-    <div className={`bg-card border rounded-xl overflow-hidden transition-all hover:shadow-sm ${c.status === "closed" ? "opacity-80" : ""}`}>
+    <div id={`my-case-${c.id}`} className={`bg-card border rounded-xl scroll-mt-28 overflow-hidden transition-all hover:shadow-sm ${highlighted ? "ring-2 ring-secondary/70" : ""} ${c.status === "closed" ? "opacity-80" : ""}`}>
       <div className="p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-start gap-3">
           <div className="flex-1 min-w-0 space-y-2">
@@ -375,6 +386,7 @@ function CaseCard({ c, onUpdated }: { c: AskanusCase; onUpdated: () => void }) {
               <Badge variant={URGENCY_COLORS[c.urgency] as any} className="capitalize text-xs">{c.urgency}</Badge>
               <Badge variant={STATUS_COLORS[c.status] as any} className="capitalize text-xs">{c.status.replace("_", " ")}</Badge>
               <Badge variant="outline" className="text-xs">{c.category}</Badge>
+              {c.sourceType && <Badge variant="secondary" className="text-xs">אפיציעלער אנגעשלאסענער קעיס</Badge>}
             </div>
             <h3 className="font-serif font-bold text-primary text-lg leading-tight">{c.title}</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">{c.description}</p>
@@ -421,6 +433,20 @@ function CaseCard({ c, onUpdated }: { c: AskanusCase; onUpdated: () => void }) {
         ) : null}
 
         {c.notes && <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 italic leading-relaxed">{c.notes}</p>}
+        {c.sourceType && <div className="rounded-xl bg-secondary/5 border border-secondary/20 p-3 space-y-2">
+          <p className="text-sm font-semibold text-primary">מיין אקטיווע עסקנות — {c.status === "closed" ? "אפגעשלאסן" : "איך בין אקטיוו אי״ה"}</p>
+          <p className="text-xs text-muted-foreground">
+            דו קענסט דא אויפשרייבן וואס דו האסט געטון, מאכן א טעסק, לייגן Follow-ups,
+            אפדעיטן דעם מצב, און רעקארדירן אמת׳ע געלטער וואס דו האסט טאקע באקומען.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <NewTaskDialog caseTitle={c.title} onAdded={onUpdated} />
+            <a className="inline-flex min-h-9 items-center rounded-lg px-3 border text-xs font-semibold text-secondary hover:bg-muted/40"
+              href={c.sourceType === "featured_cause" ? "/united" : "/community-projects"}>
+              צוריק צום אפיציעלן {c.sourceType === "featured_cause" ? "צוועק" : "פראיעקט"}
+            </a>
+          </div>
+        </div>}
 
         {openFollowups.length > 0 && (
           <div className="space-y-1.5">
@@ -455,9 +481,9 @@ function CaseCard({ c, onUpdated }: { c: AskanusCase; onUpdated: () => void }) {
             {c.status === "closed" && (
               <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => setStatus("open")}>Reopen</Button>
             )}
-            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-8 w-8 p-0" onClick={handleDelete}>
+            {!c.sourceType && <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-8 w-8 p-0" onClick={handleDelete}>
               <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            </Button>}
           </div>
         </div>
       </div>
@@ -515,12 +541,12 @@ function CaseCard({ c, onUpdated }: { c: AskanusCase; onUpdated: () => void }) {
   );
 }
 
-function NewTaskDialog({ onAdded }: { onAdded: () => void }) {
+function NewTaskDialog({ onAdded, caseTitle = "" }: { onAdded: () => void; caseTitle?: string }) {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const create = useCreateAskanusTask();
   const { toast } = useToast();
-  const [form, setForm] = useState({ title: "", caseTitle: "", deadline: "", priority: "medium", notes: "" });
+  const [form, setForm] = useState({ title: "", caseTitle, deadline: "", priority: "medium", notes: "" });
   const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
   const submit = (e: React.FormEvent) => {
@@ -535,7 +561,7 @@ function NewTaskDialog({ onAdded }: { onAdded: () => void }) {
           });
           void onAdded();
           setOpen(false);
-          setForm({ title: "", caseTitle: "", deadline: "", priority: "medium", notes: "" });
+          setForm({ title: "", caseTitle, deadline: "", priority: "medium", notes: "" });
           toast({ title: "Task added", description: "It is visible in your task list now." });
         },
         onError: () => toast({ title: "Could not add task", variant: "destructive" }),
@@ -631,6 +657,8 @@ export default function MyAskanus() {
   const [newNote, setNewNote] = useState({ title: "", content: "" });
   const [editNoteId, setEditNoteId] = useState<number | null>(null);
   const [caseFilter, setCaseFilter] = useState<"all" | "open" | "in_progress" | "closed">("all");
+  const focusedCaseId = Number(new URLSearchParams(window.location.search).get("case") || 0);
+  const focusedCase = Number.isSafeInteger(focusedCaseId) && focusedCaseId > 0 ? focusedCaseId : null;
 
   const { data: casesRaw = [] } = useListAskanuscases({ query: { queryKey: getListAskanuscasesQueryKey(), enabled: isAuthenticated } });
   const cases = casesRaw as unknown as AskanusCase[];
@@ -828,7 +856,7 @@ export default function MyAskanus() {
               </div>
             </div>
             {filteredCases.map(c => (
-              <CaseCard key={c.id} c={c} onUpdated={invalidateCases} />
+              <CaseCard key={c.id} c={c} highlighted={c.id === focusedCase} onUpdated={invalidateCases} />
             ))}
             {filteredCases.length === 0 && (
               <div className="text-center py-16 border rounded-xl bg-muted/20 text-muted-foreground font-serif italic">
