@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, featuredCauseSupportersTable, projectMembersTable } from "@workspace/db";
 import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes } from "@workspace/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
 
 const router = Router();
@@ -290,6 +290,35 @@ router.patch("/askanus/followups/:id/toggle", requireAuth, async (req, res) => {
   const [updated] = await db.update(caseFollowups).set({ completed: !existing.completed }).where(eq(caseFollowups.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+});
+
+// Permanently delete an individual follow-up only if the authenticated account
+// owns its parent case. Completing a follow-up NEVER deletes it; this route does.
+router.delete("/askanus/followups/:id", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid follow-up ID" });
+    return;
+  }
+
+  // Keep the ownership predicate INSIDE the DELETE for protection even when
+  // concurrent requests update case data. Do not reveal others' follow-ups.
+  const [deleted] = await db.delete(caseFollowups).where(and(
+    eq(caseFollowups.id, id),
+    sql`EXISTS (
+      SELECT 1 FROM askanus_cases ac
+      WHERE ac.id = ${caseFollowups.caseId}
+        AND ac.user_id = ${userId}
+    )`,
+  )).returning({ id: caseFollowups.id });
+
+  if (!deleted) {
+    res.status(404).json({ error: "Follow-up not found" });
+    return;
+  }
+  res.setHeader("Cache-Control", "private, no-store");
+  res.json({ ok: true, deletedId: deleted.id });
 });
 
 // --- Tasks ---
