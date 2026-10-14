@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Users, Lock, Globe, KeyRound, MessageCircle, Pencil, Trash2, Clock } from "lucide-react";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
@@ -337,7 +337,7 @@ export default function GroupDetail() {
                 <div className="flex gap-6 mt-6 pt-6 border-t text-sm text-muted-foreground">
                   <span className="flex items-center gap-1"><Users className="h-4 w-4" /> {group.memberCount} members</span>
                   <span className="flex items-center gap-1"><MessageCircle className="h-4 w-4" /> {group.postCount} posts</span>
-                  <span>Since {format(new Date(group.createdAt), "MMMM yyyy")}</span>
+                  <span>Since {formatGregorianDate(new Date(group.createdAt), "MMMM yyyy")}</span>
                 </div>
               </div>
             </div>
@@ -420,7 +420,7 @@ export default function GroupDetail() {
                       <span className="font-semibold text-foreground">{post.authorName}</span>
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-muted-foreground">
-                          {format(new Date(post.createdAt), "MMM d, yyyy")}
+                          {formatGregorianDate(new Date(post.createdAt), "MMM d, yyyy")}
                         </span>
                         {!!user && (post.authorId === user.id || canManageGroup) && (
                           <>
@@ -503,7 +503,7 @@ export default function GroupDetail() {
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-foreground">{member.userName}</div>
                         <div className="text-xs text-muted-foreground capitalize">
-                          {member.status === "pending" ? "Membership request pending" : `${member.role} · Joined ${format(new Date(member.joinedAt), "MMM yyyy")}`}
+                          {member.status === "pending" ? "Membership request pending" : `${member.role} · Joined ${formatGregorianDate(new Date(member.joinedAt), "MMM yyyy")}`}
                         </div>
                       </div>
                       {canGroupAction("approveMembers") && member.status === "pending" && (
