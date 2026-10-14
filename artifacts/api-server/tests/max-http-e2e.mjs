@@ -182,6 +182,37 @@ try{
   status(r,200,"Complete shared follow-up");
   assert.equal(r.data.completed,true);
 
+  // Repeat a contact-linked monthly follow-up across February without drift.
+  r=await req(a,"/askanus/contacts/"+donorId+"/followups","POST",{
+    caseId:projectId,note:"QA monthly donor callback",dueDate:"2027-01-31",
+    dueTime:"19:30",timeZone:"America/New_York",repeatRule:"monthly",
+  });
+  status(r,201,"Create monthly donor callback");
+  const januaryId=r.data.id;
+  r=await req(b,"/askanus/followups/"+januaryId+"/toggle","PATCH",{completed:true});
+  status(r,404,"Second member cannot complete recurring task");
+  r=await req(a,"/askanus/followups/"+januaryId+"/toggle","PATCH",{completed:true});
+  status(r,200,"Complete first monthly follow-up");
+  r=await req(a,"/askanus/followups/"+januaryId+"/toggle","PATCH",{completed:true});
+  status(r,200,"Completion retry is idempotent");
+  r=await req(a,"/askanus/contacts/"+donorId+"/360","GET");
+  status(r,200,"New monthly donor follow-up appears in 360");
+  let generated=r.data.followups.filter(x=>x.generatedFromId===januaryId);
+  assert.equal(generated.length,1,"One February follow-up, not two");
+  assert.equal(generated[0].dueDate,"2027-02-28");
+  assert.equal(generated[0].timeZone,"America/New_York");
+  const februaryId=generated[0].id;
+  r=await req(a,"/askanus/followups/"+februaryId+"/toggle","PATCH",{completed:true});
+  status(r,200,"Complete February occurrence");
+  r=await req(a,"/askanus/contacts/"+donorId+"/360","GET");
+  const march=r.data.followups.filter(x=>x.generatedFromId===februaryId);
+  assert.equal(march.length,1,"One March follow-up");
+  assert.equal(march[0].dueDate,"2027-03-31","Monthly anchor stays on the 31st");
+  assert.equal(march[0].repeatRule,"monthly");
+  r=await req(a,"/askanus/contacts/"+donorId+"/followups","POST",{
+    caseId:projectId,note:"QA invalid recurrence",repeatRule:"weekly",
+  });
+  status(r,400,"Recurring follow-up requires a due date");
   r=await req(a,"/askanus/contacts/"+donorId,"PATCH",{doNotCall:true,optOutReason:"QA opt-out"});
   status(r,200,"Set do-not-call");
   r=await req(a,"/askanus/contacts/"+donorId,"PATCH",{doNotCall:false});
@@ -203,7 +234,7 @@ try{
   r=await req(b,"/askanus/cases","GET");
   status(r,200,"Second account list");
   assert.ok(!r.data.some(x=>x.id===projectId),"Second member can see other's case");
-  console.log("PASS MAX HTTP/DB E2E: 2 sessions, 20-dollar credit once, pledge 1000/200/300, reversal 100, follow-up, privacy, opt-out and audited case protection");
+  console.log("PASS MAX HTTP/DB E2E: 2 sessions, donor CSV import/export, source helper, idempotent donations, refunds, timed and monthly recurring follow-ups, privacy and audit protection");
 }finally{
   await pool.end();
 }
