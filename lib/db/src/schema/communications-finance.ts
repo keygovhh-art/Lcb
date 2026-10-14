@@ -76,3 +76,24 @@ export const maxProgressEvents = pgTable("max_progress_events",{
   uniqueIndex("max_progress_events_owner_request_unique").on(t.userId,t.requestId),
   index("max_progress_events_case_idx").on(t.caseId),
 ]);
+
+/** Permanent private MAX history timeline: completed work, financial milestones,
+ * reopening, edits and explicit deletions are EVENTS, not destructive state changes.
+ * No foreign key to case/task/follow-up: parent closure/deletion cannot cascade history.
+ * There is deliberately no UPDATE/DELETE API for these historical entries.
+ */
+export const maxHistoryEvents = pgTable("max_history_events",{
+  id:serial("id").primaryKey(),
+  userId:integer("user_id").notNull(),
+  caseId:integer("case_id"),
+  entityType:text("entity_type").notNull(),
+  entityId:integer("entity_id").notNull(),
+  action:text("action").notNull(),
+  title:text("title").notNull(),
+  details:text("details").notNull().default(""),
+  happenedAt:timestamp("happened_at",{withTimezone:true}).defaultNow().notNull(),
+},t=>[
+  index("max_history_events_owner_time_idx").on(t.userId,t.happenedAt),
+  index("max_history_events_owner_case_idx").on(t.userId,t.caseId),
+  index("max_history_events_owner_entity_idx").on(t.userId,t.entityType,t.entityId),
+]);
