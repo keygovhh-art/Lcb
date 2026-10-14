@@ -48,6 +48,8 @@ jobs:
         run: node --test tests/max-release-integrity.test.mjs
       - name: Verify recurring follow-up calendar rules
         run: node --experimental-strip-types --test tests/max-recurring-followups.test.mjs
+      - name: Verify timezone-accurate MAX reminder clock
+        run: node --experimental-strip-types --test tests/max-reminder-clock.test.mjs
       - name: Verify independent weekday selections for each minyan
         run: node --experimental-strip-types --test tests/minyan-weekdays.test.mjs
       - name: Verify group moderation, founder rights and report-target confidentiality
