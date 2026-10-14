@@ -48,6 +48,16 @@ router.patch("/askanus/contacts/:id", requireAuth, async (req, res) => {
     if (typeof req.body.doNotCall !== "boolean") {
       res.status(400).json({error:"doNotCall must be a boolean"}); return;
     }
+    if(req.body.doNotCall===false){
+      const [current]=await db.select({doNotCall:communicationContacts.doNotCall})
+        .from(communicationContacts).where(and(
+          eq(communicationContacts.id,Number(req.params.id)),
+          eq(communicationContacts.userId,getSessionUserId(req)!),
+        ));
+      if(current?.doNotCall){
+        res.status(409).json({error:"Opt-out can only be reversed after an explicit, audited re-consent process"});return;
+      }
+    }
     updates.doNotCall = req.body.doNotCall;
     updates.optOutReason = clean(req.body?.optOutReason,500);
   }
