@@ -261,9 +261,23 @@ router.delete("/askanus/cases/:id", requireAuth, async (req, res) => {
     res.status(409).json({error:"This case has audited monetary records. Close it to preserve the financial history."});
     return;
   }
-  await db.delete(caseActivityLog).where(eq(caseActivityLog.caseId, id));
-  await db.delete(caseFollowups).where(eq(caseFollowups.caseId, id));
-  await db.delete(askanuscases).where(eq(askanuscases.id, id));
+  // A genuine, explicitly confirmed deletion. Ordinary completion never
+  // calls DELETE. Snapshot the project's final nonfinancial state separately
+  // before destroying the row and its child notes/follow-ups.
+  await db.transaction(async tx=>{
+    const [whole]=await tx.select().from(askanuscases).where(and(
+      eq(askanuscases.id,id),eq(askanuscases.userId,userId))).for("update");
+    if(!whole)throw Error("CASE_NOT_FOUND");
+    await tx.insert(maxHistoryEvents).values({
+      userId,caseId:id,entityType:"case",entityId:id,
+      action:"case_explicitly_deleted",title:whole.title,
+      details:JSON.stringify({title:whole.title,status:whole.status,
+        description:whole.description,goalAmount:whole.goalAmount}),
+    });
+    await tx.delete(caseActivityLog).where(eq(caseActivityLog.caseId,id));
+    await tx.delete(caseFollowups).where(eq(caseFollowups.caseId,id));
+    await tx.delete(askanuscases).where(and(eq(askanuscases.id,id),eq(askanuscases.userId,userId)));
+  });
   res.json({ ok: true });
 });
 
@@ -550,16 +564,27 @@ router.delete("/askanus/followups/:id", requireAuth, async (req, res) => {
     return;
   }
 
-  // Keep the ownership predicate INSIDE the DELETE for protection even when
-  // concurrent requests update case data. Do not reveal others' follow-ups.
-  const [deleted] = await db.delete(caseFollowups).where(and(
-    eq(caseFollowups.id, id),
-    sql`EXISTS (
-      SELECT 1 FROM askanus_cases ac
-      WHERE ac.id = ${caseFollowups.caseId}
-        AND ac.user_id = ${userId}
-    )`,
-  )).returning({ id: caseFollowups.id });
+  // Explicit Delete is different from Done. Snapshot the deleted work first.
+  // The historical event is independent of the source row and survives forever
+  // unless a separate, expressly authorized history-purge process is introduced.
+  const deleted = await db.transaction(async tx=>{
+    const [row]=await tx.delete(caseFollowups).where(and(
+      eq(caseFollowups.id,id),
+      sql`EXISTS (
+        SELECT 1 FROM askanus_cases ac
+        WHERE ac.id=${caseFollowups.caseId} AND ac.user_id=${userId}
+      )`,
+    )).returning();
+    if(row){
+      await tx.insert(maxHistoryEvents).values({
+        userId,caseId:row.caseId,entityType:"followup",entityId:row.id,
+        action:"followup_explicitly_deleted",title:row.note.slice(0,240),
+        details:JSON.stringify({note:row.note,dueDate:row.dueDate,
+          dueTime:row.dueTime,completed:row.completed,repeatRule:row.repeatRule}),
+      });
+    }
+    return row;
+  });
 
   if (!deleted) {
     res.status(404).json({ error: "Follow-up not found" });
