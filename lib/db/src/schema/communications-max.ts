@@ -40,7 +40,7 @@ export const fundraisingCallReports = pgTable("fundraising_call_reports", {
   index("fundraising_call_reports_owner_created_idx").on(table.userId, table.createdAt),
   index("fundraising_call_reports_case_idx").on(table.caseId),
 ]);
-/** Append-only, member-scoped record of donor-provided renewed contact permission. */
+/** Append-only owner-scoped audit of donor reconsent OR an owner decision; never conflate them. */
 export const maxContactConsents = pgTable("max_contact_consents", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
