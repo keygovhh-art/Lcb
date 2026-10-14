@@ -9,7 +9,7 @@ import {
   getListAskanusNotesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/auth-context";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { CaseFollowups } from "@/components/askanus/case-followups";
@@ -737,11 +737,12 @@ export default function MyAskanus() {
         <div className="container mx-auto px-4 py-12">
           <div className="flex items-center gap-3 mb-1">
             <Star className="h-8 w-8 text-accent fill-accent" />
-            <h1 className="font-serif text-4xl font-bold">My Askanus</h1>
+            <h1 className="font-serif text-4xl font-bold">מיין עסקנות</h1>
           </div>
           <p className="font-serif italic text-primary-foreground/70 ml-11">
-            Your personal activism command center — organize, track, and measure your impact.
+            דער גרויסער איבערבליק: מיינע פראיעקטן, צילן, אויפגעברענגטע געלטער און נאכפאלגן.
           </p>
+          <Link href="/communications"><Button variant="secondary" className="mt-4 gap-2"><Phone className="h-4 w-4"/> גיין צו עולם החסד MAX — רופן, נדבנים און נאכפאלגן</Button></Link>
           <div className="mt-8 bg-white/10 rounded-2xl p-6 backdrop-blur-sm">
             <p className="text-xs uppercase tracking-widest font-semibold text-primary-foreground/60 mb-4">Today's Overview</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -749,7 +750,7 @@ export default function MyAskanus() {
                 { label: "Open Cases", value: openCases, icon: <HandHeart className="h-5 w-5" /> },
                 { label: "Pending Tasks", value: pendingTasks, icon: <CheckCircle className="h-5 w-5" /> },
                 { label: "Funds Outstanding", value: `$${totalOutstanding.toLocaleString()}`, icon: <DollarSign className="h-5 w-5" /> },
-                { label: "Follow-ups Due", value: openFollowups, icon: <Bell className="h-5 w-5" /> },
+                { label: "אפענע נאכפאלגן", value: openFollowups, icon: <Bell className="h-5 w-5" /> },
               ].map((s, i) => (
                 <div key={i} className="text-center">
                   <div className="flex items-center justify-center gap-1.5 text-primary-foreground/60 text-xs mb-1">{s.icon} {s.label}</div>
