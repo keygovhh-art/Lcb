@@ -19,6 +19,10 @@ const idOk=(v:unknown)=>Number.isSafeInteger(Number(v))&&Number(v)>0;
 const changePermission=async(req:any,res:any)=>{
   const userId=getSessionUserId(req)!;
   const contactId=Number(req.params.id);
+  if(req.body?.action!==undefined &&
+     req.body.action!=="reconsent"&&req.body.action!=="owner_override"){
+    res.status(400).json({error:"Invalid permission action"});return;
+  }
   const action=req.body?.action==="owner_override"?"owner_override":"reconsent";
   const method=action==="owner_override"?"owner_decision":String(req.body?.method??"").trim();
   const rawEvidence=String(req.body?.evidence??"").trim();
