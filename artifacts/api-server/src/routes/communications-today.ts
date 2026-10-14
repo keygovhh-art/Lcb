@@ -31,6 +31,20 @@ router.get("/askanus/max/today",requireAuth,async(_req,res)=>{
     db.select().from(fundraisingCallReports).where(eq(fundraisingCallReports.userId,userId))
       .orderBy(desc(fundraisingCallReports.createdAt)).limit(10),
   ]);
+  // The visible list is intentionally capped for speed, but all summary counts
+  // MUST count every record even when a member has thousands of follow-ups.
+  const [[followupCounts],[taskCounts],[pledgeCounts]]=await Promise.all([
+    db.select({
+      total:sql<number>`cast(count(*) as integer)`,
+      due:sql<number>`cast(count(*) filter (where ${caseFollowups.dueDate} is not null
+        and ${caseFollowups.dueDate} <> '' and ${caseFollowups.dueDate} <= ${todayUtc}) as integer)`,
+    }).from(caseFollowups).innerJoin(askanuscases,eq(caseFollowups.caseId,askanuscases.id))
+      .where(and(eq(askanuscases.userId,userId),eq(caseFollowups.completed,false))),
+    db.select({total:sql<number>`cast(count(*) as integer)`})
+      .from(askanustasks).where(and(eq(askanustasks.userId,userId),eq(askanustasks.completed,false))),
+    db.select({total:sql<number>`cast(count(*) as integer)`})
+      .from(maxPledges).where(and(eq(maxPledges.userId,userId),eq(maxPledges.status,"open"))),
+  ]);
   const projectById=new Map(projects.map(p=>[p.id,p.title]));
   const nextFollowups=followups.map(f=>({
     id:f.id,caseId:f.caseId,project:projectById.get(f.caseId)||"",
@@ -47,10 +61,12 @@ router.get("/askanus/max/today",requireAuth,async(_req,res)=>{
       activeProjects:projects.filter(p=>p.status!=="closed").length,
       manuallyReportedReceivedTotal:received,
       openPromiseBalance:promised,
-      dueOrOverdueFollowups:nextFollowups.filter(f=>f.dueDate&&f.dueDate<=todayUtc).length,
+      dueOrOverdueFollowups:followupCounts.due,
+      totalOpenFollowups:followupCounts.total,
       loadedOpenFollowups:nextFollowups.length,
       loadedOutstandingPledges:pledges.length,
-      openTasks:tasks.length,
+      totalOutstandingPledges:pledgeCounts.total,
+      openTasks:taskCounts.total,
     },
     nextFollowups:nextFollowups.slice(0,40),
     nextTasks:tasks.slice(0,40).map(t=>({
