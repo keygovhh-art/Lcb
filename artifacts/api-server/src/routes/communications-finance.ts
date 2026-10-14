@@ -87,7 +87,15 @@ router.post("/askanus/contacts/:id/followups",requireAuth,async(req,res)=>{
   const contactId=Number(req.params.id),caseId=Number(req.body?.caseId);
   const note=clean(req.body?.note,1500);
   const dueDate=clean(req.body?.dueDate,10)||null;
-  if(!idOk(contactId)||!idOk(caseId)||!note||!datesOk(dueDate)){
+  const dueTime=clean(req.body?.dueTime,5)||null;
+  const timeZone=clean(req.body?.timeZone,80)||null;
+  let timeValid=!dueTime;
+  if(dueTime){
+    try{timeValid=!!dueDate && /^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(dueTime)&&!!timeZone;
+      new Intl.DateTimeFormat("en-US",{timeZone:timeZone||"BAD_INVALID_ZONE"}).format();
+    }catch{timeValid=false;}
+  }
+  if(!idOk(contactId)||!idOk(caseId)||!note||!datesOk(dueDate)||!timeValid){
     res.status(400).json({error:"Invalid follow-up"});return;
   }
   const [ownedCase,ownedContact]=await Promise.all([
@@ -99,7 +107,7 @@ router.post("/askanus/contacts/:id/followups",requireAuth,async(req,res)=>{
   if(!ownedCase.length||!ownedContact.length){res.status(404).json({error:"Not found"});return;}
   const today=new Date().toISOString().slice(0,10);
   const created=await db.transaction(async tx=>{
-    const [f]=await tx.insert(caseFollowups).values({caseId,date:today,note,dueDate}).returning();
+    const [f]=await tx.insert(caseFollowups).values({caseId,date:today,note,dueDate,dueTime,timeZone:dueTime?timeZone:null}).returning();
     await tx.insert(maxFollowupContacts).values({userId,contactId,followupId:f.id});
     return f;
   });
