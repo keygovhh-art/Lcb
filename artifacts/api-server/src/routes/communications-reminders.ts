@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { and, asc, eq, sql, gt, lte } from "drizzle-orm";
+import { and, asc, eq, sql, lte } from "drizzle-orm";
 import { askanuscases, caseFollowups, communicationContacts,
   maxFollowupContacts, maxReminderSnoozes } from "@workspace/db/schema";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
