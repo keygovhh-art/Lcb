@@ -8,12 +8,34 @@ import { Eye, MessageCircle, Flag, ThumbsDown, Pin, Lock, Unlock, Send, Trash2 }
 type GroupInfo = {
   id:number; allowReplies:boolean; replyApproval:boolean; membersCanReply:boolean;
   showViewCounts:boolean; allowDownvotes:boolean;
+  allowedCapabilities?:Record<string,boolean>;
 };
 type PostInfo = {
   id:number; authorId:number|null; isPinned?:boolean; isLocked?:boolean;
   moderationStatus?:string; views?:number|null; downvotes?:number;
 };
-type Reply = {id:number;authorId:number|null;authorName:string;content:string;moderationStatus:string;createdAt:string};
+type Reply = {id:number;postId:number;parentReplyId:number|null;authorId:number|null;
+  authorName:string;content:string;moderationStatus:string;createdAt:string;deletedAt?:string|null};
+type ThreadReply=Reply & {depth:number};
+function threadedReplies(replies:Reply[]):ThreadReply[] {
+  const children=new Map<number,Reply[]>();
+  const ids=new Set(replies.map(r=>r.id));
+  for(const r of replies){
+    const parent=r.parentReplyId!==null&&ids.has(r.parentReplyId)&&r.parentReplyId!==r.id?r.parentReplyId:0;
+    const siblings=children.get(parent)||[];siblings.push(r);children.set(parent,siblings);
+  }
+  const ordered:ThreadReply[]=[];const visited=new Set<number>();
+  const stack=(children.get(0)||[]).slice().reverse().map(r=>({r,depth:0}));
+  while(stack.length){
+    const next=stack.pop()!;
+    if(visited.has(next.r.id))continue;
+    visited.add(next.r.id);ordered.push({...next.r,depth:next.depth});
+    const kids=children.get(next.r.id)||[];
+    for(let i=kids.length-1;i>=0;i--)stack.push({r:kids[i],depth:next.depth+1});
+  }
+  for(const r of replies)if(!visited.has(r.id))ordered.push({...r,depth:0});
+  return ordered;
+}
 export function GroupPostExtras({group,post,manager,canReply,onChanged}:{
   group:GroupInfo;post:PostInfo;manager:boolean;canReply:boolean;onChanged:()=>void;
 }) {
@@ -27,6 +49,7 @@ export function GroupPostExtras({group,post,manager,canReply,onChanged}:{
   const [repliesOpen,setRepliesOpen]=useState(false);
   const [replies,setReplies]=useState<Reply[]>([]);
   const [reply,setReply]=useState("");
+  const [replyParent,setReplyParent]=useState<number|null>(null);
   const [reportOpen,setReportOpen]=useState(false);
   const [reportTo,setReportTo]=useState("group");
   const [reportReason,setReportReason]=useState("");
@@ -73,8 +96,9 @@ export function GroupPostExtras({group,post,manager,canReply,onChanged}:{
   const createReply=async()=>{
     if(!reply.trim()||busy)return;
     try{
-      const result=await api(`/api/groups/${group.id}/posts/${post.id}/replies`,"POST",{content:reply.trim()});
-      setReply("");await loadReplies();
+      const result=await api(`/api/groups/${group.id}/posts/${post.id}/replies`,"POST",
+        {content:reply.trim(),parentReplyId:replyParent});
+      setReply("");setReplyParent(null);await loadReplies();
       toast({title:result.moderationStatus==="pending"?"רעפליי ווארט אויף אדמין־רעוויאו":"רעפליי צוגעגעבן"});
     }catch(e){toast({title:"רעפליי נישט אריינגעגאנגען",description:String(e),variant:"destructive"});}
   };
@@ -82,7 +106,7 @@ export function GroupPostExtras({group,post,manager,canReply,onChanged}:{
     if(!window.confirm("זיכער דעליט דעם רעפליי?"))return;
     try{
       await api(`/api/groups/${group.id}/posts/${post.id}/replies/${id}`,"DELETE");
-      setReplies(old=>old.filter(r=>r.id!==id));
+      await loadReplies();
       toast({title:"רעפליי אויסגעמעקט"});
     }catch(e){toast({title:"נישט געלונגען",description:String(e),variant:"destructive"});}
   };
@@ -109,6 +133,8 @@ export function GroupPostExtras({group,post,manager,canReply,onChanged}:{
     }catch(e){toast({title:"נישט געלונגען",description:String(e),variant:"destructive"});}
   };
 
+  const threaded=threadedReplies(replies);
+  const may=(key:string)=>manager && group.allowedCapabilities?.[key]!==false;
   return <div ref={root} className="space-y-3" dir="rtl">
     <div className="flex flex-wrap items-center gap-2 text-xs">
       {(group.showViewCounts||manager)&&typeof views==="number"&&
@@ -128,28 +154,40 @@ export function GroupPostExtras({group,post,manager,canReply,onChanged}:{
       </Button>}
       {isAuthenticated&&post.moderationStatus==="approved"&&<Button size="sm" variant="ghost"
         onClick={()=>setReportOpen(old=>!old)} className="gap-1"><Flag className="h-4 w-4"/> רעפארטן</Button>}
-      {manager&&<>
-        <Button size="sm" variant="outline" disabled={busy} onClick={()=>void postOption("isPinned",!post.isPinned)} className="gap-1">
-          <Pin className="h-3.5 w-3.5"/>{post.isPinned?"אוועקנעמען פין":"פינען פאוסט"}
-        </Button>
-        <Button size="sm" variant="outline" disabled={busy} onClick={()=>void postOption("isLocked",!post.isLocked)} className="gap-1">
-          {post.isLocked?<Unlock className="h-3.5 w-3.5"/>:<Lock className="h-3.5 w-3.5"/>}
-          {post.isLocked?"עפענען רעפלייען":"לאקן רעפלייען"}
-        </Button>
-      </>}
+      {may("pinPosts")&&<Button size="sm" variant="outline" disabled={busy}
+        onClick={()=>void postOption("isPinned",!post.isPinned)} className="gap-1">
+        <Pin className="h-3.5 w-3.5"/>{post.isPinned?"אוועקנעמען פין":"פינען פאוסט"}
+      </Button>}
+      {may("lockReplies")&&<Button size="sm" variant="outline" disabled={busy}
+        onClick={()=>void postOption("isLocked",!post.isLocked)} className="gap-1">
+        {post.isLocked?<Unlock className="h-3.5 w-3.5"/>:<Lock className="h-3.5 w-3.5"/>}
+        {post.isLocked?"עפענען רעפלייען":"לאקן רעפלייען"}
+      </Button>}
     </div>
     {repliesOpen&&group.allowReplies&&<div className="rounded-xl bg-muted/15 border p-3 space-y-3">
       <h4 className="font-semibold text-sm">רעפלייען</h4>
-      {replies.map(r=><div key={r.id} className="rounded-lg border bg-card p-3">
+      {threaded.map(r=><div key={r.id} className="rounded-lg border bg-card p-3"
+        style={{marginInlineStart:Math.min(r.depth,5)*12}}
+        aria-label={`רעפליי שטאפל ${r.depth+1}`}>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-semibold">{r.authorName} {r.moderationStatus==="pending"&&<span className="text-amber-600">· ווארט אויף אפראוועל</span>}</span>
-          {(manager||r.authorId===user?.id)&&<Button size="icon" variant="ghost" disabled={busy} className="h-8 w-8 text-destructive"
-            onClick={()=>void removeReply(r.id)} aria-label="דעליט רעפליי"><Trash2 className="h-4 w-4"/></Button>}
+          <span className="text-xs font-semibold">{r.authorName}
+            {r.moderationStatus==="pending"&&<span className="text-amber-600"> · ווארט אויף אפראוועל</span>}
+          </span>
+          {!r.deletedAt&&(may("deleteOthersReplies")||r.authorId===user?.id)&&
+            <Button size="icon" variant="ghost" disabled={busy} className="h-8 w-8 text-destructive"
+              onClick={()=>void removeReply(r.id)} aria-label="דעליט רעפליי"><Trash2 className="h-4 w-4"/></Button>}
         </div>
-        <p className="text-sm whitespace-pre-wrap mt-1">{r.content}</p>
+        <p className="text-sm whitespace-pre-wrap mt-1 break-words">{r.content}</p>
+        {!r.deletedAt&&(canReply||manager)&&(!post.isLocked||manager)&&
+          <Button size="sm" variant="ghost" className="mt-2 min-h-9"
+            onClick={()=>{setReplyParent(r.id);setReply("");}}>ענטפער אויף דעם רעפליי</Button>}
       </div>)}
       {!replies.length&&<p className="text-xs text-muted-foreground">דערווייל נישטא קיין רעפלייען.</p>}
-      {(canReply||manager)&&(!post.isLocked||manager)&&<div className="space-y-2">
+      {(canReply||manager)&&(!post.isLocked||manager)&&<div className="space-y-2 rounded-lg border bg-muted/10 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold">{replyParent===null?"נייער רעפליי":"ענטפער אויף רעפליי #"+replyParent}</p>
+          {replyParent!==null&&<Button size="sm" variant="ghost" onClick={()=>setReplyParent(null)}>צוריק צום הויפט־פאוסט</Button>}
+        </div>
         <Textarea placeholder="שרייב א רעפליי..." maxLength={3000} value={reply}
           onChange={e=>setReply(e.target.value)} className="min-h-20"/>
         <Button size="sm" disabled={!reply.trim()||busy} className="gap-1" onClick={()=>void createReply()}>
