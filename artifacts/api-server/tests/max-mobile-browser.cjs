@@ -21,9 +21,32 @@ const {chromium}=requireBrowser("playwright");
    const myBody=await page.locator("body").innerText();
    assert.ok(myBody.length>100,"My Askanus rendered a blank page");
    await page.screenshot({path:"/tmp/gavhah-max-my-mobile.png",fullPage:true});
+   // Seed a single due follow-up by the authorized member. This tests the
+   // actual touch UI (not a mock) and leaves the real database untouched.
+   const casesResponse=await context.request.get(base+"/api/askanus/cases");
+   assert.equal(casesResponse.status(),200);
+   const qaCases=await casesResponse.json();
+   assert.ok(qaCases.length>0,"No synthetic personal case for reminder UI");
+   const reminderDue=new Date(Date.now()-2*86400000).toISOString().slice(0,10);
+   const rem=await context.request.post(base+"/api/askanus/cases/"+qaCases[0].id+"/progress",{
+     data:{action:"followup",note:"QA mobile MAX alarm",dueDate:reminderDue,
+       dueTime:"08:00",timeZone:"America/New_York"}
+   });
+   assert.equal(rem.status(),200,"Failed to seed phone-sized reminder");
    const communications=await page.goto(base+"/communications",{waitUntil:"domcontentloaded"});
    assert.equal(communications?.status(),200,"Olam Hachesed MAX route failed");
    await page.locator("#max-today").waitFor({state:"visible",timeout:15000});
+   const reminders=page.getByRole("region",{name:"MAX פערזענליכע דערמאנונגען"});
+   await reminders.waitFor({state:"visible",timeout:15000});
+   await reminders.getByText("QA mobile MAX alarm").waitFor({state:"visible",timeout:15000});
+   await reminders.getByRole("button",{name:"דערמאן מארגן"}).click();
+   await reminders.getByRole("button",{name:/צייטווייליג אפגעשטופט/}).click();
+   await reminders.getByText("QA mobile MAX alarm").waitFor({state:"visible",timeout:15000});
+   await reminders.getByRole("button",{name:"צוריק צום אינבאקס"}).click();
+   await reminders.getByRole("button",{name:/יעצט/}).click();
+   await reminders.getByRole("button",{name:"פארטיג"}).click();
+   await reminders.getByText("QA mobile MAX alarm").waitFor({state:"hidden",timeout:15000});
+
    for(const id of ["max-today","max-call","max-contacts","max-projects","max-more"]){
      assert.ok(await page.locator("#"+id).isVisible(),id+" missing on phone screen");
    }
@@ -61,7 +84,7 @@ const {chromium}=requireBrowser("playwright");
    assert.ok(width.body<=width.viewport+36,
      "Unexpected horizontal mobile overflow: "+JSON.stringify(width));
    assert.deepEqual(errors,[],"Browser reported uncaught JavaScript errors");
-   console.log("PASS Mobile Chromium: signed-in member, MAX, donor 360, owner do-not-call override, audit, width and no JS errors");
+   console.log("PASS Mobile Chromium: signed-in member, MAX, donor 360, owner call-marker override, timezone reminder inbox snooze and completion, no JS errors");
  }finally{
    await context.close();await browser.close();
  }
