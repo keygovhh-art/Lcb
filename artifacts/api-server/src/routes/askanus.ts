@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db, featuredCauseSupportersTable, projectMembersTable } from "@workspace/db";
-import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes, fundraisingCallReports, maxProgressEvents, maxPledges, maxReceipts } from "@workspace/db/schema";
+import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes, fundraisingCallReports, maxProgressEvents, maxPledges, maxReceipts, maxFollowupContacts } from "@workspace/db/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
+import { isRepeatRule, nextRepeatDate } from "../lib/followup-recurrence";
 
 const router = Router();
 
@@ -263,7 +264,7 @@ router.delete("/askanus/cases/:id", requireAuth, async (req, res) => {
 router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const userId = getSessionUserId(req)!;
-  const { action, amount, note, from, dueDate, dueTime, timeZone, status, goal } = req.body;
+  const { action, amount, note, from, dueDate, dueTime, timeZone, repeatRule, status, goal } = req.body;
   const today = TODAY();
 
   const [existing] = await db.select().from(askanuscases).where(
@@ -290,6 +291,10 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
   if (action === "followup" && (!validDateString(dueDate) || !validFollowupTime(dueTime,timeZone) || (dueTime && !dueDate))) {
     res.status(400).json({ error: "invalid follow-up date" });
     return;
+  }
+  if(action==="followup" && (!isRepeatRule(repeatRule||"none") ||
+       (repeatRule && repeatRule!=="none" && !dueDate))){
+    res.status(400).json({error:"Recurring follow-ups require a valid rule and date"});return;
   }
   if (action === "status" && !CASE_STATUSES.has(String(status || ""))) {
     res.status(400).json({ error: "invalid status" });
@@ -364,7 +369,12 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
   } else if (action === "note" && note) {
     await db.insert(caseActivityLog).values({ caseId: id, date: today, type: "note", note: String(note).trim().slice(0, 1500) });
   } else if (action === "followup" && note) {
-    await db.insert(caseFollowups).values({ caseId: id, date: today, note: String(note).trim().slice(0, 1500), dueDate: dueDate || null, dueTime:dueTime||null, timeZone:dueTime?timeZone:null });
+    await db.insert(caseFollowups).values({ caseId: id, date: today,
+      note: String(note).trim().slice(0, 1500), dueDate: dueDate || null,
+      dueTime:dueTime||null, timeZone:dueTime?timeZone:null,
+      repeatRule:repeatRule||"none",
+      repeatAnchorDay:repeatRule==="monthly"&&dueDate?Number(dueDate.slice(-2)):null,
+    });
   } else if (action === "status" && status) {
     caseUpdates.status = status;
     await db.insert(caseActivityLog).values({
@@ -381,18 +391,52 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
   res.json(full);
 });
 
-// Toggle followup
-router.patch("/askanus/followups/:id/toggle", requireAuth, async (req, res) => {
-  const id = Number(req.params.id);
-  const [existing] = await db.select().from(caseFollowups).where(eq(caseFollowups.id, id));
-  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
-  const [ownedCase] = await db.select({ id: askanuscases.id }).from(askanuscases).where(
-    and(eq(askanuscases.id, existing.caseId), eq(askanuscases.userId, getSessionUserId(req)!))
-  );
-  if (!ownedCase) { res.status(404).json({ error: "Not found" }); return; }
-  const [updated] = await db.update(caseFollowups).set({ completed: !existing.completed }).where(eq(caseFollowups.id, id)).returning();
-  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
-  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+// Idempotent completion with one, linked future follow-up per recurring event.
+router.patch("/askanus/followups/:id/toggle", requireAuth, async(req,res)=>{
+  const id=Number(req.params.id),userId=getSessionUserId(req)!;
+  if(!Number.isSafeInteger(id)||id<=0){res.status(400).json({error:"Invalid ID"});return;}
+  if(req.body?.completed!==undefined && typeof req.body.completed!=="boolean"){
+    res.status(400).json({error:"completed must be a boolean"});return;
+  }
+  const result=await db.transaction(async tx=>{
+    const [existing]=await tx.select().from(caseFollowups).where(eq(caseFollowups.id,id));
+    if(!existing)return {kind:"missing" as const};
+    const [owned]=await tx.select({id:askanuscases.id}).from(askanuscases)
+      .where(and(eq(askanuscases.id,existing.caseId),eq(askanuscases.userId,userId)));
+    if(!owned)return {kind:"missing" as const};
+    const desired=typeof req.body?.completed==="boolean"?req.body.completed:!existing.completed;
+    if(desired===existing.completed)return {kind:"same" as const,row:existing};
+    const [updated]=await tx.update(caseFollowups).set({completed:desired})
+      .where(and(eq(caseFollowups.id,id),eq(caseFollowups.completed,existing.completed)))
+      .returning();
+    if(!updated)return {kind:"conflict" as const};
+    if(desired && isRepeatRule(existing.repeatRule) && existing.repeatRule!=="none" && existing.dueDate){
+      const nextDate=nextRepeatDate(existing.dueDate,existing.repeatRule,existing.repeatAnchorDay);
+      if(nextDate){
+        // The database unique generated_from_id index prevents double generation.
+        const [next]=await tx.insert(caseFollowups).values({
+          caseId:existing.caseId,date:new Date().toISOString().slice(0,10),
+          note:existing.note,dueDate:nextDate,dueTime:existing.dueTime,
+          timeZone:existing.timeZone,repeatRule:existing.repeatRule,
+          repeatAnchorDay:existing.repeatAnchorDay||Number(existing.dueDate.slice(-2)),
+          generatedFromId:id,
+        }).onConflictDoNothing().returning();
+        if(next){
+          // Donor 360 and My Askanus always see the same new follow-up.
+          const [contact]=await tx.select().from(maxFollowupContacts)
+            .where(and(eq(maxFollowupContacts.followupId,id),eq(maxFollowupContacts.userId,userId)));
+          if(contact)await tx.insert(maxFollowupContacts).values({
+            userId,contactId:contact.contactId,followupId:next.id,
+          });
+        }
+      }
+    }
+    return {kind:"saved" as const,row:updated};
+  });
+  if(result.kind==="missing"){res.status(404).json({error:"Not found"});return;}
+  if(result.kind==="conflict"){res.status(409).json({error:"Follow-up was changed by another request; refresh"});return;}
+  res.setHeader("Cache-Control","private, no-store");
+  res.json({...result.row,createdAt:result.row.createdAt.toISOString()});
 });
 
 // Edit the SAME case follow-up from My Askanus or Communications MAX.
@@ -427,6 +471,25 @@ router.patch("/askanus/followups/:id", requireAuth, async (req, res) => {
     }
     updates.dueTime=dueTime||null;
     updates.timeZone=dueTime?timeZone:null;
+  }
+  if(req.body?.repeatRule!==undefined){
+    if(!isRepeatRule(req.body.repeatRule)){
+      res.status(400).json({error:"Invalid repeat rule"});return;
+    }
+    const [current]=await db.select({dueDate:caseFollowups.dueDate,completed:caseFollowups.completed})
+      .from(caseFollowups).where(and(eq(caseFollowups.id,id),
+        sql`EXISTS (SELECT 1 FROM askanus_cases ac WHERE ac.id=${caseFollowups.caseId} AND ac.user_id=${userId})`));
+    if(!current){res.status(404).json({error:"Not found"});return;}
+    if(current.completed){
+      res.status(409).json({error:"Reopen the completed follow-up before changing its recurrence"});return;
+    }
+    const futureDate=req.body?.dueDate===undefined?current.dueDate:req.body.dueDate;
+    if(req.body.repeatRule!=="none"&&!futureDate){
+      res.status(400).json({error:"A recurring follow-up requires a due date"});return;
+    }
+    updates.repeatRule=req.body.repeatRule;
+    updates.repeatAnchorDay=req.body.repeatRule==="monthly"&&futureDate
+      ?Number(String(futureDate).slice(-2)):null;
   }
   if (!Object.keys(updates).length) {
     res.status(400).json({ error: "Nothing to update" }); return;
