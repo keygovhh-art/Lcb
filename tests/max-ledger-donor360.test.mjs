@@ -32,13 +32,20 @@ test("Donor 360 private access and linked follow-up respect ownership",()=>{
  assert.ok(p.includes('tx.insert(caseFollowups)'));
  assert.ok(p.includes('tx.insert(maxFollowupContacts)'));
 });
-test("No-call flag prevents ordinary opt-out removal",()=>{
+test("No-call flag warns, and owner can explicitly override without asserting donor consent",()=>{
  const p=get("artifacts/api-server/src/routes/communications-max.ts");
  const form=get("artifacts/gavhah/src/components/communications/max-call-desk.tsx");
  assert.ok(p.includes('Opt-out can only be reversed'));
  assert.ok(p.includes('outcome === "do_not_call"'));
  assert.ok(form.includes('chosenContact?.doNotCall'));
- assert.ok(form.includes('!chosenContact.doNotCall'));
+ assert.ok(form.includes('chosenContact.doNotCall && !window.confirm('));
+ assert.ok(form.includes('href={"tel:"+chosenContact.phone}'));
+ const choice=get("artifacts/api-server/src/routes/communications-consent.ts");
+ assert.ok(choice.includes('owner_override'));
+ assert.ok(choice.includes('ownerConfirmedOverride'));
+ assert.ok(choice.includes('priorOptOutReason'));
+ assert.ok(choice.includes('requireAuth'));
+ assert.ok(choice.includes('NOT the contact\'s consent'));
 });
 test("Professional mobile navigation retains all 5 main destinations",()=>{
  const form=get("artifacts/gavhah/src/components/communications/max-call-desk.tsx");
