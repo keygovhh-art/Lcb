@@ -91,7 +91,7 @@ router.post("/askanus/contacts/:id/followups",requireAuth,async(req,res)=>{
   const timeZone=clean(req.body?.timeZone,80)||null;
   let timeValid=!dueTime;
   if(dueTime){
-    try{timeValid=!!dueDate && /^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(dueTime)&&!!timeZone;
+    try{timeValid=!!dueDate && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(dueTime)&&!!timeZone;
       new Intl.DateTimeFormat("en-US",{timeZone:timeZone||"BAD_INVALID_ZONE"}).format();
     }catch{timeValid=false;}
   }
