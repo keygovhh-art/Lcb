@@ -59,7 +59,8 @@ function parseRows(input:unknown):ImportRow[]{
       throw Error("Invalid email on CSV line "+(i+2));
     if(phone&&normalizePhone(phone).length<7)
       throw Error("Invalid phone on CSV line "+(i+2));
-    if(!phone&&!email)throw Error("Phone or email required on CSV line "+(i+2));
+    // Name-only entries are valid: export/import must preserve such contacts.
+    // They can only be de-duplicated by identical normalized name.
     rows.push({line:i+2,name,phone,email,notes:norm(v("notes"),4000),
       doNotCall:/^(true|1|yes)$/i.test(v("do_not_call").trim())});
   }
@@ -68,10 +69,10 @@ function parseRows(input:unknown):ImportRow[]{
 async function inspectImport(userId:number,rows:ImportRow[]){
   // Server-side compare is per owner. Unlike a client-only preview this also
   // checks duplicates throughout the entire existing address book.
-  const phones=new Set<string>(),emails=new Set<string>();
+  const phones=new Set<string>(),emails=new Set<string>(),nameOnly=new Set<string>();
   let last=0;
   for(;;){
-    const page=await db.select({id:communicationContacts.id,phone:communicationContacts.phone,
+    const page=await db.select({id:communicationContacts.id,name:communicationContacts.name,phone:communicationContacts.phone,
       email:communicationContacts.email}).from(communicationContacts)
       .where(and(eq(communicationContacts.userId,userId),gt(communicationContacts.id,last)))
       .orderBy(asc(communicationContacts.id)).limit(2000);
@@ -79,6 +80,7 @@ async function inspectImport(userId:number,rows:ImportRow[]){
     for(const record of page){
       const p=normalizePhone(record.phone);if(p)phones.add(p);
       const e=normalizeEmail(record.email);if(e)emails.add(e);
+      if(!p&&!e)nameOnly.add(record.name.trim().toLocaleLowerCase());
     }
     last=page[page.length-1].id;
     if(page.length<2000)break;
@@ -86,10 +88,11 @@ async function inspectImport(userId:number,rows:ImportRow[]){
   const imported:ImportRow[]=[],skipped:Array<{line:number;reason:string}>=[];
   for(const r of rows){
     const p=normalizePhone(r.phone),e=normalizeEmail(r.email);
-    if((p&&phones.has(p))||(e&&emails.has(e))){
+    if((p&&phones.has(p))||(e&&emails.has(e))||(!p&&!e&&nameOnly.has(r.name.toLocaleLowerCase()))){
       skipped.push({line:r.line,reason:"Existing contact or repeated entry"});continue;
     }
     if(p)phones.add(p);if(e)emails.add(e);
+    if(!p&&!e)nameOnly.add(r.name.toLocaleLowerCase());
     imported.push(r);
   }
   return {imported,skipped};
@@ -119,16 +122,19 @@ router.post("/askanus/contacts/import",requireAuth,async(req,res)=>{
       sql.raw('SELECT pg_advisory_xact_lock(843122, '+userId+')'));
     // Read from tx so the duplicate check sees committed rows after the lock;
     // repeat verification immediately before writing in this transaction.
-    const current=await tx.select({id:communicationContacts.id,phone:communicationContacts.phone,
+    const current=await tx.select({id:communicationContacts.id,name:communicationContacts.name,phone:communicationContacts.phone,
       email:communicationContacts.email}).from(communicationContacts)
       .where(eq(communicationContacts.userId,userId));
     const phoneKeys=new Set(current.map(r=>normalizePhone(r.phone)).filter(Boolean));
     const emailKeys=new Set(current.map(r=>normalizeEmail(r.email)).filter(Boolean));
+    const nameOnlyKeys=new Set(current.filter(r=>!normalizePhone(r.phone)&&!normalizeEmail(r.email))
+      .map(r=>r.name.trim().toLocaleLowerCase()));
     const toSave:ImportRow[]=[];
     for(const r of rows){
       const p=normalizePhone(r.phone),e=normalizeEmail(r.email);
-      if((p&&phoneKeys.has(p))||(e&&emailKeys.has(e)))continue;
+      if((p&&phoneKeys.has(p))||(e&&emailKeys.has(e))||(!p&&!e&&nameOnlyKeys.has(r.name.toLocaleLowerCase())))continue;
       if(p)phoneKeys.add(p);if(e)emailKeys.add(e);
+      if(!p&&!e)nameOnlyKeys.add(r.name.toLocaleLowerCase());
       toSave.push(r);
     }
     if(toSave.length){
