@@ -2,8 +2,10 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToggleCaseFollowup, getListAskanuscasesQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, BookOpen, CheckCircle, ChevronDown, ChevronUp, RotateCcw, Trash2 } from "lucide-react";
+import { Bell, BookOpen, CheckCircle, ChevronDown, ChevronUp, RotateCcw, Trash2, Pencil, Save, X } from "lucide-react";
 import {
   partitionCaseFollowups, removeCaseFollowup, updateCaseFollowupCompletion,
 } from "@/lib/case-followup-history";
@@ -29,8 +31,12 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [showHistory, setShowHistory] = useState(true);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editNote, setEditNote] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [savingId, setSavingId] = useState<number | null>(null);
   const { open, history } = partitionCaseFollowups(followups);
-  const busy = togglingId !== null || deletingId !== null;
+  const busy = togglingId !== null || deletingId !== null || savingId !== null;
 
   const updateStoredCase = (change: (items: CaseFollowupEntry[]) => CaseFollowupEntry[]) => {
     qc.setQueryData(getListAskanuscasesQueryKey(), (existing: any) =>
@@ -83,6 +89,34 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
     }
   };
 
+  const beginEdit = (item: CaseFollowupEntry) => {
+    if (busy) return;
+    setEditingId(item.id);
+    setEditNote(item.note);
+    setEditDueDate(item.dueDate || "");
+  };
+
+  const saveEdit = async (item: CaseFollowupEntry) => {
+    if (busy || !editNote.trim()) return;
+    setSavingId(item.id);
+    try {
+      const response = await fetch("/api/askanus/followups/" + item.id, {
+        method: "PATCH", credentials: "include", cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: editNote.trim(), dueDate: editDueDate || null }),
+      });
+      if (!response.ok) throw new Error("Could not edit follow-up");
+      const updated: CaseFollowupEntry = await response.json();
+      if (updated.id !== item.id || updated.caseId !== caseId) throw new Error("Unexpected follow-up");
+      updateStoredCase(items => items.map(f => f.id === item.id ? updated : f));
+      setEditingId(null);
+      void onUpdated();
+      toast({ title: "דער נאכפאלג איז דערהיינטיגט געווארן אין ביידע אפטיילונגען" });
+    } catch {
+      toast({ title: "נישט געלונגען צו ענדערן דעם נאכפאלג", variant: "destructive" });
+    } finally { setSavingId(null); }
+  };
+
   const entry = (item: CaseFollowupEntry, isHistory: boolean) => (
     <div key={item.id} className="flex flex-col gap-2 rounded-xl border bg-background px-3 py-3 sm:flex-row sm:items-start sm:justify-between" dir="rtl">
       <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -94,7 +128,24 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
             className="h-6 w-6 shrink-0 rounded-md border-2 border-secondary flex items-center justify-center hover:bg-secondary/10 disabled:opacity-50" />
         )}
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="text-sm font-medium text-foreground whitespace-pre-wrap break-words" dir="auto">{item.note}</p>
+          {editingId === item.id ? (
+            <div className="space-y-2">
+              <Textarea aria-label="נאכפאלג־נאטיץ" value={editNote} onChange={e => setEditNote(e.target.value)}
+                className="min-h-20" maxLength={1500} />
+              <Input aria-label="באשטימטער נאכפאלג־דאטום" type="date" value={editDueDate}
+                onChange={e => setEditDueDate(e.target.value)} />
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" disabled={busy || !editNote.trim()} onClick={() => void saveEdit(item)}>
+                  <Save className="h-3.5 w-3.5 ml-1" /> אפהיטן
+                </Button>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditingId(null)}>
+                  <X className="h-3.5 w-3.5 ml-1" /> אפלאזן
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm font-medium text-foreground whitespace-pre-wrap break-words" dir="auto">{item.note}</p>
+          )}
           <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5">
             {isHistory && <span className="font-semibold text-green-700">פארטיג</span>}
             <span>אויפגעשריבן: <span dir="ltr">{item.date}</span></span>
@@ -110,6 +161,11 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
             צוריק צו אפן
           </Button>
         )}
+        <Button type="button" variant="outline" size="sm"
+          disabled={busy} onClick={() => beginEdit(item)}
+          className="min-h-9 gap-1" aria-label={"ענדערן Follow-up: " + item.note}>
+          <Pencil className="h-3.5 w-3.5" /> עדיטן
+        </Button>
         <Button type="button" variant="outline" size="sm"
           disabled={busy} onClick={() => void deleteFollowup(item)}
           className="min-h-9 gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
