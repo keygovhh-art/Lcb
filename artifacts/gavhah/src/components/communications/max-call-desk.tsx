@@ -12,6 +12,7 @@ import { Donor360 } from "@/components/communications/donor-360";
 import { MaxSourceHelper } from "@/components/communications/max-source-helper";
 import { MaxReminderInbox } from "@/components/communications/max-reminder-inbox";
 import { MaxPerformancePanel } from "@/components/communications/max-performance-panel";
+import { MaxHistoryPanel } from "@/components/communications/max-history-panel";
 
 type PersonalCase = {
   id:number; title:string; goalAmount:number; fundsReceived:number; fundsPromised:number;
@@ -393,6 +394,7 @@ export function MaxCallDesk() {
       </form>
       <CaseFollowups caseId={current.id} followups={current.followUpNotes} onUpdated={load}/>
     </section>}
+    <div id="max-history" className="scroll-mt-24"><MaxHistoryPanel /></div>
     <MaxPerformancePanel />
     <MaxSourceHelper contactId={contactId} contactName={chosenContact?.name} />
     <section id="max-more" className="rounded-xl border bg-card p-4 sm:p-6 space-y-3 scroll-mt-24">
