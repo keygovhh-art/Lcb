@@ -41,6 +41,8 @@ export const caseFollowups = pgTable("case_followups", {
   date: text("date").notNull(),
   note: text("note").notNull(),
   dueDate: text("due_date"),
+  dueTime: text("due_time"),
+  timeZone: text("time_zone"),
   completed: boolean("completed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
