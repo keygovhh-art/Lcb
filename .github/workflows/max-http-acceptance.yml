@@ -42,6 +42,12 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build isolated database from Drizzle model, never touching production Neon
         run: pnpm --filter @workspace/db run push-force
+      - name: Verify complete additive migration works twice on disposable Postgres
+        env:
+          MAX_MIGRATION_MODE: staging
+        run: |
+          node lib/db/scripts/max-additive-migrate.mjs
+          node lib/db/scripts/max-additive-migrate.mjs
       - name: Build API server
         run: pnpm --filter @workspace/api-server run build
       - name: Start isolated API and verify it becomes healthy
