@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, featuredCauseSupportersTable, projectMembersTable } from "@workspace/db";
-import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes, fundraisingCallReports } from "@workspace/db/schema";
+import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes, fundraisingCallReports, maxProgressEvents, maxPledges, maxReceipts } from "@workspace/db/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
 
@@ -279,25 +279,66 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
     return;
   }
 
+  // User-provided idempotency key prevents double-counting if the network retries.
+  // This route shares the MAX pledge/receipt ledger and uses atomic SQL increments.
+  if(action==="funds_received" || action==="funds_promised"){
+    const requestId=String(req.body?.requestId??"").trim();
+    const amountNumber=Number(amount);
+    if(requestId.length<12 || requestId.length>128 ||
+       !Number.isFinite(amountNumber) || amountNumber<=0 || amountNumber>9999999999 ||
+       Math.abs(amountNumber*100-Math.round(amountNumber*100))>0.000001){
+      res.status(400).json({error:"A valid unique requestId and cents-precise positive amount are required"});
+      return;
+    }
+    const event=await db.transaction(async tx=>{
+      const [created]=await tx.insert(maxProgressEvents).values({
+        userId,caseId:id,eventKind:action,amount:String(amountNumber),requestId,
+      }).onConflictDoNothing().returning();
+      if(!created){
+        const [prior]=await tx.select().from(maxProgressEvents).where(and(
+          eq(maxProgressEvents.userId,userId),eq(maxProgressEvents.requestId,requestId)));
+        if(!prior || prior.caseId!==id || prior.eventKind!==action ||
+           Number(prior.amount)!==amountNumber) return "conflict" as const;
+        return "duplicate" as const;
+      }
+      if(action==="funds_received"){
+        await tx.insert(maxReceipts).values({
+          userId,caseId:id,amount:String(amountNumber),
+          method:"other",verification:"manually_reported",
+          requestId:"my-progress:"+requestId,reference:String(note||"").slice(0,240),
+        });
+      } else {
+        await tx.insert(maxPledges).values({
+          userId,caseId:id,amount:String(amountNumber),
+          note:from?"צוגעזאגט דורך "+String(from).slice(0,160):"מאנועל איינגעשריבענע התחייבות",
+        });
+      }
+      await tx.insert(caseActivityLog).values({
+        caseId:id,date:today,type:action,
+        amount:String(amountNumber),
+        note:action==="funds_received"
+          ? String(note||"$"+amountNumber.toFixed(2)+" manually reported received").slice(0,1500)
+          : "$"+amountNumber.toFixed(2)+" pledged"+(from?" by "+String(from).slice(0,160):""),
+      });
+      const [updated]=await tx.update(askanuscases).set({
+        ...(action==="funds_received"
+          ? {fundsReceived:sql`${askanuscases.fundsReceived} + ${String(amountNumber)}`}
+          : {fundsPromised:sql`${askanuscases.fundsPromised} + ${String(amountNumber)}`}),
+        lastUpdated:new Date(),
+      }).where(and(eq(askanuscases.id,id),eq(askanuscases.userId,userId))).returning();
+      if(!updated)throw new Error("Owned case missing during progress update");
+      return "created" as const;
+    });
+    if(event==="conflict"){res.status(409).json({error:"Request key conflicts with another money entry"});return;}
+    res.setHeader("Cache-Control","private, no-store");
+    const full=await getCaseWithDetails(id,userId);
+    res.json(full);
+    return;
+  }
+
   const caseUpdates: Record<string, unknown> = { lastUpdated: new Date() };
 
-  if (action === "funds_received" && amount) {
-    const newTotal = Number(existing.fundsReceived) + Number(amount);
-    caseUpdates.fundsReceived = String(newTotal);
-    await db.insert(caseActivityLog).values({
-      caseId: id, date: today, type: "funds_received",
-      note: String(note || `${Number(amount).toLocaleString()} received`).trim().slice(0, 1500),
-      amount: String(amount),
-    });
-  } else if (action === "funds_promised" && amount) {
-    const newTotal = Number(existing.fundsPromised) + Number(amount);
-    caseUpdates.fundsPromised = String(newTotal);
-    const pledgeNote = from ? `$${Number(amount).toLocaleString()} pledged by ${from}` : `$${Number(amount).toLocaleString()} pledged`;
-    await db.insert(caseActivityLog).values({
-      caseId: id, date: today, type: "funds_promised",
-      note: pledgeNote.slice(0, 1500), amount: String(Number(amount)),
-    });
-  } else if (action === "goal" && goal !== undefined) {
+  if (action === "goal" && goal !== undefined) {
     caseUpdates.goalAmount = String(goal);
     await db.insert(caseActivityLog).values({
       caseId: id, date: today, type: "update",
