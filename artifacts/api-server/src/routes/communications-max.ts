@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { askanuscases, caseActivityLog, caseFollowups, communicationContacts, fundraisingCallReports, maxPledges, maxReceipts, maxFollowupContacts } from "@workspace/db/schema";
+import { askanuscases, caseActivityLog, caseFollowups, communicationContacts, fundraisingCallReports, maxPledges, maxReceipts, maxFollowupContacts, maxHistoryEvents } from "@workspace/db/schema";
 import { and, desc, eq, sql, or, ilike } from "drizzle-orm";
 import { getSessionUserId, requireAuth } from "../middlewares/auth";
 import { isRepeatRule, validCalendarDate } from "../lib/followup-recurrence";
@@ -57,14 +57,22 @@ router.post("/askanus/contacts", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
   const name = clean(req.body?.name, 240);
   if (!name) { res.status(400).json({ error: "Contact name is required" }); return; }
-  const [created] = await db.insert(communicationContacts).values({
-    userId, name, phone: clean(req.body?.phone, 80),
-    email: clean(req.body?.email, 240), notes: clean(req.body?.notes, 4000),
-    organization:clean(req.body?.organization,200),
-    city:clean(req.body?.city,120),tags:cleanTags(req.body?.tags),
-
-    preferredTimezone: clean(req.body?.preferredTimezone || "America/New_York", 80),
-  }).returning();
+  const created=await db.transaction(async tx=>{
+    const [newContact]=await tx.insert(communicationContacts).values({
+      userId,name,phone:clean(req.body?.phone,80),
+      email:clean(req.body?.email,240),notes:clean(req.body?.notes,4000),
+      organization:clean(req.body?.organization,200),
+      city:clean(req.body?.city,120),tags:cleanTags(req.body?.tags),
+      preferredTimezone:clean(req.body?.preferredTimezone||"America/New_York",80),
+    }).returning();
+    await tx.insert(maxHistoryEvents).values({
+      userId,caseId:null,entityType:"contact",entityId:newContact.id,
+      action:"contact_created",title:newContact.name,
+      details:JSON.stringify({name:newContact.name,
+        organization:newContact.organization,city:newContact.city,tags:newContact.tags}),
+    });
+    return newContact;
+  });
   res.status(201).json(formatContact(created));
 });
 router.patch("/askanus/contacts/:id", requireAuth, async (req, res) => {
@@ -78,16 +86,6 @@ router.patch("/askanus/contacts/:id", requireAuth, async (req, res) => {
     if (typeof req.body.doNotCall !== "boolean") {
       res.status(400).json({error:"doNotCall must be a boolean"}); return;
     }
-    if(req.body.doNotCall===false){
-      const [current]=await db.select({doNotCall:communicationContacts.doNotCall})
-        .from(communicationContacts).where(and(
-          eq(communicationContacts.id,Number(req.params.id)),
-          eq(communicationContacts.userId,getSessionUserId(req)!),
-        ));
-      if(current?.doNotCall){
-        res.status(409).json({error:"Opt-out can only be reversed after an explicit, audited re-consent process"});return;
-      }
-    }
     updates.doNotCall = req.body.doNotCall;
     updates.optOutReason = clean(req.body?.optOutReason,500);
   }
@@ -99,12 +97,44 @@ router.patch("/askanus/contacts/:id", requireAuth, async (req, res) => {
   if (req.body?.relationshipNotes !== undefined) updates.relationshipNotes = clean(req.body.relationshipNotes,1500);
   if (req.body?.preferredTimezone !== undefined) updates.preferredTimezone = clean(req.body.preferredTimezone,80);
 
-  const [row] = await db.update(communicationContacts).set(updates).where(and(
-    eq(communicationContacts.id, Number(req.params.id)),
-    eq(communicationContacts.userId, getSessionUserId(req)!),
-  )).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(formatContact(row));
+  const userId=getSessionUserId(req)!,contactId=Number(req.params.id);
+  const result=await db.transaction(async tx=>{
+    const [prior]=await tx.select().from(communicationContacts).where(and(
+      eq(communicationContacts.id,contactId),eq(communicationContacts.userId,userId)
+    )).for("update");
+    if(!prior)return {kind:"missing" as const};
+    if(req.body?.doNotCall===false&&prior.doNotCall){
+      return {kind:"audit_required" as const};
+    }
+    const [current]=await tx.update(communicationContacts).set(updates).where(and(
+      eq(communicationContacts.id,contactId),eq(communicationContacts.userId,userId)
+    )).returning();
+    const historyFields=[
+      "name","phone","email","notes","organization","city","tags",
+      "doNotCall","optOutReason","preferredHours","contactRole",
+      "relationshipNotes","preferredTimezone",
+    ] as const;
+    const changes:Record<string,{before:unknown;after:unknown}>={};
+    for(const field of historyFields){
+      if(prior[field]!==current[field]){
+        changes[field]={before:prior[field],after:current[field]};
+      }
+    }
+    if(Object.keys(changes).length){
+      await tx.insert(maxHistoryEvents).values({
+        userId,caseId:null,entityType:"contact",entityId:contactId,
+        action:prior.doNotCall!==current.doNotCall&&current.doNotCall
+          ?"contact_marked_do_not_call":"contact_updated",
+        title:current.name,details:JSON.stringify({changes}),
+      });
+    }
+    return {kind:"saved" as const,row:current};
+  });
+  if(result.kind==="missing"){res.status(404).json({error:"Not found"});return;}
+  if(result.kind==="audit_required"){
+    res.status(409).json({error:"Use the explicitly audited owner override or donor permission workflow"});return;
+  }
+  res.json(formatContact(result.row));
 });
 
 router.get("/askanus/call-reports", requireAuth, async (req, res) => {
