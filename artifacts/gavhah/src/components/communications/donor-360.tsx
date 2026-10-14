@@ -50,6 +50,7 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
   const [followNote,setFollowNote]=useState("");
   const [followDue,setFollowDue]=useState("");
   const [followTime,setFollowTime]=useState("");
+  const [repeatRule,setRepeatRule]=useState("none");
   const load=useCallback(async()=>{
     try{
       const profile=await jsonCall<Profile>("/api/askanus/contacts/"+contactId+"/360");
@@ -105,8 +106,9 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
     try{
       await jsonCall("/api/askanus/contacts/"+contactId+"/followups",
         write({caseId,note:followNote.trim(),dueDate:followDue||null,dueTime:followTime||null,
-          timeZone:followTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):null}));
-      setFollowNote("");setFollowDue("");setFollowTime("");
+          timeZone:followTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):null,
+          repeatRule}));
+      setFollowNote("");setFollowDue("");setFollowTime("");setRepeatRule("none");
       setMessage("דער זעלבער נאכפאלג איז געוויזן אין מיין עסקנות און עולם החסד.");
       await load();onChanged();await qc.invalidateQueries({queryKey:getListAskanuscasesQueryKey()});
     }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
@@ -205,6 +207,11 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
           placeholder="וואס דארף מען נאכפאלגן?" required/>
         <Input aria-label="נאכפאלג־דאטום" type="date" value={followDue} onChange={e=>setFollowDue(e.target.value)}/>
         <Input aria-label="נאכפאלג־שעה" type="time" disabled={!followDue} value={followTime} onChange={e=>setFollowTime(e.target.value)}/>
+        <select aria-label="איבערחזרן נדבן־נאכפאלג" disabled={!followDue} value={repeatRule}
+          onChange={e=>setRepeatRule(e.target.value)} className="w-full h-11 rounded-lg border bg-background px-2">
+          <option value="none">איינמאליג</option><option value="daily">יעדן טאג</option>
+          <option value="weekly">יעדע וואך</option><option value="monthly">יעדן חודש</option>
+        </select>
         <Button size="sm" type="submit" disabled={!caseId||busy||!followNote.trim()}>צולייגן פארבונדענעם נאכפאלג</Button>
       </form>
     </div>
