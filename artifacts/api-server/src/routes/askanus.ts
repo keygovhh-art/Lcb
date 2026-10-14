@@ -379,41 +379,50 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
     return;
   }
 
-  const caseUpdates: Record<string, unknown> = { lastUpdated: new Date() };
+  // Metadata updates and their historical audit records must commit together.
+  await db.transaction(async tx=>{
+    const caseUpdates: Record<string, unknown> = { lastUpdated: new Date() };
 
   if (action === "goal" && goal !== undefined) {
     caseUpdates.goalAmount = String(goal);
-    await db.insert(caseActivityLog).values({
+    await tx.insert(caseActivityLog).values({
       caseId: id, date: today, type: "update",
       note: `Goal updated to $${Number(goal).toLocaleString()}`,
     });
   } else if (action === "note" && note) {
-    await db.insert(caseActivityLog).values({ caseId: id, date: today, type: "note", note: String(note).trim().slice(0, 1500) });
+    await tx.insert(caseActivityLog).values({ caseId: id, date: today, type: "note", note: String(note).trim().slice(0, 1500) });
   } else if (action === "followup" && note) {
-    await db.insert(caseFollowups).values({ caseId: id, date: today,
+    const [newFollowup]=await tx.insert(caseFollowups).values({ caseId: id, date: today,
       note: String(note).trim().slice(0, 1500), dueDate: dueDate || null,
       dueTime:dueTime||null, timeZone:dueTime?timeZone:null,
       repeatRule:repeatRule||"none",
       repeatAnchorDay:repeatRule==="monthly"&&dueDate?Number(dueDate.slice(-2)):null,
+    }).returning();
+    await tx.insert(maxHistoryEvents).values({
+      userId,caseId:id,entityType:"followup",entityId:newFollowup.id,
+      action:"followup_created",title:newFollowup.note.slice(0,240),
+      details:JSON.stringify({note:newFollowup.note,dueDate:newFollowup.dueDate,
+        dueTime:newFollowup.dueTime,repeatRule:newFollowup.repeatRule}),
     });
   } else if (action === "status" && status) {
     caseUpdates.status = status;
-    await db.insert(maxHistoryEvents).values({
+    await tx.insert(maxHistoryEvents).values({
       userId,caseId:id,entityType:"case",entityId:id,
       action:status==="closed"?"case_completed":status==="open"?"case_reopened":"case_status_changed",
       title:existing.title,
       details:JSON.stringify({status,previousStatus:existing.status}),
     });
-    await db.insert(caseActivityLog).values({
+    await tx.insert(caseActivityLog).values({
       caseId: id, date: today, type: "status_change",
       note: `Status changed to ${status.replace("_", " ")}`,
     });
   }
 
   if (Object.keys(caseUpdates).length > 1) {
-    await db.update(askanuscases).set(caseUpdates).where(eq(askanuscases.id, id));
+    await tx.update(askanuscases).set(caseUpdates).where(eq(askanuscases.id, id));
   }
 
+  });
   const full = await getCaseWithDetails(id, userId);
   res.json(full);
 });
