@@ -55,9 +55,25 @@ try{
   r=await req(a,"/askanus/cases","POST",{title:"QA Fundraising Project",goalAmount:5000});
   status(r,201,"Create own case");
   const projectId=r.data.id; assert.ok(projectId>0);
-  r=await req(a,"/askanus/contacts","POST",{name:"QA Donor",phone:"8455550100"});
+  r=await req(a,"/askanus/contacts","POST",{name:"QA Donor",phone:"8455550100",organization:"QA Chesed Network",city:"Monroe",tags:"warm, important"});
   status(r,201,"Create own contact");
   const donorId=r.data.id;
+  r=await req(a,"/askanus/contacts?q=Chesed","GET");
+  status(r,200,"Organization search identifies privately owned donor");
+  assert.ok(r.data.some(c=>c.id===donorId));
+  r=await req(a,"/askanus/contacts?q=Monroe","GET");
+  status(r,200,"City search identifies privately owned donor");
+  assert.ok(r.data.some(c=>c.id===donorId));
+  r=await req(a,"/askanus/contacts/"+donorId,"PATCH",{
+    organization:"QA Chesed Network",city:"Monroe",
+    tags:"warm, important, warm",contactRole:"donor"
+  });
+  status(r,200,"Edit structured donor relationship attributes");
+  assert.equal(r.data.tags,"warm, important","Repeated tags normalized");
+  r=await req(b,"/askanus/contacts?q=Chesed","GET");
+  status(r,200,"Other member own search");
+  assert.ok(!r.data.some(c=>c.id===donorId));
+
   // Preview-first CSV import: owner scope, de-dup, do-not-call, full CSV export.
   const csv='name,phone,email,notes,do_not_call\r\n'
     +'"QA, Imported Contact","845-555-0166","qa-import@example.invalid","Warm referral",true\r\n'
@@ -84,8 +100,24 @@ try{
   const exportText=await csvExportResponse.text();
   assert.ok(exportText.includes('"QA, Imported Contact"'));
   assert.ok(exportText.includes('"true"'));
+  assert.ok(exportText.includes('"QA Chesed Network"'),"Organization lost in private CSV export");
+  assert.ok(exportText.includes('"Monroe"'),"City lost in private CSV export");
+  assert.ok(exportText.includes('"warm, important"'),"Tags lost in private CSV export");
   const unauthorizedCsv=await fetch(base+"/askanus/contacts/export.csv",{headers:{Cookie:b}});
   assert.ok(!(await unauthorizedCsv.text()).includes("QA, Imported Contact"));
+  const richCsv='name,phone,email,notes,organization,city,tags,do_not_call\r\n'
+    +'"QA Rich Contact","8455550189","","", "QA Hatzolah Group","Brooklyn","regular, referral",false\r\n';
+  r=await req(a,"/askanus/contacts/import-preview","POST",{csv:richCsv});
+  status(r,200,"Rich CRM CSV preview");
+  assert.equal(r.data.ready,1);
+  r=await req(a,"/askanus/contacts/import","POST",{csv:richCsv,confirm:true});
+  status(r,201,"Rich CRM CSV import");
+  assert.equal(r.data.imported,1);
+  r=await req(a,"/askanus/contacts?q=Brooklyn","GET");
+  status(r,200,"Imported city searchable");
+  assert.equal(r.data.length,1);
+  assert.equal(r.data[0].organization,"QA Hatzolah Group");
+  assert.equal(r.data[0].tags,"regular, referral");
   // The export format must round-trip a historical name-only contact.
   const nameOnlyCsv="name,phone,email,notes,do_not_call\r\n"
     +'"QA Name-only Import","","","No telephone yet",false\r\n';
