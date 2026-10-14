@@ -79,8 +79,11 @@ const {chromium}=requireBrowser("playwright");
    await page.getByLabel("שטאט").fill("Monroe");
    await page.getByLabel("צייכענונגען (אפגעטיילט מיט א קאמע)").fill("priority, recurring");
    await page.getByRole("button",{name:"אפהיטן איינשטעלונגען"}).click();
-   await page.getByText("QA Mobile Association",{exact:false})
-     .first().waitFor({state:"visible",timeout:15000});
+   // Native <option> elements are intentionally hidden while a mobile select
+   // is closed; inspect the selected label rather than waiting for visibility.
+   await page.waitForFunction(()=>Array.from(document.querySelectorAll("#max-contact option"))
+     .some(o=>o.textContent?.includes("QA Mobile Association")),
+     null,{timeout:15000});
    const crmSearch=await context.request.get(base+"/api/askanus/contacts?q=QA%20Mobile%20Association");
    assert.equal(crmSearch.status(),200);
    const crmFound=await crmSearch.json();
