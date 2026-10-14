@@ -17,6 +17,7 @@ type Receipt = {id:number;pledgeId:number|null;caseId:number;amount:number;refun
 type Call = {id:number;caseId:number;contactName:string;outcome:string;observedMood:string;note:string;createdAt:string};
 type Followup = {id:number;caseId:number;note:string;dueDate:string|null;dueTime?:string|null;completed:boolean};
 type Profile = {contact:Donor;calls:Call[];pledges:Pledge[];receipts:Receipt[];followups:Followup[]};
+type PermissionEvent = {id:number;action:"reconsent"|"owner_override";evidence:string;method:string;priorOptOutReason:string;createdAt:string};
 async function jsonCall<T>(url:string,init?:RequestInit):Promise<T>{
   const result=await fetch(url,{credentials:"include",cache:"no-store",...init});
   if(!result.ok){
@@ -39,6 +40,10 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
   const [moodNotes,setMoodNotes]=useState("");
   const [doNotCall,setDoNotCall]=useState(false);
   const [optReason,setOptReason]=useState("");
+  const [permissionEvents,setPermissionEvents]=useState<PermissionEvent[]>([]);
+  const [showOverride,setShowOverride]=useState(false);
+  const [overrideReason,setOverrideReason]=useState("");
+  const [overrideKey,setOverrideKey]=useState(()=>crypto.randomUUID());
   const [settleId,setSettleId]=useState<number|null>(null);
   const [pay,setPay]=useState("");
   const [payMethod,setPayMethod]=useState("other");
@@ -53,7 +58,11 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
   const [repeatRule,setRepeatRule]=useState("none");
   const load=useCallback(async()=>{
     try{
-      const profile=await jsonCall<Profile>("/api/askanus/contacts/"+contactId+"/360");
+      const [profile,events]=await Promise.all([
+        jsonCall<Profile>("/api/askanus/contacts/"+contactId+"/360"),
+        jsonCall<PermissionEvent[]>("/api/askanus/contacts/"+contactId+"/consents"),
+      ]);
+      setPermissionEvents(events);
       setData(profile);setHours(profile.contact.preferredHours||"");
       setMoodNotes(profile.contact.relationshipNotes||"");
       setDoNotCall(Boolean(profile.contact.doNotCall));
@@ -71,6 +80,25 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
       await load();onChanged();setEditing(false);
       setMessage("דער נדבן־קארטל און די רופן־רשות זענען אפגעהיטן.");
     }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
+    finally{setBusy(false);}
+  };
+  const overrideDoNotCall=async()=>{
+    if(!data?.contact.doNotCall||busy)return;
+    const confirmed=window.confirm(
+      "דער מענטש איז אנגעצייכנט געווארן אלס 'נישט רופן'. ווילסטו טאקע אליין אראפנעמען דעם צייכן? "+
+      "דאס איז דיין אייגענער באשלוס, נישט קיין נייע רשות פונעם מענטש. די געשיכטע בלייבט אפגעהיטן.");
+    if(!confirmed)return;
+    setBusy(true);setError("");setMessage("");
+    try{
+      await jsonCall("/api/askanus/contacts/"+contactId+"/call-permission",write({
+        action:"owner_override",ownerConfirmedOverride:true,
+        evidence:overrideReason.trim(),requestId:overrideKey,
+      }));
+      setOverrideKey(crypto.randomUUID());setOverrideReason("");setShowOverride(false);
+      await load();onChanged();
+      setEditing(false);
+      setMessage("דער עסקן האט אליין אראפגענומען דעם רופן־צייכן. דער באשלוס און די פריערדיגע סיבה בלייבן אין דער געשיכטע.");
+    }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען אראפצונעמען דעם צייכן");}
     finally{setBusy(false);}
   };
   const settle=async(e:React.FormEvent)=>{
@@ -126,6 +154,24 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
       <ShieldAlert className="h-5 w-5 shrink-0"/> נישט רופן! דער קאנטאקט האט א רופן־פארבאט.
       {c.optOutReason&&<span>טעם: {c.optOutReason}</span>}
     </div>}
+    {c.doNotCall&&<div className="border rounded-lg p-3 space-y-2 text-sm">
+      <Button type="button" variant="outline" size="sm" disabled={busy}
+        onClick={()=>setShowOverride(v=>!v)}>דער עסקן וויל אראפנעמען דעם „נישט רופן“־צייכן</Button>
+      {showOverride&&<div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          דער צייכן דינט דיר אלס ווארענונג. דו קענסט אים אראפנעמען,
+          אבער דאס איז נישט קיין באשטעטיגונג אז דער מענטש האט צוריקגעגעבן רשות.
+          אויסערלעכע רופן־כללים קענען נאך אלץ גילטן.
+        </p>
+        <Label htmlFor="donor-override-reason">פארוואס נעמסטו אראפ דעם צייכן? (נישט מחויב)</Label>
+        <Textarea id="donor-override-reason" value={overrideReason}
+          placeholder="אייגענע באמערקונג פאר דער געשיכטע"
+          onChange={e=>setOverrideReason(e.target.value)} maxLength={1500}/>
+        <Button type="button" size="sm" disabled={busy} onClick={()=>void overrideDoNotCall()}>
+          באשטעטיגן און אראפנעמען דעם צייכן
+        </Button>
+      </div>}
+    </div>}
     <div className="grid grid-cols-2 gap-2 text-center text-sm">
       <div className="rounded-lg bg-muted/40 p-2"><strong className="block text-lg">${raised.toLocaleString()}</strong> איינגעשריבענע באצאלונגען ($)</div>
       <div className="rounded-lg bg-muted/40 p-2"><strong className="block text-lg">${remaining.toLocaleString()}</strong> אפענע התחייבויות ($)</div>
@@ -145,7 +191,7 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
           onChange={e=>setDoNotCall(e.target.checked)}/>
         נישט רופן דעם מענטש
       </label>
-      {c.doNotCall&&<p className="text-xs text-destructive">רופן־פארבאט קען נאר ווערן אויפגעהויבן נאך א ניי באשטעטיגטער און רעקארדירטער רשות־פראצעס.</p>}
+      {c.doNotCall&&<p className="text-xs text-muted-foreground">דער עסקן קען אראפנעמען דעם צייכן אויב ער באשליסט אזוי, מיט א ווארענונג און א געשיכטע. דאס איז נישט א נייע רשות פונעם נדבן.</p>}
       <Label htmlFor="donor-reason">סיבה פון רופן־פארבאט</Label>
       <Input id="donor-reason" value={optReason} onChange={e=>setOptReason(e.target.value)}/>
       <Label htmlFor="donor-hours">פאסיגע צייטן לויטן נדבן</Label>
@@ -215,6 +261,16 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
         <Button size="sm" type="submit" disabled={!caseId||busy||!followNote.trim()}>צולייגן פארבונדענעם נאכפאלג</Button>
       </form>
     </div>
+    {permissionEvents.length>0&&<div className="space-y-2">
+      <h5 className="font-semibold text-sm">רופן־צייכן: באשלוסן און געשיכטע</h5>
+      {permissionEvents.map(event=><div key={event.id} className="border rounded-md p-2 text-xs space-y-1">
+        <p><strong>{event.action==="owner_override"
+          ?"דער עסקן האט אליין אראפגענומען דעם צייכן"
+          :"דער נדבן האט לויטן באריכט צוריקגעגעבן רשות"}</strong> · {event.createdAt.slice(0,10)}</p>
+        {event.priorOptOutReason&&<p>פריערדיגע סיבה: {event.priorOptOutReason}</p>}
+        <p>פארשריבענע סיבה: {event.evidence}</p>
+      </div>)}
+    </div>}
     <div className="space-y-2">
       <h5 className="font-semibold flex gap-2"><ClipboardList className="h-4 w-4"/> רופן־היסטאריע</h5>
       {data.calls.length===0&&<p className="text-xs text-muted-foreground">נאכנישטא קיין פארבונדענע רוף־באריכטן.</p>}
