@@ -17,7 +17,7 @@ type PersonalCase = {
   id:number; title:string; goalAmount:number; fundsReceived:number; fundsPromised:number;
   followUpNotes:CaseFollowupEntry[];
 };
-type Contact = { id:number; name:string; phone:string; email:string; notes:string; doNotCall?:boolean; preferredHours?:string };
+type Contact = { id:number; name:string; phone:string; email:string; notes:string; organization?:string;city?:string;tags?:string; doNotCall?:boolean; preferredHours?:string };
 type Call = {id:number; caseId:number; contactName:string; outcome:string; moneyKind:string; amount:number; note:string; createdAt:string};
 type TodaySummary = {
   summary:{dueOrOverdueFollowups:number;totalOpenFollowups:number;openTasks:number;openPromiseBalance:number};
@@ -266,7 +266,7 @@ export function MaxCallDesk() {
         <h3 className="font-bold text-lg flex items-center gap-2"><ContactRound className="h-5 w-5"/> מיין פריוואטער קשרים־בוך</h3>
         <div className="space-y-2">
           <Label htmlFor="max-contact-search">זוכן אין מיינע קשרים</Label>
-          <Input id="max-contact-search" type="search" placeholder="נאמען, נומער אדער אימעיל"
+          <Input id="max-contact-search" type="search" placeholder="נאמען, נומער, מוסד, שטאט אדער צייכענונג"
             value={contactSearch} onChange={e=>setContactSearch(e.target.value)}/>
           <Label htmlFor="max-contact">אויסקלייבן א קאנטאקט</Label>
           <select id="max-contact" value={contactId??""} onChange={e=>setContact(e.target.value?Number(e.target.value):null)}
@@ -274,7 +274,7 @@ export function MaxCallDesk() {
             <option value="">אן אויסגעקליבענעם קאנטאקט</option>
             {selectedContact && !filteredContacts.some(c=>c.id===selectedContact.id) &&
               <option value={selectedContact.id}>{selectedContact.name}</option>}
-            {filteredContacts.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?" · "+c.phone:""}</option>)}
+            {filteredContacts.map(c=><option key={c.id} value={c.id}>{c.name}{c.organization?" · "+c.organization:""}{c.phone?" · "+c.phone:""}</option>)}
           </select>
           {chosenContact?.doNotCall && <p role="alert" className="text-sm font-semibold text-destructive">
             אכטונג: דער מענטש איז אנגעצייכנט „נישט רופן“. דער עסקן בלייבט אין קאנטראל;
@@ -301,7 +301,7 @@ export function MaxCallDesk() {
         </form>
         <section className="border rounded-lg p-3 space-y-3" aria-label="קשרים אריינברענגען און ארויסנעמען">
           <h4 className="font-semibold text-sm">קשרים אריינברענגען אדער ארויסנעמען</h4>
-          <p className="text-xs text-muted-foreground">CSV־פייל מיט די שפאלטן name, phone, email, notes, do_not_call. קודם איבערקוקן; קיין אלטע קשרים ווערן נישט איבערגעשריבן. די פריוואטע ליסטע ווערט נאר געוויזן פאר דיין אקאונט.</p>
+          <p className="text-xs text-muted-foreground">CSV־פייל מיט name, phone, email, notes, organization, city, tags, do_not_call. קודם איבערקוקן; קיין אלטע קשרים ווערן נישט איבערגעשריבן. די פריוואטע ליסטע ווערט נאר געוויזן פאר דיין אקאונט.</p>
           <a href="/api/askanus/contacts/export.csv" download="gavhah-private-contacts.csv"
             className="inline-flex min-h-10 px-3 items-center border rounded-lg text-sm font-semibold">מיינע קשרים ארויסנעמען (CSV)</a>
           <Label htmlFor="max-import-csv">CSV־פייל פון דיין טעלעפאן</Label>
