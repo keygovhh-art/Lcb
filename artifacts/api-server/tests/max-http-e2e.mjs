@@ -415,6 +415,10 @@ try{
   status(r,200,"Retry task completion");
   assert.equal(r.data.completedAt,completedTaskAt,"Retry changed historical done time");
 
+  r=await req(a,"/askanus/contacts/"+donorId,"PATCH",{
+    tags:"warm, important, history-reviewed"
+  });
+  status(r,200,"A real donor edit must create a historical change");
   r=await req(a,"/askanus/max/history?kind=contacts&q=QA%20Donor","GET");
   status(r,200,"Owner may find even active contacts in permanent history");
   assert.ok(r.data.items.some(x=>x.entityId===donorId));
