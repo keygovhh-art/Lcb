@@ -22,7 +22,7 @@ import {
   TrendingUp, Heart, MessageSquare, Globe, Star, AlertTriangle, UserCheck, BookmarkCheck, UserPlus,
   Lock, Sparkles, FolderKanban, HandHeart, ExternalLink, RotateCcw,
 } from "lucide-react";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useToast } from "@/hooks/use-toast";
 import { CharityManagement } from "@/components/admin/charity-management";
 import { GroupReportsManagement } from "@/components/admin/group-reports-management";
@@ -547,7 +547,7 @@ export default function FounderDashboard() {
                       <Badge variant="outline" className="capitalize">{msg.type}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mb-3">{msg.message}</p>
-                    <p className="text-xs text-muted-foreground">{msg.name} · {msg.email} · {format(new Date(msg.createdAt), "MMM d, yyyy h:mm a")}</p>
+                    <p className="text-xs text-muted-foreground">{msg.name} · {msg.email} · {formatGregorianDate(new Date(msg.createdAt), "MMM d, yyyy h:mm a")}</p>
                   </div>
                   {msg.status === "open" && (
                     msg.type === "volunteer_contact" ? (
@@ -692,7 +692,7 @@ export default function FounderDashboard() {
                     <Badge variant={r.status === "confirmed" ? "default" : "secondary"} className="capitalize">{r.status}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(r.reservationDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                    {formatGregorianDate(new Date(r.reservationDate + "T12:00:00"), "EEEE, MMMM d, yyyy")}
                     {" · "}{r.reservationTime}{" · "}{String(r.purpose).replace("_", " ")}
                   </p>
                   {r.notes && <p className="text-xs text-muted-foreground mt-1">{r.notes}</p>}
@@ -760,7 +760,7 @@ export default function FounderDashboard() {
                     <span className="text-xs text-muted-foreground">· {report.contentType} #{report.contentId}</span>
                   </div>
                   {report.description && <p className="text-sm text-muted-foreground">{report.description}</p>}
-                  <p className="text-xs text-muted-foreground mt-1">{format(new Date(report.createdAt), "MMM d, yyyy")}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{formatGregorianDate(new Date(report.createdAt), "MMM d, yyyy")}</p>
                 </div>
                 <div className="flex gap-2 shrink-0 flex-wrap">
                   {reportContentPath(report.contentType, report.contentId) && (
@@ -918,7 +918,7 @@ export default function FounderDashboard() {
                     </div>
                     <p className="text-sm text-muted-foreground truncate capitalize">{cs.causeType}</p>
                     {cs.message && <p className="text-xs text-muted-foreground mt-1 italic">"{cs.message}"</p>}
-                    <p className="text-xs text-muted-foreground mt-1">{format(new Date(cs.createdAt), "MMM d, yyyy")}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{formatGregorianDate(new Date(cs.createdAt), "MMM d, yyyy")}</p>
                   </div>
                 </div>
               ))}
@@ -1013,7 +1013,7 @@ export default function FounderDashboard() {
                     <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                       <span>Organizer: {p.organizerName}</span>
                       {p.location && <span>Location: {p.location}</span>}
-                      <span>Since {format(new Date(p.createdAt), "MMM d, yyyy")}</span>
+                      <span>Since {formatGregorianDate(new Date(p.createdAt), "MMM d, yyyy")}</span>
                     </div>
                     {p.goalDescription && (
                       <p className="text-xs text-muted-foreground mt-2">Goal: {p.goalDescription}</p>
@@ -1160,7 +1160,7 @@ export default function FounderDashboard() {
                     <>
                       <h4 className="font-serif font-bold text-primary mb-1">{ann.title}</h4>
                       <p className="text-muted-foreground text-sm mb-2 whitespace-pre-wrap">{ann.content}</p>
-                      <p className="text-xs text-muted-foreground">By {ann.authorName} · {format(new Date(ann.createdAt), "MMM d, yyyy")}</p>
+                      <p className="text-xs text-muted-foreground">By {ann.authorName} · {formatGregorianDate(new Date(ann.createdAt), "MMM d, yyyy")}</p>
                     </>
                   )}
                 </div>

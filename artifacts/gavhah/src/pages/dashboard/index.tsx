@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "wouter";
 import { Users, MessageSquare, HandHeart, Heart, Globe, BarChart3, Activity, Clock, Newspaper, FolderKanban, Star } from "lucide-react";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useAuth } from "@/context/auth-context";
 
@@ -159,7 +159,7 @@ export default function Dashboard() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground leading-snug">{item.description}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {item.actorName} · {format(new Date(item.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                      {item.actorName} · {formatGregorianDate(new Date(item.createdAt), "MMM d, yyyy 'at' h:mm a")}
                     </p>
                   </div>
                 </div>

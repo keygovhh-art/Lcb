@@ -24,7 +24,7 @@ import {
   Megaphone, Target, Handshake, Gift, Pencil, Trash2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
@@ -525,7 +525,7 @@ function ProjectCard({ project }: { project: any }) {
         <div className="flex flex-wrap gap-3 text-xs text-current opacity-70">
           <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {project.organizerName}</span>
           {project.location && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {project.location}</span>}
-          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {format(new Date(project.createdAt), "MMM d, yyyy")}</span>
+          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {formatGregorianDate(new Date(project.createdAt), "MMM d, yyyy")}</span>
         </div>
 
         <p className="text-sm leading-relaxed opacity-80 line-clamp-3">{project.description}</p>
