@@ -38,6 +38,8 @@ export function MaxCallDesk() {
   const qc = useQueryClient();
   const [cases,setCases] = useState<PersonalCase[]>([]);
   const [contacts,setContacts] = useState<Contact[]>([]);
+  const [remoteContacts,setRemoteContacts] = useState<Contact[] | null>(null);
+  const [selectedContact,setSelectedContact] = useState<Contact | null>(null);
   const [calls,setCalls] = useState<Call[]>([]);
   const [caseId,setCaseId] = useState<number | null>(null);
   const [contactId,setContactId] = useState<number | null>(null);
@@ -75,8 +77,22 @@ export function MaxCallDesk() {
     finally {setLoading(false);}
   },[]);
   useEffect(()=>{void load();},[load]);
+  // Never limit contact discovery to the first page when a user searches.
+  useEffect(()=>{
+    const term=contactSearch.trim();
+    if(!term){setRemoteContacts(null);return;}
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>{
+      request<Contact[]>("/api/askanus/contacts?q="+encodeURIComponent(term)+"&limit=100",
+        {signal:controller.signal})
+        .then(setRemoteContacts)
+        .catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:"זוך־פראבלעם");});
+    },250);
+    return ()=>{clearTimeout(timeout);controller.abort();};
+  },[contactSearch]);
   const current = useMemo(()=>cases.find(c=>c.id===caseId),[cases,caseId]);
-  const chosenContact = contacts.find(c=>c.id===contactId);
+  const chosenContact = selectedContact && selectedContact.id===contactId
+    ? selectedContact : contacts.find(c=>c.id===contactId);
   const openFollowups = current?.followUpNotes.filter(f=>!f.completed).length || 0;
   const localDate = new Date();
   const today = [localDate.getFullYear(),String(localDate.getMonth()+1).padStart(2,"0"),
@@ -86,18 +102,22 @@ export function MaxCallDesk() {
   const dueNow = allOpen.filter(f=>f.dueDate && f.dueDate<=today);
   const comingUp = [...allOpen].sort((a,b)=>(a.dueDate||"9999").localeCompare(b.dueDate||"9999")).slice(0,5);
   const allReceived=cases.reduce((s,c)=>s+Number(c.fundsReceived),0);
-  const filteredContacts=contacts.filter(c=>(c.name+" "+c.phone+" "+c.email)
-    .toLocaleLowerCase().includes(contactSearch.trim().toLocaleLowerCase()));
+  const filteredContacts = contactSearch.trim()
+    ? (remoteContacts ?? []).filter(c=>(c.name+" "+c.phone+" "+c.email)
+        .toLocaleLowerCase().includes(contactSearch.trim().toLocaleLowerCase()))
+    : contacts;
   const setContact = (id:number | null) => {
     setContactId(id);
-    const person=contacts.find(c=>c.id===id);
+    const person=[...contacts,...(remoteContacts??[])].find(c=>c.id===id);
+    setSelectedContact(person??null);
     setName(person?.name??"");
   };
   const addContact=async(e:React.FormEvent)=>{
     e.preventDefault();setBusy(true);setError("");setMessage("");
     try {
       const saved=await request<Contact>("/api/askanus/contacts",json(newContact));
-      setContacts(items=>[saved,...items]);setContact(saved.id);
+      setContacts(items=>[saved,...items]);setContactId(saved.id);
+      setSelectedContact(saved);setName(saved.name);
       setNewContact({name:"",phone:"",email:""});
       setMessage("דער קאנטאקט איז אפגעהיטן אין דיין פריוואטן קשרים־בוך.");
     } catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
@@ -186,7 +206,7 @@ export function MaxCallDesk() {
       </div>
       {current && <div className="grid grid-cols-3 gap-2 text-center">
         <div className="rounded-lg bg-muted/40 p-3"><div className="font-bold text-lg">${Number(current.fundsReceived).toLocaleString()}</div><span className="text-xs">באקומען ($)</span></div>
-        <div className="rounded-lg bg-muted/40 p-3"><div className="font-bold text-lg">${Number(current.fundsPromised).toLocaleString()}</div><span className="text-xs">צוגעזאגט ($)</span></div>
+        <div className="rounded-lg bg-muted/40 p-3"><div className="font-bold text-lg">${Number(current.fundsPromised).toLocaleString()}</div><span className="text-xs">נאך אויסשטייענדיג ($)</span></div>
         <div className="rounded-lg bg-muted/40 p-3"><div className="font-bold text-lg">{openFollowups}</div><span className="text-xs">אפענע נאכפאלגן</span></div>
       </div>}
     </div>
@@ -201,6 +221,8 @@ export function MaxCallDesk() {
           <select id="max-contact" value={contactId??""} onChange={e=>setContact(e.target.value?Number(e.target.value):null)}
             className="w-full h-11 rounded-lg border bg-background px-3 text-sm">
             <option value="">אן אויסגעקליבענעם קאנטאקט</option>
+            {selectedContact && !filteredContacts.some(c=>c.id===selectedContact.id) &&
+              <option value={selectedContact.id}>{selectedContact.name}</option>}
             {filteredContacts.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?" · "+c.phone:""}</option>)}
           </select>
           {chosenContact?.doNotCall && <p role="alert" className="text-sm font-semibold text-destructive">
