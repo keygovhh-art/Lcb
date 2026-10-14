@@ -40,3 +40,18 @@ export const fundraisingCallReports = pgTable("fundraising_call_reports", {
   index("fundraising_call_reports_owner_created_idx").on(table.userId, table.createdAt),
   index("fundraising_call_reports_case_idx").on(table.caseId),
 ]);
+/** Append-only, member-scoped record of donor-provided renewed contact permission. */
+export const maxContactConsents = pgTable("max_contact_consents", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  contactId: integer("contact_id").notNull().references(() => communicationContacts.id,{onDelete:"restrict"}),
+  action: text("action").notNull().default("reconsent"),
+  method: text("method").notNull(),
+  evidence: text("evidence").notNull(),
+  consentAt: timestamp("consent_at").notNull(),
+  requestId: text("request_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, table => [
+  uniqueIndex("max_contact_consents_owner_request_unique").on(table.userId, table.requestId),
+  index("max_contact_consents_owner_contact_idx").on(table.userId, table.contactId),
+]);
