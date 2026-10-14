@@ -3,7 +3,7 @@ import { db, featuredCauseSupportersTable, projectMembersTable } from "@workspac
 import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes, fundraisingCallReports, maxProgressEvents, maxPledges, maxReceipts, maxFollowupContacts } from "@workspace/db/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
-import { isRepeatRule, nextRepeatDate } from "../lib/followup-recurrence";
+import { isRepeatRule, nextRepeatDate, validCalendarDate } from "../lib/followup-recurrence";
 
 const router = Router();
 
@@ -18,10 +18,7 @@ const CASE_CATEGORIES = new Set([
 const TASK_PRIORITIES = new Set(["low", "medium", "high"]);
 const PROGRESS_ACTIONS = new Set(["funds_received", "funds_promised", "goal", "note", "followup", "status"]);
 
-function validDateString(value: unknown) {
-  if (value === undefined || value === null || value === "") return true;
-  return /^\d{4}-\d{2}-\d{2}$/.test(String(value));
-}
+const validDateString=validCalendarDate;
 
 function validFollowupTime(time:unknown,zone:unknown){
   if(time===undefined||time===null||time==="")return true;
