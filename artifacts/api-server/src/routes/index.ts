@@ -18,6 +18,7 @@ import communityProjectsRouter from "./community-projects";
 import askanusRouter from "./askanus";
 import communicationsMaxRouter from "./communications-max";
 import communicationsFinanceRouter from "./communications-finance";
+import communicationsContactsTransferRouter from "./communications-contacts-transfer";
 import communicationsTodayRouter from "./communications-today";
 import socialRouter from "./social";
 import adminRouter from "./admin";
@@ -75,6 +76,7 @@ router.use("/askanus", (req, res, next) => {
 router.use(askanusRouter);
 router.use(communicationsMaxRouter);
 router.use(communicationsFinanceRouter);
+router.use(communicationsContactsTransferRouter);
 router.use(communicationsTodayRouter);
 router.use(socialRouter);
 router.use(adminRouter);
