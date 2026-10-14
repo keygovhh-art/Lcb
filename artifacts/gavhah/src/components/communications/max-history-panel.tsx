@@ -73,7 +73,7 @@ export function MaxHistoryPanel({caseId}:{caseId?:number}){
   getHistory(kind,term,0,caseId).then(data=>{
     if(!mounted)return;
     setItems(data.items);setOffset(data.nextOffset);setHasMore(data.hasMore);
-  }).catch(e=>{if(mounted)setError(String(e.message||e));})
+  }).catch(e=>{if(mounted)setError(e instanceof Error?e.message:String(e));})
     .finally(()=>{if(mounted)setLoading(false);});
   return ()=>{mounted=false;};
  },[kind,term,caseId]);
@@ -84,7 +84,7 @@ export function MaxHistoryPanel({caseId}:{caseId?:number}){
     const data=await getHistory(kind,term,offset,caseId);
     setItems(rows=>[...rows,...data.items]);
     setOffset(data.nextOffset);setHasMore(data.hasMore);
-  }catch(e){setError(String(e.message||e));}
+  }catch(e){setError(e instanceof Error?e.message:String(e));}
   finally{setLoading(false);}
  };
  return <section dir="rtl" aria-label="MAX שטענדיגע היסטאריע"
