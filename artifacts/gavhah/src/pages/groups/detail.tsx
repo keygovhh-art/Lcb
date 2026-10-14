@@ -279,8 +279,9 @@ export default function GroupDetail() {
           <>
             <div className="bg-card border rounded-xl overflow-hidden shadow-sm mb-8">
               {group.imageUrl && (
-                <div className="aspect-[4/1] bg-muted overflow-hidden">
-                  <img src={group.imageUrl} alt={group.name} className="w-full h-full object-cover" />
+                <div className="flex w-full items-center justify-center bg-muted/20">
+                  <img src={group.imageUrl} alt={group.name} decoding="async"
+                    className="block w-full h-auto max-h-[85dvh] object-contain" />
                 </div>
               )}
               <div className="p-8">
@@ -341,9 +342,11 @@ export default function GroupDetail() {
             </div>
 
             <Dialog open={editGroupOpen} onOpenChange={setEditGroupOpen}>
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader><DialogTitle>Edit Group</DialogTitle></DialogHeader>
-                <div className="space-y-4">
+              <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-lg max-h-[calc(100dvh-1.5rem)] flex flex-col min-h-0 gap-0 overflow-hidden p-0">
+                <DialogHeader className="shrink-0 border-b px-5 pt-5 pb-3">
+                  <DialogTitle>עדיט גרופ־אינפארמאציע</DialogTitle>
+                </DialogHeader>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y px-5 py-4 space-y-4 [-webkit-overflow-scrolling:touch]">
                   <div><Label>Group Name</Label><Input value={editGroupForm.name} onChange={e => setEditGroupForm(f => ({ ...f, name: e.target.value }))} /></div>
                   <div><Label>Description</Label><Textarea className="min-h-32" value={editGroupForm.description} onChange={e => setEditGroupForm(f => ({ ...f, description: e.target.value }))} /></div>
                   <div>
@@ -361,8 +364,12 @@ export default function GroupDetail() {
                     value={editGroupForm.imageUrl}
                     onChange={imageUrl => setEditGroupForm(f => ({ ...f, imageUrl }))}
                   />
-                  <Button className="w-full bg-secondary hover:bg-secondary/90 text-white" onClick={() => void saveGroupEdit()} disabled={savingGroup || !editGroupForm.name.trim() || !editGroupForm.description.trim()}>
-                    {savingGroup ? "Saving..." : "Save Changes"}
+                </div>
+                <div className="shrink-0 border-t bg-background px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                  <Button className="w-full min-h-11 bg-secondary hover:bg-secondary/90 text-white"
+                    onClick={() => void saveGroupEdit()}
+                    disabled={savingGroup || !editGroupForm.name.trim() || !editGroupForm.description.trim()}>
+                    {savingGroup ? "היט אפ..." : "היט אפ ענדערונגען"}
                   </Button>
                 </div>
               </DialogContent>
