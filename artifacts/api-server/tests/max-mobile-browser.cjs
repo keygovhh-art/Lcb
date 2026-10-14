@@ -46,6 +46,16 @@ const {chromium}=requireBrowser("playwright");
    await reminders.getByRole("button",{name:/יעצט/}).click();
    await reminders.getByRole("button",{name:"פארטיג"}).click();
    await reminders.getByText("QA mobile MAX alarm").waitFor({state:"hidden",timeout:15000});
+   // Completing a task must REMOVE it only from the ACTIVE reminder list,
+   // never from the permanent MAX and My Askanus history.
+   const timeline=page.getByRole("region",{name:"MAX שטענדיגע היסטאריע"});
+   await timeline.waitFor({state:"visible",timeout:15000});
+   await timeline.getByRole("button",{name:"נאכפאלגן"}).click();
+   await timeline.getByText("QA mobile MAX alarm",{exact:false})
+     .first().waitFor({state:"visible",timeout:15000});
+   await timeline.getByText("פארטיג",{exact:false})
+     .first().waitFor({state:"visible",timeout:15000});
+   await page.screenshot({path:"/tmp/gavhah-max-history-mobile.png",fullPage:true});
 
    for(const id of ["max-today","max-call","max-contacts","max-projects","max-more"]){
      assert.ok(await page.locator("#"+id).isVisible(),id+" missing on phone screen");
