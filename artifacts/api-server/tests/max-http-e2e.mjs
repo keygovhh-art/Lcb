@@ -106,7 +106,7 @@ try{
   const unauthorizedCsv=await fetch(base+"/askanus/contacts/export.csv",{headers:{Cookie:b}});
   assert.ok(!(await unauthorizedCsv.text()).includes("QA, Imported Contact"));
   const richCsv='name,phone,email,notes,organization,city,tags,do_not_call\r\n'
-    +'"QA Rich Contact","8455550189","","", "QA Hatzolah Group","Brooklyn","regular, referral",false\r\n';
+    +'"QA Rich Contact","8455550189","","","QA Hatzolah Group","Brooklyn","regular, referral",false\r\n';
   r=await req(a,"/askanus/contacts/import-preview","POST",{csv:richCsv});
   status(r,200,"Rich CRM CSV preview");
   assert.equal(r.data.ready,1);
