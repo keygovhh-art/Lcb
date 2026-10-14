@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { and, eq, desc, sql } from "drizzle-orm";
+import { and, eq, desc, sql, inArray } from "drizzle-orm";
 import {
   db, groupsTable, groupMembersTable, groupPostsTable,
   groupPostRepliesTable, groupPostViewsTable,
@@ -340,14 +340,36 @@ router.patch("/groups/:id/reports/:reportId",requireAuth,async(req,res):Promise<
   res.json({id:r.id,status:r.groupStatus});
 });
 router.get("/admin/group-reports",requireAdmin,async(req,res):Promise<void>=>{
+  const viewer=await getCurrentSessionUser(req);
+  if(!viewer){res.status(403).json({error:"Unauthorized"});return;}
   const reports=await db.select().from(groupReportsTable).where(eq(groupReportsTable.toStaff,true))
     .orderBy(desc(groupReportsTable.createdAt)).limit(200);
+  const gids=[...new Set(reports.map(r=>r.groupId))];
+  const groupRows=gids.length?await db.select({id:groupsTable.id,privacy:groupsTable.privacy})
+    .from(groupsTable).where(inArray(groupsTable.id,gids)):[];
+  const privacy=new Map(groupRows.map(g=>[g.id,g.privacy]));
+  const accessible=new Set<number>();
+  for(const gid of gids)if(viewer.role==="super_admin"||(
+    privacy.get(gid)==="public" ||
+    (await platformGroupGrant(viewer.id,gid,viewer.role)).canViewPrivate
+  ))accessible.add(gid);
   res.setHeader("Cache-Control","private, no-store");
-  res.json(reports.map(r=>({id:r.id,groupId:r.groupId,postId:r.postId,reason:r.reason,
-    postExcerpt:r.postExcerpt,status:r.staffStatus,createdAt:r.createdAt.toISOString()})));
+  res.json(reports.filter(r=>accessible.has(r.groupId)).map(r=>({
+    id:r.id,groupId:r.groupId,postId:r.postId,reason:r.reason,
+    postExcerpt:r.postExcerpt,status:r.staffStatus,createdAt:r.createdAt.toISOString(),
+  })));
 });
 router.patch("/admin/group-reports/:id",requireAdmin,async(req,res):Promise<void>=>{
   const rid=id(req.params.id);if(!rid)return;
+  const viewer=await getCurrentSessionUser(req);if(!viewer){res.status(403).json({error:"Unauthorized"});return;}
+  const [existing]=await db.select({groupId:groupReportsTable.groupId}).from(groupReportsTable)
+    .where(and(eq(groupReportsTable.id,rid),eq(groupReportsTable.toStaff,true))).limit(1);
+  if(!existing){sendNotFound(res);return;}
+  const [group]=await db.select({privacy:groupsTable.privacy}).from(groupsTable).where(eq(groupsTable.id,existing.groupId));
+  if(viewer.role!=="super_admin" && (group?.privacy!=="public" &&
+    !(await platformGroupGrant(viewer.id,existing.groupId,viewer.role)).canModerate)){
+    res.status(403).json({error:"Super-admin approval needed for this group's reports"});return;
+  }
   const status=req.body?.status;
   if(!["open","resolved"].includes(status)){res.status(400).json({error:"Invalid status"});return;}
   const [r]=await db.update(groupReportsTable).set({staffStatus:status})
