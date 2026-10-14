@@ -24,7 +24,7 @@ function validDateString(value: unknown) {
 
 function validFollowupTime(time:unknown,zone:unknown){
   if(time===undefined||time===null||time==="")return true;
-  if(typeof time!=="string"||!/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(time))return false;
+  if(typeof time!=="string"||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time))return false;
   if(typeof zone!=="string"||zone.length>80)return false;
   try { new Intl.DateTimeFormat("en-US",{timeZone:zone}).format(); return true; }
   catch{return false;}
