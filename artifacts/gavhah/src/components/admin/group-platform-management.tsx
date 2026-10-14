@@ -61,6 +61,8 @@ export function GroupPlatformManagement(){
   const [selected,setSelected]=useState<number|null>(null);
   const [members,setMembers]=useState<Member[]>([]);
   const [posts,setPosts]=useState<GroupPost[]>([]);
+  const [postsPage,setPostsPage]=useState(1);
+  const [hasMorePosts,setHasMorePosts]=useState(false);
   const [grants,setGrants]=useState<StaffGrant[]>([]);
   const [audit,setAudit]=useState<Audit[]>([]);
   const [search,setSearch]=useState("");
@@ -104,10 +106,10 @@ export function GroupPlatformManagement(){
   const refreshSelected=async(id:number)=>{
     try{
       const [p,m]=await Promise.all([
-        get<{posts:GroupPost[]}>(`/api/admin/group-control/groups/${id}/posts`),
+        get<{posts:GroupPost[];hasMore:boolean}>(`/api/admin/group-control/groups/${id}/posts?page=0`),
         get<Member[]>(`/api/admin/group-control/groups/${id}/members`),
       ]);
-      setPosts(p.posts);setMembers(m);
+      setPosts(p.posts);setHasMorePosts(p.hasMore);setPostsPage(1);setMembers(m);
       if(isSuper){
         const s=await get<StaffGrant[]>(`/api/admin/group-control/groups/${id}/staff`);
         setGrants(s);
@@ -134,6 +136,13 @@ export function GroupPlatformManagement(){
     const value=v==="default"?null:v==="on";
     const ok=await send(`/api/admin/group-control/groups/${selected}/overrides`,{overrides:{[key]:value}});
     if(ok){await reload();setDraftOverrides(prev=>({...prev,[key]:value===null?false:value}));}
+  };
+  const loadMorePosts=async()=>{
+    if(!selected||!hasMorePosts)return;
+    try{
+      const p=await get<{posts:GroupPost[];hasMore:boolean}>(`/api/admin/group-control/groups/${selected}/posts?page=${postsPage}`);
+      setPosts(old=>[...old,...p.posts]);setPostsPage(postsPage+1);setHasMorePosts(p.hasMore);
+    }catch(e){setError(String(e));}
   };
   const setProtect=async(member:Member)=>{
     if(!selected||!isSuper)return;
@@ -191,10 +200,11 @@ export function GroupPlatformManagement(){
           <p className="text-sm whitespace-pre-wrap break-words">{p.content}</p>
           <div className="flex justify-between items-center gap-2">
             <span className="text-xs text-muted-foreground"><Eye className="w-3 h-3 inline"/> {p.views} וויאוס</span>
-            <Link href={`/groups/${group.id}`}><Button variant="outline" size="sm">עפענען אינעם גרופ־פאוסט</Button></Link>
+            <Link href={`/groups/${group.id}#group-post-${p.id}`}><Button variant="outline" size="sm">עפענען אינעם גרופ־פאוסט</Button></Link>
           </div>
         </article>)}
         {!posts.length&&<p className="text-sm text-muted-foreground">נישטא קיין פאוסטס צו ווייזן.</p>}
+        {hasMorePosts&&<Button variant="outline" onClick={()=>void loadMorePosts()}>ווייז נאך פאוסטס</Button>}
       </div>}
       {category==="members"&&<div className="space-y-3">
         <h3 className="font-semibold">מעמבערס ({members.length})</h3>

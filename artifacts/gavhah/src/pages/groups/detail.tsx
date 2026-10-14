@@ -415,7 +415,7 @@ export default function GroupDetail() {
                 </MemberGate>
 
                 {posts?.map(post => (
-                  <div key={post.id} className="bg-card border rounded-xl p-6">
+                  <div key={post.id} id={`group-post-${post.id}`} className="bg-card border rounded-xl p-6 scroll-mt-24">
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <span className="font-semibold text-foreground">{post.authorName}</span>
                       <div className="flex items-center gap-1">
