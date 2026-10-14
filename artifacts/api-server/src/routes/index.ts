@@ -22,6 +22,7 @@ import communicationsContactsTransferRouter from "./communications-contacts-tran
 import communicationsAssistantRouter from "./communications-assistant";
 import communicationsConsentRouter from "./communications-consent";
 import communicationsRemindersRouter from "./communications-reminders";
+import communicationsReportsRouter from "./communications-reports";
 import communicationsTodayRouter from "./communications-today";
 import socialRouter from "./social";
 import adminRouter from "./admin";
@@ -83,6 +84,7 @@ router.use(communicationsContactsTransferRouter);
 router.use(communicationsAssistantRouter);
 router.use(communicationsConsentRouter);
 router.use(communicationsRemindersRouter);
+router.use(communicationsReportsRouter);
 router.use(communicationsTodayRouter);
 router.use(socialRouter);
 router.use(adminRouter);
