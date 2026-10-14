@@ -48,6 +48,7 @@ export const maxContactConsents = pgTable("max_contact_consents", {
   action: text("action").notNull().default("reconsent"),
   method: text("method").notNull(),
   evidence: text("evidence").notNull(),
+  priorOptOutReason: text("prior_opt_out_reason").notNull().default(""),
   consentAt: timestamp("consent_at").notNull(),
   requestId: text("request_id").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
