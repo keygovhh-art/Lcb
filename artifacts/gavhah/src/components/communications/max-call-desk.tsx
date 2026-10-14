@@ -42,6 +42,7 @@ export function MaxCallDesk() {
   const [caseId,setCaseId] = useState<number | null>(null);
   const [contactId,setContactId] = useState<number | null>(null);
   const [newContact,setNewContact] = useState({name:"",phone:"",email:""});
+  const [contactSearch,setContactSearch] = useState("");
   const [name,setName] = useState("");
   const [outcome,setOutcome] = useState("spoke");
   const [moneyKind,setMoneyKind] = useState("none");
@@ -77,6 +78,16 @@ export function MaxCallDesk() {
   const current = useMemo(()=>cases.find(c=>c.id===caseId),[cases,caseId]);
   const chosenContact = contacts.find(c=>c.id===contactId);
   const openFollowups = current?.followUpNotes.filter(f=>!f.completed).length || 0;
+  const localDate = new Date();
+  const today = [localDate.getFullYear(),String(localDate.getMonth()+1).padStart(2,"0"),
+    String(localDate.getDate()).padStart(2,"0")].join("-");
+  const allOpen = cases.flatMap(c=>c.followUpNotes.filter(f=>!f.completed)
+    .map(f=>({...f,project:c.title})));
+  const dueNow = allOpen.filter(f=>f.dueDate && f.dueDate<=today);
+  const comingUp = [...allOpen].sort((a,b)=>(a.dueDate||"9999").localeCompare(b.dueDate||"9999")).slice(0,5);
+  const allReceived=cases.reduce((s,c)=>s+Number(c.fundsReceived),0);
+  const filteredContacts=contacts.filter(c=>(c.name+" "+c.phone+" "+c.email)
+    .toLocaleLowerCase().includes(contactSearch.trim().toLocaleLowerCase()));
   const setContact = (id:number | null) => {
     setContactId(id);
     const person=contacts.find(c=>c.id===id);
@@ -138,9 +149,31 @@ export function MaxCallDesk() {
         <Link href="/my"><Button variant="outline" size="sm">צו מיין עסקנות</Button></Link>
       </div>
     </div>
+    <nav aria-label="MAX הויפט־אפטיילונגען" className="grid grid-cols-5 gap-1.5 text-center text-[11px] sm:text-sm">
+      {[
+        {href:"#max-today",label:"היינט"},
+        {href:"#max-call",label:"רופן"},
+        {href:"#max-contacts",label:"מענטשן"},
+        {href:"#max-projects",label:"צוועקן"},
+        {href:"#max-more",label:"מער"},
+      ].map(a=><a key={a.href} href={a.href} className="rounded-lg border bg-card p-2 font-medium min-h-11 flex items-center justify-center hover:bg-muted/60">{a.label}</a>)}
+    </nav>
+    <section id="max-today" className="rounded-xl border bg-card p-4 sm:p-6 space-y-3 scroll-mt-24">
+      <h3 className="text-lg font-bold">מיין היינטיגע ארבעט — וואס דארף איך יעצט טון?</h3>
+      <div className="grid grid-cols-3 gap-2 text-center text-sm">
+        <div className="rounded-lg bg-muted/40 p-3"><strong className="block text-lg">{dueNow.length}</strong> היינט/פארשפעטיגט</div>
+        <div className="rounded-lg bg-muted/40 p-3"><strong className="block text-lg">{allOpen.length}</strong> אפענע נאכפאלגן</div>
+        <div className="rounded-lg bg-muted/40 p-3"><strong className="block text-lg">{allReceived.toLocaleString()}</strong> באריכטעט באקומען ($)</div>
+      </div>
+      {comingUp.length===0?<p className="text-sm text-muted-foreground">נאכנישט קיין אפענע נאכפאלגן.</p>:
+        comingUp.map(f=><div key={f.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+          <span><strong>{f.project}</strong> · {f.note}</span>
+          <span className="text-xs text-muted-foreground">{f.dueDate||"קיין דאטום נישט באשטימט"}</span>
+        </div>)}
+    </section>
     {error && <div role="alert" className="p-3 rounded-lg border border-destructive/40 text-destructive">{error}</div>}
     {message && <div role="status" className="p-3 rounded-lg border border-green-600/30 text-green-800 dark:text-green-300">{message}</div>}
-    <div className="rounded-xl border bg-card p-4 sm:p-6 space-y-4">
+    <div id="max-projects" className="rounded-xl border bg-card p-4 sm:p-6 space-y-4 scroll-mt-24">
       <div className="space-y-2">
         <Label htmlFor="max-project">פאר וועלכן פראיעקט ארבעטסטו?</Label>
         <select id="max-project" value={caseId??""} onChange={e=>setCaseId(Number(e.target.value))}
@@ -158,14 +191,17 @@ export function MaxCallDesk() {
       </div>}
     </div>
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-      <section className="rounded-xl border bg-card p-4 sm:p-6 space-y-4">
+      <section id="max-contacts" className="rounded-xl border bg-card p-4 sm:p-6 space-y-4 scroll-mt-24">
         <h3 className="font-bold text-lg flex items-center gap-2"><ContactRound className="h-5 w-5"/> מיין פריוואטער קשרים־בוך</h3>
         <div className="space-y-2">
+          <Label htmlFor="max-contact-search">זוכן אין מיינע קשרים</Label>
+          <Input id="max-contact-search" type="search" placeholder="נאמען, נומער אדער אימעיל"
+            value={contactSearch} onChange={e=>setContactSearch(e.target.value)}/>
           <Label htmlFor="max-contact">אויסקלייבן א קאנטאקט</Label>
           <select id="max-contact" value={contactId??""} onChange={e=>setContact(e.target.value?Number(e.target.value):null)}
             className="w-full h-11 rounded-lg border bg-background px-3 text-sm">
             <option value="">אן אויסגעקליבענעם קאנטאקט</option>
-            {contacts.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?" · "+c.phone:""}</option>)}
+            {filteredContacts.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?" · "+c.phone:""}</option>)}
           </select>
           {chosenContact?.doNotCall && <p role="alert" className="text-sm font-semibold text-destructive">
             רופן־פארבאט: דער מענטש האט געבעטן נישט צו ווערן גערופן. די דיילער־פארבינדונג איז פארשפארט.
@@ -185,7 +221,7 @@ export function MaxCallDesk() {
         {contactId!==null&&<Donor360 contactId={contactId} caseId={caseId}
           revision={revision} onChanged={()=>{void load();setRevision(v=>v+1);}} />}
       </section>
-      <section className="rounded-xl border bg-card p-4 sm:p-6 space-y-4">
+      <section id="max-call" className="rounded-xl border bg-card p-4 sm:p-6 space-y-4 scroll-mt-24">
         <h3 className="font-bold text-lg flex items-center gap-2"><BookOpen className="h-5 w-5"/> רוף־רעזולטאט אפהיטן</h3>
         <form onSubmit={e=>void saveCall(e)} className="space-y-3">
           <div className="space-y-1"><Label htmlFor="max-name">מיט וועמען האסטו גערעדט?</Label>
@@ -237,7 +273,7 @@ export function MaxCallDesk() {
       </form>
       <CaseFollowups caseId={current.id} followups={current.followUpNotes} onUpdated={load}/>
     </section>}
-    <section className="rounded-xl border bg-card p-4 sm:p-6 space-y-3">
+    <section id="max-more" className="rounded-xl border bg-card p-4 sm:p-6 space-y-3 scroll-mt-24">
       <h3 className="font-bold text-lg flex items-center gap-2"><CheckCircle2 className="h-5 w-5"/> מיינע לעצטע רוף־באריכטן</h3>
       {calls.length===0 && <p className="text-sm text-muted-foreground">נאכנישט פאראן קיין אפגעהיטענע רוף־באריכטן.</p>}
       {calls.filter(c=>!caseId||c.caseId===caseId).slice(0,20).map(c=><div key={c.id} className="border rounded-lg p-3 flex flex-wrap justify-between gap-2">
