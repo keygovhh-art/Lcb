@@ -16,6 +16,7 @@ const groups=[
  {kind:"cases",name:"פראיעקטן"},
  {kind:"tasks",name:"אויפגאבן"},
  {kind:"calls",name:"רופן"},
+ {kind:"contacts",name:"מענטשן"},
  {kind:"events",name:"ענדערונגען"},
  {kind:"activities",name:"אלטע באריכטן"},
 ];
@@ -34,14 +35,34 @@ const actionNames:Record<string,string>={
  case_status_changed:"פראיעקט־מצב געטוישט",
  task_completed:"אויפגאבע פארטיג",task_reopened:"אויפגאבע צוריק געעפנט",
  task_edited:"אויפגאבע געטוישט",task_explicitly_deleted:"אויפגאבע בפירוש אויסגעמעקט",
+ contact_created:"ניייער קשר",contact_updated:"קשר־פרטים געטוישט",
+ contact_marked_do_not_call:"קשר: נישט רופן",
+ contact_owner_override:"דער עסקן האט אליין אויפגעהויבן דעם רופן־צייכן",
+ contact_direct_reconsent:"קשר האט לויטן באריכט צוריקגעגעבן רשות",
+ followup_explicitly_deleted:"נאכפאלג בפירוש אויסגעמעקט",
+ case_explicitly_deleted:"פראיעקט בפירוש אויסגעמעקט",
 };
 
 function presentDetails(item:HistoryItem):string{
   try{
     const parsed=JSON.parse(item.details) as Record<string,unknown>;
-    return Object.entries(parsed)
-      .filter(([key,val])=>val!==null&&val!==""&&key!=="verification")
-      .slice(0,12).map(([key,val])=>key+": "+String(val)).join(" · ");
+    const labels:Record<string,string>={
+      before:"פריער",after:"נאכדעם",note:"נאטיץ",dueDate:"דאטום",
+      dueTime:"שעה",completed:"פארטיג",completedAt:"פארענדיקט אום",
+      amount:"סכום",paidNow:"יעצט באצאלט",paidTotal:"צוזאמען באצאלט",
+      remaining:"אויסשטייענדיג",method:"וועג",changes:"וואס האט זיך געטוישט",
+      action:"פעולה",status:"מצב",
+    };
+    const fmt=(key:string,val:unknown):string=>{
+      if(val===null||val===undefined)return "";
+      if(typeof val==="object"&&!Array.isArray(val))
+        return Object.entries(val as Record<string,unknown>)
+          .map(([k,v])=>fmt(k,v)).filter(Boolean).join(" · ");
+      return (labels[key]||key)+": "+String(val);
+    };
+    return Object.entries(parsed).filter(([key,val])=>
+      val!==null&&val!==""&&key!=="verification")
+      .slice(0,12).map(([key,val])=>fmt(key,val)).filter(Boolean).join(" · ");
   }catch{return item.details;}
 }
 async function getHistory(kind:string,q:string,offset:number,caseId?:number){
