@@ -99,11 +99,12 @@ export default function GroupsList() {
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-lg max-h-[calc(100dvh-1.5rem)] flex flex-col min-h-0 gap-0 overflow-hidden p-0">
+          <DialogHeader className="shrink-0 px-5 pt-5 pb-3 border-b">
             <DialogTitle className="font-serif text-2xl text-primary">Create Community Group</DialogTitle>
           </DialogHeader>
-          <form onSubmit={submitGroup} className="space-y-4 pt-2">
+          <form onSubmit={submitGroup} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y px-5 py-4 space-y-4 [-webkit-overflow-scrolling:touch]">
             <ActiveAccountIdentity label="Creating as account" />
             <div className="space-y-1.5">
               <Label className="font-semibold">Group Name *</Label>
@@ -142,9 +143,12 @@ export default function GroupsList() {
               value={createForm.imageUrl}
               onChange={imageUrl => setCreateForm(f => ({ ...f, imageUrl }))}
             />
-            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white" disabled={create.isPending}>
-              {create.isPending ? "Creating..." : "Create Group"}
-            </Button>
+            </div>
+            <div className="shrink-0 border-t bg-background px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <Button type="submit" className="w-full min-h-11 bg-secondary hover:bg-secondary/90 text-white" disabled={create.isPending}>
+                {create.isPending ? "Creating..." : "Create Group"}
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
@@ -190,23 +194,21 @@ export default function GroupsList() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {groups?.map(group => (
               <div key={group.id} className="bg-card border rounded-xl overflow-hidden hover:border-primary/20 hover:shadow-md transition-all flex flex-col">
-                <div className="aspect-[3/1] bg-gradient-to-br from-primary/10 to-secondary/10 relative flex items-center justify-center">
+                <div className="bg-muted/20 flex w-full min-h-24 items-center justify-center">
                   {group.imageUrl ? (
-                    <img src={group.imageUrl} alt={group.name} className="w-full h-full object-cover" />
+                    <img src={group.imageUrl} alt={group.name} loading="lazy" decoding="async" className="block w-full h-auto max-h-[75dvh] object-contain" />
                   ) : (
                     <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
                       <span className="font-serif font-bold text-primary text-xl">{group.name[0]}</span>
                     </div>
                   )}
-                  <div className="absolute top-2 right-2">
-                    <span className="bg-background/90 backdrop-blur px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 shadow-sm">
-                      {privacyIcon(group.privacy)}
-                      <span className="text-foreground capitalize">{group.privacy.replace("_", " ")}</span>
-                    </span>
-                  </div>
                 </div>
 
                 <div className="p-5 flex flex-col flex-1">
+                  <div className="mb-2 self-start rounded-full bg-muted/50 px-2 py-1 text-xs font-medium flex items-center gap-1">
+                    {privacyIcon(group.privacy)}
+                    <span className="text-foreground capitalize">{group.privacy.replace("_", " ")}</span>
+                  </div>
                   <h3 className="font-serif font-bold text-primary text-lg mb-1">{group.name}</h3>
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">{group.description}</p>
                   <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
