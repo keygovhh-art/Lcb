@@ -116,6 +116,13 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   const amount = Number(body.amount ?? 0);
   const followupNote = clean(body.followupNote, 1500);
   const dueDate = clean(body.dueDate, 10) || null;
+  const dueTime = clean(body.dueTime, 5) || null;
+  const timeZone = clean(body.timeZone, 80) || null;
+  if(dueTime){
+    try{if(!/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(dueTime)||!timeZone)throw Error();
+      new Intl.DateTimeFormat("en-US",{timeZone}).format();
+    }catch{res.status(400).json({error:"Invalid reminder time or time zone"});return;}
+  }
   const contactId = body.contactId == null || body.contactId === "" ? null : Number(body.contactId);
   const mood = clean(body.mood || "neutral",40);
 
@@ -126,7 +133,7 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
       Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001 ||
       (moneyKind === "none" && amount !== 0) ||
       (moneyKind !== "none" && amount <= 0) ||
-      !isoDate(dueDate) || (followupNote && !dueDate && body.dueDate) ||
+      !isoDate(dueDate) || (dueTime && (!followupNote || !dueDate)) || (followupNote && !dueDate && body.dueDate) ||
       (contactId !== null && !safeId(contactId)) ||
       (outcome === "do_not_call" && contactId === null)) {
     res.status(400).json({ error: "Invalid call report fields" }); return;
@@ -189,7 +196,7 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
     }
     if (followupNote) {
       const [followup]=await tx.insert(caseFollowups).values({
-        caseId,date:today,note:followupNote,dueDate,
+        caseId,date:today,note:followupNote,dueDate,dueTime,timeZone:dueTime?timeZone:null,
       }).returning();
       if(contactId!==null)await tx.insert(maxFollowupContacts).values({
         userId,contactId,followupId:followup.id,
