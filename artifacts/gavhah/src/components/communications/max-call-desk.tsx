@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { CaseFollowups, type CaseFollowupEntry } from "@/components/askanus/case-followups";
 import { Donor360 } from "@/components/communications/donor-360";
 import { MaxSourceHelper } from "@/components/communications/max-source-helper";
+import { MaxReminderInbox } from "@/components/communications/max-reminder-inbox";
 
 type PersonalCase = {
   id:number; title:string; goalAmount:number; fundsReceived:number; fundsPromised:number;
@@ -239,6 +240,7 @@ export function MaxCallDesk() {
           </div>)}
         </div>}
     </section>
+    <MaxReminderInbox onChanged={()=>{void load();}} />
     {error && <div role="alert" className="p-3 rounded-lg border border-destructive/40 text-destructive">{error}</div>}
     {message && <div role="status" className="p-3 rounded-lg border border-green-600/30 text-green-800 dark:text-green-300">{message}</div>}
     <div id="max-projects" className="rounded-xl border bg-card p-4 sm:p-6 space-y-4 scroll-mt-24">
