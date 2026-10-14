@@ -438,6 +438,37 @@ try{
   r=await req(a,"/askanus/finance/overview?caseId="+projectId,"GET");
   status(r,200,"Finance history available even after project closure");
   assert.ok(r.data.pledges.some(p=>p.id===paidPledge.id&&p.status==="paid"));
+  // A genuinely explicit Delete is the only way a finished nonfinancial
+  // source record disappears. Its separate timestamped deletion event survives.
+  r=await req(a,"/askanus/cases","POST",{title:"QA Explicit Delete History"});
+  status(r,201,"Create independently deletable project");
+  const disposableProjectId=r.data.id;
+  r=await req(a,"/askanus/cases/"+disposableProjectId+"/progress","POST",{
+    action:"followup",note:"QA once completed then explicitly deleted",
+    dueDate:"2027-01-21"
+  });
+  status(r,200,"Add historical followup to disposable case");
+  const disposableFollowupId=r.data.followUpNotes[0].id;
+  r=await req(a,"/askanus/followups/"+disposableFollowupId+"/toggle","PATCH",{completed:true});
+  status(r,200,"Finish disposable task WITHOUT deleting it");
+  r=await req(a,"/askanus/max/history?caseId="+disposableProjectId+"&kind=followups","GET");
+  status(r,200,"Finished task still exists in the source history");
+  assert.ok(r.data.items.some(x=>x.entityId===disposableFollowupId&&x.action==="completed"));
+  r=await req(a,"/askanus/followups/"+disposableFollowupId,"DELETE");
+  status(r,200,"Explicitly delete follow-up");
+  r=await req(a,"/askanus/max/history?caseId="+disposableProjectId+"&kind=events","GET");
+  status(r,200,"Audit log preserves explicitly deleted followup");
+  assert.ok(r.data.items.some(x=>x.entityId===disposableFollowupId&&x.action==="followup_explicitly_deleted"));
+  r=await req(a,"/askanus/cases/"+disposableProjectId,"DELETE");
+  status(r,200,"Explicitly delete non-financial case");
+  r=await req(a,"/askanus/max/history?caseId="+disposableProjectId+"&kind=events","GET");
+  status(r,200,"Audit snapshot survives explicit project deletion");
+  assert.ok(r.data.items.some(x=>x.action==="case_explicitly_deleted"&&x.title==="QA Explicit Delete History"));
+  assert.ok(r.data.items.some(x=>x.action==="followup_completed"),
+    "Completion event must remain even when owner later deletes its parent case");
+  r=await req(b,"/askanus/max/history?caseId="+disposableProjectId,"GET");
+  status(r,200,"A second account cannot inspect deleted-case snapshots");
+  assert.equal(r.data.items.length,0);
   r=await req(a,"/askanus/cases/"+projectId,"DELETE");
   status(r,409,"Cannot delete an audited financial case");
   r=await req(b,"/askanus/cases","GET");
