@@ -178,6 +178,24 @@ try{
   status(r,200,"Retry My Askanus money");
   r=await req(a,"/askanus/cases/"+projectId+"/progress","POST",{...finance,amount:25});
   status(r,409,"Reject reused progress key with changed amount");
+  // MAX reporting: isolate owners, never double-count the same receipt,
+  // and never present a manually reported payment as verified by a bank.
+  r=await req(a,"/askanus/max/reports?days=30","GET");
+  status(r,200,"Source-grounded monthly MAX report");
+  const projReport=r.data.projects.find(p=>p.caseId===projectId);
+  assert.ok(projReport,"Owned project missing from MAX report");
+  assert.equal(projReport.period.manuallyReportedNetAsOfNow,440);
+  assert.equal(projReport.period.externallyMarkedVerifiedNet,0);
+  assert.equal(projReport.period.newlyRecordedPledges,1000);
+  assert.equal(projReport.lifetime.outstandingPromises,600);
+  assert.equal(projReport.period.callReportCount,2);
+  assert.equal(r.data.summary.periodReportedNet,440);
+  r=await req(b,"/askanus/max/reports?days=30","GET");
+  status(r,200,"Other member can request own report");
+  assert.ok(!r.data.projects.some(p=>p.caseId===projectId),"Member B saw member A financial totals");
+  assert.equal(r.data.summary.periodReportedNet,0);
+  r=await req(a,"/askanus/max/reports?days=180","GET");
+  status(r,400,"Reject unsupported reporting time window");
   r=await req(a,"/askanus/cases/"+projectId,"PATCH",{fundsReceived:9999});
   status(r,409,"Reject direct finance counter overwrite");
 
