@@ -16,6 +16,8 @@ export type CaseFollowupEntry = {
   note: string;
   date: string;
   dueDate?: string | null;
+  dueTime?: string | null;
+  timeZone?: string | null;
   completed: boolean;
   createdAt: string;
 };
@@ -34,6 +36,7 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editNote, setEditNote] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
+  const [editDueTime, setEditDueTime] = useState("");
   const [savingId, setSavingId] = useState<number | null>(null);
   const { open, history } = partitionCaseFollowups(followups);
   const busy = togglingId !== null || deletingId !== null || savingId !== null;
@@ -94,6 +97,7 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
     setEditingId(item.id);
     setEditNote(item.note);
     setEditDueDate(item.dueDate || "");
+    setEditDueTime(item.dueTime || "");
   };
 
   const saveEdit = async (item: CaseFollowupEntry) => {
@@ -103,7 +107,8 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
       const response = await fetch("/api/askanus/followups/" + item.id, {
         method: "PATCH", credentials: "include", cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: editNote.trim(), dueDate: editDueDate || null }),
+        body: JSON.stringify({ note: editNote.trim(), dueDate: editDueDate || null, dueTime:editDueDate?(editDueTime||null):null,
+          timeZone:editDueTime?(item.timeZone||Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):null }),
       });
       if (!response.ok) throw new Error("Could not edit follow-up");
       const updated: CaseFollowupEntry = await response.json();
@@ -134,6 +139,8 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
                 className="min-h-20" maxLength={1500} />
               <Input aria-label="באשטימטער נאכפאלג־דאטום" type="date" value={editDueDate}
                 onChange={e => setEditDueDate(e.target.value)} />
+              <Input aria-label="באשטימטע שעה" type="time" value={editDueTime}
+                disabled={!editDueDate} onChange={e=>setEditDueTime(e.target.value)} />
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" disabled={busy || !editNote.trim()} onClick={() => void saveEdit(item)}>
                   <Save className="h-3.5 w-3.5 ml-1" /> אפהיטן
@@ -149,7 +156,7 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
           <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5">
             {isHistory && <span className="font-semibold text-green-700">פארטיג</span>}
             <span>אויפגעשריבן: <span dir="ltr">{item.date}</span></span>
-            {item.dueDate && <span>· באשטימט: <span dir="ltr">{item.dueDate}</span></span>}
+            {item.dueDate && <span>· באשטימט: <span dir="ltr">{item.dueDate}{item.dueTime?" "+item.dueTime:""}</span></span>}
           </p>
         </div>
       </div>
