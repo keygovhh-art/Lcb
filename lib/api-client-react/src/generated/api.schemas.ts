@@ -114,6 +114,13 @@ export interface Group {
   imageUrl?: string | null;
   memberCount: number;
   postCount: number;
+  allowReplies: boolean;
+  replyApproval: boolean;
+  postApproval: boolean;
+  membersCanPost: boolean;
+  membersCanReply: boolean;
+  showViewCounts: boolean;
+  allowDownvotes: boolean;
   createdAt: string;
 }
 
@@ -249,6 +256,13 @@ export interface GroupUpdate {
   privacy?: string;
   /** @nullable */
   imageUrl?: string | null;
+  allowReplies?: boolean;
+  replyApproval?: boolean;
+  postApproval?: boolean;
+  membersCanPost?: boolean;
+  membersCanReply?: boolean;
+  showViewCounts?: boolean;
+  allowDownvotes?: boolean;
 }
 
 export type GroupMemberRole = typeof GroupMemberRole[keyof typeof GroupMemberRole];
@@ -257,6 +271,7 @@ export type GroupMemberRole = typeof GroupMemberRole[keyof typeof GroupMemberRol
 export const GroupMemberRole = {
   owner: 'owner',
   moderator: 'moderator',
+  admin: 'admin',
   member: 'member',
 } as const;
 
@@ -266,6 +281,9 @@ export type GroupMemberStatus = typeof GroupMemberStatus[keyof typeof GroupMembe
 export const GroupMemberStatus = {
   approved: 'approved',
   pending: 'pending',
+  rejected: 'rejected',
+  suspended: 'suspended',
+  removed: 'removed',
 } as const;
 
 export interface GroupMember {
@@ -285,7 +303,11 @@ export interface GroupPost {
   authorId: number;
   authorName: string;
   likes: number;
-  views: number;
+  views: number | null;
+  moderationStatus?: "approved" | "pending" | "rejected";
+  downvotes?: number;
+  isPinned?: boolean;
+  isLocked?: boolean;
   createdAt: string;
 }
 
@@ -303,6 +325,16 @@ export const MinyanStatus = {
   rejected: 'rejected',
 } as const;
 
+export interface MinyanWeekdayEntry {
+  time: string;
+  days: number[];
+}
+export interface MinyanWeekdaySchedules {
+  shacharis: MinyanWeekdayEntry[];
+  mincha: MinyanWeekdayEntry[];
+  maariv: MinyanWeekdayEntry[];
+}
+
 export interface Minyan {
   id: number;
   synagogueName: string;
@@ -314,6 +346,7 @@ export interface Minyan {
   shacharis: string;
   mincha: string;
   maariv: string;
+  weekdaySchedules?: MinyanWeekdaySchedules | null;
   /** @nullable */
   notes?: string | null;
   likes: number;
@@ -330,6 +363,7 @@ export interface MinyanInput {
   shacharis?: string;
   mincha?: string;
   maariv?: string;
+  weekdaySchedules?: MinyanWeekdaySchedules;
   notes?: string;
 }
 
@@ -338,6 +372,7 @@ export interface MinyanUpdate {
   shacharis?: string;
   mincha?: string;
   maariv?: string;
+  weekdaySchedules?: MinyanWeekdaySchedules;
   notes?: string;
   status?: string;
 }

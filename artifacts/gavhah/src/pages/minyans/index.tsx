@@ -17,14 +17,22 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
 type Prayer = "shacharis" | "mincha" | "maariv";
-type PrayerTimes = Record<Prayer, string[]>;
-const freshTimes = (): PrayerTimes => ({ shacharis: [""], mincha: [""], maariv: [""] });
+type Entry = { time: string; days: number[] };
+type PrayerTimes = Record<Prayer, Entry[]>;
+const EVERY_WEEKDAY = [0,1,2,3,4,5];
+const DAY_NAMES = ["זונטאג","מאנטאג","דינסטאג","מיטוואך","דאנערשטאג","פרייטאג"];
+const freshEntry = (): Entry => ({ time: "", days: [...EVERY_WEEKDAY] });
+const freshTimes = (): PrayerTimes => ({ shacharis: [freshEntry()], mincha: [freshEntry()], maariv: [freshEntry()] });
 const PRAYERS: Array<{ key: Prayer; label: string; hint: string }> = [
   { key: "shacharis", label: "שחרית", hint: "6:30 אינדערפרי" },
   { key: "mincha", label: "מנחה", hint: "2:00 נאכמיטאג" },
   { key: "maariv", label: "מעריב", hint: "9:00 ביינאכט" },
 ];
-const timeEntries = (lines: string[]): string => lines.map(v => v.trim()).filter(Boolean).join("\n");
+const timeEntries = (lines: Entry[]): string => lines.map(v => v.time.trim()).filter(Boolean).join("\n");
+const preparedSchedule = (times: PrayerTimes): PrayerTimes =>
+  Object.fromEntries((["shacharis","mincha","maariv"] as Prayer[]).map(key =>
+    [key,times[key].filter(v => v.time.trim()).map(v=>({time:v.time.trim(),days:[...v.days].sort((a,b)=>a-b)}))],
+  )) as PrayerTimes;
 
 function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
   const { isAuthenticated, isLoaded } = useAuth();
@@ -42,14 +50,25 @@ function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
 
   const changeTime = (key: Prayer, index: number, value: string) => {
-    setTimes(old => ({ ...old, [key]: old[key].map((text, i) => i === index ? value : text) }));
+    setTimes(old => ({ ...old, [key]: old[key].map((item, i) => i === index ? {...item,time:value} : item) }));
     setValidationError("");
   };
+  const toggleDay = (key: Prayer,index:number,day:number) => {
+    setTimes(old=>({...old,[key]:old[key].map((entry,i)=>{
+      if(i!==index)return entry;
+      const days=entry.days.includes(day)?entry.days.filter(d=>d!==day):[...entry.days,day];
+      return {...entry,days};
+    })}));
+    setValidationError("");
+  };
+  const setAllDays = (key: Prayer,index:number) => {
+    setTimes(old=>({...old,[key]:old[key].map((entry,i)=>i===index?{...entry,days:[...EVERY_WEEKDAY]}:entry)}));
+  };
   const addTime = (key: Prayer) => setTimes(old =>
-    old[key].length >= 24 ? old : { ...old, [key]: [...old[key], ""] }
+    old[key].length >= 24 ? old : { ...old, [key]: [...old[key], freshEntry()] }
   );
   const removeTime = (key: Prayer, index: number) => setTimes(old => ({
-    ...old, [key]: old[key].length === 1 ? [""] : old[key].filter((_, i) => i !== index),
+    ...old, [key]: old[key].length === 1 ? [freshEntry()] : old[key].filter((_, i) => i !== index),
   }));
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -61,8 +80,13 @@ function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
       setValidationError("מען מוז אויספילן לכל הפחות איין זמן — שחרית, מנחה אדער מעריב.");
       return;
     }
+    const weekdaySchedules=preparedSchedule(times);
+    if ((["shacharis","mincha","maariv"] as Prayer[]).some(key=>weekdaySchedules[key].some(entry=>entry.days.length===0))) {
+      setValidationError("ביי יעדן מנין מוז מען אויסקלייבן לכל הפחות איין וואכנטאג.");
+      return;
+    }
     setValidationError("");
-    create.mutate({ data: { ...form, shacharis, mincha, maariv } }, {
+    create.mutate({ data: { ...form, shacharis, mincha, maariv, weekdaySchedules } }, {
       onSuccess: () => {
         setOpen(false);
         setForm({ synagogueName: "", city: "", country: "USA", address: "", notes: "" });
@@ -126,24 +150,45 @@ function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
                     <Label className="font-semibold text-base">{label}</Label>
                     <span className="text-xs text-muted-foreground">נישט מחויב אויב אן אנדער זמן איז אויסגעפילט</span>
                   </div>
-                  {times[key].map((time, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <Input
-                        value={time}
-                        onChange={e => changeTime(key, index, e.target.value)}
-                        placeholder={hint}
-                        aria-label={`${label} — מנין ${index + 1}`}
-                        maxLength={100}
-                        className="h-11 min-w-0 flex-1"
-                        dir="auto"
-                      />
-                      {times[key].length > 1 && (
-                        <Button type="button" size="icon" variant="outline"
-                          aria-label={`נעם אראפ ${label} מנין ${index + 1}`}
-                          onClick={() => removeTime(key, index)} className="shrink-0 h-11 w-11">
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
+                  {times[key].map((entry, index) => (
+                    <div key={index} className="space-y-2 rounded-lg border bg-background/80 p-3">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={entry.time}
+                          onChange={e => changeTime(key, index, e.target.value)}
+                          placeholder={hint}
+                          aria-label={`${label} — מנין ${index + 1}`}
+                          maxLength={100}
+                          className="h-11 min-w-0 flex-1"
+                          dir="auto"
+                        />
+                        {times[key].length > 1 && (
+                          <Button type="button" size="icon" variant="outline"
+                            aria-label={`נעם אראפ ${label} מנין ${index + 1}`}
+                            onClick={() => removeTime(key, index)} className="shrink-0 h-11 w-11">
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                          <span className="text-xs font-semibold">וועלכע טעג איז דער מנין?</span>
+                          <button type="button" onClick={() => setAllDays(key,index)}
+                            className="text-xs underline underline-offset-4 text-secondary">יעדן וואכנטאג</button>
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5" role="group"
+                          aria-label={`${label} מנין ${index+1} וואכנטעג`}>
+                          {DAY_NAMES.map((dayName,dayIndex) => (
+                            <button key={dayName} type="button" aria-pressed={entry.days.includes(dayIndex)}
+                              onClick={() => toggleDay(key,index,dayIndex)}
+                              className={`min-h-10 rounded-lg border text-xs font-medium px-1 ${entry.days.includes(dayIndex)
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                              {dayName}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   ))}
                   <Button type="button" variant="outline" size="sm"
@@ -156,7 +201,7 @@ function AddMinyanDialog({ onSuccess }: { onSuccess: () => void }) {
               {validationError && <p role="alert" className="text-sm text-destructive font-semibold">{validationError}</p>}
               <div className="space-y-1.5">
                 <Label className="font-semibold">Additional Notes</Label>
-                <Textarea value={form.notes} onChange={set("notes")} placeholder="שבת, ימים טובים, ספעציעלע שיעורים..." className="resize-none" />
+                <Textarea value={form.notes} onChange={set("notes")} placeholder="ספעציעלע אנווייזונגען אדער פרטים..." className="resize-none" />
               </div>
             </div>
             <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12" disabled={create.isPending}>
@@ -273,8 +318,15 @@ export default function Minyans() {
                       <div className="text-sm min-w-0 flex-1">
                         <span className="font-semibold text-foreground">{label}:</span>
                         <div className="space-y-1 mt-1">
-                          {minyan[key].split(/\r?\n/).filter(Boolean).map((entry, i) =>
-                            <p key={i} className="text-muted-foreground break-words" dir="auto">{entry}</p>
+                          {(minyan.weekdaySchedules?.[key] || minyan[key].split(/\r?\n/).filter(Boolean)
+                            .map((time:string) => ({time, days:[...EVERY_WEEKDAY]}))).map((entry, i) =>
+                            <div key={i} className="rounded-lg bg-background/60 px-2 py-2 space-y-1">
+                              <p className="text-foreground font-medium break-words" dir="auto">{entry.time}</p>
+                              <p className="text-xs text-muted-foreground" dir="rtl">
+                                {entry.days.length===6 ? "יעדן וואכנטאג" :
+                                  entry.days.map((day:number)=>DAY_NAMES[day]).filter(Boolean).join(" · ")}
+                              </p>
+                            </div>
                           )}
                         </div>
                       </div>

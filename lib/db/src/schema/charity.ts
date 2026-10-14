@@ -11,6 +11,7 @@ export const charitiesTable = pgTable("charities", {
   goalAmount: integer("goal_amount").notNull().default(0),
   raisedAmount: integer("raised_amount").notNull().default(0),
   isTodaysFeatured: boolean("is_todays_featured").notNull().default(false),
+  createdByUserId: integer("created_by_user_id"),
   isActive: boolean("is_active").notNull().default(true),
   // Staged editorial workflow; legacy rows remain live after migration.
   publicationState: text("publication_state").notNull().default("live"),

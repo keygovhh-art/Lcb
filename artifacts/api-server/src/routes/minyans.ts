@@ -6,6 +6,7 @@ import { setLikeState } from "../lib/entity-likes";
 import { logActivity } from "../lib/activity";
 import { notifyStaff } from "../lib/notify";
 import { normalizeMinyanTimes, hasAtLeastOneMinyanTime } from "../lib/minyan-times";
+import { legacySchedule, validateSchedule, scheduleStrings, resolvedSchedule } from "../lib/minyan-weekdays";
 
 const router: IRouter = Router();
 
@@ -24,11 +25,11 @@ router.get("/minyans", async (req, res): Promise<void> => {
   if (city) all = all.filter(m => m.city.toLowerCase().includes(city.toLowerCase()));
   if (country) all = all.filter(m => m.country.toLowerCase().includes(country.toLowerCase()));
   if (synagogue) all = all.filter(m => m.synagogueName.toLowerCase().includes(synagogue.toLowerCase()));
-  res.json(all);
+  res.json(all.map(m=>({...m,weekdaySchedules:resolvedSchedule(m)})));
 });
 
 router.post("/minyans", requireAuth, async (req, res): Promise<void> => {
-  const { synagogueName, city, country, address, shacharis, mincha, maariv, notes } = req.body;
+  const { synagogueName, city, country, address, shacharis, mincha, maariv, notes, weekdaySchedules } = req.body;
   const cleanName = String(synagogueName || "").trim();
   const cleanCity = String(city || "").trim();
   const cleanCountry = String(country || "").trim();
@@ -46,6 +47,15 @@ router.post("/minyans", requireAuth, async (req, res): Promise<void> => {
   if (!hasAtLeastOneMinyanTime(cleanShacharis, cleanMincha, cleanMaariv)) {
     res.status(400).json({ error: "Please provide at least one Shacharis, Mincha or Maariv time" }); return;
   }
+  let chosenSchedule;
+  try {
+    chosenSchedule=validateSchedule(weekdaySchedules===undefined
+      ? legacySchedule({shacharis:cleanShacharis,mincha:cleanMincha,maariv:cleanMaariv})
+      : weekdaySchedules);
+    const serialized=scheduleStrings(chosenSchedule);
+    if(serialized.shacharis!==cleanShacharis || serialized.mincha!==cleanMincha || serialized.maariv!==cleanMaariv)
+      throw Error("Weekday schedule times do not match prayer times");
+  } catch(error) {res.status(400).json({error:(error as Error).message});return;}
   const [minyan] = await db.insert(minyansTable).values({
     submittedByUserId: getSessionUserId(req)!,
     synagogueName: cleanName.slice(0, 240),
@@ -56,6 +66,7 @@ router.post("/minyans", requireAuth, async (req, res): Promise<void> => {
     shacharis: cleanShacharis,
     mincha: cleanMincha,
     maariv: cleanMaariv,
+    weekdaySchedules:chosenSchedule,
     notes: notes ? String(notes).trim().slice(0, 3000) : null,
     status: "pending",
   }).returning();
@@ -77,7 +88,7 @@ router.get("/minyans/:id", async (req, res): Promise<void> => {
     }
   }
 
-  res.json(minyan);
+  res.json({...minyan,weekdaySchedules:resolvedSchedule(minyan)});
 });
 
 router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
@@ -86,7 +97,7 @@ router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
   const [existing] = await db.select().from(minyansTable).where(eq(minyansTable.id, id));
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
-  const { synagogueName, shacharis, mincha, maariv, notes, status, city, country, address } = req.body;
+  const { synagogueName, shacharis, mincha, maariv, notes, status, city, country, address, weekdaySchedules } = req.body;
   const updates: Record<string, unknown> = {};
   if (synagogueName !== undefined) {
     const clean = String(synagogueName).trim();
@@ -104,7 +115,7 @@ router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
     updates.country = clean.slice(0, 160);
   }
   if (address !== undefined) updates.address = address ? String(address).trim().slice(0, 300) : null;
-  if (shacharis !== undefined || mincha !== undefined || maariv !== undefined) {
+  if (shacharis !== undefined || mincha !== undefined || maariv !== undefined || weekdaySchedules !== undefined) {
     let nextShacharis: string, nextMincha: string, nextMaariv: string;
     try {
       nextShacharis = normalizeMinyanTimes(shacharis === undefined ? existing.shacharis : shacharis);
@@ -116,6 +127,15 @@ router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
     if (!hasAtLeastOneMinyanTime(nextShacharis, nextMincha, nextMaariv)) {
       res.status(400).json({ error: "At least one Shacharis, Mincha or Maariv time is required" }); return;
     }
+    try {
+      const chosen=validateSchedule(weekdaySchedules===undefined
+        ? legacySchedule({shacharis:nextShacharis,mincha:nextMincha,maariv:nextMaariv})
+        : weekdaySchedules);
+      const serialized=scheduleStrings(chosen);
+      if(serialized.shacharis!==nextShacharis || serialized.mincha!==nextMincha || serialized.maariv!==nextMaariv)
+        throw Error("Weekday schedule times do not match prayer times");
+      updates.weekdaySchedules=chosen;
+    } catch(error) {res.status(400).json({error:(error as Error).message});return;}
     updates.shacharis = nextShacharis;
     updates.mincha = nextMincha;
     updates.maariv = nextMaariv;
@@ -151,7 +171,7 @@ router.patch("/minyans/:id", requireAdmin, async (req, res): Promise<void> => {
     });
   }
 
-  res.json(minyan);
+  res.json({...minyan,weekdaySchedules:resolvedSchedule(minyan)});
 });
 
 router.post("/minyans/:id/like", requireAuth, async (req, res): Promise<void> => {

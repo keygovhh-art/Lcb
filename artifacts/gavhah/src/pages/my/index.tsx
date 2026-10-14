@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import {
   useListNotifications, useMarkAllNotificationsRead, getListNotificationsQueryKey,
   useListAskanuscases, useCreateAskanusCase, useUpdateAskanusCase, useDeleteAskanusCase,
-  useUpdateAskanuscaseProgress, useToggleCaseFollowup, getListAskanuscasesQueryKey,
+  useUpdateAskanuscaseProgress, getListAskanuscasesQueryKey,
   useListAskanustasks, useCreateAskanusTask, useUpdateAskanusTask, useDeleteAskanusTask,
   getListAskanustasksQueryKey,
   useListAskanusNotes, useCreateAskanusNote, useUpdateAskanusNote, useDeleteAskanusNote,
@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/context/auth-context";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
+import { CaseFollowups } from "@/components/askanus/case-followups";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -318,7 +319,6 @@ function CaseCard({ c, onUpdated, highlighted = false }: {
   const updateCase = useUpdateAskanusCase();
   const deleteCase = useDeleteAskanusCase();
   const progressMutation = useUpdateAskanuscaseProgress();
-  const toggleFollowup = useToggleCaseFollowup();
   const { toast } = useToast();
 
   const goal = Number(c.goalAmount);
@@ -329,21 +329,10 @@ function CaseCard({ c, onUpdated, highlighted = false }: {
   const receivedPct = goal > 0 ? Math.min(100, (received / goal) * 100) : 0;
   const promisedPct = goal > 0 ? Math.min(100 - receivedPct, (promised / goal) * 100) : 0;
 
-  const openFollowups = c.followUpNotes.filter(f => !f.completed);
 
   const replaceCaseInCache = (updated: any) => {
     qc.setQueryData(getListAskanuscasesQueryKey(), (current: any) =>
       Array.isArray(current) ? current.map((item: any) => item.id === c.id ? updated : item) : current
-    );
-  };
-
-  const handleToggleFollowup = (id: number) => {
-    toggleFollowup.mutate(
-      { id },
-      {
-        onSuccess: () => { void onUpdated(); },
-        onError: () => toast({ title: "Could not update follow-up", variant: "destructive" }),
-      }
     );
   };
 
@@ -448,18 +437,7 @@ function CaseCard({ c, onUpdated, highlighted = false }: {
           </div>
         </div>}
 
-        {openFollowups.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold text-secondary uppercase tracking-wide">Open Follow-ups ({openFollowups.length})</p>
-            {openFollowups.slice(0, 2).map(f => (
-              <div key={f.id} className="flex items-start gap-2 text-xs">
-                <button onClick={() => handleToggleFollowup(f.id)} className="mt-0.5 w-4 h-4 rounded border border-muted-foreground/40 hover:border-secondary shrink-0 flex items-center justify-center" />
-                <span className="text-foreground flex-1">{f.note}{f.dueDate && <span className="text-muted-foreground ml-1">· Due {f.dueDate}</span>}</span>
-              </div>
-            ))}
-            {openFollowups.length > 2 && <p className="text-xs text-muted-foreground">{openFollowups.length - 2} more…</p>}
-          </div>
-        )}
+        <CaseFollowups caseId={c.id} followups={c.followUpNotes} onUpdated={onUpdated} />
 
         <div className="flex flex-wrap items-center gap-2 pt-1 border-t">
           <UpdateProgressDialog c={c} onUpdated={onUpdated} />
@@ -512,29 +490,6 @@ function CaseCard({ c, onUpdated, highlighted = false }: {
             )}
           </div>
 
-          <div>
-            <h4 className="font-semibold text-sm text-primary mb-3 flex items-center gap-2">
-              <Bell className="h-4 w-4" /> Follow-up Notes
-            </h4>
-            {c.followUpNotes.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">No follow-up notes yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {c.followUpNotes.map(f => (
-                  <div key={f.id} className={`flex items-start gap-3 text-xs ${f.completed ? "opacity-50" : ""}`}>
-                    <button onClick={() => handleToggleFollowup(f.id)} className={`mt-0.5 w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-all ${f.completed ? "bg-green-500 border-green-500" : "border-muted-foreground/40 hover:border-secondary"}`}>
-                      {f.completed && <CheckCircle className="h-3 w-3 text-white fill-white" />}
-                    </button>
-                    <div className="flex-1">
-                      <span className={f.completed ? "line-through text-muted-foreground" : "text-foreground"}>{f.note}</span>
-                      {f.dueDate && <span className="text-muted-foreground ml-2">· Due {f.dueDate}</span>}
-                      <span className="text-muted-foreground ml-2">({f.date})</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       )}
     </div>

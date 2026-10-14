@@ -2035,6 +2035,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/AskanusCase"
 
+  /askanus/followups/{id}:
+    delete:
+      operationId: deleteCaseFollowup
+      tags: [askanus]
+      summary: Permanently delete a follow-up owned by the authenticated case member
+      description: Checking a follow-up completed keeps it in history. Only an explicit DELETE removes it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The follow-up was permanently deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, deletedId]
+                properties:
+                  ok:
+                    type: boolean
+                  deletedId:
+                    type: integer
+        "404":
+          description: Follow-up not found or does not belong to the signed-in member
+
   /askanus/followups/{id}/toggle:
     patch:
       operationId: toggleCaseFollowup
@@ -2550,6 +2578,20 @@ components:
           type: integer
         postCount:
           type: integer
+        allowReplies:
+          type: boolean
+        replyApproval:
+          type: boolean
+        postApproval:
+          type: boolean
+        membersCanPost:
+          type: boolean
+        membersCanReply:
+          type: boolean
+        showViewCounts:
+          type: boolean
+        allowDownvotes:
+          type: boolean
         createdAt:
           type: string
 
@@ -2571,6 +2613,20 @@ components:
     GroupUpdate:
       type: object
       properties:
+        allowReplies:
+          type: boolean
+        replyApproval:
+          type: boolean
+        postApproval:
+          type: boolean
+        membersCanPost:
+          type: boolean
+        membersCanReply:
+          type: boolean
+        showViewCounts:
+          type: boolean
+        allowDownvotes:
+          type: boolean
         name:
           type: string
         description:
@@ -2594,10 +2650,10 @@ components:
           type: integer
         role:
           type: string
-          enum: [owner, moderator, member]
+          enum: [owner, moderator, admin, member]
         status:
           type: string
-          enum: [approved, pending]
+          enum: [approved, pending, rejected, suspended, removed]
         joinedAt:
           type: string
 
@@ -2618,7 +2674,15 @@ components:
         likes:
           type: integer
         views:
+          type: ["integer", "null"]
+        moderationStatus:
+          type: string
+        downvotes:
           type: integer
+        isPinned:
+          type: boolean
+        isLocked:
+          type: boolean
         createdAt:
           type: string
 
@@ -2632,6 +2696,22 @@ components:
           type: string
 
     # ---- MINYAN ----
+    MinyanWeekdayEntry:
+      type: object
+      required: [time, days]
+      properties:
+        time:
+          type: string
+        days:
+          type: array
+          minItems: 1
+          maxItems: 6
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 0
+            maximum: 5
+
     Minyan:
       type: object
       required: [id, synagogueName, community, city, country, shacharis, mincha, maariv, likes, status, createdAt]
@@ -2654,6 +2734,23 @@ components:
           type: string
         maariv:
           type: string
+        weekdaySchedules:
+          type: object
+          description: Each minyan time has its own Sunday-through-Friday weekday recurrence (0 to 5)
+          required: [shacharis, mincha, maariv]
+          properties:
+            shacharis:
+              type: array
+              items:
+                $ref: "#/components/schemas/MinyanWeekdayEntry"
+            mincha:
+              type: array
+              items:
+                $ref: "#/components/schemas/MinyanWeekdayEntry"
+            maariv:
+              type: array
+              items:
+                $ref: "#/components/schemas/MinyanWeekdayEntry"
         notes:
           type: ["string", "null"]
         likes:
@@ -2682,6 +2779,23 @@ components:
           type: string
         maariv:
           type: string
+        weekdaySchedules:
+          type: object
+          description: Each minyan time has its own recurrence weekdays (ISO 1 to 6)
+          required: [shacharis, mincha, maariv]
+          properties:
+            shacharis:
+              type: array
+              items:
+                $ref: "#/components/schemas/MinyanWeekdayEntry"
+            mincha:
+              type: array
+              items:
+                $ref: "#/components/schemas/MinyanWeekdayEntry"
+            maariv:
+              type: array
+              items:
+                $ref: "#/components/schemas/MinyanWeekdayEntry"
         notes:
           type: string
 
@@ -2696,6 +2810,23 @@ components:
           type: string
         maariv:
           type: string
+        weekdaySchedules:
+          type: object
+          description: Each minyan time has its own recurrence weekdays (ISO 1 to 6)
+          required: [shacharis, mincha, maariv]
+          properties:
+            shacharis:
+              type: array
+              items:
+                $ref: "#/components/schemas/MinyanWeekdayEntry"
+            mincha:
+              type: array
+              items:
+                $ref: "#/components/schemas/MinyanWeekdayEntry"
+            maariv:
+              type: array
+              items:
+                $ref: "#/components/schemas/MinyanWeekdayEntry"
         notes:
           type: string
         status:

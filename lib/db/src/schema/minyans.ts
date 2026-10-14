@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,6 +13,7 @@ export const minyansTable = pgTable("minyans", {
   shacharis: text("shacharis").notNull(),
   mincha: text("mincha").notNull(),
   maariv: text("maariv").notNull(),
+  weekdaySchedules: jsonb("weekday_schedules").$type<Record<"shacharis" | "mincha" | "maariv", { time: string; days: number[] }[]> | null>(),
   notes: text("notes"),
   likes: integer("likes").notNull().default(0),
   status: text("status").notNull().default("approved"),

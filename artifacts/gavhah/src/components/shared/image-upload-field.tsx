@@ -48,7 +48,7 @@ export function ImageUploadField({
 
       {value ? (
         <div className="rounded-xl border overflow-hidden bg-muted/20">
-          <img src={value} alt="" className="w-full max-h-56 object-cover" />
+          <img src={value} alt="גאנצער בילד — פאראויסקוק" className="block w-full h-auto max-h-[55dvh] object-contain" />
           <div className="flex gap-2 p-3">
             <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={uploading}>
               {uploading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ImagePlus className="h-4 w-4 mr-1" />}

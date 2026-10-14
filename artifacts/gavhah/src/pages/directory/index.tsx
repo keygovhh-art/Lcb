@@ -701,7 +701,10 @@ export default function Directory() {
       </div>
     </div>
     <div className="container mx-auto px-4 py-10 max-w-4xl space-y-6">
-      <div className="grid md:grid-cols-2 gap-4">
+      <p className="rounded-lg border bg-muted/20 p-4 text-sm" dir="rtl">
+        {yi ? "דער זעלבער מעמבער קען סיי בעטן הילף און סיי זיך אנגעבן צו העלפן אנדערע. ביידע אנמעלדונגען בלייבן פריוואט און אומאפהענגיג." : "One member can both request help and volunteer to help others. Both applications are private and independent."}
+      </p>
+      <div id="help-center" className="grid md:grid-cols-2 gap-4 scroll-mt-24">
         <section className="border rounded-xl bg-card p-6 space-y-4">
           <div className="flex gap-2 items-center text-primary">
             <HandHeart className="h-7 w-7"/><h2 className="font-serif font-bold text-xl">
