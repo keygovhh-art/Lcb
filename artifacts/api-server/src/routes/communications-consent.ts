@@ -99,6 +99,7 @@ router.get("/askanus/contacts/:id/consents",requireAuth,async(req,res)=>{
   res.setHeader("Cache-Control","private, no-store");
   res.json(rows.map(r=>({
     id:r.id,action:r.action,method:r.method,evidence:r.evidence,
+    priorOptOutReason:r.priorOptOutReason,
     consentAt:r.consentAt.toISOString(),createdAt:r.createdAt.toISOString(),
   })));
 });
