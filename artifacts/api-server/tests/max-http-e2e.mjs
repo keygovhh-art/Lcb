@@ -377,6 +377,67 @@ try{
   assert.equal(c.followUpNotes.find(f=>f.id===followId)?.completed,true);
   assert.equal(c.followUpNotes.find(f=>f.id===followId)?.dueTime,"20:30");
   assert.equal(c.followUpNotes.find(f=>f.id===followId)?.timeZone,"America/New_York");
+  // Completed work must remain forever: due follow-ups, fully paid pledges,
+  // closed projects, and completed tasks stay searchable in a private history.
+  const fullKey=id("paid-pledge-full-history");
+  r=await req(a,"/askanus/cases/"+projectId+"/call-reports","POST",{
+    requestId:fullKey,contactId:donorId,contactName:"QA Donor",
+    outcome:"spoke",moneyKind:"pledged",amount:120,note:"QA pledge later paid in full"
+  });
+  status(r,201,"Create separate pledge for permanent settled history");
+  r=await req(a,"/askanus/contacts/"+donorId+"/360","GET");
+  status(r,200,"Read owner pledge history");
+  const paidPledge=r.data.pledges.find(p=>p.amount===120);
+  assert.ok(paidPledge,"New $120 pledge not saved");
+  r=await req(a,"/askanus/pledges/"+paidPledge.id+"/settlements","POST",{
+    amount:120,method:"check",requestId:id("paid-pledge-120")
+  });
+  status(r,201,"Fully settle separate pledge");
+  r=await req(a,"/askanus/contacts/"+donorId+"/360","GET");
+  assert.equal(r.data.pledges.find(p=>p.id===paidPledge.id)?.status,"paid");
+  assert.equal(r.data.pledges.find(p=>p.id===paidPledge.id)?.remaining,0);
+  r=await req(a,"/askanus/cases/"+projectId,"PATCH",{status:"closed"});
+  status(r,200,"Finish the campaign/project without erasing it");
+  r=await req(a,"/askanus/tasks","POST",{title:"QA archived completed task"});
+  status(r,201,"Create synthetic personal task");
+  const completedTaskId=r.data.id;
+  r=await req(a,"/askanus/tasks/"+completedTaskId,"PATCH",{completed:true});
+  status(r,200,"Finish a task while retaining it");
+  r=await req(a,"/askanus/max/history?limit=100","GET");
+  status(r,200,"Load permanent private full history");
+  const hist=r.data.items;
+  assert.ok(hist.some(x=>x.kind==="followups"&&x.entityId===followId&&x.action==="completed"),
+    "Finished followup was lost from history");
+  assert.ok(hist.some(x=>x.kind==="pledges"&&x.entityId===paidPledge.id&&x.action==="paid"),
+    "Fully settled pledge was lost from history");
+  assert.ok(hist.some(x=>x.kind==="cases"&&x.entityId===projectId&&x.action==="closed"),
+    "Closed project was lost from history");
+  assert.ok(hist.some(x=>x.kind==="tasks"&&x.entityId===completedTaskId&&x.action==="completed"),
+    "Completed task was lost from history");
+  assert.ok(hist.some(x=>x.kind==="events"&&x.action==="pledge_fully_paid"),
+    "Immutable settled-pledge event was not recorded");
+  assert.ok(hist.some(x=>x.kind==="events"&&x.action==="case_completed"),
+    "Closed project event missing");
+  assert.ok(hist.some(x=>x.kind==="events"&&x.action==="followup_completed"),
+    "Followup completion event missing");
+  r=await req(b,"/askanus/max/history?limit=100","GET");
+  status(r,200,"History must be private by user");
+  assert.ok(!r.data.items.some(x=>x.caseId===projectId),
+    "Cross-account private history was exposed");
+  r=await req(a,"/askanus/max/history?kind=pledges&q=pledged&limit=10","GET");
+  status(r,200,"Search historical pledges");
+  assert.ok(r.data.items.some(x=>x.entityId===paidPledge.id));
+  r=await req(a,"/askanus/max/history?caseId="+projectId+"&kind=followups&limit=50","GET");
+  status(r,200,"Filtered finished follow-up history on the same project");
+  assert.ok(r.data.items.some(x=>x.entityId===followId&&x.action==="completed"));
+  r=await req(a,"/askanus/max/history?kind=garbage","GET");
+  status(r,400,"Invalid history filter rejected");
+  r=await req(a,"/askanus/cases","GET");
+  assert.equal(r.data.find(x=>x.id===projectId)?.status,"closed");
+  assert.equal(r.data.find(x=>x.id===projectId)?.followUpNotes.find(x=>x.id===followId)?.completed,true);
+  r=await req(a,"/askanus/finance/overview?caseId="+projectId,"GET");
+  status(r,200,"Finance history available even after project closure");
+  assert.ok(r.data.pledges.some(p=>p.id===paidPledge.id&&p.status==="paid"));
   r=await req(a,"/askanus/cases/"+projectId,"DELETE");
   status(r,409,"Cannot delete an audited financial case");
   r=await req(b,"/askanus/cases","GET");
