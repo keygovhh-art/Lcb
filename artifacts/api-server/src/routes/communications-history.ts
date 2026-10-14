@@ -15,7 +15,7 @@ import { requireAuth, getSessionUserId } from "../middlewares/auth";
  */
 const router=Router();
 const sections=new Set(["all","events","activities","followups","pledges",
-  "payments","tasks","cases","calls"]);
+  "payments","tasks","cases","calls","contacts"]);
 type Item={id:number;kind:string;action:string;caseId:number|null;entityId:number;
  title:string;details:string;happenedAt:Date|string};
 
@@ -92,6 +92,13 @@ router.get("/askanus/max/history",requireAuth,async(req,res)=>{
         cr.contact_name,coalesce(cr.note,''),
         cr.created_at AT TIME ZONE 'UTC'
       FROM fundraising_call_reports cr WHERE cr.user_id=${userId}
+      UNION ALL
+      SELECT co.id::bigint,'contacts',
+        CASE WHEN co.do_not_call THEN 'do_not_call' ELSE 'active' END,
+        NULL::integer,co.id,co.name,
+        concat_ws(' · ',nullif(co.organization,''),nullif(co.city,''),nullif(co.tags,'')),
+        co.created_at AT TIME ZONE 'UTC'
+      FROM communication_contacts co WHERE co.user_id=${userId}
     )
     SELECT id,kind,action,case_id AS "caseId",entity_id AS "entityId",
       title,details,happened_at AS "happenedAt"
