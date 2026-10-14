@@ -177,6 +177,12 @@ router.patch("/askanus/cases/:id", requireAuth, async (req, res) => {
   );
   if (!owned) { res.status(404).json({ error: "Not found" }); return; }
   const { status, urgency, goalAmount, fundsPromised, fundsReceived, notes } = req.body;
+  // Financial totals are derived by idempotent ledger events, never overwritten
+  // directly by an unrelated case metadata patch.
+  if (fundsPromised !== undefined || fundsReceived !== undefined) {
+    res.status(409).json({error:"Use the audited progress/pledge/receipt endpoints to change money totals"});
+    return;
+  }
   const updates: Record<string, unknown> = { lastUpdated: new Date() };
 
   if (status !== undefined) {
@@ -192,14 +198,6 @@ router.patch("/askanus/cases/:id", requireAuth, async (req, res) => {
   if (goalAmount !== undefined) {
     if (!finiteNonNegative(goalAmount)) { res.status(400).json({ error: "goalAmount must be zero or greater" }); return; }
     updates.goalAmount = String(Number(goalAmount));
-  }
-  if (fundsPromised !== undefined) {
-    if (!finiteNonNegative(fundsPromised)) { res.status(400).json({ error: "fundsPromised must be zero or greater" }); return; }
-    updates.fundsPromised = String(Number(fundsPromised));
-  }
-  if (fundsReceived !== undefined) {
-    if (!finiteNonNegative(fundsReceived)) { res.status(400).json({ error: "fundsReceived must be zero or greater" }); return; }
-    updates.fundsReceived = String(Number(fundsReceived));
   }
   if (notes !== undefined) updates.notes = String(notes ?? "").trim().slice(0, 5000);
   await db.update(askanuscases).set(updates).where(
@@ -234,6 +232,18 @@ router.delete("/askanus/cases/:id", requireAuth, async (req, res) => {
     )).limit(1);
   if (fundraising) {
     res.status(409).json({ error: "This case has a fundraising history. Close the case rather than deleting its financial audit trail." });
+    return;
+  }
+  const [progressMoney,pledgeMoney,receiptMoney] = await Promise.all([
+    db.select({id:maxProgressEvents.id}).from(maxProgressEvents)
+      .where(and(eq(maxProgressEvents.caseId,id),eq(maxProgressEvents.userId,userId))).limit(1),
+    db.select({id:maxPledges.id}).from(maxPledges)
+      .where(and(eq(maxPledges.caseId,id),eq(maxPledges.userId,userId))).limit(1),
+    db.select({id:maxReceipts.id}).from(maxReceipts)
+      .where(and(eq(maxReceipts.caseId,id),eq(maxReceipts.userId,userId))).limit(1),
+  ]);
+  if(progressMoney.length||pledgeMoney.length||receiptMoney.length){
+    res.status(409).json({error:"This case has audited monetary records. Close it to preserve the financial history."});
     return;
   }
   await db.delete(caseActivityLog).where(eq(caseActivityLog.caseId, id));
