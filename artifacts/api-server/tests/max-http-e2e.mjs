@@ -122,12 +122,14 @@ try{
   status(r,409,"Reject direct finance counter overwrite");
 
   r=await req(a,"/askanus/contacts/"+donorId+"/followups","POST",{
-    caseId:projectId,note:"QA return call",dueDate:"2026-11-01",
+    caseId:projectId,note:"QA return call",dueDate:"2026-11-01",dueTime:"19:30",timeZone:"America/New_York",
   });
   status(r,201,"Link follow-up into My Askanus");
   const followId=r.data.id;
-  r=await req(a,"/askanus/followups/"+followId,"PATCH",{note:"QA changed from either section",dueDate:"2026-11-02"});
+  r=await req(a,"/askanus/followups/"+followId,"PATCH",{note:"QA changed from either section",dueDate:"2026-11-02",dueTime:"20:30",timeZone:"America/New_York"});
   status(r,200,"Edit shared follow-up");
+  r=await req(a,"/askanus/followups/"+followId,"PATCH",{dueTime:"29:30",timeZone:"America/New_York"});
+  status(r,400,"Reject invalid follow-up clock time");
   r=await req(a,"/askanus/followups/"+followId+"/toggle","PATCH");
   status(r,200,"Complete shared follow-up");
   assert.equal(r.data.completed,true);
@@ -146,6 +148,8 @@ try{
   assert.equal(c.fundsPromised,600,"$1000 pledge - $500 settled + $100 reversed");
   assert.equal(c.followUpNotes.find(f=>f.id===followId)?.note,"QA changed from either section");
   assert.equal(c.followUpNotes.find(f=>f.id===followId)?.completed,true);
+  assert.equal(c.followUpNotes.find(f=>f.id===followId)?.dueTime,"20:30");
+  assert.equal(c.followUpNotes.find(f=>f.id===followId)?.timeZone,"America/New_York");
   r=await req(a,"/askanus/cases/"+projectId,"DELETE");
   status(r,409,"Cannot delete an audited financial case");
   r=await req(b,"/askanus/cases","GET");
