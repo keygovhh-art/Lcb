@@ -234,6 +234,47 @@ try{
   status(r,200,"Set do-not-call");
   r=await req(a,"/askanus/contacts/"+donorId,"PATCH",{doNotCall:false});
   status(r,409,"Cannot casually remove opt-out");
+  // The user owns their CRM: removing an opt-out marker is possible through a
+  // deliberate, auditable decision, which is NOT mislabelled donor re-consent.
+  const ownerOverride={action:"owner_override",ownerConfirmedOverride:true,
+    evidence:"עסקן באשלוס נאך א פערזענליכער איבערבליק",
+    requestId:id("owner-override-dnc")};
+  r=await req(a,"/askanus/contacts/"+donorId+"/call-permission","POST",
+    {...ownerOverride,ownerConfirmedOverride:false});
+  status(r,400,"Must deliberately confirm owner override");
+  r=await req(b,"/askanus/contacts/"+donorId+"/call-permission","POST",ownerOverride);
+  status(r,404,"Other account cannot remove own donor marker");
+  r=await req(a,"/askanus/contacts/"+donorId+"/call-permission","POST",ownerOverride);
+  status(r,201,"Owner chooses to remove private do-not-call marker");
+  assert.equal(r.data.event.action,"owner_override");
+  assert.equal(r.data.contact.doNotCall,false);
+  assert.ok(r.data.caveat.includes("NOT the contact's consent"));
+  r=await req(a,"/askanus/contacts/"+donorId+"/call-permission","POST",ownerOverride);
+  status(r,200,"Same owner override request is retry-safe");
+  assert.equal(r.data.duplicate,true);
+  r=await req(a,"/askanus/contacts/"+donorId+"/consents","GET");
+  status(r,200,"Read owner-only permission decisions");
+  assert.equal(r.data.length,1);
+  assert.equal(r.data[0].action,"owner_override");
+  assert.equal(r.data[0].priorOptOutReason,"QA opt-out");
+  r=await req(b,"/askanus/contacts/"+donorId+"/consents","GET");
+  status(r,404,"No other-account access to permission audit");
+  // The donor can opt out again, and directly renewed consent is distinct.
+  r=await req(a,"/askanus/contacts/"+donorId,"PATCH",
+    {doNotCall:true,optOutReason:"QA donor asked again"});
+  status(r,200,"Owner can set marker back immediately");
+  const directConsent={action:"reconsent",method:"incoming_call",
+    evidence:"Caller explicitly asked to resume contacts",
+    userConfirmedDirectConsent:true,consentAt:new Date().toISOString(),
+    requestId:id("donor-reconsent")};
+  r=await req(a,"/askanus/contacts/"+donorId+"/call-permission","POST",directConsent);
+  status(r,201,"Renewed donor permission is separately identified");
+  assert.equal(r.data.event.action,"reconsent");
+  r=await req(a,"/askanus/contacts/"+donorId+"/consents","GET");
+  status(r,200,"Both kinds of permission action remain in history");
+  assert.equal(r.data.length,2);
+  assert.equal(r.data[0].action,"reconsent");
+  assert.equal(r.data[1].action,"owner_override");
   r=await req(b,"/askanus/contacts/"+donorId,"PATCH",{name:"Attack"});
   status(r,404,"Cannot edit another user contact");
 
@@ -251,7 +292,7 @@ try{
   r=await req(b,"/askanus/cases","GET");
   status(r,200,"Second account list");
   assert.ok(!r.data.some(x=>x.id===projectId),"Second member can see other's case");
-  console.log("PASS MAX HTTP/DB E2E: 2 sessions, donor CSV import/export, source helper, idempotent donations, refunds, timed and monthly recurring follow-ups, privacy and audit protection");
+  console.log("PASS MAX HTTP/DB E2E: 2 sessions, consent and operator override separately audited, donor CSV, source helper, idempotent donations, refunds, monthly recurring follow-ups, privacy and audit");
 }finally{
   await pool.end();
 }
