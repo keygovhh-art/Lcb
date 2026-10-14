@@ -54,8 +54,10 @@ export function MaxCallDesk() {
   const [revision,setRevision] = useState(0);
   const [followupNote,setFollowupNote] = useState("");
   const [dueDate,setDueDate] = useState("");
+  const [dueTime,setDueTime] = useState("");
   const [quickNote,setQuickNote] = useState("");
   const [quickDate,setQuickDate] = useState("");
+  const [quickTime,setQuickTime] = useState("");
   const [busy,setBusy] = useState(false);
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState("");
@@ -130,14 +132,15 @@ export function MaxCallDesk() {
       const result=await request<{duplicate:boolean;report:Call}>(
         "/api/askanus/cases/"+caseId+"/call-reports",
         json({requestId,contactId,contactName:name.trim(),outcome,moneyKind,mood,
-          amount:moneyKind==="none"?0:Number(amount),note,followupNote,dueDate:dueDate||null}),
+          amount:moneyKind==="none"?0:Number(amount),note,followupNote,dueDate:dueDate||null,dueTime:dueTime||null,
+          timeZone:dueTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):null}),
       );
       setMessage(result.duplicate
         ? "דער פריערדיגער באריכט איז שוין אפגעהיטן. קיין צווייטע נדבה איז נישט צוגערעכנט."
         : "דער רוף־באריכט איז אפגעהיטן. מיין עסקנות באנוצט די זעלבע פראיעקט־דאַטן.");
       setCalls(items=>[result.report,...items.filter(r=>r.id!==result.report.id)].slice(0,100));
       setRequestId(crypto.randomUUID());setOutcome("spoke");setMoneyKind("none");setAmount("");setMood("neutral");setRevision(v=>v+1);
-      setNote("");setFollowupNote("");setDueDate("");
+      setNote("");setFollowupNote("");setDueDate("");setDueTime("");
       await load();
       await qc.invalidateQueries({queryKey:getListAskanuscasesQueryKey()});
     } catch(e){setError(e instanceof Error?e.message:"נישט געלונגען אפצוהיטן");}
@@ -148,8 +151,9 @@ export function MaxCallDesk() {
     setBusy(true);setError("");setMessage("");
     try{
       await request("/api/askanus/cases/"+caseId+"/progress",
-        json({action:"followup",note:quickNote.trim(),dueDate:quickDate||undefined}));
-      setQuickNote("");setQuickDate("");setMessage("דער נאכפאלג איז אין דער זעלבער ליסטע פון מיין עסקנות.");
+        json({action:"followup",note:quickNote.trim(),dueDate:quickDate||undefined,
+          dueTime:quickTime||undefined,timeZone:quickTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):undefined}));
+      setQuickNote("");setQuickDate("");setQuickTime("");setMessage("דער נאכפאלג איז אין דער זעלבער ליסטע פון מיין עסקנות.");
       await load();
       await qc.invalidateQueries({queryKey:getListAskanuscasesQueryKey()});
     }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
@@ -276,7 +280,8 @@ export function MaxCallDesk() {
           <div className="space-y-1"><Label htmlFor="max-callback">נאכפאלג צולייגן (אפציאנעל)</Label>
             <Textarea id="max-callback" placeholder="למשל: צוריק רופן איבער א טשעק" value={followupNote} onChange={e=>setFollowupNote(e.target.value)}/></div>
           {followupNote.trim() && <div className="space-y-1"><Label htmlFor="max-due">ווען דארף מען נאכפאלגן?</Label>
-            <Input id="max-due" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></div>}
+            <Input id="max-due" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/>
+            <Input aria-label="נאכפאלג־שעה" type="time" disabled={!dueDate} value={dueTime} onChange={e=>setDueTime(e.target.value)}/></div>}
           <Button className="w-full min-h-11" type="submit" disabled={busy||!caseId||!name.trim()||(moneyKind!=="none"&&!(Number(amount)>0))}>
             <Save className="h-4 w-4 ml-2"/> {busy?"היט אפ...":"אפהיטן — און דערהיינטיגן מיין עסקנות"}
           </Button>
@@ -290,7 +295,8 @@ export function MaxCallDesk() {
         <div className="space-y-1"><Label htmlFor="max-follow">א נייעם נאכפאלג</Label>
           <Input id="max-follow" value={quickNote} onChange={e=>setQuickNote(e.target.value)} placeholder="וואס דארף איך נאך ערלעדיגן?" required/></div>
         <div className="space-y-1"><Label htmlFor="max-follow-date">דאטום (אפציאנעל)</Label>
-          <Input id="max-follow-date" type="date" value={quickDate} onChange={e=>setQuickDate(e.target.value)}/></div>
+          <Input id="max-follow-date" type="date" value={quickDate} onChange={e=>setQuickDate(e.target.value)}/>
+          <Input aria-label="נאכפאלג־שעה" type="time" disabled={!quickDate} value={quickTime} onChange={e=>setQuickTime(e.target.value)}/></div>
         <Button type="submit" disabled={busy||!quickNote.trim()}><Plus className="h-4 w-4 ml-1"/> צולייגן</Button>
       </form>
       <CaseFollowups caseId={current.id} followups={current.followUpNotes} onUpdated={load}/>
