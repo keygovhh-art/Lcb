@@ -9,6 +9,7 @@ import {
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { resolvePublicPostingName } from "../lib/user-display";
 import { publicPostForViewer } from "../lib/public-posting-identity";
+import { effectiveGroupSetting, groupAdminCan, groupMemberCan } from "../lib/group-feature-controls";
 
 const router = Router();
 const isStaff = (role?: string) => role === "admin" || role === "moderator" || role === "super_admin";
@@ -47,6 +48,11 @@ function allowedPost(post: {moderationStatus:string;authorId:number}, ctx: {admi
   return post.moderationStatus==="approved"||ctx.admin||post.authorId===ctx.userId;
 }
 function safeReply(row: typeof groupPostRepliesTable.$inferSelect, ctx:{admin:boolean;userId?:number}) {
+  if(row.deletedAt){
+    return {id:row.id,postId:row.postId,parentReplyId:row.parentReplyId,
+      authorId:null,authorName:"אויסגעמעקט",content:"דער רעפליי איז אויסגעמעקט געווארן",
+      moderationStatus:"approved",deletedAt:row.deletedAt,createdAt:row.createdAt};
+  }
   const post=publicPostForViewer(row,ctx.userId);
   return post;
 }
@@ -62,6 +68,12 @@ router.patch("/groups/:id/posts/:postId/options", requireAuth, async (req,res):P
   const ctx=await groupAccess(gid,req);
   if(!ctx?.admin){res.status(403).json({error:"Group admin required"});return;}
   if(!await postInGroup(gid,pid)){sendNotFound(res);return;}
+  if(req.body?.isPinned!==undefined&&!groupAdminCan(ctx.group,ctx.staff,"pinPosts")){
+    res.status(403).json({error:"Pinning posts disabled by Gavhah"});return;
+  }
+  if(req.body?.isLocked!==undefined&&!groupAdminCan(ctx.group,ctx.staff,"lockReplies")){
+    res.status(403).json({error:"Locking replies disabled by Gavhah"});return;
+  }
   const values:Record<string,boolean>={};
   for(const setting of ["isPinned","isLocked"] as const){
     if(req.body?.[setting]!==undefined){
@@ -79,7 +91,9 @@ router.patch("/groups/:id/posts/:postId/review",requireAuth,async(req,res):Promi
   const gid=getGroup(req,res),pid=id(req.params.postId);
   if(!gid||!pid)return;
   const ctx=await groupAccess(gid,req);
-  if(!ctx||!ctx.admin){res.status(403).json({error:"Group admin required"});return;}
+  if(!ctx||!ctx.admin||!groupAdminCan(ctx.group,ctx.staff,"moderatePosts")){
+    res.status(403).json({error:"Post moderation disabled"});return;
+  }
   const post=await postInGroup(gid,pid);
   if(!post){sendNotFound(res);return;}
   const status=req.body?.status;
@@ -99,7 +113,9 @@ router.patch("/groups/:id/posts/:postId/review",requireAuth,async(req,res):Promi
 router.get("/groups/:id/moderation",requireAuth,async(req,res):Promise<void>=>{
   const gid=getGroup(req,res);if(!gid)return;
   const ctx=await groupAccess(gid,req);
-  if(!ctx?.admin){res.status(403).json({error:"Group admin required"});return;}
+  if(!ctx?.admin||!groupAdminCan(ctx.group,ctx.staff,"moderatePosts")){
+    res.status(403).json({error:"Moderation dashboard disabled"});return;
+  }
   const [posts,replies]=await Promise.all([
     db.select().from(groupPostsTable).where(and(eq(groupPostsTable.groupId,gid),eq(groupPostsTable.moderationStatus,"pending"))).orderBy(desc(groupPostsTable.createdAt)),
     db.select({id:groupPostRepliesTable.id,postId:groupPostRepliesTable.postId,content:groupPostRepliesTable.content,
@@ -122,24 +138,51 @@ router.get("/groups/:id/posts/:postId/replies",async(req,res):Promise<void>=>{
   const list=await db.select().from(groupPostRepliesTable)
     .where(eq(groupPostRepliesTable.postId,pid)).orderBy(groupPostRepliesTable.createdAt);
   res.setHeader("Cache-Control","private, no-store");
-  res.json(list.filter(reply=>reply.moderationStatus==="approved"||ctx.admin||reply.authorId===ctx.userId)
-    .map(reply=>safeReply(reply,ctx)));
+  // Hide children whose ancestors are still pending or rejected. Deleted
+  // approved ancestors appear as privacy-safe placeholders preserving threads.
+  const allById=new Map(list.map(row=>[row.id,row]));
+  const visible=(row:typeof groupPostRepliesTable.$inferSelect) => {
+    if(row.moderationStatus!=="approved"&&!ctx.admin&&row.authorId!==ctx.userId)return false;
+    const visited=new Set<number>([row.id]);
+    let parentId=row.parentReplyId;
+    while(parentId!==null){
+      if(visited.has(parentId))return false;
+      visited.add(parentId);
+      const parent=allById.get(parentId);
+      if(!parent)return false;
+      if(parent.moderationStatus!=="approved"&&!ctx.admin&&parent.authorId!==ctx.userId)return false;
+      parentId=parent.parentReplyId;
+    }
+    return true;
+  };
+  res.json(list.filter(visible).map(reply=>safeReply(reply,ctx)));
 });
 router.post("/groups/:id/posts/:postId/replies",requireAuth,async(req,res):Promise<void>=>{
   const gid=getGroup(req,res),pid=id(req.params.postId);if(!gid||!pid)return;
   const ctx=await groupAccess(gid,req);
   if(!ctx?.active){res.status(403).json({error:"Join this group to reply"});return;}
-  if(!ctx.group.allowReplies){res.status(403).json({error:"Replies disabled"});return;}
-  if(!ctx.admin&&!ctx.group.membersCanReply){res.status(403).json({error:"Member replies disabled"});return;}
+  if(!effectiveGroupSetting(ctx.group,"allowReplies")){res.status(403).json({error:"Replies disabled"});return;}
+  if(!ctx.admin&&!effectiveGroupSetting(ctx.group,"membersCanReply")){res.status(403).json({error:"Member replies disabled"});return;}
   const post=await postInGroup(gid,pid);
   if(!post||!allowedPost(post,ctx)||post.moderationStatus!=="approved"){sendNotFound(res);return;}
   if(post.isLocked&&!ctx.admin){res.status(403).json({error:"Replies are locked for this post"});return;}
   const content=req.body?.content;
   if(typeof content!=="string"||!content.trim()||content.length>3000){res.status(400).json({error:"Reply must be 1–3000 characters"});return;}
+  const parentId=req.body?.parentReplyId===undefined||req.body?.parentReplyId===null?null:id(req.body.parentReplyId);
+  if(req.body?.parentReplyId!==undefined&&req.body?.parentReplyId!==null&&!parentId){
+    res.status(400).json({error:"Invalid parent reply"});return;
+  }
+  if(parentId){
+    const [parent]=await db.select().from(groupPostRepliesTable)
+      .where(and(eq(groupPostRepliesTable.id,parentId),eq(groupPostRepliesTable.postId,pid))).limit(1);
+    if(!parent||parent.deletedAt||parent.moderationStatus!=="approved"){
+      res.status(404).json({error:"Parent reply is not publicly available"});return;
+    }
+  }
   const authorName=await resolvePublicPostingName(ctx.userId!,req.body?.authorName);
   const [reply]=await db.insert(groupPostRepliesTable).values({
-    postId:pid,content:content.trim(),authorId:ctx.userId!,authorName,
-    moderationStatus:!ctx.admin&&ctx.group.replyApproval?"pending":"approved",
+    postId:pid,parentReplyId:parentId,content:content.trim(),authorId:ctx.userId!,authorName,
+    moderationStatus:!ctx.admin&&effectiveGroupSetting(ctx.group,"replyApproval")?"pending":"approved",
   }).returning();
   res.status(201).json(publicPostForViewer(reply,ctx.userId,getSessionUserRole(req)));
 });
@@ -147,7 +190,9 @@ router.patch("/groups/:id/posts/:postId/replies/:replyId/review",requireAuth,asy
   const gid=getGroup(req,res),pid=id(req.params.postId),rid=id(req.params.replyId);
   if(!gid||!pid||!rid)return;
   const ctx=await groupAccess(gid,req);
-  if(!ctx?.admin){res.status(403).json({error:"Group admin required"});return;}
+  if(!ctx?.admin||!groupAdminCan(ctx.group,ctx.staff,"moderateReplies")){
+    res.status(403).json({error:"Reply moderation disabled"});return;
+  }
   const post=await postInGroup(gid,pid);if(!post){sendNotFound(res);return;}
   const status=req.body?.status;
   if(!["approved","rejected"].includes(status)){res.status(400).json({error:"Invalid reply status"});return;}
@@ -165,7 +210,16 @@ router.delete("/groups/:id/posts/:postId/replies/:replyId",requireAuth,async(req
   const [reply]=await db.select().from(groupPostRepliesTable).where(and(eq(groupPostRepliesTable.id,rid),eq(groupPostRepliesTable.postId,pid)));
   if(!reply){sendNotFound(res);return;}
   if(!ctx.admin&&reply.authorId!==ctx.userId){res.status(403).json({error:"Not allowed"});return;}
-  await db.delete(groupPostRepliesTable).where(eq(groupPostRepliesTable.id,rid));
+  if(reply.authorId!==ctx.userId&&!groupAdminCan(ctx.group,ctx.staff,"deleteOthersReplies")){
+    res.status(403).json({error:"Admin reply deletion disabled by Gavhah"});return;
+  }
+  if(reply.authorId===ctx.userId&&!groupMemberCan(ctx.group,ctx.staff,"deleteOwnReplies")){
+    res.status(403).json({error:"Own reply deletion disabled by Gavhah"});return;
+  }
+  // Keep the reply ID/parent reference alive so child discussions do not get
+  // destroyed or orphaned when a parent is deleted.
+  await db.update(groupPostRepliesTable).set({deletedAt:new Date(),content:"",authorName:"אויסגעמעקט"})
+    .where(eq(groupPostRepliesTable.id,rid));
   res.json({ok:true});
 });
 
@@ -181,7 +235,7 @@ router.post("/groups/:id/posts/:postId/view",requireAuth,async(req,res):Promise<
     const [current]=await tx.select({views:groupPostsTable.views}).from(groupPostsTable).where(eq(groupPostsTable.id,pid));
     return current?.views??0;
   });
-  res.json({ok:true,viewRecorded:true,views:ctx.admin||ctx.group.showViewCounts?views:undefined});
+  res.json({ok:true,viewRecorded:true,views:ctx.admin||effectiveGroupSetting(ctx.group,"showViewCounts")?views:undefined});
 });
 
 // Return the current member's own vote, never the public total.
@@ -190,7 +244,7 @@ router.get("/groups/:id/posts/:postId/downvote",requireAuth,async(req,res):Promi
   const ctx=await groupAccess(gid,req);
   const post=ctx?await postInGroup(gid,pid):null;
   if(!ctx?.active||!post||post.moderationStatus!=="approved"){sendNotFound(res);return;}
-  if(!ctx.group.allowDownvotes){res.json({downvoted:false});return;}
+  if(!effectiveGroupSetting(ctx.group,"allowDownvotes")){res.json({downvoted:false});return;}
   const [existing]=await db.select({id:groupPostDownvotesTable.id}).from(groupPostDownvotesTable)
     .where(and(eq(groupPostDownvotesTable.postId,pid),eq(groupPostDownvotesTable.userId,ctx.userId!))).limit(1);
   res.setHeader("Cache-Control","private, no-store");
@@ -203,7 +257,7 @@ router.post("/groups/:id/posts/:postId/downvote",requireAuth,async(req,res):Prom
   const ctx=await groupAccess(gid,req);
   const post=ctx?await postInGroup(gid,pid):null;
   if(!ctx?.active||!post||post.moderationStatus!=="approved"){sendNotFound(res);return;}
-  if(!ctx.group.allowDownvotes){res.status(403).json({error:"Downvotes disabled"});return;}
+  if(!effectiveGroupSetting(ctx.group,"allowDownvotes")){res.status(403).json({error:"Downvotes disabled"});return;}
   const result=await db.transaction(async tx=>{
     const [existing]=await tx.select().from(groupPostDownvotesTable).where(and(eq(groupPostDownvotesTable.postId,pid),eq(groupPostDownvotesTable.userId,ctx.userId!))).limit(1);
     const downvoted=!existing;
@@ -233,6 +287,7 @@ router.post("/groups/:id/posts/:postId/report",requireAuth,async(req,res):Promis
   const ctx=await groupAccess(gid,req);
   const post=ctx?await postInGroup(gid,pid):null;
   if(!ctx?.reader||!post||post.moderationStatus!=="approved"){sendNotFound(res);return;}
+  if(!groupMemberCan(ctx.group,ctx.staff,"reportPosts")){res.status(403).json({error:"Reporting disabled by Gavhah"});return;}
   const destination=String(req.body?.destination||"");
   const reason=String(req.body?.reason||"").trim();
   if(!["group","staff","both"].includes(destination)||!reason||reason.length>2000){
@@ -257,7 +312,9 @@ router.post("/groups/:id/posts/:postId/report",requireAuth,async(req,res):Promis
 router.get("/groups/:id/reports",requireAuth,async(req,res):Promise<void>=>{
   const gid=getGroup(req,res);if(!gid)return;
   const ctx=await groupAccess(gid,req);
-  if(!ctx?.admin){res.status(403).json({error:"Group admin required"});return;}
+  if(!ctx?.admin||!groupAdminCan(ctx.group,ctx.staff,"viewGroupReports")){
+    res.status(403).json({error:"Group reports disabled"});return;
+  }
   const rows=await db.select().from(groupReportsTable).where(and(eq(groupReportsTable.groupId,gid),eq(groupReportsTable.toGroup,true)))
     .orderBy(desc(groupReportsTable.createdAt));
   res.setHeader("Cache-Control","private, no-store");
@@ -268,7 +325,9 @@ router.get("/groups/:id/reports",requireAuth,async(req,res):Promise<void>=>{
 router.patch("/groups/:id/reports/:reportId",requireAuth,async(req,res):Promise<void>=>{
   const gid=getGroup(req,res),rid=id(req.params.reportId);if(!gid||!rid)return;
   const ctx=await groupAccess(gid,req);
-  if(!ctx?.admin){res.status(403).json({error:"Group admin required"});return;}
+  if(!ctx?.admin||!groupAdminCan(ctx.group,ctx.staff,"resolveGroupReports")){
+    res.status(403).json({error:"Report resolution disabled"});return;
+  }
   const status=req.body?.status;if(!["open","resolved"].includes(status)){res.status(400).json({error:"Invalid status"});return;}
   const [r]=await db.update(groupReportsTable).set({groupStatus:status}).where(and(
     eq(groupReportsTable.id,rid),eq(groupReportsTable.groupId,gid),eq(groupReportsTable.toGroup,true),
