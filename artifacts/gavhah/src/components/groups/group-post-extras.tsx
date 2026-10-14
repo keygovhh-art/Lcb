@@ -42,6 +42,7 @@ export function GroupPostExtras({group,post,manager,canReply,onChanged}:{
   const {user,isAuthenticated}=useAuth();
   const {toast}=useToast();
   const root=useRef<HTMLDivElement|null>(null);
+  const replyComposer=useRef<HTMLTextAreaElement|null>(null);
   const seen=useRef(false);
   const [views,setViews]=useState(post.views);
   const [downvoted,setDownvoted]=useState(false);
@@ -55,6 +56,12 @@ export function GroupPostExtras({group,post,manager,canReply,onChanged}:{
   const [reportReason,setReportReason]=useState("");
 
   useEffect(()=>setViews(post.views),[post.views]);
+  useEffect(()=>{
+    if(replyParent!==null && repliesOpen){
+      replyComposer.current?.scrollIntoView({behavior:"smooth",block:"center"});
+      replyComposer.current?.focus({preventScroll:true});
+    }
+  },[replyParent,repliesOpen]);
   useEffect(()=>{
     seen.current=false;
     if(!isAuthenticated||post.moderationStatus!=="approved"||!root.current)return;
@@ -188,7 +195,7 @@ export function GroupPostExtras({group,post,manager,canReply,onChanged}:{
           <p className="text-xs font-semibold">{replyParent===null?"נייער רעפליי":"ענטפער אויף רעפליי #"+replyParent}</p>
           {replyParent!==null&&<Button size="sm" variant="ghost" onClick={()=>setReplyParent(null)}>צוריק צום הויפט־פאוסט</Button>}
         </div>
-        <Textarea placeholder="שרייב א רעפליי..." maxLength={3000} value={reply}
+        <Textarea ref={replyComposer} placeholder="שרייב א רעפליי..." maxLength={3000} value={reply}
           onChange={e=>setReply(e.target.value)} className="min-h-20"/>
         <Button size="sm" disabled={!reply.trim()||busy} className="gap-1" onClick={()=>void createReply()}>
           <Send className="h-4 w-4"/> {busy?"שיקט...":"שיק רעפליי"}
