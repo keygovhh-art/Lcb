@@ -15,7 +15,7 @@ type Donor = {
 type Pledge = { id:number;caseId:number;amount:number;paidAmount:number;remaining:number;status:string;dueDate:string|null;note:string;createdAt:string };
 type Receipt = {id:number;pledgeId:number|null;caseId:number;amount:number;refundedAmount:number;method:string;verification:string;createdAt:string};
 type Call = {id:number;caseId:number;contactName:string;outcome:string;observedMood:string;note:string;createdAt:string};
-type Followup = {id:number;caseId:number;note:string;dueDate:string|null;completed:boolean};
+type Followup = {id:number;caseId:number;note:string;dueDate:string|null;dueTime?:string|null;completed:boolean};
 type Profile = {contact:Donor;calls:Call[];pledges:Pledge[];receipts:Receipt[];followups:Followup[]};
 async function jsonCall<T>(url:string,init?:RequestInit):Promise<T>{
   const result=await fetch(url,{credentials:"include",cache:"no-store",...init});
@@ -49,6 +49,7 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
   const [refundKey,setRefundKey]=useState(()=>crypto.randomUUID());
   const [followNote,setFollowNote]=useState("");
   const [followDue,setFollowDue]=useState("");
+  const [followTime,setFollowTime]=useState("");
   const load=useCallback(async()=>{
     try{
       const profile=await jsonCall<Profile>("/api/askanus/contacts/"+contactId+"/360");
@@ -103,8 +104,9 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
     setBusy(true);setError("");setMessage("");
     try{
       await jsonCall("/api/askanus/contacts/"+contactId+"/followups",
-        write({caseId,note:followNote.trim(),dueDate:followDue||null}));
-      setFollowNote("");setFollowDue("");
+        write({caseId,note:followNote.trim(),dueDate:followDue||null,dueTime:followTime||null,
+          timeZone:followTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):null}));
+      setFollowNote("");setFollowDue("");setFollowTime("");
       setMessage("דער זעלבער נאכפאלג איז געוויזן אין מיין עסקנות און עולם החסד.");
       await load();onChanged();await qc.invalidateQueries({queryKey:getListAskanuscasesQueryKey()});
     }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
@@ -196,12 +198,13 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
     <div className="space-y-2">
       <h5 className="font-semibold flex gap-2"><Bell className="h-4 w-4"/> נאכפאלגן פאר דעם נדבן</h5>
       {data.followups.map(f=><p key={f.id} className="rounded-lg border p-2 text-xs">
-        {f.completed?"פארטיג":"אפן"} · {f.note}{f.dueDate?" · "+f.dueDate:""}
+        {f.completed?"פארטיג":"אפן"} · {f.note}{f.dueDate?" · "+f.dueDate+(f.dueTime?" "+f.dueTime:""):""}
       </p>)}
       <form onSubmit={e=>void addDonorFollowup(e)} className="space-y-2">
         <Textarea aria-label="נדבן־נאכפאלג" value={followNote} onChange={e=>setFollowNote(e.target.value)}
           placeholder="וואס דארף מען נאכפאלגן?" required/>
         <Input aria-label="נאכפאלג־דאטום" type="date" value={followDue} onChange={e=>setFollowDue(e.target.value)}/>
+        <Input aria-label="נאכפאלג־שעה" type="time" disabled={!followDue} value={followTime} onChange={e=>setFollowTime(e.target.value)}/>
         <Button size="sm" type="submit" disabled={!caseId||busy||!followNote.trim()}>צולייגן פארבונדענעם נאכפאלג</Button>
       </form>
     </div>
