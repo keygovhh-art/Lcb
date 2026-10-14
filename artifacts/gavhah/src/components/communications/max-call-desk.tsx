@@ -274,9 +274,17 @@ export function MaxCallDesk() {
             {filteredContacts.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?" · "+c.phone:""}</option>)}
           </select>
           {chosenContact?.doNotCall && <p role="alert" className="text-sm font-semibold text-destructive">
-            רופן־פארבאט: דער מענטש האט געבעטן נישט צו ווערן גערופן. די דיילער־פארבינדונג איז פארשפארט.
+            אכטונג: דער מענטש איז אנגעצייכנט „נישט רופן“. דער עסקן בלייבט אין קאנטראל;
+            געדענק אז באשטימטע רופן־כללים קענען נאך אלץ גילטן.
           </p>}
-          {chosenContact?.phone && !chosenContact.doNotCall && <a className="inline-flex gap-2 underline text-secondary text-sm" href={"tel:"+chosenContact.phone}>
+          {chosenContact?.phone && <a className="inline-flex gap-2 underline text-secondary text-sm"
+            href={"tel:"+chosenContact.phone}
+            onClick={e=>{
+              if(chosenContact.doNotCall && !window.confirm(
+                "דער מענטש האט געבעטן נישט צו ווערן גערופן. ווילסטו דאך עפענען דעם דיילער? "+
+                "דאס ענדערט נישט זיין רופן־צייכן און איז נישט קיין נייע רשות."
+              ))e.preventDefault();
+            }}>
             <PhoneCall className="h-4 w-4"/> עפענען דעם טעלעפאן־דיילער
           </a>}
           <p className="text-xs text-muted-foreground">דאס עפנט בלויז דעם טעלעפאן־דיילער; ס'איז נאכנישט קיין אויטאמאטיש גערעקארדירטער רוף.</p>
