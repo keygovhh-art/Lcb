@@ -176,6 +176,7 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
   const qc = useQueryClient();
   const [tab, setTab] = useState<"received" | "promised" | "goal" | "note" | "followup">("received");
   const [received, setReceived] = useState({ amount: "", note: "" });
+  const [financeRequestId, setFinanceRequestId] = useState(() => crypto.randomUUID());
   const [promised, setPromised] = useState({ amount: "", from: "" });
   const [goal, setGoal] = useState(String(c.goalAmount || ""));
   const [note, setNote] = useState("");
@@ -185,8 +186,8 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
 
   const save = () => {
     let body: Record<string, unknown> = { action: tab };
-    if (tab === "received") body = { action: "funds_received", amount: Number(received.amount), note: received.note };
-    else if (tab === "promised") body = { action: "funds_promised", amount: Number(promised.amount), from: promised.from };
+    if (tab === "received") body = { action: "funds_received", amount: Number(received.amount), note: received.note, requestId: financeRequestId };
+    else if (tab === "promised") body = { action: "funds_promised", amount: Number(promised.amount), from: promised.from, requestId: financeRequestId };
     else if (tab === "goal") body = { action: "goal", goal: Number(goal) };
     else if (tab === "note") body = { action: "note", note };
     else if (tab === "followup") body = { action: "followup", note: followup.note, dueDate: followup.dueDate || undefined };
@@ -201,6 +202,7 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
           void onUpdated();
           setOpen(false);
           setReceived({ amount: "", note: "" });
+          setFinanceRequestId(crypto.randomUUID());
           setPromised({ amount: "", from: "" });
           setGoal(String(c.goalAmount || ""));
           setNote("");
