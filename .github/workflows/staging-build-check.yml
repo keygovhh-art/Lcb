@@ -44,6 +44,8 @@ jobs:
         run: node --test tests/communications-max-unified.test.mjs
       - name: Verify advanced MAX pledge, donor, consent and second-brain contracts
         run: node --test tests/max-ledger-donor360.test.mjs
+      - name: Verify MAX release safety regressions
+        run: node --test tests/max-release-integrity.test.mjs
       - name: Verify independent weekday selections for each minyan
         run: node --experimental-strip-types --test tests/minyan-weekdays.test.mjs
       - name: Verify group moderation, founder rights and report-target confidentiality
