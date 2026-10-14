@@ -9,6 +9,10 @@ export const communicationContacts = pgTable("communication_contacts", {
   phone: text("phone").notNull().default(""),
   email: text("email").notNull().default(""),
   notes: text("notes").notNull().default(""),
+  organization: text("organization").notNull().default(""),
+  city: text("city").notNull().default(""),
+  tags: text("tags").notNull().default(""),
+
   doNotCall: boolean("do_not_call").notNull().default(false),
   preferredTimezone: text("preferred_timezone").notNull().default("America/New_York"),
   preferredHours: text("preferred_hours").notNull().default(""),
