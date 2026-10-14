@@ -15,10 +15,17 @@ export const groupAdminCapabilities = [
   "pinPosts","lockReplies","moderateReplies","deleteOthersReplies",
   "viewGroupReports","resolveGroupReports",
 ] as const;
+export const groupMemberCapabilities = [
+  "joinGroup","upvotePosts","reportPosts","editOwnPosts",
+  "deleteOwnPosts","deleteOwnReplies",
+] as const;
+export type MemberGroupCapability=typeof groupMemberCapabilities[number];
 export type PublicGroupSetting=typeof groupPublicSettings[number];
 export type AdminGroupCapability=typeof groupAdminCapabilities[number];
-export type GroupFeatureKey=PublicGroupSetting|AdminGroupCapability;
-export const groupFeatureKeys: readonly GroupFeatureKey[]=[...groupPublicSettings,...groupAdminCapabilities];
+export type GroupFeatureKey=PublicGroupSetting|AdminGroupCapability|MemberGroupCapability;
+export const groupFeatureKeys: readonly GroupFeatureKey[]=[
+  ...groupPublicSettings,...groupMemberCapabilities,...groupAdminCapabilities,
+];
 type WithOverrides={platformFeatureOverrides?:Record<string,boolean>|null};
 
 export function effectiveGroupSetting<T extends WithOverrides & Record<PublicGroupSetting,boolean>>(group:T,key:PublicGroupSetting) {
@@ -26,6 +33,9 @@ export function effectiveGroupSetting<T extends WithOverrides & Record<PublicGro
   return typeof override==="boolean" ? override : group[key];
 }
 export function groupAdminCan(group:WithOverrides,isPlatformStaff:boolean,capability:AdminGroupCapability) {
+  return isPlatformStaff || group.platformFeatureOverrides?.[capability]!==false;
+}
+export function groupMemberCan(group:WithOverrides,isPlatformStaff:boolean,capability:MemberGroupCapability) {
   return isPlatformStaff || group.platformFeatureOverrides?.[capability]!==false;
 }
 export function groupSettingLocked(group:WithOverrides,key:PublicGroupSetting) {
