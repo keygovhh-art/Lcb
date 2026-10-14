@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, featuredCauseSupportersTable, projectMembersTable } from "@workspace/db";
-import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes, fundraisingCallReports, maxProgressEvents, maxPledges, maxReceipts, maxFollowupContacts } from "@workspace/db/schema";
+import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes, fundraisingCallReports, maxProgressEvents, maxPledges, maxReceipts, maxFollowupContacts, maxHistoryEvents } from "@workspace/db/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
 import { isRepeatRule, nextRepeatDate, validCalendarDate } from "../lib/followup-recurrence";
@@ -205,9 +205,19 @@ router.patch("/askanus/cases/:id", requireAuth, async (req, res) => {
     updates.goalAmount = String(Number(goalAmount));
   }
   if (notes !== undefined) updates.notes = String(notes ?? "").trim().slice(0, 5000);
-  await db.update(askanuscases).set(updates).where(
-    and(eq(askanuscases.id, id), eq(askanuscases.userId, userId))
-  );
+  await db.transaction(async tx=>{
+    await tx.update(askanuscases).set(updates).where(
+      and(eq(askanuscases.id, id),eq(askanuscases.userId,userId))
+    );
+    if(status!==undefined){
+      await tx.insert(maxHistoryEvents).values({
+        userId,caseId:id,entityType:"case",entityId:id,
+        action:status==="closed"?"case_completed":status==="open"?"case_reopened":"case_status_changed",
+        title:"פראיעקט־מצב: "+String(status),
+        details:JSON.stringify({status,urgency:urgency??null,notes:notes??null}),
+      });
+    }
+  });
   const full = await getCaseWithDetails(id, userId);
   res.json(full);
 });
@@ -374,6 +384,12 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
     });
   } else if (action === "status" && status) {
     caseUpdates.status = status;
+    await db.insert(maxHistoryEvents).values({
+      userId,caseId:id,entityType:"case",entityId:id,
+      action:status==="closed"?"case_completed":status==="open"?"case_reopened":"case_status_changed",
+      title:existing.title,
+      details:JSON.stringify({status,previousStatus:existing.status}),
+    });
     await db.insert(caseActivityLog).values({
       caseId: id, date: today, type: "status_change",
       note: `Status changed to ${status.replace("_", " ")}`,
@@ -407,6 +423,15 @@ router.patch("/askanus/followups/:id/toggle", requireAuth, async(req,res)=>{
       .where(and(eq(caseFollowups.id,id),eq(caseFollowups.completed,existing.completed)))
       .returning();
     if(!updated)return {kind:"conflict" as const};
+    await tx.insert(maxHistoryEvents).values({
+      userId,caseId:existing.caseId,entityType:"followup",entityId:id,
+      action:desired?"followup_completed":"followup_reopened",
+      title:existing.note.slice(0,240),
+      details:JSON.stringify({note:existing.note,dueDate:existing.dueDate,
+        dueTime:existing.dueTime,timeZone:existing.timeZone,
+        repeatRule:existing.repeatRule,previousCompleted:existing.completed,
+        completed:desired}),
+    });
     if(desired && isRepeatRule(existing.repeatRule) && existing.repeatRule!=="none" && existing.dueDate){
       const nextDate=nextRepeatDate(existing.dueDate,existing.repeatRule,existing.repeatAnchorDay);
       if(nextDate){
@@ -419,6 +444,12 @@ router.patch("/askanus/followups/:id/toggle", requireAuth, async(req,res)=>{
           generatedFromId:id,
         }).onConflictDoNothing().returning();
         if(next){
+          await tx.insert(maxHistoryEvents).values({
+            userId,caseId:existing.caseId,entityType:"followup",entityId:next.id,
+            action:"followup_recurring_generated",title:next.note.slice(0,240),
+            details:JSON.stringify({dueDate:next.dueDate,dueTime:next.dueTime,
+              generatedFromId:existing.id,repeatRule:next.repeatRule}),
+          });
           // Donor 360 and My Askanus always see the same new follow-up.
           const [contact]=await tx.select().from(maxFollowupContacts)
             .where(and(eq(maxFollowupContacts.followupId,id),eq(maxFollowupContacts.userId,userId)));
@@ -499,6 +530,12 @@ router.patch("/askanus/followups/:id", requireAuth, async (req, res) => {
     )`,
   )).returning();
   if (!updated) { res.status(404).json({ error: "Follow-up not found" }); return; }
+  await db.insert(maxHistoryEvents).values({
+    userId,caseId:updated.caseId,entityType:"followup",entityId:id,
+    action:"followup_edited",title:updated.note.slice(0,240),
+    details:JSON.stringify({note:updated.note,dueDate:updated.dueDate,
+      dueTime:updated.dueTime,timeZone:updated.timeZone,repeatRule:updated.repeatRule}),
+  });
   res.setHeader("Cache-Control", "private, no-store");
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
@@ -596,14 +633,31 @@ router.patch("/askanus/tasks/:id", requireAuth, async (req, res) => {
     and(eq(askanustasks.id, id), eq(askanustasks.userId, getSessionUserId(req)!))
   ).returning();
   if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+  await db.insert(maxHistoryEvents).values({
+    userId:getSessionUserId(req)!,caseId:null,entityType:"task",entityId:id,
+    action:completed===true?"task_completed":completed===false?"task_reopened":"task_edited",
+    title:updated.title,details:JSON.stringify({title:updated.title,
+      caseTitle:updated.caseTitle,deadline:updated.deadline,
+      completed:updated.completed,priority:updated.priority,notes:updated.notes}),
+  });
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
 router.delete("/askanus/tasks/:id", requireAuth, async (req, res) => {
-  await db.delete(askanustasks).where(
-    and(eq(askanustasks.id, Number(req.params.id)), eq(askanustasks.userId, getSessionUserId(req)!))
-  );
-  res.json({ ok: true });
+  const userId=getSessionUserId(req)!,id=Number(req.params.id);
+  if(!Number.isSafeInteger(id)||id<=0){res.status(400).json({error:"Invalid task ID"});return;}
+  const removed=await db.transaction(async tx=>{
+    const [row]=await tx.delete(askanustasks).where(and(
+      eq(askanustasks.id,id),eq(askanustasks.userId,userId))).returning();
+    if(row)await tx.insert(maxHistoryEvents).values({
+      userId,caseId:null,entityType:"task",entityId:id,action:"task_explicitly_deleted",
+      title:row.title,
+      details:JSON.stringify({title:row.title,completed:row.completed,notes:row.notes}),
+    });
+    return row;
+  });
+  if(!removed){res.status(404).json({error:"Task not found"});return;}
+  res.json({ok:true});
 });
 
 // --- Notes ---
