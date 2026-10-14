@@ -9,6 +9,8 @@ on:
       - 'artifacts/gavhah/src/components/communications/donor-360.tsx'
       - 'artifacts/gavhah/src/components/communications/max-call-desk.tsx'
       - 'artifacts/api-server/src/routes/communications-consent.ts'
+      - 'artifacts/api-server/src/routes/communications-reminders.ts'
+      - 'artifacts/gavhah/src/components/communications/max-reminder-inbox.tsx'
   workflow_dispatch:
 jobs:
   mobile-acceptance:
