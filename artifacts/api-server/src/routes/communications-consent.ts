@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { and, desc, eq } from "drizzle-orm";
-import { communicationContacts, maxContactConsents } from "@workspace/db/schema";
+import { communicationContacts, maxContactConsents, maxHistoryEvents } from "@workspace/db/schema";
 import { getSessionUserId, requireAuth } from "../middlewares/auth";
 
 const router=Router();
@@ -73,6 +73,16 @@ const changePermission=async(req:any,res:any)=>{
       eq(communicationContacts.doNotCall,true),
     )).returning();
     if(!updated)throw Error("CONTACT_STATUS_CHANGED");
+    await tx.insert(maxHistoryEvents).values({
+      userId,caseId:null,entityType:"contact",entityId:contactId,
+      action:action==="owner_override"?"contact_owner_override":"contact_direct_reconsent",
+      title:contact.name,
+      details:JSON.stringify({action,method,evidence,
+        priorOptOutReason:contact.optOutReason,permissionEventId:event.id,
+        note:action==="owner_override"
+          ?"This was an operator choice, not the donor's permission"
+          :"Donor permission reported, not independently verified"}),
+    });
     return {kind:"created" as const,event,contact:updated};
   });
   if(result.kind==="missing"){res.status(404).json({error:"Contact not found"});return;}
