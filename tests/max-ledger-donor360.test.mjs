@@ -53,5 +53,5 @@ test("Source-grounded personal overview cannot query another member's cases",()=
  assert.ok(api.includes('eq(askanuscases.userId,userId)'));
  assert.ok(api.includes('eq(askanustasks.userId,userId)'));
  assert.ok(api.includes('inArray(caseFollowups.caseId,caseIds)'));
- assert.ok(api.includes('Manually'));
+ assert.ok(api.includes('manuallyReportedReceivedTotal'));
 });
