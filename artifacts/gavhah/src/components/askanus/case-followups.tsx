@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useToggleCaseFollowup, getListAskanuscasesQueryKey } from "@workspace/api-client-react";
+import { getListAskanuscasesQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,9 @@ export type CaseFollowupEntry = {
   dueDate?: string | null;
   dueTime?: string | null;
   timeZone?: string | null;
+  repeatRule?: string;
+  repeatAnchorDay?: number | null;
+  generatedFromId?: number | null;
   completed: boolean;
   createdAt: string;
 };
@@ -28,7 +31,6 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
   onUpdated: () => void;
 }) {
   const qc = useQueryClient();
-  const toggle = useToggleCaseFollowup();
   const { toast } = useToast();
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -37,6 +39,7 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
   const [editNote, setEditNote] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [editDueTime, setEditDueTime] = useState("");
+  const [editRepeatRule,setEditRepeatRule] = useState("none");
   const [savingId, setSavingId] = useState<number | null>(null);
   const { open, history } = partitionCaseFollowups(followups);
   const busy = togglingId !== null || deletingId !== null || savingId !== null;
@@ -51,20 +54,28 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
     );
   };
 
-  const toggleFollowup = (item: CaseFollowupEntry) => {
-    if (busy) return;
+  const toggleFollowup = async (item: CaseFollowupEntry) => {
+    if(busy)return;
     setTogglingId(item.id);
-    toggle.mutate({ id: item.id }, {
-      onSuccess: (updated) => {
-        updateStoredCase(items => updateCaseFollowupCompletion(items, item.id, updated.completed));
-        void onUpdated();
-        toast({
-          title: updated.completed ? "דער Follow-up איז אריבער אין היסטאריע" : "דער Follow-up איז צוריק אפן",
-        });
-      },
-      onError: () => toast({ title: "דער Follow-up האט זיך נישט געקענט אפדעיטן", variant: "destructive" }),
-      onSettled: () => setTogglingId(null),
-    });
+    try{
+      const response=await fetch("/api/askanus/followups/"+item.id+"/toggle",{
+        method:"PATCH",credentials:"include",cache:"no-store",
+        headers:{"Content-Type":"application/json"},
+        // An explicitly desired state is retry-safe, unlike a blind toggle.
+        body:JSON.stringify({completed:!item.completed}),
+      });
+      if(!response.ok)throw Error("Could not update follow-up");
+      const updated:CaseFollowupEntry=await response.json();
+      updateStoredCase(items=>updateCaseFollowupCompletion(items,item.id,updated.completed));
+      await onUpdated();
+      toast({title:updated.completed
+        ?(item.repeatRule&&item.repeatRule!=="none"
+          ?"דער נאכפאלג איז פארטיג. דער קומענדיגער איז שוין צוגעשטעלט."
+          :"דער נאכפאלג איז אריבער אין היסטאריע")
+        :"דער נאכפאלג איז צוריק אפן"});
+    }catch{
+      toast({title:"נישט געלונגען צו דערהיינטיגן דעם נאכפאלג",variant:"destructive"});
+    }finally{setTogglingId(null);}
   };
 
   const deleteFollowup = async (item: CaseFollowupEntry) => {
@@ -98,6 +109,7 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
     setEditNote(item.note);
     setEditDueDate(item.dueDate || "");
     setEditDueTime(item.dueTime || "");
+    setEditRepeatRule(item.repeatRule||"none");
   };
 
   const saveEdit = async (item: CaseFollowupEntry) => {
@@ -108,7 +120,8 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
         method: "PATCH", credentials: "include", cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ note: editNote.trim(), dueDate: editDueDate || null, dueTime:editDueDate?(editDueTime||null):null,
-          timeZone:editDueTime?(item.timeZone||Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):null }),
+          timeZone:editDueTime?(item.timeZone||Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):null,
+          repeatRule:editRepeatRule }),
       });
       if (!response.ok) throw new Error("Could not edit follow-up");
       const updated: CaseFollowupEntry = await response.json();
@@ -141,6 +154,14 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
                 onChange={e => setEditDueDate(e.target.value)} />
               <Input aria-label="באשטימטע שעה" type="time" value={editDueTime}
                 disabled={!editDueDate} onChange={e=>setEditDueTime(e.target.value)} />
+              <label className="text-xs block">ווידערהאלן דעם נאכפאלג</label>
+              <select aria-label="ווידערהאלן נאכפאלג" className="w-full min-h-11 rounded-md border bg-background px-2"
+                value={editRepeatRule} onChange={e=>setEditRepeatRule(e.target.value)} disabled={!editDueDate}>
+                <option value="none">איינמאליג</option>
+                <option value="daily">יעדן טאג</option>
+                <option value="weekly">יעדע וואך</option>
+                <option value="monthly">יעדן חודש</option>
+              </select>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" disabled={busy || !editNote.trim()} onClick={() => void saveEdit(item)}>
                   <Save className="h-3.5 w-3.5 ml-1" /> אפהיטן
@@ -157,6 +178,7 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
             {isHistory && <span className="font-semibold text-green-700">פארטיג</span>}
             <span>אויפגעשריבן: <span dir="ltr">{item.date}</span></span>
             {item.dueDate && <span>· באשטימט: <span dir="ltr">{item.dueDate}{item.dueTime?" "+item.dueTime:""}</span></span>}
+            {item.repeatRule&&item.repeatRule!=="none"&&<span>· איבערחזרנדיג: {item.repeatRule==="daily"?"טעגליך":item.repeatRule==="weekly"?"וואכעדיג":"חודש׳ליך"}</span>}
           </p>
         </div>
       </div>
