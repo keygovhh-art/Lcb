@@ -86,6 +86,18 @@ try{
   assert.ok(exportText.includes('"true"'));
   const unauthorizedCsv=await fetch(base+"/askanus/contacts/export.csv",{headers:{Cookie:b}});
   assert.ok(!(await unauthorizedCsv.text()).includes("QA, Imported Contact"));
+  // The export format must round-trip a historical name-only contact.
+  const nameOnlyCsv="name,phone,email,notes,do_not_call\r\n"
+    +'"QA Name-only Import","","","No telephone yet",false\r\n';
+  r=await req(a,"/askanus/contacts/import-preview","POST",{csv:nameOnlyCsv});
+  status(r,200,"Name-only CSV preview");
+  assert.equal(r.data.ready,1);
+  r=await req(a,"/askanus/contacts/import","POST",{csv:nameOnlyCsv,confirm:true});
+  status(r,201,"Name-only contact import");
+  assert.equal(r.data.imported,1);
+  r=await req(a,"/askanus/contacts/import","POST",{csv:nameOnlyCsv,confirm:true});
+  status(r,201,"Name-only import duplicate detection");
+  assert.equal(r.data.imported,0);
   r=await req(a,"/askanus/contacts/import-preview","POST",{csv:'name,phone\r\n"Unclosed,8455550101'});
   status(r,400,"Reject invalid quote CSV");
 
