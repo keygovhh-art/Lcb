@@ -9,6 +9,11 @@ const router = Router();
 const moneyKinds = new Set(["none", "received", "pledged"]);
 const outcomes = new Set(["spoke", "no_answer", "callback", "not_interested", "do_not_call", "other"]);
 const clean = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
+const cleanTags = (value: unknown) => {
+  const original=clean(value,600);
+  return [...new Set(original.split(/[,;]+/).map(t=>t.trim()).filter(Boolean))]
+    .slice(0,20).map(t=>t.slice(0,40)).join(", ").slice(0,400);
+};
 const isoDate = validCalendarDate;
 const safeId = (v: unknown) => Number.isSafeInteger(Number(v)) && Number(v) > 0;
 const formatContact = (c: typeof communicationContacts.$inferSelect) => ({
@@ -37,6 +42,10 @@ router.get("/askanus/contacts", requireAuth, async (req, res) => {
     ilike(communicationContacts.name,"%"+escapedTerm+"%"),
     ilike(communicationContacts.phone,"%"+escapedTerm+"%"),
     ilike(communicationContacts.email,"%"+escapedTerm+"%"),
+    ilike(communicationContacts.organization,"%"+escapedTerm+"%"),
+    ilike(communicationContacts.city,"%"+escapedTerm+"%"),
+    ilike(communicationContacts.tags,"%"+escapedTerm+"%"),
+
   ) : undefined;
   const contacts = await db.select().from(communicationContacts)
     .where(search?and(owner,search):owner)
@@ -51,6 +60,9 @@ router.post("/askanus/contacts", requireAuth, async (req, res) => {
   const [created] = await db.insert(communicationContacts).values({
     userId, name, phone: clean(req.body?.phone, 80),
     email: clean(req.body?.email, 240), notes: clean(req.body?.notes, 4000),
+    organization:clean(req.body?.organization,200),
+    city:clean(req.body?.city,120),tags:cleanTags(req.body?.tags),
+
     preferredTimezone: clean(req.body?.preferredTimezone || "America/New_York", 80),
   }).returning();
   res.status(201).json(formatContact(created));
@@ -79,6 +91,9 @@ router.patch("/askanus/contacts/:id", requireAuth, async (req, res) => {
     updates.doNotCall = req.body.doNotCall;
     updates.optOutReason = clean(req.body?.optOutReason,500);
   }
+  if(req.body?.organization!==undefined)updates.organization=clean(req.body.organization,200);
+  if(req.body?.city!==undefined)updates.city=clean(req.body.city,120);
+  if(req.body?.tags!==undefined)updates.tags=cleanTags(req.body.tags);
   if (req.body?.preferredHours !== undefined) updates.preferredHours = clean(req.body.preferredHours,240);
   if (req.body?.contactRole !== undefined) updates.contactRole = clean(req.body.contactRole,64);
   if (req.body?.relationshipNotes !== undefined) updates.relationshipNotes = clean(req.body.relationshipNotes,1500);
