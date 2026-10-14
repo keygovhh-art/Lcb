@@ -4,7 +4,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { getSessionUserId, requireAuth } from "../middlewares/auth";
 import {
   askanuscases, caseActivityLog, caseFollowups, communicationContacts,
-  fundraisingCallReports, maxPledges, maxReceipts, maxFollowupContacts,
+  fundraisingCallReports, maxPledges, maxReceipts, maxReceiptRefunds, maxFollowupContacts,
 } from "@workspace/db/schema";
 
 const router=Router();
@@ -23,7 +23,7 @@ const shapePledge=(x:typeof maxPledges.$inferSelect)=>({
   createdAt:x.createdAt.toISOString(),updatedAt:x.updatedAt.toISOString(),
 });
 const shapeReceipt=(x:typeof maxReceipts.$inferSelect)=>({
-  ...x,amount:Number(x.amount),createdAt:x.createdAt.toISOString(),
+  ...x,amount:Number(x.amount),refundedAmount:Number(x.refundedAmount),createdAt:x.createdAt.toISOString(),
 });
 
 router.get("/askanus/finance/overview",requireAuth,async(req,res)=>{
@@ -168,4 +168,86 @@ router.post("/askanus/pledges/:id/settlements",requireAuth,async(req,res)=>{
     throw e;
   }
 });
+/**
+ * Post an immutable accounting reversal/refund event against one saved receipt.
+ * This does NOT charge/refund a payment card. A real processor must be handled
+ * separately with a matching, externally verified transaction.
+ */
+router.post("/askanus/receipts/:id/refunds",requireAuth,async(req,res)=>{
+  const userId=getSessionUserId(req)!;
+  const receiptId=Number(req.params.id);
+  const amount=Number(req.body?.amount);
+  const requestId=clean(req.body?.requestId,128);
+  const reason=clean(req.body?.reason,500);
+  if(!idOk(receiptId)||!centsOk(amount)||requestId.length<12||!reason){
+    res.status(400).json({error:"Invalid refund/reversal details"});return;
+  }
+  const [owned]=await db.select().from(maxReceipts).where(and(
+    eq(maxReceipts.id,receiptId),eq(maxReceipts.userId,userId)));
+  if(!owned){res.status(404).json({error:"Receipt not found"});return;}
+  try{
+    const result=await db.transaction(async tx=>{
+      // Unique per-owner idempotency key is inserted first; a repeat never moves money twice.
+      const [event]=await tx.insert(maxReceiptRefunds).values({
+        userId,receiptId,caseId:owned.caseId,amount:String(amount),reason,requestId,
+      }).onConflictDoNothing().returning();
+      if(!event){
+        const [prior]=await tx.select().from(maxReceiptRefunds).where(and(
+          eq(maxReceiptRefunds.userId,userId),eq(maxReceiptRefunds.requestId,requestId)));
+        if(!prior||prior.receiptId!==receiptId||Number(prior.amount)!==amount||prior.reason!==reason)
+          return {kind:"conflict" as const};
+        return {kind:"duplicate" as const,event:prior};
+      }
+      // Atomic cap under concurrent refund requests, including partial refunds.
+      const [receipt]=await tx.update(maxReceipts).set({
+        refundedAmount:sql`${maxReceipts.refundedAmount} + ${String(amount)}`,
+      }).where(and(
+        eq(maxReceipts.id,receiptId),eq(maxReceipts.userId,userId),
+        sql`${maxReceipts.refundedAmount} + ${String(amount)} <= ${maxReceipts.amount}`,
+      )).returning();
+      if(!receipt)throw new Error("REFUND_EXCEEDS_RECEIPT");
+      const [caseAfter]=await tx.update(askanuscases).set({
+        fundsReceived:sql`${askanuscases.fundsReceived} - ${String(amount)}`,
+        ...(receipt.pledgeId!=null
+          ? {fundsPromised:sql`${askanuscases.fundsPromised} + ${String(amount)}`} : {}),
+        lastUpdated:new Date(),
+      }).where(and(
+        eq(askanuscases.id,receipt.caseId),eq(askanuscases.userId,userId),
+        sql`${askanuscases.fundsReceived} >= ${String(amount)}`,
+      )).returning();
+      if(!caseAfter)throw new Error("CASE_BALANCE_CONFLICT");
+      if(receipt.pledgeId!=null){
+        const [p]=await tx.update(maxPledges).set({
+          paidAmount:sql`${maxPledges.paidAmount} - ${String(amount)}`,
+          status:"open",updatedAt:new Date(),
+        }).where(and(
+          eq(maxPledges.id,receipt.pledgeId),eq(maxPledges.userId,userId),
+          sql`${maxPledges.paidAmount} >= ${String(amount)}`,
+        )).returning();
+        if(!p)throw new Error("PLEDGE_BALANCE_CONFLICT");
+      }
+      await tx.insert(caseActivityLog).values({
+        caseId:receipt.caseId,date:new Date().toISOString().slice(0,10),
+        type:"note",amount:String(-amount),
+        note:`Accounting reversal: ${amount.toFixed(2)} against receipt #${receiptId} — ${reason}`.slice(0,1500),
+      });
+      return {kind:"created" as const,event};
+    });
+    if(result.kind==="conflict"){
+      res.status(409).json({error:"This request ID belongs to another adjustment"});return;
+    }
+    res.status(result.kind==="duplicate"?200:201).json({
+      duplicate:result.kind==="duplicate",
+      event:{...result.event,amount:Number(result.event.amount),
+        createdAt:result.event.createdAt.toISOString()},
+      note:"This records an accounting reversal only; it does not transfer or refund real funds.",
+    });
+  }catch(e){
+    if(e instanceof Error&&["REFUND_EXCEEDS_RECEIPT","CASE_BALANCE_CONFLICT","PLEDGE_BALANCE_CONFLICT"].includes(e.message)){
+      res.status(409).json({error:e.message});return;
+    }
+    throw e;
+  }
+});
+
 export default router;
