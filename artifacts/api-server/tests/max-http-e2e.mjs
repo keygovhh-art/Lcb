@@ -225,6 +225,11 @@ try{
     caseId:projectId,note:"QA invalid recurrence",repeatRule:"weekly",
   });
   status(r,400,"Recurring follow-up requires a due date");
+  r=await req(a,"/askanus/contacts/"+donorId+"/followups","POST",{
+    caseId:projectId,note:"QA impossible day",dueDate:"2027-02-31",repeatRule:"monthly",
+  });
+  status(r,400,"Reject impossible calendar day in donor follow-ups");
+
   r=await req(a,"/askanus/contacts/"+donorId,"PATCH",{doNotCall:true,optOutReason:"QA opt-out"});
   status(r,200,"Set do-not-call");
   r=await req(a,"/askanus/contacts/"+donorId,"PATCH",{doNotCall:false});
