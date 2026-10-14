@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getSessionUserId, requireAuth } from "../middlewares/auth";
+import { isRepeatRule } from "../lib/followup-recurrence";
 import {
   askanuscases, caseActivityLog, caseFollowups, communicationContacts,
   fundraisingCallReports, maxPledges, maxReceipts, maxReceiptRefunds, maxFollowupContacts,
@@ -89,13 +90,15 @@ router.post("/askanus/contacts/:id/followups",requireAuth,async(req,res)=>{
   const dueDate=clean(req.body?.dueDate,10)||null;
   const dueTime=clean(req.body?.dueTime,5)||null;
   const timeZone=clean(req.body?.timeZone,80)||null;
+  const repeatRule=clean(req.body?.repeatRule||"none",20);
   let timeValid=!dueTime;
   if(dueTime){
     try{timeValid=!!dueDate && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(dueTime)&&!!timeZone;
       new Intl.DateTimeFormat("en-US",{timeZone:timeZone||"BAD_INVALID_ZONE"}).format();
     }catch{timeValid=false;}
   }
-  if(!idOk(contactId)||!idOk(caseId)||!note||!datesOk(dueDate)||!timeValid){
+  if(!idOk(contactId)||!idOk(caseId)||!note||!datesOk(dueDate)||!timeValid ||
+     !isRepeatRule(repeatRule)||(repeatRule!=="none"&&!dueDate)){
     res.status(400).json({error:"Invalid follow-up"});return;
   }
   const [ownedCase,ownedContact]=await Promise.all([
@@ -107,7 +110,8 @@ router.post("/askanus/contacts/:id/followups",requireAuth,async(req,res)=>{
   if(!ownedCase.length||!ownedContact.length){res.status(404).json({error:"Not found"});return;}
   const today=new Date().toISOString().slice(0,10);
   const created=await db.transaction(async tx=>{
-    const [f]=await tx.insert(caseFollowups).values({caseId,date:today,note,dueDate,dueTime,timeZone:dueTime?timeZone:null}).returning();
+    const [f]=await tx.insert(caseFollowups).values({caseId,date:today,note,dueDate,dueTime,timeZone:dueTime?timeZone:null,
+       repeatRule,repeatAnchorDay:repeatRule==="monthly"&&dueDate?Number(dueDate.slice(-2)):null}).returning();
     await tx.insert(maxFollowupContacts).values({userId,contactId,followupId:f.id});
     return f;
   });
