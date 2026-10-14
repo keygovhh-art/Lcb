@@ -12,6 +12,8 @@ on:
       - 'artifacts/api-server/src/routes/communications-reminders.ts'
       - 'artifacts/gavhah/src/components/communications/max-reminder-inbox.tsx'
       - 'artifacts/gavhah/src/components/communications/max-performance-panel.tsx'
+      - 'artifacts/gavhah/src/components/communications/max-history-panel.tsx'
+      - 'artifacts/api-server/src/routes/communications-history.ts'
       - 'artifacts/api-server/src/routes/communications-reports.ts'
   workflow_dispatch:
 jobs:
@@ -89,6 +91,7 @@ jobs:
           path: |
             /tmp/gavhah-max-my-mobile.png
             /tmp/gavhah-max-contact-mobile.png
+            /tmp/gavhah-max-history-mobile.png
       - name: Failure diagnostics
         if: failure()
         run: |
