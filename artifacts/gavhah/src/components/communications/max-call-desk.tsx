@@ -16,6 +16,10 @@ type PersonalCase = {
 };
 type Contact = { id:number; name:string; phone:string; email:string; notes:string; doNotCall?:boolean; preferredHours?:string };
 type Call = {id:number; caseId:number; contactName:string; outcome:string; moneyKind:string; amount:number; note:string; createdAt:string};
+type TodaySummary = {
+  summary:{dueOrOverdueFollowups:number;totalOpenFollowups:number;openTasks:number;openPromiseBalance:number};
+  nextTasks:Array<{id:number;title:string;deadline:string;priority:string;caseTitle:string}>;
+};
 
 async function request<T>(url:string, init?:RequestInit):Promise<T> {
   const response = await fetch(url,{credentials:"include",cache:"no-store", ...init});
@@ -41,6 +45,7 @@ export function MaxCallDesk() {
   const [remoteContacts,setRemoteContacts] = useState<Contact[] | null>(null);
   const [selectedContact,setSelectedContact] = useState<Contact | null>(null);
   const [calls,setCalls] = useState<Call[]>([]);
+  const [todaySummary,setTodaySummary] = useState<TodaySummary | null>(null);
   const [caseId,setCaseId] = useState<number | null>(null);
   const [contactId,setContactId] = useState<number | null>(null);
   const [newContact,setNewContact] = useState({name:"",phone:"",email:""});
@@ -67,12 +72,13 @@ export function MaxCallDesk() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c,people,records] = await Promise.all([
+      const [c,people,records,overview] = await Promise.all([
         request<PersonalCase[]>("/api/askanus/cases"),
         request<Contact[]>("/api/askanus/contacts"),
         request<Call[]>("/api/askanus/call-reports"),
+        request<TodaySummary>("/api/askanus/max/today"),
       ]);
-      setCases(c);setContacts(people);setCalls(records);
+      setCases(c);setContacts(people);setCalls(records);setTodaySummary(overview);
       setCaseId(current => current && c.some(item=>item.id===current) ? current : c[0]?.id ?? null);
       setError("");
     } catch (e) { setError(e instanceof Error ? e.message : "נישט געלונגען צו לאָדן"); }
@@ -185,8 +191,8 @@ export function MaxCallDesk() {
     <section id="max-today" className="rounded-xl border bg-card p-4 sm:p-6 space-y-3 scroll-mt-24">
       <h3 className="text-lg font-bold">מיין היינטיגע ארבעט — וואס דארף איך יעצט טון?</h3>
       <div className="grid grid-cols-3 gap-2 text-center text-sm">
-        <div className="rounded-lg bg-muted/40 p-3"><strong className="block text-lg">{dueNow.length}</strong> היינט/פארשפעטיגט</div>
-        <div className="rounded-lg bg-muted/40 p-3"><strong className="block text-lg">{allOpen.length}</strong> אפענע נאכפאלגן</div>
+        <div className="rounded-lg bg-muted/40 p-3"><strong className="block text-lg">{todaySummary?.summary.dueOrOverdueFollowups??dueNow.length}</strong> היינט/פארשפעטיגט</div>
+        <div className="rounded-lg bg-muted/40 p-3"><strong className="block text-lg">{todaySummary?.summary.totalOpenFollowups??allOpen.length}</strong> אפענע נאכפאלגן</div>
         <div className="rounded-lg bg-muted/40 p-3"><strong className="block text-lg">{allReceived.toLocaleString()}</strong> באריכטעט באקומען ($)</div>
       </div>
       {comingUp.length===0?<p className="text-sm text-muted-foreground">נאכנישט קיין אפענע נאכפאלגן.</p>:
@@ -194,6 +200,14 @@ export function MaxCallDesk() {
           <span><strong>{f.project}</strong> · {f.note}</span>
           <span className="text-xs text-muted-foreground">{f.dueDate||"קיין דאטום נישט באשטימט"}</span>
         </div>)}
+      {todaySummary && todaySummary.nextTasks.length>0 &&
+        <div className="space-y-2 border-t pt-3">
+          <h4 className="font-semibold text-sm">מיינע אפענע אויפגאבן ({todaySummary.summary.openTasks})</h4>
+          {todaySummary.nextTasks.slice(0,5).map(t=><div key={t.id} className="rounded-lg border p-3 text-sm">
+            <strong>{t.title}</strong>{t.caseTitle && <span className="text-muted-foreground"> · {t.caseTitle}</span>}
+            {t.deadline && <span className="block text-xs text-muted-foreground">{t.deadline}</span>}
+          </div>)}
+        </div>}
     </section>
     {error && <div role="alert" className="p-3 rounded-lg border border-destructive/40 text-destructive">{error}</div>}
     {message && <div role="status" className="p-3 rounded-lg border border-green-600/30 text-green-800 dark:text-green-300">{message}</div>}
