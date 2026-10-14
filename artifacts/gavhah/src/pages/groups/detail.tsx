@@ -319,7 +319,7 @@ export default function GroupDetail() {
                     <Button variant="outline" className="shrink-0" disabled>
                       <Clock className="h-4 w-4 mr-2" /> Request Pending
                     </Button>
-                  ) : (
+                  ) : group.allowedCapabilities?.joinGroup!==false ? (
                     <MemberGate gate="groups" action="join this group" compact>
                       <Button
                         onClick={handleJoin}
@@ -330,7 +330,7 @@ export default function GroupDetail() {
                         {join.isPending ? "Joining..." : group.privacy === "private" ? "Request to Join" : "Join Group"}
                       </Button>
                     </MemberGate>
-                  )}
+                  ) : <p className="text-xs text-muted-foreground">גבהה האט צייטווייליג פארשפארט דעם זיך אנשליסן.</p>}
                   </div>
                 </div>
                 <p className="text-foreground mt-4 leading-relaxed">{group.description}</p>
@@ -471,7 +471,7 @@ export default function GroupDetail() {
                       <p className="text-foreground leading-relaxed whitespace-pre-wrap">{post.content}</p>
                     )}
                     <div className="flex items-center gap-4 mt-4 pt-4 border-t text-sm text-muted-foreground">
-                      {post.moderationStatus==="approved"&&<UpvoteButton
+                      {post.moderationStatus==="approved"&&group.allowedCapabilities?.upvotePosts!==false&&<UpvoteButton
                         active={postUpvotes.isLiked(post.id)}
                         count={post.likes}
                         onClick={() => void handlePostLike(post.id)}
@@ -506,7 +506,7 @@ export default function GroupDetail() {
                           {member.status === "pending" ? "Membership request pending" : `${member.role} · Joined ${format(new Date(member.joinedAt), "MMM yyyy")}`}
                         </div>
                       </div>
-                      {canManageGroup && member.status === "pending" && (
+                      {canGroupAction("approveMembers") && member.status === "pending" && (
                         <div className="flex gap-2 shrink-0">
                           <Button size="sm" className="bg-secondary hover:bg-secondary/90 text-white" onClick={() => void reviewMembership(member.id, "approved")}>
                             Approve

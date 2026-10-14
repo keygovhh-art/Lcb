@@ -8,7 +8,7 @@ import { publicPostForViewer } from "../lib/public-posting-identity";
 import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 import { logActivity } from "../lib/activity";
 import { platformGroupGrant, isPlatformSuperAdmin, auditGroupAction } from "../lib/group-staff-access";
-import { effectiveGroupSetting, groupPublicSettings, groupAdminCan, groupMemberCan, groupSettingLocked } from "../lib/group-feature-controls";
+import { effectiveGroupSetting, groupPublicSettings, groupMemberCapabilities, groupAdminCan, groupMemberCan, groupSettingLocked } from "../lib/group-feature-controls";
 import { notifyUser, notifyStaff, queueStaffReview } from "../lib/notify";
 
 const router: IRouter = Router();
@@ -114,9 +114,11 @@ router.get("/groups/:id", async (req, res): Promise<void> => {
   ].map(key=>[key,manager && groupAdminCan(group,!!allowStaff?.superAdmin,
     key as Parameters<typeof groupAdminCan>[2])]));
   res.setHeader("Cache-Control","private, no-store");
+  const memberCapabilities=Object.fromEntries(groupMemberCapabilities.map(
+    key=>[key,groupMemberCan(group,!!allowStaff?.superAdmin,key)]));
   res.json({...safe,...effective,
     lockedSettings:manager?groupPublicSettings.filter(k=>groupSettingLocked(group,k)):[],
-    allowedCapabilities:manager?allowedCapabilities:{},
+    allowedCapabilities:{...memberCapabilities,...(manager?allowedCapabilities:{})},
     platformAccess:allowStaff?.canViewPrivate??false,
     platformCanModerate:allowStaff?.canModerate??false,
   });
@@ -404,7 +406,7 @@ router.patch("/groups/:id/members/:memberId",requireAuth,async(req,res):Promise<
     eq(groupMembersTable.groupId,groupId),eq(groupMembersTable.userId,actor),
   )).limit(1);
   const actorGroupAdmin=actorMember[0]?.role==="admin";
-  const targetAdmin=target.role==="admin";
+  const targetAdmin=["admin","moderator"].includes(target.role);
   const role=req.body?.role;
   const status=req.body?.status;
   if(role===undefined&&status===undefined){res.status(400).json({error:"Choose a role or membership status"});return;}

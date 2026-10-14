@@ -152,7 +152,7 @@ export function GroupPostExtras({group,post,manager,canReply,onChanged}:{
         onClick={()=>setRepliesOpen(old=>!old)} className="gap-1">
         <MessageCircle className="h-4 w-4"/> רעפלייען {repliesOpen?"פארמאכן":"עפענען"}
       </Button>}
-      {isAuthenticated&&post.moderationStatus==="approved"&&<Button size="sm" variant="ghost"
+      {isAuthenticated&&group.allowedCapabilities?.reportPosts!==false&&post.moderationStatus==="approved"&&<Button size="sm" variant="ghost"
         onClick={()=>setReportOpen(old=>!old)} className="gap-1"><Flag className="h-4 w-4"/> רעפארטן</Button>}
       {may("pinPosts")&&<Button size="sm" variant="outline" disabled={busy}
         onClick={()=>void postOption("isPinned",!post.isPinned)} className="gap-1">
