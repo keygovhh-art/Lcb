@@ -415,6 +415,17 @@ try{
   status(r,200,"Retry task completion");
   assert.equal(r.data.completedAt,completedTaskAt,"Retry changed historical done time");
 
+  r=await req(a,"/askanus/max/history?kind=contacts&q=QA%20Donor","GET");
+  status(r,200,"Owner may find even active contacts in permanent history");
+  assert.ok(r.data.items.some(x=>x.entityId===donorId));
+  r=await req(a,"/askanus/max/history?kind=events&q=QA%20Donor","GET");
+  status(r,200,"Audit contact creation and edits");
+  assert.ok(r.data.items.some(x=>x.action==="contact_created"));
+  assert.ok(r.data.items.some(x=>x.action==="contact_updated"));
+  assert.ok(r.data.items.some(x=>x.action==="contact_owner_override"));
+  r=await req(b,"/askanus/max/history?kind=contacts&q=QA%20Donor","GET");
+  status(r,200,"Other member cannot see contact history");
+  assert.ok(!r.data.items.some(x=>x.entityId===donorId));
   r=await req(a,"/askanus/max/history?limit=100","GET");
   status(r,200,"Load permanent private full history");
   const hist=r.data.items;
