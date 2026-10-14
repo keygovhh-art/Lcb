@@ -50,6 +50,9 @@ export function MaxCallDesk() {
   const [contactId,setContactId] = useState<number | null>(null);
   const [newContact,setNewContact] = useState({name:"",phone:"",email:""});
   const [contactSearch,setContactSearch] = useState("");
+  const [importCsv,setImportCsv] = useState("");
+  const [importFilename,setImportFilename] = useState("");
+  const [importPreview,setImportPreview] = useState<{total:number;ready:number;duplicates:number;preview:Array<{line:number;name:string;phone:string;email:string;doNotCall:boolean}>}|null>(null);
   const [name,setName] = useState("");
   const [outcome,setOutcome] = useState("spoke");
   const [moneyKind,setMoneyKind] = useState("none");
@@ -129,6 +132,28 @@ export function MaxCallDesk() {
       setNewContact({name:"",phone:"",email:""});
       setMessage("דער קאנטאקט איז אפגעהיטן אין דיין פריוואטן קשרים־בוך.");
     } catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
+    finally{setBusy(false);}
+  };
+  const previewCsv=async()=>{
+    setBusy(true);setError("");setMessage("");
+    try{
+      const preview=await request<{total:number;ready:number;duplicates:number;preview:Array<{line:number;name:string;phone:string;email:string;doNotCall:boolean}>}>(
+        "/api/askanus/contacts/import-preview",json({csv:importCsv}));
+      setImportPreview(preview);
+    }catch(e){setImportPreview(null);setError(e instanceof Error?e.message:"קשרים־ליסטע איז נישט גוט");}
+    finally{setBusy(false);}
+  };
+  const confirmCsv=async()=>{
+    if(!importPreview||!importPreview.ready)return;
+    if(!window.confirm("צולייגן "+importPreview.ready+" נייע קשרים אין דיין פריוואטן קשרים־בוך?"))return;
+    setBusy(true);setError("");setMessage("");
+    try{
+      const saved=await request<{total:number;imported:number;skipped:number}>(
+        "/api/askanus/contacts/import",json({csv:importCsv,confirm:true}));
+      setMessage(saved.imported+" קשרים אריינגעברענגט; "+saved.skipped+" שוין פאראן אדער איבערגעחזרט.");
+      setImportCsv("");setImportPreview(null);setImportFilename("");
+      await load();
+    }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען אריינצוברענגען די קשרים");}
     finally{setBusy(false);}
   };
   const saveCall=async(e:React.FormEvent)=>{
@@ -258,6 +283,33 @@ export function MaxCallDesk() {
           <Input aria-label="אימעיל" placeholder="אימעיל (אפציאנעל)" value={newContact.email} onChange={e=>setNewContact(s=>({...s,email:e.target.value}))}/>
           <Button type="submit" variant="outline" disabled={busy || !newContact.name.trim()}><Plus className="h-4 w-4 ml-1"/> צולייגן</Button>
         </form>
+        <section className="border rounded-lg p-3 space-y-3" aria-label="קשרים אריינברענגען און ארויסנעמען">
+          <h4 className="font-semibold text-sm">קשרים אריינברענגען אדער ארויסנעמען</h4>
+          <p className="text-xs text-muted-foreground">CSV־פייל מיט די שפאלטן name, phone, email, notes, do_not_call. קודם איבערקוקן; קיין אלטע קשרים ווערן נישט איבערגעשריבן. די פריוואטע ליסטע ווערט נאר געוויזן פאר דיין אקאונט.</p>
+          <a href="/api/askanus/contacts/export.csv" download="gavhah-private-contacts.csv"
+            className="inline-flex min-h-10 px-3 items-center border rounded-lg text-sm font-semibold">מיינע קשרים ארויסנעמען (CSV)</a>
+          <Label htmlFor="max-import-csv">CSV־פייל פון דיין טעלעפאן</Label>
+          <Input id="max-import-csv" type="file" accept=".csv,text/csv" className="h-auto py-2"
+            onChange={async e=>{
+              const file=e.target.files?.[0];
+              setImportPreview(null);setImportCsv("");setImportFilename("");
+              if(!file)return;
+              if(file.size>512000){setError("די פייל איז צו גרויס. מערסטנס 500 KB פער אריינברענגען.");return;}
+              setImportFilename(file.name);
+              setImportCsv(await file.text());
+            }} />
+          {importFilename&&<p className="text-xs">אויסגעקליבן: {importFilename}</p>}
+          {importCsv && <Button type="button" variant="outline" size="sm" disabled={busy}
+            onClick={()=>void previewCsv()}>ערשט איבערקוקן די קשרים</Button>}
+          {importPreview && <div className="border rounded-lg p-3 space-y-2 text-sm">
+            <p>אין פייל: {importPreview.total} · נייע: {importPreview.ready} · שוין פאראן: {importPreview.duplicates}</p>
+            {importPreview.preview.map(r=><p key={r.line} className="text-xs">
+              שורה {r.line}: {r.name} · {r.phone||r.email}{r.doNotCall?" · נישט רופן":""}
+            </p>)}
+            <Button type="button" disabled={busy||!importPreview.ready}
+              onClick={()=>void confirmCsv()}>באשטעטיגן — צולייגן {importPreview.ready} קשרים</Button>
+          </div>}
+        </section>
         {contactId!==null&&<Donor360 contactId={contactId} caseId={caseId}
           revision={revision} onChanged={()=>{void load();setRevision(v=>v+1);}} />}
       </section>
