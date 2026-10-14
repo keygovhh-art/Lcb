@@ -119,7 +119,7 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   const dueTime = clean(body.dueTime, 5) || null;
   const timeZone = clean(body.timeZone, 80) || null;
   if(dueTime){
-    try{if(!/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(dueTime)||!timeZone)throw Error();
+    try{if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(dueTime)||!timeZone)throw Error();
       new Intl.DateTimeFormat("en-US",{timeZone}).format();
     }catch{res.status(400).json({error:"Invalid reminder time or time zone"});return;}
   }
