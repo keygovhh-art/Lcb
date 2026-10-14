@@ -395,7 +395,7 @@ function CaseCard({ c, onUpdated, highlighted = false }: {
               {[
                 { label: "Goal", value: `$${goal.toLocaleString()}`, color: "text-primary font-bold" },
                 { label: "Received", value: `$${received.toLocaleString()}`, color: "text-green-700 font-bold" },
-                { label: "Promised", value: `$${promised.toLocaleString()}`, color: "text-blue-600 font-bold" },
+                { label: "אפענע התחייבויות", value: `${promised.toLocaleString()}`, color: "text-blue-600 font-bold" },
                 { label: "Remaining", value: `$${remaining.toLocaleString()}`, color: "text-secondary font-bold" },
               ].map(s => (
                 <div key={s.label}>
@@ -410,7 +410,7 @@ function CaseCard({ c, onUpdated, highlighted = false }: {
                 <div className="bg-blue-400/60 h-full transition-all" style={{ width: `${promisedPct}%` }} />
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span><span className="text-green-700 font-medium">{Math.round(receivedPct)}% received</span> · <span className="text-blue-600 font-medium">{Math.round(promisedPct)}% promised</span></span>
+                <span><span className="text-green-700 font-medium">{Math.round(receivedPct)}% received</span> · <span className="text-blue-600 font-medium">{Math.round(promisedPct)}% נאך אויסשטייענדיג</span></span>
                 {outstanding > 0 && <span className="text-secondary font-medium">${outstanding.toLocaleString()} still needed</span>}
                 {outstanding === 0 && remaining === 0 && <span className="text-green-700 font-medium">Fully funded!</span>}
               </div>
@@ -419,7 +419,7 @@ function CaseCard({ c, onUpdated, highlighted = false }: {
         ) : (received > 0 || promised > 0) ? (
           <div className="flex gap-4 text-sm">
             {received > 0 && <span className="text-green-700 font-medium"><ArrowDownLeft className="h-3.5 w-3.5 inline mr-1" />${received.toLocaleString()} received</span>}
-            {promised > 0 && <span className="text-blue-600 font-medium"><ArrowUpRight className="h-3.5 w-3.5 inline mr-1" />${promised.toLocaleString()} promised</span>}
+            {promised > 0 && <span className="text-blue-600 font-medium"><ArrowUpRight className="h-3.5 w-3.5 inline mr-1" />${promised.toLocaleString()} אפענע התחייבויות</span>}
           </div>
         ) : null}
 
