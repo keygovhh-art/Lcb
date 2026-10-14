@@ -1,3 +1,4 @@
+import { formatGregorianDateTime } from "@/lib/gregorian-date";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,7 +66,7 @@ function editorUrl(page: string, lang: "en" | "yi") {
 function formatStamp(value: string | null) {
   if (!value) return "—";
   try {
-    return new Date(value).toLocaleString();
+    return formatGregorianDateTime(value);
   } catch {
     return value;
   }

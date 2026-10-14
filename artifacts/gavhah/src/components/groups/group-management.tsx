@@ -1,3 +1,4 @@
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -180,7 +181,7 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
     {tab==="reports"&&can("viewGroupReports")&&<div className="space-y-3">
       <p className="text-xs text-muted-foreground">דא זענען בלויז באריכטן וואס זענען געשיקט געווארן צו דער גרופ. פריוואטע גבהה־באריכטן ווערן קיינמאל נישט אויסגעוויזן.</p>
       {reports.map(report=><div key={report.id} className="rounded-xl border p-3 space-y-2">
-        <p className="text-xs text-muted-foreground">פאוסט #{report.postId} · {report.createdAt.slice(0,10)}</p>
+        <p className="text-xs text-muted-foreground">פאוסט #{report.postId} · {formatGregorianDate(report.createdAt)}</p>
         <p className="text-sm whitespace-pre-wrap">{report.reason}</p>
         {report.postExcerpt&&<p className="rounded-lg border p-2 text-xs text-muted-foreground whitespace-pre-wrap">
           באריכטעטע אינהאלט: {report.postExcerpt}
