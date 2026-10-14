@@ -545,20 +545,33 @@ router.patch("/askanus/followups/:id", requireAuth, async (req, res) => {
   if (!Object.keys(updates).length) {
     res.status(400).json({ error: "Nothing to update" }); return;
   }
-  const [updated] = await db.update(caseFollowups).set(updates).where(and(
-    eq(caseFollowups.id,id),
-    sql`EXISTS (
-      SELECT 1 FROM askanus_cases ac
-      WHERE ac.id = ${caseFollowups.caseId} AND ac.user_id = ${userId}
-    )`,
-  )).returning();
-  if (!updated) { res.status(404).json({ error: "Follow-up not found" }); return; }
-  await db.insert(maxHistoryEvents).values({
-    userId,caseId:updated.caseId,entityType:"followup",entityId:id,
-    action:"followup_edited",title:updated.note.slice(0,240),
-    details:JSON.stringify({note:updated.note,dueDate:updated.dueDate,
-      dueTime:updated.dueTime,timeZone:updated.timeZone,repeatRule:updated.repeatRule}),
+  const updated=await db.transaction(async tx=>{
+    const ownedPredicate=and(eq(caseFollowups.id,id),
+      sql`EXISTS (SELECT 1 FROM askanus_cases ac
+        WHERE ac.id=${caseFollowups.caseId} AND ac.user_id=${userId})`);
+    const [previous]=await tx.select().from(caseFollowups)
+      .where(ownedPredicate).for("update");
+    if(!previous)return null;
+    const [current]=await tx.update(caseFollowups).set(updates)
+      .where(ownedPredicate).returning();
+    if(!current)return null;
+    const changed=Object.keys(updates).some(k=>{
+      const key=k as keyof typeof current;
+      return current[key]!==previous[key];
+    });
+    if(changed)await tx.insert(maxHistoryEvents).values({
+      userId,caseId:current.caseId,entityType:"followup",entityId:id,
+      action:"followup_edited",title:current.note.slice(0,240),
+      details:JSON.stringify({
+        before:{note:previous.note,dueDate:previous.dueDate,dueTime:previous.dueTime,
+          timeZone:previous.timeZone,repeatRule:previous.repeatRule},
+        after:{note:current.note,dueDate:current.dueDate,dueTime:current.dueTime,
+          timeZone:current.timeZone,repeatRule:current.repeatRule},
+      }),
+    });
+    return current;
   });
+  if (!updated) { res.status(404).json({ error: "Follow-up not found" }); return; }
   res.setHeader("Cache-Control", "private, no-store");
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
