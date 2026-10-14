@@ -50,6 +50,11 @@ const {chromium}=requireBrowser("playwright");
    for(const id of ["max-today","max-call","max-contacts","max-projects","max-more"]){
      assert.ok(await page.locator("#"+id).isVisible(),id+" missing on phone screen");
    }
+   const reports=page.getByRole("region",{name:"MAX פערזענליכע באריכטן"});
+   await reports.getByRole("button",{name:"עפענען מיין באריכט"}).click();
+   await reports.getByRole("button",{name:"30 טעג"}).waitFor({state:"visible",timeout:15000});
+   await reports.getByText("QA Fundraising Project",{exact:true})
+     .first().waitFor({state:"visible",timeout:15000});
    await page.locator('#max-contacts input[aria-label="נאמען"]').fill("QA Mobile-only Contact");
    await page.locator('#max-contacts input[aria-label="טעלעפאן"]').fill("8455550198");
    await page.locator('#max-contacts form button[type="submit"]').click();
