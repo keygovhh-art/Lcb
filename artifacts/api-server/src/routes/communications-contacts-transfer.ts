@@ -5,7 +5,7 @@ import { communicationContacts } from "@workspace/db/schema";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
 
 const router = Router();
-const FIELDS = ["name","phone","email","notes","do_not_call"] as const;
+const FIELDS = ["name","phone","email","notes","organization","city","tags","do_not_call"] as const;
 const normalizePhone=(s:string)=>s.replace(/[^0-9]/g,"");
 const normalizeEmail=(s:string)=>s.trim().toLowerCase();
 const norm=(s:unknown,max:number)=>String(s??"").trim().slice(0,max);
@@ -39,7 +39,7 @@ const csvCell=(v:unknown)=>{
   if(/^[ \t]*[=+\-@\t\r]/.test(s))s="'"+s;
   return '"'+s.replace(/"/g,'""')+'"';
 };
-type ImportRow={line:number;name:string;phone:string;email:string;notes:string;doNotCall:boolean};
+type ImportRow={line:number;name:string;phone:string;email:string;notes:string;organization:string;city:string;tags:string;doNotCall:boolean};
 function parseRows(input:unknown):ImportRow[]{
   if(typeof input!=="string"||input.length>512000)throw Error("CSV must be text under 500 KB");
   const data=parseCsv(input.replace(/^\uFEFF/,""));
@@ -62,6 +62,7 @@ function parseRows(input:unknown):ImportRow[]{
     // Name-only entries are valid: export/import must preserve such contacts.
     // They can only be de-duplicated by identical normalized name.
     rows.push({line:i+2,name,phone,email,notes:norm(v("notes"),4000),
+      organization:norm(v("organization"),200),city:norm(v("city"),120),tags:norm(v("tags"),400),
       doNotCall:/^(true|1|yes)$/i.test(v("do_not_call").trim())});
   }
   return rows;
@@ -104,7 +105,7 @@ router.post("/askanus/contacts/import-preview",requireAuth,async(req,res)=>{
     const result=await inspectImport(getSessionUserId(req)!,rows);
     res.setHeader("Cache-Control","private, no-store");
     res.json({total:rows.length,ready:result.imported.length,duplicates:result.skipped.length,
-      preview:result.imported.slice(0,10).map(r=>({line:r.line,name:r.name,phone:r.phone,email:r.email,doNotCall:r.doNotCall})),
+      preview:result.imported.slice(0,10).map(r=>({line:r.line,name:r.name,phone:r.phone,email:r.email,organization:r.organization,city:r.city,tags:r.tags,doNotCall:r.doNotCall})),
       skipped:result.skipped.slice(0,20)});
   }catch(e){res.status(400).json({error:e instanceof Error?e.message:"Invalid CSV"});}
 });
@@ -119,7 +120,7 @@ router.post("/askanus/contacts/import",requireAuth,async(req,res)=>{
   // insert the same records after checking the same old contact list.
   const result=await db.transaction(async tx=>{
     await tx.execute(/* member-scoped advisory lock */ 
-      sql.raw('SELECT pg_advisory_xact_lock(843122, '+userId+')'));
+      sql`SELECT pg_advisory_xact_lock(843122, ${userId})`);
     // Read from tx so the duplicate check sees committed rows after the lock;
     // repeat verification immediately before writing in this transaction.
     const current=await tx.select({id:communicationContacts.id,name:communicationContacts.name,phone:communicationContacts.phone,
@@ -139,7 +140,8 @@ router.post("/askanus/contacts/import",requireAuth,async(req,res)=>{
     }
     if(toSave.length){
       await tx.insert(communicationContacts).values(toSave.map(r=>({
-        userId,name:r.name,phone:r.phone,email:r.email,notes:r.notes,doNotCall:r.doNotCall,
+        userId,name:r.name,phone:r.phone,email:r.email,notes:r.notes,
+        organization:r.organization,city:r.city,tags:r.tags,doNotCall:r.doNotCall,
         optOutReason:r.doNotCall?"Imported do-not-call flag":"",
       })));
     }
@@ -162,7 +164,7 @@ router.get("/askanus/contacts/export.csv",requireAuth,async(req,res)=>{
       .orderBy(asc(communicationContacts.id)).limit(1000);
     if(!page.length)break;
     for(const r of page){
-      res.write([r.name,r.phone,r.email,r.notes,r.doNotCall?"true":"false"].map(csvCell).join(",")+"\r\n");
+      res.write([r.name,r.phone,r.email,r.notes,r.organization,r.city,r.tags,r.doNotCall?"true":"false"].map(csvCell).join(",")+"\r\n");
     }
     last=page[page.length-1].id;
     if(page.length<1000)break;
