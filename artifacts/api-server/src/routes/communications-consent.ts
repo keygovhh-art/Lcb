@@ -49,6 +49,7 @@ router.post("/askanus/contacts/:id/reconsent",requireAuth,async(req,res)=>{
     if(!contact.doNotCall)return {kind:"already_allowed" as const};
     const [event]=await tx.insert(maxContactConsents).values({
       userId,contactId,method,evidence,consentAt,requestId,action:"reconsent",
+      priorOptOutReason:contact.optOutReason,
     }).onConflictDoNothing().returning();
     if(!event)return {kind:"conflict" as const};
     const [updated]=await tx.update(communicationContacts).set({
