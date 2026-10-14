@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CaseFollowups, type CaseFollowupEntry } from "@/components/askanus/case-followups";
 import { Donor360 } from "@/components/communications/donor-360";
+import { MaxSourceHelper } from "@/components/communications/max-source-helper";
 
 type PersonalCase = {
   id:number; title:string; goalAmount:number; fundsReceived:number; fundsPromised:number;
@@ -367,6 +368,7 @@ export function MaxCallDesk() {
       </form>
       <CaseFollowups caseId={current.id} followups={current.followUpNotes} onUpdated={load}/>
     </section>}
+    <MaxSourceHelper contactId={contactId} contactName={chosenContact?.name} />
     <section id="max-more" className="rounded-xl border bg-card p-4 sm:p-6 space-y-3 scroll-mt-24">
       <h3 className="font-bold text-lg flex items-center gap-2"><CheckCircle2 className="h-5 w-5"/> מיינע לעצטע רוף־באריכטן</h3>
       {calls.length===0 && <p className="text-sm text-muted-foreground">נאכנישט פאראן קיין אפגעהיטענע רוף־באריכטן.</p>}
