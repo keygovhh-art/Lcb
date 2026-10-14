@@ -24,7 +24,7 @@ test("follow-up edits use the existing shared case_followups and server authoriz
   const api = read("artifacts/api-server/src/routes/askanus.ts");
   const ui = read("artifacts/gavhah/src/components/askanus/case-followups.tsx");
   assert.match(api,/router\.patch\("\/askanus\/followups\/:id"/);
-  assert.match(api,/ac\.user_id =/);
+  assert.match(api,/ac\.user_id\s*=/);
   assert.match(ui,/method: "PATCH"/);
   assert.match(ui,/setEditingId/);
   assert.match(ui,/onUpdated\(\)/);
