@@ -124,6 +124,23 @@ try{
   const donor=r.data;
   assert.equal(donor.pledges[0].remaining,500,"Pledge remaining $500");
   assert.equal(donor.receipts.length,3,"$20 + two settlements, no double entries");
+  // Source-grounded helper answers require owner authorization and list real IDs.
+  r=await req(b,"/askanus/max/assistant?intent=last_call&contactId="+donorId,"GET");
+  status(r,404,"Other account cannot ask about donor history");
+  r=await req(a,"/askanus/max/assistant?intent=last_call&contactId="+donorId,"GET");
+  status(r,200,"Owner gets last manually recorded call");
+  assert.equal(r.data.found,true);
+  assert.equal(r.data.sources[0].table,"fundraising_call_reports");
+  r=await req(a,"/askanus/max/assistant?intent=donor_money&contactId="+donorId,"GET");
+  status(r,200,"Donor cash and promise answer");
+  assert.equal(r.data.amounts.reportedNetReceived,520);
+  assert.equal(r.data.amounts.outstandingPledges,500);
+  assert.ok(r.data.sources.some(x=>x.table==="max_receipts"));
+  r=await req(a,"/askanus/max/assistant?intent=my_projects","GET");
+  status(r,200,"Source-grounded personal projects");
+  assert.ok(r.data.sources.some(x=>x.id===projectId));
+  r=await req(a,"/askanus/max/assistant?intent=unsupported","GET");
+  status(r,400,"No invented answers for unknown intent");
   const twoHundred=donor.receipts.find(x=>x.pledgeId===pledgeId && x.amount===200);
   assert.ok(twoHundred);
 
