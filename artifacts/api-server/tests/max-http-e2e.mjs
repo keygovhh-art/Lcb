@@ -58,6 +58,37 @@ try{
   r=await req(a,"/askanus/contacts","POST",{name:"QA Donor",phone:"8455550100"});
   status(r,201,"Create own contact");
   const donorId=r.data.id;
+  // Preview-first CSV import: owner scope, de-dup, do-not-call, full CSV export.
+  const csv='name,phone,email,notes,do_not_call\\r\\n'
+    +'"QA, Imported Contact","845-555-0166","qa-import@example.invalid","Warm referral",true\\r\\n'
+    +'"Already Exists","8455550100","",duplicate,false\\r\\n';
+  r=await req(a,"/askanus/contacts/import-preview","POST",{csv});
+  status(r,200,"CSV preview");
+  assert.equal(r.data.total,2);assert.equal(r.data.ready,1);assert.equal(r.data.duplicates,1);
+  r=await req(a,"/askanus/contacts/import","POST",{csv});
+  status(r,400,"CSV import requires explicit confirm");
+  r=await req(a,"/askanus/contacts/import","POST",{csv,confirm:true});
+  status(r,201,"Confirmed private CSV import");
+  assert.equal(r.data.imported,1);assert.equal(r.data.skipped,1);
+  r=await req(a,"/askanus/contacts/import","POST",{csv,confirm:true});
+  status(r,201,"CSV retry does not insert another contact");
+  assert.equal(r.data.imported,0);
+  r=await req(a,"/askanus/contacts?q=Imported","GET");
+  status(r,200,"Imported contact searchable");
+  assert.equal(r.data.length,1);assert.equal(r.data[0].doNotCall,true);
+  const importedId=r.data[0].id;
+  r=await req(b,"/askanus/contacts/"+importedId+"/360","GET");
+  status(r,404,"Imported contact inaccessible to other member");
+  const csvExportResponse=await fetch(base+"/askanus/contacts/export.csv",{headers:{Cookie:a}});
+  assert.equal(csvExportResponse.status,200);
+  const exportText=await csvExportResponse.text();
+  assert.ok(exportText.includes('"QA, Imported Contact"'));
+  assert.ok(exportText.includes('"true"'));
+  const unauthorizedCsv=await fetch(base+"/askanus/contacts/export.csv",{headers:{Cookie:b}});
+  assert.ok(!(await unauthorizedCsv.text()).includes("QA, Imported Contact"));
+  r=await req(a,"/askanus/contacts/import-preview","POST",{csv:'name,phone\\r\\n"Unclosed,8455550101'});
+  status(r,400,"Reject invalid quote CSV");
+
 
   r=await req(b,"/askanus/contacts/"+donorId+"/360","GET"); status(r,404,"Private donor blocked");
   r=await req(b,"/askanus/cases/"+projectId+"/call-reports","POST",{
