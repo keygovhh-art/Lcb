@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { askanuscases, caseActivityLog, caseFollowups, communicationContacts, fundraisingCallReports, maxPledges, maxReceipts, maxFollowupContacts } from "@workspace/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql, or, ilike } from "drizzle-orm";
 import { getSessionUserId, requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -21,9 +21,26 @@ const formatCall = (r: typeof fundraisingCallReports.$inferSelect) => ({
 router.get("/askanus/contacts", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
   res.setHeader("Cache-Control", "private, no-store");
+  // Server-side search and pagination prevent large address books from
+  // silently hiding all records after the first 500.
+  const term=clean(req.query?.q,120);
+  const rawLimit=Number(req.query?.limit ?? 500);
+  const rawOffset=Number(req.query?.offset ?? 0);
+  if(!Number.isSafeInteger(rawLimit)||rawLimit<1||rawLimit>500||
+     !Number.isSafeInteger(rawOffset)||rawOffset<0||rawOffset>1000000){
+    res.status(400).json({error:"Invalid contact pagination"});return;
+  }
+  const escapedTerm=term.replace(/[\\%_]/g, v=>"\\"+v);
+  const owner=eq(communicationContacts.userId,userId);
+  const search=term ? or(
+    ilike(communicationContacts.name,"%"+escapedTerm+"%"),
+    ilike(communicationContacts.phone,"%"+escapedTerm+"%"),
+    ilike(communicationContacts.email,"%"+escapedTerm+"%"),
+  ) : undefined;
   const contacts = await db.select().from(communicationContacts)
-    .where(eq(communicationContacts.userId, userId))
-    .orderBy(desc(communicationContacts.updatedAt)).limit(500);
+    .where(search?and(owner,search):owner)
+    .orderBy(desc(communicationContacts.updatedAt),desc(communicationContacts.id))
+    .limit(rawLimit).offset(rawOffset);
   res.json(contacts.map(formatContact));
 });
 router.post("/askanus/contacts", requireAuth, async (req, res) => {
