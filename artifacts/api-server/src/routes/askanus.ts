@@ -663,18 +663,35 @@ router.patch("/askanus/tasks/:id", requireAuth, async (req, res) => {
     updates.priority = clean;
   }
   if (notes !== undefined) updates.notes = String(notes ?? "").trim().slice(0, 3000);
-  const [updated] = await db.update(askanustasks).set(updates).where(
-    and(eq(askanustasks.id, id), eq(askanustasks.userId, getSessionUserId(req)!))
-  ).returning();
-  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
-  await db.insert(maxHistoryEvents).values({
-    userId:getSessionUserId(req)!,caseId:null,entityType:"task",entityId:id,
-    action:completed===true?"task_completed":completed===false?"task_reopened":"task_edited",
-    title:updated.title,details:JSON.stringify({title:updated.title,
-      caseTitle:updated.caseTitle,deadline:updated.deadline,
-      completed:updated.completed,priority:updated.priority,notes:updated.notes}),
+  const userId=getSessionUserId(req)!;
+  const updated=await db.transaction(async tx=>{
+    const [previous]=await tx.select().from(askanustasks).where(and(
+      eq(askanustasks.id,id),eq(askanustasks.userId,userId))).for("update");
+    if(!previous)return null;
+    const [current]=await tx.update(askanustasks).set(updates).where(and(
+      eq(askanustasks.id,id),eq(askanustasks.userId,userId))).returning();
+    if(!current)return null;
+    // An HTTP retry that leaves the same final state does not manufacture
+    // another "completed" historical event.
+    const changed=Object.keys(updates).some(k=>{
+      const key=k as keyof typeof current;
+      return current[key]!==previous[key];
+    });
+    if(changed){
+      await tx.insert(maxHistoryEvents).values({
+        userId,caseId:null,entityType:"task",entityId:id,
+        action:completed!==undefined&&completed!==previous.completed
+          ?(completed?"task_completed":"task_reopened"):"task_edited",
+        title:current.title,
+        details:JSON.stringify({title:current.title,caseTitle:current.caseTitle,
+          deadline:current.deadline,completed:current.completed,
+          priority:current.priority,notes:current.notes}),
+      });
+    }
+    return current;
   });
-  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+  if(!updated){res.status(404).json({error:"Not found"});return;}
+  res.json({...updated,createdAt:updated.createdAt.toISOString()});
 });
 
 router.delete("/askanus/tasks/:id", requireAuth, async (req, res) => {
