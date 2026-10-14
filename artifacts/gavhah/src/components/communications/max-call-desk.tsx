@@ -64,9 +64,11 @@ export function MaxCallDesk() {
   const [followupNote,setFollowupNote] = useState("");
   const [dueDate,setDueDate] = useState("");
   const [dueTime,setDueTime] = useState("");
+  const [repeatRule,setRepeatRule] = useState("none");
   const [quickNote,setQuickNote] = useState("");
   const [quickDate,setQuickDate] = useState("");
   const [quickTime,setQuickTime] = useState("");
+  const [quickRepeat,setQuickRepeat] = useState("none");
   const [busy,setBusy] = useState(false);
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState("");
@@ -165,14 +167,15 @@ export function MaxCallDesk() {
         "/api/askanus/cases/"+caseId+"/call-reports",
         json({requestId,contactId,contactName:name.trim(),outcome,moneyKind,mood,
           amount:moneyKind==="none"?0:Number(amount),note,followupNote,dueDate:dueDate||null,dueTime:dueTime||null,
-          timeZone:dueTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):null}),
+          timeZone:dueTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):null,
+          repeatRule}),
       );
       setMessage(result.duplicate
         ? "דער פריערדיגער באריכט איז שוין אפגעהיטן. קיין צווייטע נדבה איז נישט צוגערעכנט."
         : "דער רוף־באריכט איז אפגעהיטן. מיין עסקנות באנוצט די זעלבע פראיעקט־דאַטן.");
       setCalls(items=>[result.report,...items.filter(r=>r.id!==result.report.id)].slice(0,100));
       setRequestId(crypto.randomUUID());setOutcome("spoke");setMoneyKind("none");setAmount("");setMood("neutral");setRevision(v=>v+1);
-      setNote("");setFollowupNote("");setDueDate("");setDueTime("");
+      setNote("");setFollowupNote("");setDueDate("");setDueTime("");setRepeatRule("none");
       await load();
       await qc.invalidateQueries({queryKey:getListAskanuscasesQueryKey()});
     } catch(e){setError(e instanceof Error?e.message:"נישט געלונגען אפצוהיטן");}
@@ -184,8 +187,9 @@ export function MaxCallDesk() {
     try{
       await request("/api/askanus/cases/"+caseId+"/progress",
         json({action:"followup",note:quickNote.trim(),dueDate:quickDate||undefined,
-          dueTime:quickTime||undefined,timeZone:quickTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):undefined}));
-      setQuickNote("");setQuickDate("");setQuickTime("");setMessage("דער נאכפאלג איז אין דער זעלבער ליסטע פון מיין עסקנות.");
+          dueTime:quickTime||undefined,timeZone:quickTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):undefined,
+          repeatRule:quickRepeat}));
+      setQuickNote("");setQuickDate("");setQuickTime("");setQuickRepeat("none");setMessage("דער נאכפאלג איז אין דער זעלבער ליסטע פון מיין עסקנות.");
       await load();
       await qc.invalidateQueries({queryKey:getListAskanuscasesQueryKey()});
     }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
@@ -348,7 +352,12 @@ export function MaxCallDesk() {
             <Textarea id="max-callback" placeholder="למשל: צוריק רופן איבער א טשעק" value={followupNote} onChange={e=>setFollowupNote(e.target.value)}/></div>
           {followupNote.trim() && <div className="space-y-1"><Label htmlFor="max-due">ווען דארף מען נאכפאלגן?</Label>
             <Input id="max-due" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/>
-            <Input aria-label="נאכפאלג־שעה" type="time" disabled={!dueDate} value={dueTime} onChange={e=>setDueTime(e.target.value)}/></div>}
+            <Input aria-label="נאכפאלג־שעה" type="time" disabled={!dueDate} value={dueTime} onChange={e=>setDueTime(e.target.value)}/>
+            <select aria-label="איבערחזרן רוף־נאכפאלג" disabled={!dueDate} value={repeatRule}
+              onChange={e=>setRepeatRule(e.target.value)} className="w-full h-11 rounded-lg border bg-background px-2">
+              <option value="none">איינמאליג</option><option value="daily">יעדן טאג</option>
+              <option value="weekly">יעדע וואך</option><option value="monthly">יעדן חודש</option>
+            </select></div>}
           <Button className="w-full min-h-11" type="submit" disabled={busy||!caseId||!name.trim()||(moneyKind!=="none"&&!(Number(amount)>0))}>
             <Save className="h-4 w-4 ml-2"/> {busy?"היט אפ...":"אפהיטן — און דערהיינטיגן מיין עסקנות"}
           </Button>
@@ -363,7 +372,12 @@ export function MaxCallDesk() {
           <Input id="max-follow" value={quickNote} onChange={e=>setQuickNote(e.target.value)} placeholder="וואס דארף איך נאך ערלעדיגן?" required/></div>
         <div className="space-y-1"><Label htmlFor="max-follow-date">דאטום (אפציאנעל)</Label>
           <Input id="max-follow-date" type="date" value={quickDate} onChange={e=>setQuickDate(e.target.value)}/>
-          <Input aria-label="נאכפאלג־שעה" type="time" disabled={!quickDate} value={quickTime} onChange={e=>setQuickTime(e.target.value)}/></div>
+          <Input aria-label="נאכפאלג־שעה" type="time" disabled={!quickDate} value={quickTime} onChange={e=>setQuickTime(e.target.value)}/>
+          <select aria-label="איבערחזרן דעם נאכפאלג" disabled={!quickDate} value={quickRepeat}
+            onChange={e=>setQuickRepeat(e.target.value)} className="w-full h-11 rounded-lg border bg-background px-2">
+            <option value="none">איינמאליג</option><option value="daily">יעדן טאג</option>
+            <option value="weekly">יעדע וואך</option><option value="monthly">יעדן חודש</option>
+          </select></div>
         <Button type="submit" disabled={busy||!quickNote.trim()}><Plus className="h-4 w-4 ml-1"/> צולייגן</Button>
       </form>
       <CaseFollowups caseId={current.id} followups={current.followUpNotes} onUpdated={load}/>
