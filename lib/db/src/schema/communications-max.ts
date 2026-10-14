@@ -1,5 +1,5 @@
 import { pgTable, serial, text, integer, timestamp, numeric, uniqueIndex, index, boolean } from "drizzle-orm/pg-core";
-import { askanuscases } from "./askanus";
+import { askanuscases, caseFollowups } from "./askanus";
 
 /** A private address book: nothing here is shared with a campaign by default. */
 export const communicationContacts = pgTable("communication_contacts", {
@@ -55,4 +55,16 @@ export const maxContactConsents = pgTable("max_contact_consents", {
 }, table => [
   uniqueIndex("max_contact_consents_owner_request_unique").on(table.userId, table.requestId),
   index("max_contact_consents_owner_contact_idx").on(table.userId, table.contactId),
+]);
+
+/** MAX per-owner in-app reminder snoozes. The original follow-up date is never overwritten. */
+export const maxReminderSnoozes = pgTable("max_reminder_snoozes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  followupId: integer("followup_id").notNull().references(() => caseFollowups.id, {onDelete:"cascade"}),
+  snoozedUntil: timestamp("snoozed_until", {withTimezone:true}).notNull(),
+  updatedAt: timestamp("updated_at", {withTimezone:true}).defaultNow().notNull(),
+}, table => [
+  uniqueIndex("max_reminder_snoozes_owner_followup_unique").on(table.userId,table.followupId),
+  index("max_reminder_snoozes_owner_until_idx").on(table.userId,table.snoozedUntil),
 ]);
