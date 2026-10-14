@@ -23,6 +23,7 @@ export const askanuscases = pgTable("askanus_cases", {
   sourceId: integer("source_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+  closedAt: timestamp("closed_at", {withTimezone:true}),
 });
 
 export const caseActivityLog = pgTable("case_activity_log", {
@@ -47,6 +48,7 @@ export const caseFollowups = pgTable("case_followups", {
   repeatAnchorDay: integer("repeat_anchor_day"),
   generatedFromId: integer("generated_from_id"),
   completed: boolean("completed").notNull().default(false),
+  completedAt: timestamp("completed_at", {withTimezone:true}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, t => [uniqueIndex("case_followups_generated_from_unique").on(t.generatedFromId)]);
 
@@ -57,6 +59,7 @@ export const askanustasks = pgTable("askanus_tasks", {
   caseTitle: text("case_title").notNull().default(""),
   deadline: text("deadline").notNull().default(""),
   completed: boolean("completed").notNull().default(false),
+  completedAt: timestamp("completed_at", {withTimezone:true}),
   priority: taskPriorityEnum("priority").notNull().default("medium"),
   notes: text("notes").notNull().default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
