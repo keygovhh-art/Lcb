@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { randomBytes, scryptSync } from "node:crypto";
-import { pool } from "@workspace/db";
+import { createRequire } from "node:module";
+// Resolve Postgres from the database package so this standalone .mjs test does not
+// attempt to import the workspace's uncompiled TypeScript/ESM source tree.
+const dbRequire = createRequire(new URL("../../../lib/db/package.json", import.meta.url));
+const { Client } = dbRequire("pg");
+const pool = new Client({ connectionString: process.env.DATABASE_URL });
+await pool.connect();
 
 const base="http://127.0.0.1:"+(process.env.PORT||"35147")+"/api";
 const pw="QA-PASSWORD-ONLY-NONPROD-2026";
