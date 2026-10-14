@@ -177,10 +177,12 @@ router.post("/askanus/cases", requireAuth, async (req, res) => {
 router.patch("/askanus/cases/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const userId = getSessionUserId(req)!;
-  const [owned] = await db.select({ id: askanuscases.id }).from(askanuscases).where(
-    and(eq(askanuscases.id, id), eq(askanuscases.userId, userId))
+  const [owned] = await db.select({
+    id:askanuscases.id,status:askanuscases.status,closedAt:askanuscases.closedAt,
+  }).from(askanuscases).where(
+    and(eq(askanuscases.id,id),eq(askanuscases.userId,userId))
   );
-  if (!owned) { res.status(404).json({ error: "Not found" }); return; }
+  if(!owned){res.status(404).json({error:"Not found"});return;}
   const { status, urgency, goalAmount, fundsPromised, fundsReceived, notes } = req.body;
   // Financial totals are derived by idempotent ledger events, never overwritten
   // directly by an unrelated case metadata patch.
@@ -194,7 +196,7 @@ router.patch("/askanus/cases/:id", requireAuth, async (req, res) => {
     const clean = String(status);
     if (!CASE_STATUSES.has(clean)) { res.status(400).json({ error: "invalid status" }); return; }
     updates.status = clean;
-    updates.closedAt=clean==="closed"?new Date():null;
+    updates.closedAt=clean==="closed"?(owned.status==="closed"?owned.closedAt||new Date():new Date()):null;
   }
   if (urgency !== undefined) {
     const clean = String(urgency);
@@ -407,7 +409,7 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
     });
   } else if (action === "status" && status) {
     caseUpdates.status = status;
-    caseUpdates.closedAt=status==="closed"?new Date():null;
+    caseUpdates.closedAt=status==="closed"?(existing.status==="closed"?existing.closedAt||new Date():new Date()):null;
     await tx.insert(maxHistoryEvents).values({
       userId,caseId:id,entityType:"case",entityId:id,
       action:status==="closed"?"case_completed":status==="open"?"case_reopened":"case_status_changed",
@@ -686,6 +688,9 @@ router.patch("/askanus/tasks/:id", requireAuth, async (req, res) => {
     const [previous]=await tx.select().from(askanustasks).where(and(
       eq(askanustasks.id,id),eq(askanustasks.userId,userId))).for("update");
     if(!previous)return null;
+    if(completed!==undefined&&completed===previous.completed){
+      updates.completedAt=previous.completedAt;
+    }
     const [current]=await tx.update(askanustasks).set(updates).where(and(
       eq(askanustasks.id,id),eq(askanustasks.userId,userId))).returning();
     if(!current)return null;
