@@ -180,7 +180,7 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
   const [promised, setPromised] = useState({ amount: "", from: "" });
   const [goal, setGoal] = useState(String(c.goalAmount || ""));
   const [note, setNote] = useState("");
-  const [followup, setFollowup] = useState({ note: "", dueDate: "" });
+  const [followup, setFollowup] = useState({ note: "", dueDate: "", dueTime: "" });
   const progress = useUpdateAskanuscaseProgress();
   const { toast } = useToast();
 
@@ -190,7 +190,9 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
     else if (tab === "promised") body = { action: "funds_promised", amount: Number(promised.amount), from: promised.from, requestId: financeRequestId };
     else if (tab === "goal") body = { action: "goal", goal: Number(goal) };
     else if (tab === "note") body = { action: "note", note };
-    else if (tab === "followup") body = { action: "followup", note: followup.note, dueDate: followup.dueDate || undefined };
+    else if (tab === "followup") body = { action: "followup", note: followup.note, dueDate: followup.dueDate || undefined,
+      dueTime:followup.dueTime||undefined,
+      timeZone:followup.dueTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):undefined };
 
     progress.mutate(
       { id: c.id, data: body as any },
@@ -206,7 +208,7 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
           setPromised({ amount: "", from: "" });
           setGoal(String(c.goalAmount || ""));
           setNote("");
-          setFollowup({ note: "", dueDate: "" });
+          setFollowup({ note: "", dueDate: "", dueTime: "" });
           toast({ title: "Progress updated", description: "The case totals and history are updated now." });
         },
         onError: () => toast({ title: "Could not update progress", variant: "destructive" }),
@@ -289,6 +291,7 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
                 </div>
                 <div className="space-y-1.5"><Label className="font-semibold">Due Date <span className="font-normal text-muted-foreground">(optional)</span></Label>
                   <Input type="date" value={followup.dueDate} onChange={e => setFollowup(f => ({ ...f, dueDate: e.target.value }))} className="h-11" />
+                   <Input type="time" aria-label="נאכפאלג־שעה" disabled={!followup.dueDate} value={followup.dueTime} onChange={e => setFollowup(f => ({ ...f, dueTime: e.target.value }))} className="h-11" />
                 </div>
               </div>
             )}
