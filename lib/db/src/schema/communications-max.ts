@@ -29,6 +29,7 @@ export const fundraisingCallReports = pgTable("fundraising_call_reports", {
   contactId: integer("contact_id").references(() => communicationContacts.id, { onDelete: "set null" }),
   contactName: text("contact_name").notNull(),
   outcome: text("outcome").notNull(),
+  observedMood: text("observed_mood").notNull().default("neutral"),
   moneyKind: text("money_kind").notNull().default("none"),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
   note: text("note").notNull().default(""),
