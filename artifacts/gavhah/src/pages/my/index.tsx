@@ -180,7 +180,7 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
   const [promised, setPromised] = useState({ amount: "", from: "" });
   const [goal, setGoal] = useState(String(c.goalAmount || ""));
   const [note, setNote] = useState("");
-  const [followup, setFollowup] = useState({ note: "", dueDate: "", dueTime: "" });
+  const [followup, setFollowup] = useState({ note: "", dueDate: "", dueTime: "", repeatRule: "none" });
   const progress = useUpdateAskanuscaseProgress();
   const { toast } = useToast();
 
@@ -192,7 +192,8 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
     else if (tab === "note") body = { action: "note", note };
     else if (tab === "followup") body = { action: "followup", note: followup.note, dueDate: followup.dueDate || undefined,
       dueTime:followup.dueTime||undefined,
-      timeZone:followup.dueTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):undefined };
+      timeZone:followup.dueTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):undefined,
+      repeatRule:followup.repeatRule };
 
     progress.mutate(
       { id: c.id, data: body as any },
@@ -208,7 +209,7 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
           setPromised({ amount: "", from: "" });
           setGoal(String(c.goalAmount || ""));
           setNote("");
-          setFollowup({ note: "", dueDate: "", dueTime: "" });
+          setFollowup({ note: "", dueDate: "", dueTime: "", repeatRule: "none" });
           toast({ title: "Progress updated", description: "The case totals and history are updated now." });
         },
         onError: () => toast({ title: "Could not update progress", variant: "destructive" }),
@@ -292,6 +293,14 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
                 <div className="space-y-1.5"><Label className="font-semibold">Due Date <span className="font-normal text-muted-foreground">(optional)</span></Label>
                   <Input type="date" value={followup.dueDate} onChange={e => setFollowup(f => ({ ...f, dueDate: e.target.value }))} className="h-11" />
                    <Input type="time" aria-label="נאכפאלג־שעה" disabled={!followup.dueDate} value={followup.dueTime} onChange={e => setFollowup(f => ({ ...f, dueTime: e.target.value }))} className="h-11" />
+                   <select aria-label="נאכפאלג איבערחזרן" value={followup.repeatRule}
+                     disabled={!followup.dueDate} onChange={e=>setFollowup(f=>({...f,repeatRule:e.target.value}))}
+                     className="w-full h-11 rounded-lg border bg-background px-3">
+                     <option value="none">איינמאליג</option>
+                     <option value="daily">יעדן טאג</option>
+                     <option value="weekly">יעדע וואך</option>
+                     <option value="monthly">יעדן חודש</option>
+                   </select>
                 </div>
               </div>
             )}
