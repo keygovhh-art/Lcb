@@ -69,18 +69,20 @@ router.get("/admin/group-control/groups",requireAuth,async(req,res):Promise<void
 
 router.get("/admin/group-control/groups/:id/posts",requireAuth,async(req,res):Promise<void>=>{
   const access=await allowedGroup(req,res,false);if(!access)return;
+  const page=Math.max(0,Math.min(10000,Number(req.query.page)||0));
+  if(!Number.isSafeInteger(page)){err(res,400,"Invalid page");return;}
   const posts=await db.select({
     id:groupPostsTable.id,authorName:groupPostsTable.authorName,content:groupPostsTable.content,
     moderationStatus:groupPostsTable.moderationStatus,createdAt:groupPostsTable.createdAt,
     isPinned:groupPostsTable.isPinned,isLocked:groupPostsTable.isLocked,
     views:groupPostsTable.views,
   }).from(groupPostsTable).where(eq(groupPostsTable.groupId,access.group.id))
-    .orderBy(desc(groupPostsTable.createdAt)).limit(400);
-  const records=posts.filter(p=>p.moderationStatus==="approved"||access.grant.canModerate);
+    .orderBy(desc(groupPostsTable.createdAt)).limit(101).offset(page*100);
+  const records=posts.slice(0,100).filter(p=>p.moderationStatus==="approved"||access.grant.canModerate);
   if(access.group.privacy!=="public")
     await auditGroupAction(access.user.id,"private_group_posts_viewed",access.group.id,undefined,{count:records.length});
   res.setHeader("Cache-Control","private, no-store");
-  res.json({groupId:access.group.id,posts:records});
+  res.json({groupId:access.group.id,posts:records,hasMore:posts.length>100,nextPage:page+1});
 });
 router.get("/admin/group-control/groups/:id/members",requireAuth,async(req,res):Promise<void>=>{
   const a=await allowedGroup(req,res,false);if(!a)return;
@@ -171,6 +173,8 @@ router.patch("/admin/group-control/users/:userId/role",requireAuth,async(req,res
   if(target.role==="super_admin"){err(res,403,"Cannot change another super-admin");return;}
   await db.transaction(async tx=>{
     await tx.update(usersTable).set({role}).where(eq(usersTable.id,uid));
+    if(role==="member")await tx.delete(groupStaffAccessTable)
+      .where(eq(groupStaffAccessTable.userId,uid));
     await tx.insert(groupAccessAuditTable).values({
       actorId:u.id,targetUserId:uid,action:"platform_staff_role_changed",
       details:{previous:target.role,next:role},

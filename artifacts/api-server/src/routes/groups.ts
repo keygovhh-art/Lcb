@@ -377,17 +377,18 @@ router.patch("/groups/:id/members/:memberId",requireAuth,async(req,res):Promise<
   const staff=isPlatformSuperAdmin(staffRole);
   const roleRequested=req.body?.role;
   const statusRequested=req.body?.status;
-  const capability=roleRequested!==undefined?"manageAdmins"
-    :statusRequested==="suspended"?"suspendMembers"
-    :statusRequested==="removed"?"removeMembers"
-    :statusRequested==="approved"?"restoreMembers":"approveMembers";
-  if(!groupAdminCan(group,staff,capability)){
-    res.status(403).json({error:"Member-management feature disabled by Gavhah"});return;
-  }
   const [target]=await db.select().from(groupMembersTable).where(and(
     eq(groupMembersTable.id,memberId),eq(groupMembersTable.groupId,groupId),
   ));
   if(!target){res.status(404).json({error:"Member not found"});return;}
+  const capability=roleRequested!==undefined?"manageAdmins"
+    :statusRequested==="suspended"?"suspendMembers"
+    :statusRequested==="removed"?"removeMembers"
+    :statusRequested==="approved"&&target.status==="pending"?"approveMembers"
+    :statusRequested==="approved"?"restoreMembers":"approveMembers";
+  if(!groupAdminCan(group,staff,capability)){
+    res.status(403).json({error:"Member-management feature disabled by Gavhah"});return;
+  }
   // The owner may not be demoted, suspended, rejected or removed by group admins.
   // Even the owner cannot silently replace themselves. Only staff-admins may
   // transfer ownership through the separate privileged route.
