@@ -9,6 +9,7 @@ on:
       - fix/react-page-crash-root-and-error-noise-20261011
       - feature/charity-queue-schedules-phone-donation-20261012
       - fix/my-askanus-followup-history-delete-20261013
+      - feature/gavhah-max-integration-20261014
   workflow_dispatch:
 jobs:
   verify:
@@ -39,6 +40,8 @@ jobs:
         run: node --test tests/official-cause-join.test.mjs
       - name: Verify follow-up history, owner-only deletion and undo completion
         run: node --experimental-strip-types --test tests/case-followup-history.test.mjs
+      - name: Verify MAX and My Askanus shared case contract
+        run: node --test tests/communications-max-unified.test.mjs
       - name: Verify independent weekday selections for each minyan
         run: node --experimental-strip-types --test tests/minyan-weekdays.test.mjs
       - name: Verify group moderation, founder rights and report-target confidentiality
