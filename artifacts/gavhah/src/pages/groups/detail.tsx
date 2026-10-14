@@ -62,13 +62,14 @@ export default function GroupDetail() {
 
   const isOwner = !!user && group?.ownerId === user.id;
   const ownMembership = !!user ? (members ?? []).find((member: any) => member.userId === user.id) : undefined;
-  const canManageGroup = !!user && (isOwner || isAdmin ||
+  const canManageGroup = !!user && (isOwner || !!group?.platformCanModerate ||
     (ownMembership?.status === "approved" && ["admin","moderator"].includes(ownMembership?.role)));
   const isPendingMember = ownMembership?.status === "pending";
-  const isMember = !!user && (isOwner || ownMembership?.status === "approved");
+  const isMember = !!user && (isOwner || !!group?.platformCanModerate || ownMembership?.status === "approved");
   const canWritePosts = isMember && (canManageGroup || !!group?.membersCanPost);
   const canReplyPosts = isMember && (canManageGroup || !!group?.membersCanReply);
-  const canReadPosts = !!group && (group.privacy === "public" || isMember || isAdmin);
+  const canReadPosts = !!group && (group.privacy === "public" || isMember || !!group.platformAccess);
+  const canGroupAction = (action:string) => canManageGroup && group?.allowedCapabilities?.[action]!==false;
 
   const { data: posts } = useListGroupPosts(numId, {
     query: { queryKey: getListGroupPostsQueryKey(numId), enabled: !!numId && canReadPosts },
@@ -297,17 +298,17 @@ export default function GroupDetail() {
                   <div className="flex flex-wrap gap-2 shrink-0">
                   {canManageGroup && (
                     <>
-                      <Button variant="outline" onClick={openGroupEdit} className="gap-2">
-                        <Pencil className="h-4 w-4" /> Edit Group
-                      </Button>
-                      <Button
+                      {canGroupAction("manageGroupInfo")&&<Button variant="outline" onClick={openGroupEdit} className="gap-2">
+                        <Pencil className="h-4 w-4" /> עדיט גרופ
+                      </Button>}
+                      {canGroupAction("deleteGroup") && (isOwner || user?.role==="super_admin") && <Button
                         variant="outline"
                         className="gap-2 text-destructive border-destructive/20"
                         onClick={() => void deleteGroup()}
                         disabled={deletingGroup}
                       >
-                        <Trash2 className="h-4 w-4" /> {deletingGroup ? "Deleting..." : "Delete Group"}
-                      </Button>
+                        <Trash2 className="h-4 w-4" /> {deletingGroup ? "מעקט..." : "אויסמעקן גרופ"}
+                      </Button>}
                     </>
                   )}
                   {isMember ? (
@@ -375,17 +376,6 @@ export default function GroupDetail() {
               </DialogContent>
             </Dialog>
 
-            {canManageGroup && <div className="mb-8">
-              <GroupManagement group={group} members={members||[]}
-                canChangeRoles={isOwner || ["admin","super_admin"].includes(user?.role||"")}
-                staff={isAdmin}
-                refresh={() => {
-                  void qc.invalidateQueries({queryKey:getGetGroupQueryKey(numId)});
-                  void qc.invalidateQueries({queryKey:getListGroupMembersQueryKey(numId)});
-                  void qc.invalidateQueries({queryKey:getListGroupPostsQueryKey(numId)});
-                }} />
-            </div>}
-
             <Tabs defaultValue="posts" className="space-y-6">
               <TabsList className="bg-muted/50">
                 <TabsTrigger value="posts">Posts</TabsTrigger>
@@ -434,7 +424,9 @@ export default function GroupDetail() {
                         </span>
                         {!!user && (post.authorId === user.id || canManageGroup) && (
                           <>
-                            <Button
+                            {(post.authorId===user?.id
+                              ? group?.allowedCapabilities?.editOwnPosts!==false
+                              : canGroupAction("editOthersPosts"))&&<Button
                               size="icon"
                               variant="ghost"
                               className="h-7 w-7"
@@ -444,15 +436,17 @@ export default function GroupDetail() {
                               }}
                             >
                               <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
+                            </Button>}
+                            {(post.authorId===user?.id
+                              ? group?.allowedCapabilities?.deleteOwnPosts!==false
+                              : canGroupAction("deleteOthersPosts"))&&<Button
                               size="icon"
                               variant="ghost"
                               className="h-7 w-7 text-destructive"
                               onClick={() => void deletePost(post.id)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            </Button>}
                           </>
                         )}
                       </div>
@@ -532,6 +526,17 @@ export default function GroupDetail() {
                 </div>
               </TabsContent>
             </Tabs>
+
+            {canManageGroup&&<div className="mt-10" id="group-administration">
+              <GroupManagement group={group} members={members||[]}
+                canChangeRoles={canGroupAction("manageAdmins") && (isOwner || user?.role==="super_admin")}
+                staff={user?.role==="super_admin"}
+                refresh={() => {
+                  void qc.invalidateQueries({queryKey:getGetGroupQueryKey(numId)});
+                  void qc.invalidateQueries({queryKey:getListGroupMembersQueryKey(numId)});
+                  void qc.invalidateQueries({queryKey:getListGroupPostsQueryKey(numId)});
+                }} />
+            </div>}
           </>
         ) : (
           <div className="text-center py-24">
