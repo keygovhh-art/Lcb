@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, serial, text, integer, boolean, timestamp, numeric } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, serial, text, integer, boolean, timestamp, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const askanusStatusEnum = pgEnum("askanus_status", ["open", "in_progress", "closed"]);
 export const askanusUrgencyEnum = pgEnum("askanus_urgency", ["low", "medium", "high", "critical"]);
@@ -43,9 +43,12 @@ export const caseFollowups = pgTable("case_followups", {
   dueDate: text("due_date"),
   dueTime: text("due_time"),
   timeZone: text("time_zone"),
+  repeatRule: text("repeat_rule").notNull().default("none"),
+  repeatAnchorDay: integer("repeat_anchor_day"),
+  generatedFromId: integer("generated_from_id"),
   completed: boolean("completed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, t => [uniqueIndex("case_followups_generated_from_unique").on(t.generatedFromId)]);
 
 export const askanustasks = pgTable("askanus_tasks", {
   id: serial("id").primaryKey(),
