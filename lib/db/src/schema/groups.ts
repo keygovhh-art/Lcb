@@ -30,6 +30,7 @@ export const groupMembersTable = pgTable("group_members", {
   userName: text("user_name").notNull(),
   groupId: integer("group_id").notNull(),
   role: text("role").notNull().default("member"),
+  protectedByPlatform: boolean("protected_by_platform").notNull().default(false),
   status: text("status").notNull().default("approved"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -104,3 +105,26 @@ export type GroupMember = typeof groupMembersTable.$inferSelect;
 export const insertGroupPostSchema = createInsertSchema(groupPostsTable).omit({ id: true, createdAt: true });
 export type InsertGroupPost = z.infer<typeof insertGroupPostSchema>;
 export type GroupPost = typeof groupPostsTable.$inferSelect;
+
+/** Only a real platform super admin can grant private-group access.
+ * The database role here is separate from group member administration.
+ */
+export const groupStaffAccessTable = pgTable("group_staff_access", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  groupId: integer("group_id").notNull(),
+  canViewPrivate: boolean("can_view_private").notNull().default(false),
+  canModerate: boolean("can_moderate").notNull().default(false),
+  grantedBy: integer("granted_by").notNull(),
+  updatedAt: timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[uniqueIndex("group_staff_access_user_group_unique").on(t.userId,t.groupId)]);
+
+export const groupAccessAuditTable=pgTable("group_access_audit",{
+  id:serial("id").primaryKey(),
+  actorId:integer("actor_id").notNull(),
+  targetUserId:integer("target_user_id"),
+  groupId:integer("group_id"),
+  action:text("action").notNull(),
+  details:jsonb("details").$type<Record<string,unknown>>().notNull().default({}),
+  createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+});
