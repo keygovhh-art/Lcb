@@ -1,3 +1,4 @@
+import { formatGregorianDateTime } from "@/lib/gregorian-date";
 import {useEffect,useState} from "react";
 import {Link} from "wouter";
 import {useAuth} from "@/context/auth-context";
@@ -279,7 +280,7 @@ export function GroupPlatformManagement(){
       {category==="audit"&&isSuper&&<div className="space-y-2">
         <h3 className="font-semibold">לעצטע אדמין־אקציעס</h3>
         {audit.map(a=><p key={a.id} className="text-xs border rounded-lg p-3">
-          {a.action} · אדמין #{a.actorId} · גרופ #{a.groupId??"—"} · {new Date(a.createdAt).toLocaleString()}
+          {a.action} · אדמין #{a.actorId} · גרופ #{a.groupId??"—"} · {formatGregorianDateTime(a.createdAt)}
         </p>)}
       </div>}
     </div>}

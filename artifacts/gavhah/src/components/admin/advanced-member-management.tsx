@@ -1,3 +1,4 @@
+import { formatGregorianDate, formatGregorianDateTime } from "@/lib/gregorian-date";
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/context/language-context";
 import { useToast } from "@/hooks/use-toast";
@@ -121,7 +122,7 @@ export function AdvancedMemberManagement() {
             <div>
               <p className="font-semibold">{member.nickname||member.name} <span className="text-xs text-muted-foreground">#{member.id}</span></p>
               <p className="text-xs text-muted-foreground break-all">{member.email||member.phone||"—"}</p>
-              <p className="text-xs text-muted-foreground">{member.role} · {member.status} · {new Date(member.createdAt).toLocaleDateString()}</p>
+              <p className="text-xs text-muted-foreground">{member.role} · {member.status} · {formatGregorianDate(member.createdAt)}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={member.mailStatus==="permission_yes"?"default":"secondary"}>
@@ -145,7 +146,7 @@ export function AdvancedMemberManagement() {
               <p className="text-xs text-muted-foreground">
                 {yi?"מעמבער האט USPS־רשות געגעבן: ":"Member consent: "}
                 <strong>{member.address.uspsConsent?(yi?"יא":"Yes"):(yi?"ניין — נישט שיקן":"NO — do not send")}</strong>
-                {member.address.consentAt && " · "+new Date(member.address.consentAt).toLocaleString()}
+                {member.address.consentAt && " · "+formatGregorianDateTime(member.address.consentAt)}
               </p>
               <label className="block space-y-1">
                 <span className="text-sm">{yi?"אינערליכע אדמין־נאטיץ":"Private staff note"}</span>

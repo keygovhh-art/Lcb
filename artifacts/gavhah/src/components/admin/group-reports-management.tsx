@@ -1,3 +1,4 @@
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,7 @@ export function GroupReportsManagement() {
         <div className="flex gap-2 items-center"><Flag className="h-4 w-4 text-secondary"/>
           <span className="text-sm font-semibold">גרופ #{item.groupId} · פאוסט #{item.postId}</span>
         </div>
-        <span className="text-xs text-muted-foreground">{item.createdAt.slice(0,10)} · {item.status==="resolved"?"באהאנדלט":"נאך אפן"}</span>
+        <span className="text-xs text-muted-foreground">{formatGregorianDate(item.createdAt)} · {item.status==="resolved"?"באהאנדלט":"נאך אפן"}</span>
       </div>
       <p className="text-sm whitespace-pre-wrap break-words">{item.reason}</p>
       {item.postExcerpt&&<p className="rounded-lg border bg-muted/20 p-3 text-xs whitespace-pre-wrap break-words">
