@@ -9,6 +9,7 @@ import {
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { resolvePublicPostingName } from "../lib/user-display";
 import { publicPostForViewer } from "../lib/public-posting-identity";
+import {platformGroupGrant,auditGroupAction} from "../lib/group-staff-access";
 import { effectiveGroupSetting, groupAdminCan, groupMemberCan } from "../lib/group-feature-controls";
 
 const router = Router();
@@ -31,12 +32,15 @@ async function groupAccess(groupId: number, req: Request) {
     eq(groupMembersTable.groupId,groupId),eq(groupMembersTable.userId,userId),
   )).limit(1):[undefined];
   const owner=!!userId && group.ownerId===userId && member?.status!=="suspended";
-  const staff=isStaff(role);
-  const elevated=isSystemAdmin(role);
+  const grant=userId?await platformGroupGrant(userId,groupId,role):{
+    staff:false,superAdmin:false,canViewPrivate:false,canModerate:false,
+  };
+  const staff=grant.canModerate;
+  const elevated=grant.superAdmin;
   const admin=staff||owner||(["admin","moderator"].includes(member?.role||"")&&member?.status==="approved");
   const active=admin||(member?.status==="approved");
-  const reader=group.privacy==="public"||active;
-  return {group,userId,owner,staff,elevated,admin,active,reader,member};
+  const reader=group.privacy==="public"||active||grant.canViewPrivate;
+  return {group,userId,owner,staff,elevated,admin,active,reader,member,grant};
 }
 async function postInGroup(groupId:number,postId:number) {
   const [post]=await db.select().from(groupPostsTable).where(and(
