@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, featuredCauseSupportersTable, projectMembersTable } from "@workspace/db";
 import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes } from "@workspace/db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
 
 const router = Router();
@@ -80,13 +80,47 @@ router.get("/me/official-joins", requireAuth, async (req, res) => {
 
 // --- Cases ---
 
+// Batch-load histories and follow-ups; do not run two extra queries per case.
+// Supports an unlimited number of stored follow-ups without N+1 database roundtrips.
 router.get("/askanus/cases", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
+  res.setHeader("Cache-Control", "private, no-store");
   const cases = await db.select().from(askanuscases)
     .where(eq(askanuscases.userId, userId))
     .orderBy(desc(askanuscases.lastUpdated));
-  const result = await Promise.all(cases.map(c => getCaseWithDetails(c.id, userId)));
-  res.json(result);
+  if (!cases.length) { res.json([]); return; }
+  const ids = cases.map(c => c.id);
+  const [allActivity, allFollowups] = await Promise.all([
+    db.select().from(caseActivityLog).where(inArray(caseActivityLog.caseId, ids))
+      .orderBy(desc(caseActivityLog.createdAt)),
+    db.select().from(caseFollowups).where(inArray(caseFollowups.caseId, ids))
+      .orderBy(desc(caseFollowups.createdAt)),
+  ]);
+  const activityMap = new Map<number, typeof allActivity>();
+  const followupMap = new Map<number, typeof allFollowups>();
+  for (const a of allActivity) {
+    const list = activityMap.get(a.caseId) ?? [];
+    list.push(a); activityMap.set(a.caseId, list);
+  }
+  for (const f of allFollowups) {
+    const list = followupMap.get(f.caseId) ?? [];
+    list.push(f); followupMap.set(f.caseId, list);
+  }
+  res.json(cases.map(c => ({
+    ...c,
+    goalAmount: Number(c.goalAmount),
+    fundsPromised: Number(c.fundsPromised),
+    fundsReceived: Number(c.fundsReceived),
+    createdAt: c.createdAt.toISOString(),
+    lastUpdated: c.lastUpdated.toISOString(),
+    activityLog: (activityMap.get(c.id) ?? []).map(a => ({
+      ...a, amount: a.amount != null ? Number(a.amount) : null,
+      createdAt: a.createdAt.toISOString(),
+    })),
+    followUpNotes: (followupMap.get(c.id) ?? []).map(f => ({
+      ...f, createdAt: f.createdAt.toISOString(),
+    })),
+  })));
 });
 
 router.post("/askanus/cases", requireAuth, async (req, res) => {
