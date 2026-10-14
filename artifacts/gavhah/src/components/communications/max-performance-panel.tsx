@@ -38,7 +38,7 @@ export function MaxPerformancePanel(){
       .finally(()=>{if(!abort.signal.aborted)setLoading(false);});
     return ()=>abort.abort();
   },[expanded,days]);
-  return <section dir="rtl" className="rounded-xl border bg-card p-4 sm:p-6 space-y-3">
+  return <section dir="rtl" aria-label="MAX פערזענליכע באריכטן" className="rounded-xl border bg-card p-4 sm:p-6 space-y-3">
     <div className="flex gap-3 flex-wrap items-center justify-between">
       <h3 className="font-bold flex gap-2 items-center"><BarChart3 className="h-5 w-5"/> MAX — מיין פארשריט און באריכטן</h3>
       <Button type="button" size="sm" variant="outline"
