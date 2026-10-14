@@ -65,6 +65,39 @@ jobs:
           exit 1
       - name: Test two accounts and complete MAX finance/follow-up/opt-out HTTP journey
         run: pnpm --filter @workspace/api-server exec node tests/max-http-e2e.mjs
+      - name: Build actual mobile-first web bundle for Render-style production
+        run: pnpm --filter @workspace/gavhah run build
+      - name: Start production-mode static frontend (isolated Postgres only)
+        run: |
+          NODE_ENV=production PORT=35148 SESSION_COOKIE_SECURE=true node artifacts/api-server/dist/index.mjs > /tmp/gavhah-max-production-smoke.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:35148/communications > /tmp/gavhah-production-communications.html; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/gavhah-max-production-smoke.log
+          exit 1
+      - name: Verify production page fallback and built browser JS/CSS assets
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          for(const path of ["/","/my","/communications"]){
+            const res=await fetch("http://127.0.0.1:35148"+path);
+            assert.equal(res.status,200,"Production page "+path);
+            const html=await res.text();
+            assert.ok(html.includes('id="root"'),"Missing React mount for "+path);
+            const assets=[...html.matchAll(/(?:src|href)="(\/assets\/[^"]+\.(?:js|css))"/g)]
+              .map(match=>match[1]);
+            assert.ok(assets.some(a=>a.endsWith(".js")),"Missing browser bundle for "+path);
+            for(const asset of assets){
+              const response=await fetch("http://127.0.0.1:35148"+asset);
+              assert.equal(response.status,200,"Production static "+asset);
+              assert.ok(Number(response.headers.get("content-length")||100)>0);
+            }
+          }
+          console.log("PASS production-like mobile SPA pages and bundled static assets");
+          NODE
       - name: Show server diagnostics if QA failed
         if: failure()
         run: tail -n 120 /tmp/gavhah-max-http-qa.log || true
