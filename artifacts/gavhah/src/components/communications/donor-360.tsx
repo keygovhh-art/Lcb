@@ -119,9 +119,11 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
     </Button>
     {editing&&<div className="space-y-2 border rounded-lg p-3">
       <label className="flex gap-2 items-center text-sm">
-        <input type="checkbox" className="h-5 w-5" checked={doNotCall} onChange={e=>setDoNotCall(e.target.checked)}/>
+        <input type="checkbox" className="h-5 w-5" checked={doNotCall} disabled={c.doNotCall}
+          onChange={e=>setDoNotCall(e.target.checked)}/>
         נישט רופן דעם מענטש
       </label>
+      {c.doNotCall&&<p className="text-xs text-destructive">רופן־פארבאט קען נאר ווערן אויפגעהויבן נאך א ניי באשטעטיגטער און רעקארדירטער רשות־פראצעס.</p>}
       <Label htmlFor="donor-reason">סיבה פון רופן־פארבאט</Label>
       <Input id="donor-reason" value={optReason} onChange={e=>setOptReason(e.target.value)}/>
       <Label htmlFor="donor-hours">פאסיגע צייטן לויטן נדבן</Label>
