@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 type Donor = {
   id:number;name:string;phone:string;email:string;notes:string;
   doNotCall:boolean;preferredTimezone:string;preferredHours:string;
+  organization:string;city:string;tags:string;contactRole:string;
   relationshipNotes:string;optOutReason:string;
 };
 type Pledge = { id:number;caseId:number;amount:number;paidAmount:number;remaining:number;status:string;dueDate:string|null;note:string;createdAt:string };
@@ -37,6 +38,10 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
   const [message,setMessage]=useState("");
   const [editing,setEditing]=useState(false);
   const [hours,setHours]=useState("");
+  const [organization,setOrganization]=useState("");
+  const [city,setCity]=useState("");
+  const [tags,setTags]=useState("");
+  const [contactRole,setContactRole]=useState("donor");
   const [moodNotes,setMoodNotes]=useState("");
   const [doNotCall,setDoNotCall]=useState(false);
   const [optReason,setOptReason]=useState("");
@@ -64,6 +69,8 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
       ]);
       setPermissionEvents(events);
       setData(profile);setHours(profile.contact.preferredHours||"");
+      setOrganization(profile.contact.organization||"");setCity(profile.contact.city||"");
+      setTags(profile.contact.tags||"");setContactRole(profile.contact.contactRole||"donor");
       setMoodNotes(profile.contact.relationshipNotes||"");
       setDoNotCall(Boolean(profile.contact.doNotCall));
       setOptReason(profile.contact.optOutReason||"");
@@ -76,6 +83,7 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
     try{
       await jsonCall("/api/askanus/contacts/"+contactId,write({
         preferredHours:hours,relationshipNotes:moodNotes,doNotCall,optOutReason:optReason,
+        organization,city,tags,contactRole,
       },"PATCH"));
       await load();onChanged();setEditing(false);
       setMessage("דער נדבן־קארטל און די רופן־רשות זענען אפגעהיטן.");
@@ -179,6 +187,9 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
     <div className="flex flex-wrap gap-2 text-xs">
       {c.phone&&<span>טעלעפאן: <span dir="ltr">{c.phone}</span></span>}
       {c.email&&<span>אימעיל: {c.email}</span>}
+      {c.organization&&<span>מוסד / געשעפט: {c.organization}</span>}
+      {c.city&&<span>שטאט: {c.city}</span>}
+      {c.tags&&<span>צייכענונגען: {c.tags}</span>}
       <span>רוף־באריכטן: {data.calls.length}</span>
       <span>נאכפאלגן: {data.followups.filter(f=>!f.completed).length}</span>
     </div>
@@ -194,6 +205,23 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
       {c.doNotCall&&<p className="text-xs text-muted-foreground">דער עסקן קען אראפנעמען דעם צייכן אויב ער באשליסט אזוי, מיט א ווארענונג און א געשיכטע. דאס איז נישט א נייע רשות פונעם נדבן.</p>}
       <Label htmlFor="donor-reason">סיבה פון רופן־פארבאט</Label>
       <Input id="donor-reason" value={optReason} onChange={e=>setOptReason(e.target.value)}/>
+      <Label htmlFor="donor-organization">מוסד, ארגאניזאציע אדער געשעפט</Label>
+      <Input id="donor-organization" value={organization} maxLength={200}
+        onChange={e=>setOrganization(e.target.value)}/>
+      <Label htmlFor="donor-city">שטאט</Label>
+      <Input id="donor-city" value={city} maxLength={120}
+        onChange={e=>setCity(e.target.value)}/>
+      <Label htmlFor="donor-tags">צייכענונגען (אפגעטיילט מיט א קאמע)</Label>
+      <Input id="donor-tags" value={tags} maxLength={400}
+        placeholder="למשל: וויכטיג, פילאנטראפ, צוריקצורופן"
+        onChange={e=>setTags(e.target.value)}/>
+      <Label htmlFor="donor-role">סארט קשר</Label>
+      <select id="donor-role" value={contactRole} onChange={e=>setContactRole(e.target.value)}
+        className="w-full h-11 rounded-md border bg-background px-2">
+        <option value="donor">נדבן</option><option value="volunteer">עסקן / העלפער</option>
+        <option value="organization">מוסד / ארגאניזאציע</option>
+        <option value="other">אנדערער קשר</option>
+      </select>
       <Label htmlFor="donor-hours">פאסיגע צייטן לויטן נדבן</Label>
       <Input id="donor-hours" placeholder="למשל: נישט פאר 7 אויפדערנאכט" value={hours} onChange={e=>setHours(e.target.value)}/>
       <Label htmlFor="donor-relationship">פערזענליכע באציאונגס־נאטיצן</Label>
