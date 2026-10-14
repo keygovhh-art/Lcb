@@ -18,7 +18,7 @@ import {
   Shield, Users, Flag, Megaphone, CheckCircle, Ban, Clock, Trash2, Edit3,
   MessageSquare, HelpCircle, ChevronDown, ChevronUp, Send, AlertTriangle, Settings
 } from "lucide-react";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useToast } from "@/hooks/use-toast";
 
 const FAQ = [
@@ -267,7 +267,7 @@ export default function SystemCenter() {
                     <span className="text-xs text-muted-foreground">· {report.contentType} #{report.contentId}</span>
                   </div>
                   {report.description && <p className="text-sm text-muted-foreground">{report.description}</p>}
-                  <p className="text-xs text-muted-foreground mt-1">{format(new Date(report.createdAt), "MMM d, yyyy")}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{formatGregorianDate(new Date(report.createdAt), "MMM d, yyyy")}</p>
                 </div>
                 {report.status === "pending" && (
                   <Button size="sm" variant="outline" className="gap-2 shrink-0"
@@ -363,7 +363,7 @@ export default function SystemCenter() {
                     <>
                       <h4 className="font-serif font-bold text-primary mb-1">{ann.title}</h4>
                       <p className="text-muted-foreground text-sm mb-2 whitespace-pre-wrap">{ann.content}</p>
-                      <p className="text-xs text-muted-foreground">By {ann.authorName} · {format(new Date(ann.createdAt), "MMM d, yyyy")}</p>
+                      <p className="text-xs text-muted-foreground">By {ann.authorName} · {formatGregorianDate(new Date(ann.createdAt), "MMM d, yyyy")}</p>
                     </>
                   )}
                 </div>
