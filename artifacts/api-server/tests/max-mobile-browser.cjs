@@ -63,6 +63,19 @@ const {chromium}=requireBrowser("playwright");
    const selected=await page.locator("#max-contact").inputValue();
    assert.ok(Number(selected)>0,"Newly added contact was not selected");
    await page.getByRole("heading",{name:/נדבן 360/}).first().waitFor({timeout:15000});
+   // Verify enriched MAX donor 360 can really be edited by touch on a phone.
+   await page.getByRole("button",{name:"רופן־רשות, צייטן און באציאונגס־נאטיצן"}).click();
+   await page.getByLabel("מוסד, ארגאניזאציע אדער געשעפט").fill("QA Mobile Association");
+   await page.getByLabel("שטאט").fill("Monroe");
+   await page.getByLabel("צייכענונגען (אפגעטיילט מיט א קאמע)").fill("priority, recurring");
+   await page.getByRole("button",{name:"אפהיטן איינשטעלונגען"}).click();
+   await page.getByText("QA Mobile Association",{exact:false})
+     .first().waitFor({state:"visible",timeout:15000});
+   const crmSearch=await context.request.get(base+"/api/askanus/contacts?q=QA%20Mobile%20Association");
+   assert.equal(crmSearch.status(),200);
+   const crmFound=await crmSearch.json();
+   assert.ok(crmFound.some(c=>String(c.id)===selected&&c.city==="Monroe"
+      &&c.tags==="priority, recurring"),"Private donor tags/organization not saved");
    // Owner-controlled override, tested on a real touch-sized browser viewport.
    const optOut=await context.request.patch(base+"/api/askanus/contacts/"+selected,{
      data:{doNotCall:true,optOutReason:"QA donor asked not to be called"}
@@ -89,7 +102,7 @@ const {chromium}=requireBrowser("playwright");
    assert.ok(width.body<=width.viewport+36,
      "Unexpected horizontal mobile overflow: "+JSON.stringify(width));
    assert.deepEqual(errors,[],"Browser reported uncaught JavaScript errors");
-   console.log("PASS Mobile Chromium: signed-in member, MAX, donor 360, owner call-marker override, timezone reminder inbox snooze and completion, no JS errors");
+   console.log("PASS Mobile Chromium: signed-in member, MAX, donor 360, owner call-marker override, CRM tags, reports, reminders, no JS errors");
  }finally{
    await context.close();await browser.close();
  }
