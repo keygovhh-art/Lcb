@@ -1,0 +1,48 @@
+import { pgTable, serial, integer, text, numeric, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { askanuscases, caseFollowups } from "./askanus";
+import { communicationContacts, fundraisingCallReports } from "./communications-max";
+
+/** A pledge is an obligation, not evidence of received funds. */
+export const maxPledges = pgTable("max_pledges",{
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  caseId: integer("case_id").notNull().references(()=>askanuscases.id,{onDelete:"restrict"}),
+  contactId: integer("contact_id").references(()=>communicationContacts.id,{onDelete:"set null"}),
+  callReportId: integer("call_report_id").references(()=>fundraisingCallReports.id,{onDelete:"set null"}),
+  amount: numeric("amount",{precision:12,scale:2}).notNull(),
+  paidAmount: numeric("paid_amount",{precision:12,scale:2}).notNull().default("0"),
+  status: text("status").notNull().default("open"),
+  dueDate: text("due_date"),
+  note: text("note").notNull().default(""),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+},t=>[
+  index("max_pledges_owner_case_idx").on(t.userId,t.caseId),
+  index("max_pledges_contact_idx").on(t.contactId),
+]);
+/** Audited individual receipt reports, never substitute for processor verification. */
+export const maxReceipts = pgTable("max_receipts",{
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  caseId: integer("case_id").notNull().references(()=>askanuscases.id,{onDelete:"restrict"}),
+  contactId: integer("contact_id").references(()=>communicationContacts.id,{onDelete:"set null"}),
+  pledgeId: integer("pledge_id").references(()=>maxPledges.id,{onDelete:"restrict"}),
+  callReportId: integer("call_report_id").references(()=>fundraisingCallReports.id,{onDelete:"set null"}),
+  amount: numeric("amount",{precision:12,scale:2}).notNull(),
+  method: text("method").notNull().default("other"),
+  reference: text("reference").notNull().default(""),
+  verification: text("verification").notNull().default("manually_reported"),
+  requestId: text("request_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+},t=>[
+  uniqueIndex("max_receipts_owner_request_unique").on(t.userId,t.requestId),
+  index("max_receipts_owner_case_idx").on(t.userId,t.caseId),
+  index("max_receipts_pledge_idx").on(t.pledgeId),
+]);
+/** One case follow-up may optionally be linked to one donor without duplication. */
+export const maxFollowupContacts = pgTable("max_followup_contacts",{
+  followupId: integer("followup_id").primaryKey().references(()=>caseFollowups.id,{onDelete:"cascade"}),
+  userId: integer("user_id").notNull(),
+  contactId: integer("contact_id").notNull().references(()=>communicationContacts.id,{onDelete:"cascade"}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+},t=>[index("max_followup_contacts_contact_idx").on(t.userId,t.contactId)]);
