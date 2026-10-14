@@ -6,6 +6,9 @@ on:
     paths:
       - '.github/workflows/max-mobile-browser.yml'
       - 'artifacts/api-server/tests/max-mobile-browser.cjs'
+      - 'artifacts/gavhah/src/components/communications/donor-360.tsx'
+      - 'artifacts/gavhah/src/components/communications/max-call-desk.tsx'
+      - 'artifacts/api-server/src/routes/communications-consent.ts'
   workflow_dispatch:
 jobs:
   mobile-acceptance:
