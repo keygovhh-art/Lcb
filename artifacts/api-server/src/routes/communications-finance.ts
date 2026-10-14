@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getSessionUserId, requireAuth } from "../middlewares/auth";
-import { isRepeatRule } from "../lib/followup-recurrence";
+import { isRepeatRule, validCalendarDate } from "../lib/followup-recurrence";
 import {
   askanuscases, caseActivityLog, caseFollowups, communicationContacts,
   fundraisingCallReports, maxPledges, maxReceipts, maxReceiptRefunds, maxFollowupContacts,
@@ -16,7 +16,7 @@ const centsOk=(v:unknown)=>{
   return Number.isFinite(n)&&n>0&&n<=9999999999
     && Math.abs(n*100-Math.round(n*100))<0.000001;
 };
-const datesOk=(v:unknown)=>!v||/^\d{4}-\d{2}-\d{2}$/.test(String(v));
+const datesOk=validCalendarDate;
 const methods=new Set(["cash","check","card","bank","external","other"]);
 const shapePledge=(x:typeof maxPledges.$inferSelect)=>({
   ...x,amount:Number(x.amount),paidAmount:Number(x.paidAmount),
