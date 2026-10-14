@@ -243,6 +243,11 @@ try{
   r=await req(a,"/askanus/followups/"+followId+"/toggle","PATCH");
   status(r,200,"Complete shared follow-up");
   assert.equal(r.data.completed,true);
+  assert.ok(r.data.completedAt,"Finished followup must record actual completion timestamp");
+  const completedFollowupAt=r.data.completedAt;
+  r=await req(a,"/askanus/followups/"+followId+"/toggle","PATCH",{completed:true});
+  status(r,200,"Retry same completion must not duplicate or change time");
+  assert.equal(r.data.completedAt,completedFollowupAt);
 
   // Repeat a contact-linked monthly follow-up across February without drift.
   r=await req(a,"/askanus/contacts/"+donorId+"/followups","POST",{
@@ -398,11 +403,18 @@ try{
   assert.equal(r.data.pledges.find(p=>p.id===paidPledge.id)?.remaining,0);
   r=await req(a,"/askanus/cases/"+projectId,"PATCH",{status:"closed"});
   status(r,200,"Finish the campaign/project without erasing it");
+  assert.ok(r.data.closedAt,"Closing a project must record real closure time");
   r=await req(a,"/askanus/tasks","POST",{title:"QA archived completed task"});
   status(r,201,"Create synthetic personal task");
   const completedTaskId=r.data.id;
   r=await req(a,"/askanus/tasks/"+completedTaskId,"PATCH",{completed:true});
   status(r,200,"Finish a task while retaining it");
+  assert.ok(r.data.completedAt,"Completed task lacks timestamp");
+  const completedTaskAt=r.data.completedAt;
+  r=await req(a,"/askanus/tasks/"+completedTaskId,"PATCH",{completed:true});
+  status(r,200,"Retry task completion");
+  assert.equal(r.data.completedAt,completedTaskAt,"Retry changed historical done time");
+
   r=await req(a,"/askanus/max/history?limit=100","GET");
   status(r,200,"Load permanent private full history");
   const hist=r.data.items;
