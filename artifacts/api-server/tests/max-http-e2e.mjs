@@ -15,10 +15,10 @@ const hash=(value)=>{
   return salt+":"+scryptSync(value,salt,64).toString("hex");
 };
 const auth={};
-async function call(path,{method="GET",cookie,body}={}){
+async function call(path,{method="GET",cookie,body,origin}={}){
   const r=await fetch(base+path,{
     method,
-    headers:{"Content-Type":"application/json",...(cookie?{Cookie:cookie}:{})},
+    headers:{"Content-Type":"application/json",...(cookie?{Cookie:cookie}:{}),...(origin?{Origin:origin}:{})},
     ...(body!==undefined?{body:JSON.stringify(body)}:{}),
   });
   const raw=await r.text();
@@ -46,6 +46,12 @@ try{
     logins.push(x.cookie);
   }
   const [a,b]=logins;
+  // CSRF: session cookies from a forged cross-origin page cannot mutate MAX.
+  r=await call("/askanus/contacts",{method:"POST",cookie:a,origin:"https://untrusted.example.invalid",body:{name:"Cross-origin bad"}});
+  status(r,403,"Cross-origin mutation blocked");
+  r=await call("/askanus/contacts",{method:"POST",cookie:a,origin:"http://127.0.0.1:35147",body:{name:"Same origin test contact"}});
+  status(r,201,"Same-origin mutation allowed");
+
   r=await req(a,"/askanus/cases","POST",{title:"QA Fundraising Project",goalAmount:5000});
   status(r,201,"Create own case");
   const projectId=r.data.id; assert.ok(projectId>0);
