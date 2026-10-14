@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, featuredCauseSupportersTable, projectMembersTable } from "@workspace/db";
-import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes } from "@workspace/db/schema";
+import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes, fundraisingCallReports } from "@workspace/db/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
 
@@ -223,6 +223,17 @@ router.delete("/askanus/cases/:id", requireAuth, async (req, res) => {
     .from(askanuscases).where(and(eq(askanuscases.id, id), eq(askanuscases.userId, userId)));
   if (linked?.sourceType) {
     res.status(409).json({ error: "Official joined cases can be closed but not deleted. Use Close to keep your history." });
+    return;
+  }
+  // Do not erase a project with manually logged fundraising transactions.
+  // The communication report is audit evidence; archiving/closing is safer.
+  const [fundraising] = await db.select({ id: fundraisingCallReports.id })
+    .from(fundraisingCallReports).where(and(
+      eq(fundraisingCallReports.caseId, id),
+      eq(fundraisingCallReports.userId, userId),
+    )).limit(1);
+  if (fundraising) {
+    res.status(409).json({ error: "This case has a fundraising history. Close the case rather than deleting its financial audit trail." });
     return;
   }
   await db.delete(caseActivityLog).where(eq(caseActivityLog.caseId, id));
