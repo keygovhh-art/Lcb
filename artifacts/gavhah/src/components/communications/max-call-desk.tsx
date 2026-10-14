@@ -8,12 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CaseFollowups, type CaseFollowupEntry } from "@/components/askanus/case-followups";
+import { Donor360 } from "@/components/communications/donor-360";
 
 type PersonalCase = {
   id:number; title:string; goalAmount:number; fundsReceived:number; fundsPromised:number;
   followUpNotes:CaseFollowupEntry[];
 };
-type Contact = { id:number; name:string; phone:string; email:string; notes:string };
+type Contact = { id:number; name:string; phone:string; email:string; notes:string; doNotCall?:boolean; preferredHours?:string };
 type Call = {id:number; caseId:number; contactName:string; outcome:string; moneyKind:string; amount:number; note:string; createdAt:string};
 
 async function request<T>(url:string, init?:RequestInit):Promise<T> {
@@ -29,6 +30,7 @@ const json = (body:unknown,method="POST"):RequestInit => ({
 });
 const outcomeNames:Record<string,string> = {
   spoke:"גערעדט",no_answer:"נישט געענטפערט",callback:"בעט צוריקצורופן",
+  do_not_call:"בעט נישט מער צו רופן",
   not_interested:"נישט אינטערעסירט",other:"אנדערע",
 };
 
@@ -45,6 +47,8 @@ export function MaxCallDesk() {
   const [moneyKind,setMoneyKind] = useState("none");
   const [amount,setAmount] = useState("");
   const [note,setNote] = useState("");
+  const [mood,setMood] = useState("neutral");
+  const [revision,setRevision] = useState(0);
   const [followupNote,setFollowupNote] = useState("");
   const [dueDate,setDueDate] = useState("");
   const [quickNote,setQuickNote] = useState("");
@@ -76,7 +80,7 @@ export function MaxCallDesk() {
   const setContact = (id:number | null) => {
     setContactId(id);
     const person=contacts.find(c=>c.id===id);
-    if(person) setName(person.name);
+    setName(person?.name??"");
   };
   const addContact=async(e:React.FormEvent)=>{
     e.preventDefault();setBusy(true);setError("");setMessage("");
@@ -94,14 +98,14 @@ export function MaxCallDesk() {
     try{
       const result=await request<{duplicate:boolean;report:Call}>(
         "/api/askanus/cases/"+caseId+"/call-reports",
-        json({requestId,contactId,contactName:name.trim(),outcome,moneyKind,
+        json({requestId,contactId,contactName:name.trim(),outcome,moneyKind,mood,
           amount:moneyKind==="none"?0:Number(amount),note,followupNote,dueDate:dueDate||null}),
       );
       setMessage(result.duplicate
         ? "דער פריערדיגער באריכט איז שוין אפגעהיטן. קיין צווייטע נדבה איז נישט צוגערעכנט."
         : "דער רוף־באריכט איז אפגעהיטן. מיין עסקנות באנוצט די זעלבע פראיעקט־דאַטן.");
       setCalls(items=>[result.report,...items.filter(r=>r.id!==result.report.id)].slice(0,100));
-      setRequestId(crypto.randomUUID());setOutcome("spoke");setMoneyKind("none");setAmount("");
+      setRequestId(crypto.randomUUID());setOutcome("spoke");setMoneyKind("none");setAmount("");setMood("neutral");setRevision(v=>v+1);
       setNote("");setFollowupNote("");setDueDate("");
       await load();
       await qc.invalidateQueries({queryKey:getListAskanuscasesQueryKey()});
@@ -163,7 +167,10 @@ export function MaxCallDesk() {
             <option value="">אן אויסגעקליבענעם קאנטאקט</option>
             {contacts.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?" · "+c.phone:""}</option>)}
           </select>
-          {chosenContact?.phone && <a className="inline-flex gap-2 underline text-secondary text-sm" href={"tel:"+chosenContact.phone}>
+          {chosenContact?.doNotCall && <p role="alert" className="text-sm font-semibold text-destructive">
+            רופן־פארבאט: דער מענטש האט געבעטן נישט צו ווערן גערופן. די דיילער־פארבינדונג איז פארשפארט.
+          </p>}
+          {chosenContact?.phone && !chosenContact.doNotCall && <a className="inline-flex gap-2 underline text-secondary text-sm" href={"tel:"+chosenContact.phone}>
             <PhoneCall className="h-4 w-4"/> עפענען דעם טעלעפאן־דיילער
           </a>}
           <p className="text-xs text-muted-foreground">דאס עפנט בלויז דעם טעלעפאן־דיילער; ס'איז נאכנישט קיין אויטאמאטיש גערעקארדירטער רוף.</p>
@@ -175,6 +182,8 @@ export function MaxCallDesk() {
           <Input aria-label="אימעיל" placeholder="אימעיל (אפציאנעל)" value={newContact.email} onChange={e=>setNewContact(s=>({...s,email:e.target.value}))}/>
           <Button type="submit" variant="outline" disabled={busy || !newContact.name.trim()}><Plus className="h-4 w-4 ml-1"/> צולייגן</Button>
         </form>
+        {contactId!==null&&<Donor360 contactId={contactId} caseId={caseId}
+          revision={revision} onChanged={()=>{void load();setRevision(v=>v+1);}} />}
       </section>
       <section className="rounded-xl border bg-card p-4 sm:p-6 space-y-4">
         <h3 className="font-bold text-lg flex items-center gap-2"><BookOpen className="h-5 w-5"/> רוף־רעזולטאט אפהיטן</h3>
@@ -193,6 +202,17 @@ export function MaxCallDesk() {
             </select></div>
           {moneyKind!=="none" && <div className="space-y-1"><Label htmlFor="max-amount">סכום ($)</Label>
             <Input id="max-amount" type="number" inputMode="decimal" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} required/></div>}
+          <div className="space-y-1"><Label htmlFor="max-mood">וויאזוי איז דער שמועס געווען? (דיין באמערקונג)</Label>
+            <select id="max-mood" className="w-full h-11 rounded-lg border bg-background px-3"
+              value={mood} onChange={e=>setMood(e.target.value)}>
+              <option value="neutral">נייטראל</option>
+              <option value="friendly">פריינטליך</option>
+              <option value="busy">פארנומען</option>
+              <option value="uncomfortable">אומבאקוועם</option>
+              <option value="uninterested">נישט אינטערעסירט</option>
+              <option value="other">אנדערש</option>
+            </select>
+          </div>
           <div className="space-y-1"><Label htmlFor="max-note">קורצע נאטיץ פונעם רוף</Label>
             <Textarea id="max-note" value={note} onChange={e=>setNote(e.target.value)} maxLength={1500}/></div>
           <div className="space-y-1"><Label htmlFor="max-callback">נאכפאלג צולייגן (אפציאנעל)</Label>
