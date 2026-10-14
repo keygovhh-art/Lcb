@@ -118,6 +118,7 @@ router.get("/groups/:id", async (req, res): Promise<void> => {
     lockedSettings:manager?groupPublicSettings.filter(k=>groupSettingLocked(group,k)):[],
     allowedCapabilities:manager?allowedCapabilities:{},
     platformAccess:allowStaff?.canViewPrivate??false,
+    platformCanModerate:allowStaff?.canModerate??false,
   });
 });
 
