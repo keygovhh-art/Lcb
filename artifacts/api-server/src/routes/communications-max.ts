@@ -3,13 +3,13 @@ import { db } from "@workspace/db";
 import { askanuscases, caseActivityLog, caseFollowups, communicationContacts, fundraisingCallReports, maxPledges, maxReceipts, maxFollowupContacts } from "@workspace/db/schema";
 import { and, desc, eq, sql, or, ilike } from "drizzle-orm";
 import { getSessionUserId, requireAuth } from "../middlewares/auth";
-import { isRepeatRule } from "../lib/followup-recurrence";
+import { isRepeatRule, validCalendarDate } from "../lib/followup-recurrence";
 
 const router = Router();
 const moneyKinds = new Set(["none", "received", "pledged"]);
 const outcomes = new Set(["spoke", "no_answer", "callback", "not_interested", "do_not_call", "other"]);
 const clean = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
-const isoDate = (v: unknown) => !v || /^\d{4}-\d{2}-\d{2}$/.test(String(v));
+const isoDate = validCalendarDate;
 const safeId = (v: unknown) => Number.isSafeInteger(Number(v)) && Number(v) > 0;
 const formatContact = (c: typeof communicationContacts.$inferSelect) => ({
   ...c, createdAt: c.createdAt.toISOString(), updatedAt: c.updatedAt.toISOString(),
