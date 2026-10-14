@@ -30,6 +30,8 @@ const {chromium}=requireBrowser("playwright");
    await page.locator('#max-contacts input[aria-label="נאמען"]').fill("QA Mobile-only Contact");
    await page.locator('#max-contacts input[aria-label="טעלעפאן"]').fill("8455550198");
    await page.locator('#max-contacts form button[type="submit"]').click();
+   await page.waitForFunction(()=>Number(document.querySelector("#max-contact")?.value)>0,
+     null,{timeout:15000});
    const selected=await page.locator("#max-contact").inputValue();
    assert.ok(Number(selected)>0,"Newly added contact was not selected");
    await page.getByRole("heading",{name:/נדבן 360/}).first().waitFor({timeout:15000});
