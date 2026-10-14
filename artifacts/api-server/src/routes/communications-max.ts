@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { askanuscases, caseActivityLog, caseFollowups, communicationContacts, fundraisingCallReports, maxPledges, maxReceipts, maxFollowupContacts } from "@workspace/db/schema";
 import { and, desc, eq, sql, or, ilike } from "drizzle-orm";
 import { getSessionUserId, requireAuth } from "../middlewares/auth";
+import { isRepeatRule } from "../lib/followup-recurrence";
 
 const router = Router();
 const moneyKinds = new Set(["none", "received", "pledged"]);
@@ -118,6 +119,7 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   const dueDate = clean(body.dueDate, 10) || null;
   const dueTime = clean(body.dueTime, 5) || null;
   const timeZone = clean(body.timeZone, 80) || null;
+  const repeatRule = clean(body.repeatRule || "none",20);
   if(dueTime){
     try{if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(dueTime)||!timeZone)throw Error();
       new Intl.DateTimeFormat("en-US",{timeZone}).format();
@@ -133,7 +135,8 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
       Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001 ||
       (moneyKind === "none" && amount !== 0) ||
       (moneyKind !== "none" && amount <= 0) ||
-      !isoDate(dueDate) || (dueTime && (!followupNote || !dueDate)) || (followupNote && !dueDate && body.dueDate) ||
+      !isoDate(dueDate) || !isRepeatRule(repeatRule) ||
+      (repeatRule!=="none" && (!followupNote||!dueDate)) || (dueTime && (!followupNote || !dueDate)) || (followupNote && !dueDate && body.dueDate) ||
       (contactId !== null && !safeId(contactId)) ||
       (outcome === "do_not_call" && contactId === null)) {
     res.status(400).json({ error: "Invalid call report fields" }); return;
@@ -197,6 +200,7 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
     if (followupNote) {
       const [followup]=await tx.insert(caseFollowups).values({
         caseId,date:today,note:followupNote,dueDate,dueTime,timeZone:dueTime?timeZone:null,
+        repeatRule,repeatAnchorDay:repeatRule==="monthly"&&dueDate?Number(dueDate.slice(-2)):null,
       }).returning();
       if(contactId!==null)await tx.insert(maxFollowupContacts).values({
         userId,contactId,followupId:followup.id,
