@@ -22,6 +22,13 @@ function validDateString(value: unknown) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value));
 }
 
+function validFollowupTime(time:unknown,zone:unknown){
+  if(time===undefined||time===null||time==="")return true;
+  if(typeof time!=="string"||!/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(time))return false;
+  if(typeof zone!=="string"||zone.length>80)return false;
+  try { new Intl.DateTimeFormat("en-US",{timeZone:zone}).format(); return true; }
+  catch{return false;}
+}
 function finiteNonNegative(value: unknown) {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0;
@@ -256,7 +263,7 @@ router.delete("/askanus/cases/:id", requireAuth, async (req, res) => {
 router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const userId = getSessionUserId(req)!;
-  const { action, amount, note, from, dueDate, status, goal } = req.body;
+  const { action, amount, note, from, dueDate, dueTime, timeZone, status, goal } = req.body;
   const today = TODAY();
 
   const [existing] = await db.select().from(askanuscases).where(
@@ -280,7 +287,7 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
     res.status(400).json({ error: "note is required" });
     return;
   }
-  if (action === "followup" && !validDateString(dueDate)) {
+  if (action === "followup" && (!validDateString(dueDate) || !validFollowupTime(dueTime,timeZone) || (dueTime && !dueDate))) {
     res.status(400).json({ error: "invalid follow-up date" });
     return;
   }
@@ -357,7 +364,7 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
   } else if (action === "note" && note) {
     await db.insert(caseActivityLog).values({ caseId: id, date: today, type: "note", note: String(note).trim().slice(0, 1500) });
   } else if (action === "followup" && note) {
-    await db.insert(caseFollowups).values({ caseId: id, date: today, note: String(note).trim().slice(0, 1500), dueDate: dueDate || null });
+    await db.insert(caseFollowups).values({ caseId: id, date: today, note: String(note).trim().slice(0, 1500), dueDate: dueDate || null, dueTime:dueTime||null, timeZone:dueTime?timeZone:null });
   } else if (action === "status" && status) {
     caseUpdates.status = status;
     await db.insert(caseActivityLog).values({
@@ -407,6 +414,19 @@ router.patch("/askanus/followups/:id", requireAuth, async (req, res) => {
       res.status(400).json({ error: "Invalid due date" }); return;
     }
     updates.dueDate = req.body.dueDate ? String(req.body.dueDate) : null;
+  }
+  if (req.body?.dueTime !== undefined || req.body?.timeZone !== undefined) {
+    const [existingFollowup]=await db.select({dueDate:caseFollowups.dueDate,dueTime:caseFollowups.dueTime,timeZone:caseFollowups.timeZone})
+      .from(caseFollowups).where(and(eq(caseFollowups.id,id),sql`EXISTS (SELECT 1 FROM askanus_cases ac WHERE ac.id=${caseFollowups.caseId} AND ac.user_id=${userId})`));
+    if(!existingFollowup){res.status(404).json({error:"Not found"});return;}
+    const dueTime=req.body?.dueTime===undefined?existingFollowup.dueTime:req.body.dueTime;
+    const timeZone=req.body?.timeZone===undefined?existingFollowup.timeZone:req.body.timeZone;
+    const actualDate=req.body?.dueDate===undefined?existingFollowup.dueDate:req.body.dueDate;
+    if(!validFollowupTime(dueTime,timeZone) || (dueTime && !actualDate)){
+      res.status(400).json({error:"Invalid follow-up time/timezone"});return;
+    }
+    updates.dueTime=dueTime||null;
+    updates.timeZone=dueTime?timeZone:null;
   }
   if (!Object.keys(updates).length) {
     res.status(400).json({ error: "Nothing to update" }); return;
