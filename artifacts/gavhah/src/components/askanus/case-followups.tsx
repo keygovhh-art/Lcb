@@ -66,7 +66,7 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
       });
       if(!response.ok)throw Error("Could not update follow-up");
       const updated:CaseFollowupEntry=await response.json();
-      updateStoredCase(items=>updateCaseFollowupCompletion(items,item.id,updated.completed));
+      updateStoredCase(items=>updateCaseFollowupCompletion(items, item.id, updated.completed));
       await onUpdated();
       toast({title:updated.completed
         ?(item.repeatRule&&item.repeatRule!=="none"
