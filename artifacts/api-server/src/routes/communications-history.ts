@@ -54,14 +54,16 @@ router.get("/askanus/max/history",requireAuth,async(req,res)=>{
         f.note || CASE WHEN f.due_date IS NOT NULL
           THEN ' · ' || f.due_date ELSE '' END ||
           CASE WHEN f.due_time IS NOT NULL THEN ' '||f.due_time ELSE '' END,
-        f.created_at AT TIME ZONE 'UTC'
+        CASE WHEN f.completed THEN coalesce(f.completed_at,f.created_at AT TIME ZONE 'UTC')
+          ELSE f.created_at AT TIME ZONE 'UTC' END
       FROM case_followups f
       JOIN askanus_cases c ON c.id=f.case_id AND c.user_id=${userId}
       UNION ALL
       SELECT p.id::bigint,'pledges',p.status,p.case_id,p.id,
         c.title, '$'||p.amount::text||' pledged; $'||p.paid_amount::text||
           ' reported paid; balance $'||(p.amount-p.paid_amount)::text,
-        p.created_at AT TIME ZONE 'UTC'
+        CASE WHEN p.status='paid' THEN p.updated_at AT TIME ZONE 'UTC'
+          ELSE p.created_at AT TIME ZONE 'UTC' END
       FROM max_pledges p
       JOIN askanus_cases c ON c.id=p.case_id AND c.user_id=${userId}
       WHERE p.user_id=${userId}
@@ -76,12 +78,14 @@ router.get("/askanus/max/history",requireAuth,async(req,res)=>{
       UNION ALL
       SELECT t.id::bigint,'tasks',CASE WHEN t.completed THEN 'completed' ELSE 'open' END,
         NULL::integer,t.id,t.title,coalesce(t.notes,''),
-        t.created_at AT TIME ZONE 'UTC'
+        CASE WHEN t.completed THEN coalesce(t.completed_at,t.created_at AT TIME ZONE 'UTC')
+          ELSE t.created_at AT TIME ZONE 'UTC' END
       FROM askanus_tasks t WHERE t.user_id=${userId}
       UNION ALL
       SELECT c.id::bigint,'cases',c.status::text,c.id,c.id,c.title,
         coalesce(c.description,''),
-        c.created_at AT TIME ZONE 'UTC'
+        CASE WHEN c.status='closed' THEN coalesce(c.closed_at,c.created_at AT TIME ZONE 'UTC')
+          ELSE c.created_at AT TIME ZONE 'UTC' END
       FROM askanus_cases c WHERE c.user_id=${userId}
       UNION ALL
       SELECT cr.id::bigint,'calls',cr.outcome,cr.case_id,cr.id,
