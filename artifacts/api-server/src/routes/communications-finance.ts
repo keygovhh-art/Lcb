@@ -5,7 +5,7 @@ import { getSessionUserId, requireAuth } from "../middlewares/auth";
 import { isRepeatRule, validCalendarDate } from "../lib/followup-recurrence";
 import {
   askanuscases, caseActivityLog, caseFollowups, communicationContacts,
-  fundraisingCallReports, maxPledges, maxReceipts, maxReceiptRefunds, maxFollowupContacts,
+  fundraisingCallReports, maxPledges, maxReceipts, maxReceiptRefunds, maxFollowupContacts, maxHistoryEvents,
 } from "@workspace/db/schema";
 
 const router=Router();
@@ -164,7 +164,16 @@ router.post("/askanus/pledges/:id/settlements",requireAuth,async(req,res)=>{
       await tx.insert(caseActivityLog).values({
         caseId:pledge.caseId,date:new Date().toISOString().slice(0,10),
         type:"funds_received",amount:String(amount),
-        note:`Manually reported payment $${amount.toFixed(2)} toward pledge #${pledgeId}; method ${method}`,
+        note:`Manually reported payment ${amount.toFixed(2)} toward pledge #${pledgeId}; method ${method}`,
+      });
+      await tx.insert(maxHistoryEvents).values({
+        userId,caseId:pledge.caseId,entityType:"pledge",entityId:pledgeId,
+        action:updated.status==="paid"?"pledge_fully_paid":"pledge_partially_paid",
+        title:"התחייבות #"+pledgeId,
+        details:JSON.stringify({amount:Number(pledge.amount),paidNow:amount,
+          paidTotal:Number(updated.paidAmount),
+          remaining:Number(pledge.amount)-Number(updated.paidAmount),
+          receiptId:receipt.id,method,verification:"manually_reported"}),
       });
       return {kind:"created" as const,receipt};
     });
@@ -242,6 +251,14 @@ router.post("/askanus/receipts/:id/refunds",requireAuth,async(req,res)=>{
         caseId:receipt.caseId,date:new Date().toISOString().slice(0,10),
         type:"note",amount:String(-amount),
         note:`Accounting reversal: ${amount.toFixed(2)} against receipt #${receiptId} — ${reason}`.slice(0,1500),
+      });
+      await tx.insert(maxHistoryEvents).values({
+        userId,caseId:receipt.caseId,entityType:"receipt",entityId:receiptId,
+        action:"receipt_accounting_reversal",
+        title:"קארעקטור צו קבלה #"+receiptId,
+        details:JSON.stringify({amount,reason,refundEventId:event.id,
+          totalReversed:Number(receipt.refundedAmount),
+          note:"Accounting-only reversal; no bank/card transfer executed"}),
       });
       return {kind:"created" as const,event};
     });
