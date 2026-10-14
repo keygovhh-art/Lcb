@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { askanuscases, caseActivityLog, caseFollowups, communicationContacts, fundraisingCallReports } from "@workspace/db/schema";
+import { askanuscases, caseActivityLog, caseFollowups, communicationContacts, fundraisingCallReports, maxPledges, maxReceipts, maxFollowupContacts } from "@workspace/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getSessionUserId, requireAuth } from "../middlewares/auth";
 
 const router = Router();
 const moneyKinds = new Set(["none", "received", "pledged"]);
-const outcomes = new Set(["spoke", "no_answer", "callback", "not_interested", "other"]);
+const outcomes = new Set(["spoke", "no_answer", "callback", "not_interested", "do_not_call", "other"]);
 const clean = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 const isoDate = (v: unknown) => !v || /^\d{4}-\d{2}-\d{2}$/.test(String(v));
 const safeId = (v: unknown) => Number.isSafeInteger(Number(v)) && Number(v) > 0;
@@ -33,6 +33,7 @@ router.post("/askanus/contacts", requireAuth, async (req, res) => {
   const [created] = await db.insert(communicationContacts).values({
     userId, name, phone: clean(req.body?.phone, 80),
     email: clean(req.body?.email, 240), notes: clean(req.body?.notes, 4000),
+    preferredTimezone: clean(req.body?.preferredTimezone || "America/New_York", 80),
   }).returning();
   res.status(201).json(formatContact(created));
 });
@@ -43,6 +44,18 @@ router.patch("/askanus/contacts/:id", requireAuth, async (req, res) => {
     if (req.body?.[key] !== undefined) updates[key] = clean(req.body[key],limit);
   }
   if (updates.name === "") { res.status(400).json({ error: "Contact name is required" }); return; }
+  if (req.body?.doNotCall !== undefined) {
+    if (typeof req.body.doNotCall !== "boolean") {
+      res.status(400).json({error:"doNotCall must be a boolean"}); return;
+    }
+    updates.doNotCall = req.body.doNotCall;
+    updates.optOutReason = clean(req.body?.optOutReason,500);
+  }
+  if (req.body?.preferredHours !== undefined) updates.preferredHours = clean(req.body.preferredHours,240);
+  if (req.body?.contactRole !== undefined) updates.contactRole = clean(req.body.contactRole,64);
+  if (req.body?.relationshipNotes !== undefined) updates.relationshipNotes = clean(req.body.relationshipNotes,1500);
+  if (req.body?.preferredTimezone !== undefined) updates.preferredTimezone = clean(req.body.preferredTimezone,80);
+
   const [row] = await db.update(communicationContacts).set(updates).where(and(
     eq(communicationContacts.id, Number(req.params.id)),
     eq(communicationContacts.userId, getSessionUserId(req)!),
@@ -77,15 +90,18 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   const followupNote = clean(body.followupNote, 1500);
   const dueDate = clean(body.dueDate, 10) || null;
   const contactId = body.contactId == null || body.contactId === "" ? null : Number(body.contactId);
+  const mood = clean(body.mood || "neutral",40);
 
   if (!safeId(caseId) || !requestId || requestId.length < 12 ||
+      !new Set(["friendly","neutral","busy","uncomfortable","uninterested","other"]).has(mood) ||
       !contactName || !outcomes.has(outcome) || !moneyKinds.has(moneyKind) ||
       !Number.isFinite(amount) || amount < 0 || amount > 9999999999 ||
       Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001 ||
       (moneyKind === "none" && amount !== 0) ||
       (moneyKind !== "none" && amount <= 0) ||
       !isoDate(dueDate) || (followupNote && !dueDate && body.dueDate) ||
-      (contactId !== null && !safeId(contactId))) {
+      (contactId !== null && !safeId(contactId)) ||
+      (outcome === "do_not_call" && contactId === null)) {
     res.status(400).json({ error: "Invalid call report fields" }); return;
   }
   // Check the signed-in member owns the case; increments below are atomic SQL updates.
@@ -101,17 +117,36 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   const result = await db.transaction(async tx => {
     const [saved] = await tx.insert(fundraisingCallReports).values({
       userId, caseId, contactId, contactName, outcome, moneyKind,
-      amount: String(amount), note, requestId,
+      amount: String(amount), note, requestId, observedMood:mood,
     }).onConflictDoNothing().returning();
     if (!saved) {
       const [existing] = await tx.select().from(fundraisingCallReports).where(and(
         eq(fundraisingCallReports.userId,userId),eq(fundraisingCallReports.requestId,requestId)));
-      return {report:existing,duplicate:true};
+      if(!existing || existing.caseId!==caseId || Number(existing.amount)!==amount ||
+          existing.moneyKind!==moneyKind || existing.contactId!==contactId || existing.outcome!==outcome){
+        return {kind:"conflict" as const};
+      }
+      return {kind:"duplicate" as const, report:existing};
     }
     await tx.insert(caseActivityLog).values({
       caseId,date:today,type:"contact",
-      note: `Manual call report: ${contactName} — ${outcome}${note ? " — "+note : ""}`.slice(0,1500),
+      note: `Manual call report: ${contactName} — ${outcome} (observed mood: ${mood})${note ? " — "+note : ""}`.slice(0,1500),
     });
+    if(outcome==="do_not_call" && contactId!==null) {
+      await tx.update(communicationContacts).set({
+        doNotCall:true,optOutReason:note||"Asked not to be called",updatedAt:new Date(),
+      }).where(and(eq(communicationContacts.id,contactId),eq(communicationContacts.userId,userId)));
+    }
+    if (moneyKind==="pledged") {
+      await tx.insert(maxPledges).values({
+        userId,caseId,contactId,callReportId:saved.id,amount:String(amount),note,
+      });
+    } else if (moneyKind==="received") {
+      await tx.insert(maxReceipts).values({
+        userId,caseId,contactId,callReportId:saved.id,amount:String(amount),
+        requestId:"call:"+requestId,method:"other",verification:"manually_reported",
+      });
+    }
     if (moneyKind !== "none") {
       await tx.insert(caseActivityLog).values({
         caseId,date:today,type:moneyKind === "received" ? "funds_received" : "funds_promised",
@@ -126,13 +161,21 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
       }).where(and(eq(askanuscases.id,caseId),eq(askanuscases.userId,userId)));
     }
     if (followupNote) {
-      await tx.insert(caseFollowups).values({caseId,date:today,note:followupNote,dueDate});
+      const [followup]=await tx.insert(caseFollowups).values({
+        caseId,date:today,note:followupNote,dueDate,
+      }).returning();
+      if(contactId!==null)await tx.insert(maxFollowupContacts).values({
+        userId,contactId,followupId:followup.id,
+      });
     }
-    return {report:saved,duplicate:false};
+    return {kind:"created" as const, report:saved};
   });
   res.setHeader("Cache-Control", "private, no-store");
-  res.status(result.duplicate ? 200 : 201).json({
-    duplicate:result.duplicate, report:formatCall(result.report),
+  if(result.kind==="conflict"){
+    res.status(409).json({error:"This request ID is already used for a different call report"});return;
+  }
+  res.status(result.kind==="duplicate" ? 200 : 201).json({
+    duplicate:result.kind==="duplicate",report:formatCall(result.report),
   });
 });
 
