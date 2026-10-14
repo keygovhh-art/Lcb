@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS max_contact_consents (
   action text NOT NULL DEFAULT 'reconsent' CHECK(action = 'reconsent'),
   method text NOT NULL CHECK(method IN ('written','in_person','incoming_call','other')),
   evidence text NOT NULL CHECK(length(trim(evidence)) >= 12),
+  prior_opt_out_reason text NOT NULL DEFAULT '',
   consent_at timestamp NOT NULL,
   request_id text NOT NULL,
   created_at timestamp NOT NULL DEFAULT now(),
