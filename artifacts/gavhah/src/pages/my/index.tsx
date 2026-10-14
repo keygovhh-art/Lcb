@@ -13,6 +13,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/auth-context";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { CaseFollowups } from "@/components/askanus/case-followups";
+import { MaxHistoryPanel } from "@/components/communications/max-history-panel";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -895,6 +896,7 @@ export default function MyAskanus() {
 
           {/* HISTORY */}
           <TabsContent value="history" className="space-y-6">
+            <MaxHistoryPanel />
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary mb-2">Activity History</h2>
               <p className="text-muted-foreground text-sm">Review your case activity log across all cases.</p>
