@@ -13,7 +13,7 @@ type Donor = {
   relationshipNotes:string;optOutReason:string;
 };
 type Pledge = { id:number;caseId:number;amount:number;paidAmount:number;remaining:number;status:string;dueDate:string|null;note:string;createdAt:string };
-type Receipt = {id:number;pledgeId:number|null;caseId:number;amount:number;method:string;verification:string;createdAt:string};
+type Receipt = {id:number;pledgeId:number|null;caseId:number;amount:number;refundedAmount:number;method:string;verification:string;createdAt:string};
 type Call = {id:number;caseId:number;contactName:string;outcome:string;observedMood:string;note:string;createdAt:string};
 type Followup = {id:number;caseId:number;note:string;dueDate:string|null;completed:boolean};
 type Profile = {contact:Donor;calls:Call[];pledges:Pledge[];receipts:Receipt[];followups:Followup[]};
@@ -43,6 +43,10 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
   const [pay,setPay]=useState("");
   const [payMethod,setPayMethod]=useState("other");
   const [paymentKey,setPaymentKey]=useState(()=>crypto.randomUUID());
+  const [refundId,setRefundId]=useState<number|null>(null);
+  const [refundAmount,setRefundAmount]=useState("");
+  const [refundReason,setRefundReason]=useState("");
+  const [refundKey,setRefundKey]=useState(()=>crypto.randomUUID());
   const [followNote,setFollowNote]=useState("");
   const [followDue,setFollowDue]=useState("");
   const load=useCallback(async()=>{
@@ -80,6 +84,20 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
     }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
     finally{setBusy(false);}
   };
+  const reverseReceipt=async(e:React.FormEvent)=>{
+    e.preventDefault();if(!refundId||!(Number(refundAmount)>0)||!refundReason.trim())return;
+    setBusy(true);setError("");setMessage("");
+    try{
+      const result=await jsonCall<{duplicate:boolean}>("/api/askanus/receipts/"+refundId+"/refunds",
+        write({amount:Number(refundAmount),reason:refundReason.trim(),requestId:refundKey}));
+      setMessage(result.duplicate
+        ?"די קארעקטור איז שוין אפגעהיטן, נישט צוויי מאל גערעכנט."
+        :"די חשבון־קארעקטור איז אפגעהיטן. דאס שיקט נישט צוריק געלט דורכן באצאלונגס־סערוויס.");
+      setRefundId(null);setRefundAmount("");setRefundReason("");setRefundKey(crypto.randomUUID());
+      await load();onChanged();await qc.invalidateQueries({queryKey:getListAskanuscasesQueryKey()});
+    }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
+    finally{setBusy(false);}
+  };
   const addDonorFollowup=async(e:React.FormEvent)=>{
     e.preventDefault();if(!caseId||!followNote.trim())return;
     setBusy(true);setError("");setMessage("");
@@ -94,7 +112,7 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
   };
   if(!data) return <div className="rounded-lg border p-3 text-sm" dir="rtl">{error||"לאדנט דעם נדבן־חשבון..."}</div>;
   const c=data.contact;
-  const raised=data.receipts.reduce((sum,r)=>sum+r.amount,0);
+  const raised=data.receipts.reduce((sum,r)=>sum+r.amount-Number(r.refundedAmount||0),0);
   const remaining=data.pledges.filter(p=>p.status!=="cancelled").reduce((sum,p)=>sum+p.remaining,0);
   return <section dir="rtl" className="mt-4 rounded-xl border p-4 space-y-4 bg-background">
     <h4 className="font-bold flex gap-2 items-center"><UserRound className="h-5 w-5"/> {c.name} — נדבן 360°</h4>
@@ -156,7 +174,23 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
       </div>)}
       {data.receipts.length>0&&<div className="text-xs space-y-1">
         <strong>באצאלונגס־היסטאריע:</strong>
-        {data.receipts.slice(0,12).map(r=><p key={r.id}>#{r.id} · ${r.amount.toLocaleString()} · {r.method} · {r.verification==="verified"?"באשטעטיגט":"מאנועל איינגעשריבן"}</p>)}
+        {data.receipts.slice(0,12).map(r=><div key={r.id} className="border rounded-md p-2 space-y-1">
+          <p>#{r.id} · ${r.amount.toLocaleString()} · {r.method} · {r.verification==="verified"?"באשטעטיגט":"מאנועל איינגעשריבן"}</p>
+          {r.refundedAmount>0&&<p>חשבון־קארעקטורן: ${r.refundedAmount.toLocaleString()} · יעצט: ${(r.amount-r.refundedAmount).toLocaleString()}</p>}
+          {r.amount-r.refundedAmount>0&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>{setRefundId(r.id);setRefundAmount("");setRefundReason("");}}>קארעקטור / אומקער</Button>}
+          {refundId===r.id&&<form onSubmit={e=>void reverseReceipt(e)} className="space-y-2 p-2 border rounded-lg">
+            <p className="text-xs text-destructive">דאס פאררעכט נאר דעם גבהה־חשבון; אן אמת׳ע צוריקצאלונג מוז ווערן באהאנדלט ביים געלט־סערוויס.</p>
+            <Label htmlFor="refund-amount">סכום פון דער קארעקטור</Label>
+            <Input id="refund-amount" type="number" min="0.01" step="0.01" max={r.amount-r.refundedAmount}
+              value={refundAmount} onChange={e=>setRefundAmount(e.target.value)} required/>
+            <Label htmlFor="refund-reason">פארוואס דארף מען פאררעכטן דעם חשבון?</Label>
+            <Textarea id="refund-reason" value={refundReason} onChange={e=>setRefundReason(e.target.value)} required maxLength={500}/>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" size="sm" disabled={busy||!refundReason.trim()||!(Number(refundAmount)>0)||Number(refundAmount)>r.amount-r.refundedAmount}>אפהיטן קארעקטור</Button>
+              <Button type="button" size="sm" variant="outline" onClick={()=>setRefundId(null)}>אפלאזן</Button>
+            </div>
+          </form>}
+        </div>)}
       </div>}
     </div>
     <div className="space-y-2">
