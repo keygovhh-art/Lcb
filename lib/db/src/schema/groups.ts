@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -20,6 +20,7 @@ export const groupsTable = pgTable("groups", {
   membersCanReply: boolean("members_can_reply").notNull().default(true),
   showViewCounts: boolean("show_view_counts").notNull().default(true),
   allowDownvotes: boolean("allow_downvotes").notNull().default(false),
+  platformFeatureOverrides: jsonb("platform_feature_overrides").$type<Record<string,boolean>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -66,6 +67,8 @@ export const groupPostDownvotesTable = pgTable("group_post_downvotes", {
 
 export const groupPostRepliesTable = pgTable("group_post_replies", {
   id: serial("id").primaryKey(),
+  parentReplyId: integer("parent_reply_id"),
+  deletedAt: timestamp("deleted_at",{withTimezone:true}),
   postId: integer("post_id").notNull().references(() => groupPostsTable.id,{onDelete:"cascade"}),
   authorId: integer("author_id").notNull(),
   authorName: text("author_name").notNull(),
