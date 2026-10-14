@@ -194,6 +194,7 @@ router.patch("/askanus/cases/:id", requireAuth, async (req, res) => {
     const clean = String(status);
     if (!CASE_STATUSES.has(clean)) { res.status(400).json({ error: "invalid status" }); return; }
     updates.status = clean;
+    updates.closedAt=clean==="closed"?new Date():null;
   }
   if (urgency !== undefined) {
     const clean = String(urgency);
@@ -406,6 +407,7 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
     });
   } else if (action === "status" && status) {
     caseUpdates.status = status;
+    caseUpdates.closedAt=status==="closed"?new Date():null;
     await tx.insert(maxHistoryEvents).values({
       userId,caseId:id,entityType:"case",entityId:id,
       action:status==="closed"?"case_completed":status==="open"?"case_reopened":"case_status_changed",
@@ -442,7 +444,9 @@ router.patch("/askanus/followups/:id/toggle", requireAuth, async(req,res)=>{
     if(!owned)return {kind:"missing" as const};
     const desired=typeof req.body?.completed==="boolean"?req.body.completed:!existing.completed;
     if(desired===existing.completed)return {kind:"same" as const,row:existing};
-    const [updated]=await tx.update(caseFollowups).set({completed:desired})
+    const [updated]=await tx.update(caseFollowups).set({
+      completed:desired,completedAt:desired?new Date():null,
+    })
       .where(and(eq(caseFollowups.id,id),eq(caseFollowups.completed,existing.completed)))
       .returning();
     if(!updated)return {kind:"conflict" as const};
@@ -453,7 +457,7 @@ router.patch("/askanus/followups/:id/toggle", requireAuth, async(req,res)=>{
       details:JSON.stringify({note:existing.note,dueDate:existing.dueDate,
         dueTime:existing.dueTime,timeZone:existing.timeZone,
         repeatRule:existing.repeatRule,previousCompleted:existing.completed,
-        completed:desired}),
+        completed:desired,completedAt:updated.completedAt?.toISOString()??null}),
     });
     if(desired && isRepeatRule(existing.repeatRule) && existing.repeatRule!=="none" && existing.dueDate){
       const nextDate=nextRepeatDate(existing.dueDate,existing.repeatRule,existing.repeatAnchorDay);
@@ -669,6 +673,7 @@ router.patch("/askanus/tasks/:id", requireAuth, async (req, res) => {
   if (completed !== undefined) {
     if (typeof completed !== "boolean") { res.status(400).json({ error: "completed must be true or false" }); return; }
     updates.completed = completed;
+    updates.completedAt=completed?new Date():null;
   }
   if (priority !== undefined) {
     const clean = String(priority);
