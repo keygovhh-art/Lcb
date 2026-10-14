@@ -16,7 +16,7 @@ const router: IRouter = Router();
 function isStaffRole(role?: string) {
   return role === "admin" || role === "moderator" || role === "super_admin";
 }
-const canTransferOwner = (role?: string) => role === "admin" || role === "super_admin";
+const canTransferOwner = (role?: string) => role === "super_admin";
 async function isGroupManager(groupId:number,userId:number,role?:string,ownerId?:number) {
   if(userId===ownerId)return true;
   if((await platformGroupGrant(userId,groupId,role)).canModerate)return true;
