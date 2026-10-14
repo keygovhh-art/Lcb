@@ -1,5 +1,6 @@
 -- Stage 2: donor 360, contact preferences, single pledge/partial receipt records.
 -- Backward compatible: no existing content is deleted or replaced.
+ALTER TABLE fundraising_call_reports ADD COLUMN IF NOT EXISTS observed_mood text NOT NULL DEFAULT 'neutral';
 ALTER TABLE communication_contacts ADD COLUMN IF NOT EXISTS do_not_call boolean NOT NULL DEFAULT false;
 ALTER TABLE communication_contacts ADD COLUMN IF NOT EXISTS preferred_timezone text NOT NULL DEFAULT 'America/New_York';
 ALTER TABLE communication_contacts ADD COLUMN IF NOT EXISTS preferred_hours text NOT NULL DEFAULT '';
