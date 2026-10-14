@@ -1,3 +1,4 @@
+import { formatGregorianYear } from "@/lib/gregorian-date";
 import { ReactNode, useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import {
@@ -469,7 +470,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="border-t border-primary-foreground/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-primary-foreground/40">
-            <p>&copy; {new Date().getFullYear()} Gavhah Global Community Platform. All rights reserved.</p>
+            <p>&copy; {formatGregorianYear(new Date().getFullYear())} Gavhah Global Community Platform. All rights reserved.</p>
             <div className="flex gap-4">
               <Link href="/system" className="hover:text-accent transition-colors">Support</Link>
               <Link href="/privacy" className="hover:text-accent transition-colors">Privacy</Link>
