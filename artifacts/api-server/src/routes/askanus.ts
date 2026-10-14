@@ -292,6 +292,41 @@ router.patch("/askanus/followups/:id/toggle", requireAuth, async (req, res) => {
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
+// Edit the SAME case follow-up from My Askanus or Communications MAX.
+// Authorization is performed in the UPDATE predicate, not trusted from the caller.
+router.patch("/askanus/followups/:id", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid follow-up ID" }); return;
+  }
+  const updates: Partial<typeof caseFollowups.$inferInsert> = {};
+  if (req.body?.note !== undefined) {
+    const note = String(req.body.note ?? "").trim();
+    if (!note || note.length > 1500) { res.status(400).json({ error: "Invalid note" }); return; }
+    updates.note = note;
+  }
+  if (req.body?.dueDate !== undefined) {
+    if (!validDateString(req.body.dueDate)) {
+      res.status(400).json({ error: "Invalid due date" }); return;
+    }
+    updates.dueDate = req.body.dueDate ? String(req.body.dueDate) : null;
+  }
+  if (!Object.keys(updates).length) {
+    res.status(400).json({ error: "Nothing to update" }); return;
+  }
+  const [updated] = await db.update(caseFollowups).set(updates).where(and(
+    eq(caseFollowups.id,id),
+    sql`EXISTS (
+      SELECT 1 FROM askanus_cases ac
+      WHERE ac.id = ${caseFollowups.caseId} AND ac.user_id = ${userId}
+    )`,
+  )).returning();
+  if (!updated) { res.status(404).json({ error: "Follow-up not found" }); return; }
+  res.setHeader("Cache-Control", "private, no-store");
+  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+});
+
 // Permanently delete an individual follow-up only if the authenticated account
 // owns its parent case. Completing a follow-up NEVER deletes it; this route does.
 router.delete("/askanus/followups/:id", requireAuth, async (req, res) => {
