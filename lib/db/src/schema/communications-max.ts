@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, numeric, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, numeric, uniqueIndex, index, boolean } from "drizzle-orm/pg-core";
 import { askanuscases } from "./askanus";
 
 /** A private address book: nothing here is shared with a campaign by default. */
@@ -9,6 +9,12 @@ export const communicationContacts = pgTable("communication_contacts", {
   phone: text("phone").notNull().default(""),
   email: text("email").notNull().default(""),
   notes: text("notes").notNull().default(""),
+  doNotCall: boolean("do_not_call").notNull().default(false),
+  preferredTimezone: text("preferred_timezone").notNull().default("America/New_York"),
+  preferredHours: text("preferred_hours").notNull().default(""),
+  contactRole: text("contact_role").notNull().default("donor"),
+  relationshipNotes: text("relationship_notes").notNull().default(""),
+  optOutReason: text("opt_out_reason").notNull().default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, table => [
