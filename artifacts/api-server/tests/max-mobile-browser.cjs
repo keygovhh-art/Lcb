@@ -35,6 +35,25 @@ const {chromium}=requireBrowser("playwright");
    const selected=await page.locator("#max-contact").inputValue();
    assert.ok(Number(selected)>0,"Newly added contact was not selected");
    await page.getByRole("heading",{name:/נדבן 360/}).first().waitFor({timeout:15000});
+   // Owner-controlled override, tested on a real touch-sized browser viewport.
+   const optOut=await context.request.patch(base+"/api/askanus/contacts/"+selected,{
+     data:{doNotCall:true,optOutReason:"QA donor asked not to be called"}
+   });
+   assert.equal(optOut.status(),200,"Set opt-out");
+   await page.reload({waitUntil:"domcontentloaded"});
+   await page.locator("#max-today").waitFor({state:"visible"});
+   await page.locator("#max-contact").selectOption(selected);
+   await page.getByRole("button",{name:/דער עסקן וויל אראפנעמען/})
+     .waitFor({state:"visible",timeout:15000});
+   await page.getByRole("button",{name:/דער עסקן וויל אראפנעמען/}).click();
+   page.once("dialog",dialog=>dialog.accept());
+   await page.getByRole("button",{name:/באשטעטיגן און אראפנעמען דעם צייכן/}).click();
+   await page.getByText(/דער עסקן האט אליין אראפגענומען דעם רופן־צייכן/)
+     .first().waitFor({state:"visible",timeout:15000});
+   const events=await context.request.get(base+"/api/askanus/contacts/"+selected+"/consents");
+   assert.equal(events.status(),200,"Owner may inspect own audit");
+   const list=await events.json();
+   assert.equal(list[0].action,"owner_override");
    await page.screenshot({path:"/tmp/gavhah-max-contact-mobile.png",fullPage:true});
    const width=await page.evaluate(()=>({
      body:document.documentElement.scrollWidth,viewport:window.innerWidth
@@ -42,7 +61,7 @@ const {chromium}=requireBrowser("playwright");
    assert.ok(width.body<=width.viewport+36,
      "Unexpected horizontal mobile overflow: "+JSON.stringify(width));
    assert.deepEqual(errors,[],"Browser reported uncaught JavaScript errors");
-   console.log("PASS Mobile Chromium: signed-in personal case, MAX tabs, contact create, donor 360, viewport width and no JS exceptions");
+   console.log("PASS Mobile Chromium: signed-in member, MAX, donor 360, owner do-not-call override, audit, width and no JS errors");
  }finally{
    await context.close();await browser.close();
  }
