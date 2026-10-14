@@ -230,6 +230,46 @@ try{
   });
   status(r,400,"Reject impossible calendar day in donor follow-ups");
 
+  // MAX Reminder Inbox: on-screen alerts, cross-device snoozes, original dates
+  // remain unchanged in both MAX and My Askanus.
+  const reminderDate=new Date(Date.now()-2*86400000).toISOString().slice(0,10);
+  r=await req(a,"/askanus/contacts/"+donorId+"/followups","POST",{
+    caseId:projectId,note:"QA urgent MAX reminder",
+    dueDate:reminderDate,dueTime:"09:00",timeZone:"America/New_York",
+  });
+  status(r,201,"Create due MAX reminder");
+  const reminderId=r.data.id;
+  r=await req(a,"/askanus/max/reminders?timeZone=America/New_York&limit=50","GET");
+  status(r,200,"Read real timezone-aware member reminder inbox");
+  assert.equal(r.data.items.find(x=>x.id===reminderId)?.status,"due");
+  assert.equal(r.data.items.find(x=>x.id===reminderId)?.donorName,"QA Donor");
+  r=await req(b,"/askanus/max/reminders?timeZone=America/New_York","GET");
+  status(r,200,"Second account reminder list");
+  assert.ok(!r.data.items.some(x=>x.id===reminderId),"Member B saw member A reminder");
+  r=await req(a,"/askanus/max/reminders?timeZone=Not_A_Real_Zone","GET");
+  status(r,400,"Reject invalid timezone");
+  const until=new Date(Date.now()+86400000).toISOString();
+  r=await req(b,"/askanus/max/reminders/"+reminderId+"/snooze","POST",{until});
+  status(r,404,"Second member cannot snooze first member followup");
+  r=await req(a,"/askanus/max/reminders/"+reminderId+"/snooze","POST",{until});
+  status(r,200,"Snooze reminder without changing case followup");
+  r=await req(a,"/askanus/max/reminders/"+reminderId+"/snooze","POST",{until});
+  status(r,200,"Retry with same fixed snooze time");
+  r=await req(a,"/askanus/max/reminders?timeZone=America/New_York","GET");
+  status(r,200,"Read snoozed reminder");
+  assert.equal(r.data.items.find(x=>x.id===reminderId)?.snoozed,true);
+  assert.equal(r.data.items.find(x=>x.id===reminderId)?.dueDate,reminderDate);
+  r=await req(a,"/askanus/cases","GET");
+  status(r,200,"Read original My Askanus reminder after snooze");
+  assert.equal(r.data.find(c=>c.id===projectId)?.followUpNotes.find(x=>x.id===reminderId)?.dueDate,reminderDate);
+  r=await req(a,"/askanus/max/reminders/"+reminderId+"/snooze","POST",{clear:true});
+  status(r,200,"Owner may unsnooze immediately");
+  r=await req(a,"/askanus/max/reminders?timeZone=America/New_York","GET");
+  assert.equal(r.data.items.find(x=>x.id===reminderId)?.snoozed,false);
+  r=await req(a,"/askanus/followups/"+reminderId+"/toggle","PATCH",{completed:true});
+  status(r,200,"Complete shared reminder");
+  r=await req(a,"/askanus/max/reminders?timeZone=America/New_York","GET");
+  assert.ok(!r.data.items.some(x=>x.id===reminderId),"Completed reminder still appeared in open inbox");
   r=await req(a,"/askanus/contacts/"+donorId,"PATCH",{doNotCall:true,optOutReason:"QA opt-out"});
   status(r,200,"Set do-not-call");
   r=await req(a,"/askanus/contacts/"+donorId,"PATCH",{doNotCall:false});
