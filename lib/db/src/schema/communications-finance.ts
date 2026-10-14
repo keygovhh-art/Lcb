@@ -62,3 +62,17 @@ export const maxReceiptRefunds = pgTable("max_receipt_refunds",{
   uniqueIndex("max_receipt_refunds_owner_request_unique").on(t.userId,t.requestId),
   index("max_receipt_refunds_receipt_idx").on(t.receiptId),
 ]);
+
+/** Prevent duplicate monetary progress updates initiated from My Askanus. */
+export const maxProgressEvents = pgTable("max_progress_events",{
+  id:serial("id").primaryKey(),
+  userId:integer("user_id").notNull(),
+  caseId:integer("case_id").notNull().references(()=>askanuscases.id,{onDelete:"restrict"}),
+  eventKind:text("event_kind").notNull(),
+  amount:numeric("amount",{precision:12,scale:2}).notNull(),
+  requestId:text("request_id").notNull(),
+  createdAt:timestamp("created_at").defaultNow().notNull(),
+},t=>[
+  uniqueIndex("max_progress_events_owner_request_unique").on(t.userId,t.requestId),
+  index("max_progress_events_case_idx").on(t.caseId),
+]);
