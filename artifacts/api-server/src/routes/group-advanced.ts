@@ -14,7 +14,7 @@ import { effectiveGroupSetting, groupAdminCan, groupMemberCan } from "../lib/gro
 
 const router = Router();
 const isStaff = (role?: string) => role === "admin" || role === "moderator" || role === "super_admin";
-const isSystemAdmin = (role?: string) => role === "admin" || role === "super_admin";
+const isSystemAdmin = (role?: string) => role === "super_admin";
 const id = (v: unknown) => {
   const n=Number(v);return Number.isSafeInteger(n)&&n>0?n:null;
 };
