@@ -111,7 +111,7 @@ router.get("/groups/:id", async (req, res): Promise<void> => {
     "removeMembers","suspendMembers","restoreMembers","manageAdmins","moderatePosts",
     "editOthersPosts","deleteOthersPosts","pinPosts","lockReplies","moderateReplies",
     "deleteOthersReplies","viewGroupReports","resolveGroupReports",
-  ].map(key=>[key,manager && groupAdminCan(group,!!allowStaff?.canModerate,
+  ].map(key=>[key,manager && groupAdminCan(group,!!allowStaff?.superAdmin,
     key as Parameters<typeof groupAdminCan>[2])]));
   res.setHeader("Cache-Control","private, no-store");
   res.json({...safe,...effective,
@@ -131,7 +131,7 @@ router.patch("/groups/:id", requireAuth, async (req, res): Promise<void> => {
   }
   const { name, description, privacy, imageUrl } = req.body;
   const controls = groupPublicSettings;
-  const staff=isStaffRole(getSessionUserRole(req));
+  const staff=isPlatformSuperAdmin(getSessionUserRole(req));
   const editingInfo=[name,description,privacy,imageUrl].some(v=>v!==undefined);
   const editingSettings=controls.some(key=>req.body[key]!==undefined);
   if(editingInfo&&!groupAdminCan(existing,staff,"manageGroupInfo")){
@@ -212,7 +212,7 @@ router.delete("/groups/:id", requireAuth, async (req, res): Promise<void> => {
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
   // A group can only be deleted by its owner or the platform administration;
   // delegated group admins can NEVER delete the group or its owner.
-  if(!groupAdminCan(existing,isStaffRole(getSessionUserRole(req)),"deleteGroup")){
+  if(!groupAdminCan(existing,isPlatformSuperAdmin(getSessionUserRole(req)),"deleteGroup")){
     res.status(403).json({error:"Group deletion disabled by Gavhah"});return;
   }
   if (existing.ownerId !== getSessionUserId(req)! && !canTransferOwner(getSessionUserRole(req))) {
@@ -244,7 +244,7 @@ router.post("/groups/:id/join", requireAuth, async (req, res): Promise<void> => 
   const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
   if (!group) { res.status(404).json({ error: "Group not found" }); return; }
 
-  if(!groupMemberCan(group,isStaffRole(getSessionUserRole(req)),"joinGroup")){res.status(403).json({error:"Joining this group is disabled by Gavhah"});return;}
+  if(!groupMemberCan(group,isPlatformSuperAdmin(getSessionUserRole(req)),"joinGroup")){res.status(403).json({error:"Joining this group is disabled by Gavhah"});return;}
   const desiredStatus = group.privacy === "private" ? "pending" : "approved";
   const [existing] = await db.select().from(groupMembersTable).where(
     and(eq(groupMembersTable.groupId, groupId), eq(groupMembersTable.userId, userId))
@@ -373,7 +373,7 @@ router.patch("/groups/:id/members/:memberId",requireAuth,async(req,res):Promise<
   const staffRole=getSessionUserRole(req);
   const manager=await isGroupManager(groupId,actor,staffRole,group.ownerId);
   if(!manager){res.status(403).json({error:"Group admin required"});return;}
-  const staff=isStaffRole(staffRole);
+  const staff=isPlatformSuperAdmin(staffRole);
   const roleRequested=req.body?.role;
   const statusRequested=req.body?.status;
   const capability=roleRequested!==undefined?"manageAdmins"
@@ -494,10 +494,10 @@ router.patch("/groups/:id/posts/:postId", requireAuth, async (req, res): Promise
   if (post.authorId !== getSessionUserId(req)! && !manager) {
     res.status(403).json({ error: "Not allowed" }); return;
   }
-  if(post.authorId!==getSessionUserId(req)! && !groupAdminCan(group,isStaffRole(getSessionUserRole(req)),"editOthersPosts")){
+  if(post.authorId!==getSessionUserId(req)! && !groupAdminCan(group,isPlatformSuperAdmin(getSessionUserRole(req)),"editOthersPosts")){
     res.status(403).json({error:"Admin post editing disabled by Gavhah"});return;
   }
-  if(post.authorId===getSessionUserId(req)! && !groupMemberCan(group,isStaffRole(getSessionUserRole(req)),"editOwnPosts")){
+  if(post.authorId===getSessionUserId(req)! && !groupMemberCan(group,isPlatformSuperAdmin(getSessionUserRole(req)),"editOwnPosts")){
     res.status(403).json({error:"Post editing disabled by Gavhah"});return;
   }
   const content = String(req.body?.content || "").trim();
@@ -534,7 +534,7 @@ router.delete("/groups/:id/posts/:postId", requireAuth, async (req, res): Promis
   const [group]=await db.select().from(groupsTable).where(eq(groupsTable.id,groupId));
   if(!group){res.status(404).json({error:"Group not found"});return;}
   const ownPost=post.authorId===getSessionUserId(req)!;
-  const staff=isStaffRole(getSessionUserRole(req));
+  const staff=isPlatformSuperAdmin(getSessionUserRole(req));
   if(!ownPost && !(await isGroupManager(groupId,getSessionUserId(req)!,getSessionUserRole(req),group.ownerId))){
     res.status(403).json({error:"Not allowed"});return;
   }
@@ -580,7 +580,7 @@ router.post("/groups/:id/posts/:postId/like", requireAuth, async (req, res): Pro
     }
   }
 
-  if(!groupMemberCan(group,isStaffRole(getSessionUserRole(req)),"upvotePosts")){
+  if(!groupMemberCan(group,isPlatformSuperAdmin(getSessionUserRole(req)),"upvotePosts")){
     res.status(403).json({error:"Upvotes disabled by Gavhah"});return;
   }
   const state = await setLikeState(userId, "group_post", postId);

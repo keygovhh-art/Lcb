@@ -35,9 +35,9 @@ async function groupAccess(groupId: number, req: Request) {
   const grant=userId?await platformGroupGrant(userId,groupId,role):{
     staff:false,superAdmin:false,canViewPrivate:false,canModerate:false,
   };
-  const staff=grant.canModerate;
+  const staff=grant.superAdmin;
   const elevated=grant.superAdmin;
-  const admin=staff||owner||(["admin","moderator"].includes(member?.role||"")&&member?.status==="approved");
+  const admin=grant.canModerate||owner||(["admin","moderator"].includes(member?.role||"")&&member?.status==="approved");
   const active=admin||(member?.status==="approved");
   const reader=group.privacy==="public"||active||grant.canViewPrivate;
   return {group,userId,owner,staff,elevated,admin,active,reader,member,grant};
