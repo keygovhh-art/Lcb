@@ -81,13 +81,14 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   if (!safeId(caseId) || !requestId || requestId.length < 12 ||
       !contactName || !outcomes.has(outcome) || !moneyKinds.has(moneyKind) ||
       !Number.isFinite(amount) || amount < 0 || amount > 9999999999 ||
+      Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001 ||
       (moneyKind === "none" && amount !== 0) ||
       (moneyKind !== "none" && amount <= 0) ||
       !isoDate(dueDate) || (followupNote && !dueDate && body.dueDate) ||
       (contactId !== null && !safeId(contactId))) {
     res.status(400).json({ error: "Invalid call report fields" }); return;
   }
-  // Always load/lock the owned case before modifying its totals.
+  // Check the signed-in member owns the case; increments below are atomic SQL updates.
   const [owned] = await db.select({ id: askanuscases.id }).from(askanuscases)
     .where(and(eq(askanuscases.id,caseId),eq(askanuscases.userId,userId)));
   if (!owned) { res.status(404).json({error:"Case not found"}); return; }
