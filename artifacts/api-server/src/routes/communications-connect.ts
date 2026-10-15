@@ -36,7 +36,7 @@ async function remote(path:string,method:"GET"|"POST",body?:object){
  return result;
 }
 const asNumber=(value:unknown)=>Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
-const endpoint=fn:(req:any,res:any)=>Promise<void>=>{
+const endpoint=(fn:(req:any,res:any)=>Promise<void>)=>{
  return async(req,res)=>{
   try{await fn(req,res);}catch(e){
    const status=typeof (e as any)?.status==="number"?(e as any).status:502;
