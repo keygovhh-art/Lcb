@@ -37,7 +37,7 @@ async function remote(path:string,method:"GET"|"POST",body?:object){
 }
 const asNumber=(value:unknown)=>Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
 const endpoint=(fn:(req:any,res:any)=>Promise<void>)=>{
- return async(req,res)=>{
+ return async(req:any,res:any)=>{
   try{await fn(req,res);}catch(e){
    const status=typeof (e as any)?.status==="number"?(e as any).status:502;
    res.status(status).json({error:status===502?"Campaign Connect service unavailable":String((e as Error)?.message||"Connection error")});
