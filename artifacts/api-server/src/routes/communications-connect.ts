@@ -77,6 +77,22 @@ router.get("/askanus/connect/assignments",requireAuth,endpoint(async(req,res)=>{
  res.setHeader("Cache-Control","private, no-store");
  res.json(result);
 }));
+// Update exactly ONE assigned Campaign Center task, without cloning the task into
+// MAX or allowing access to another person's campaign work.
+router.post("/askanus/connect/assignments/:id/status",requireAuth,endpoint(async(req,res)=>{
+ const uid=getSessionUserId(req)!;
+ const taskId=String(req.params.id||"");
+ const campaignId=String(req.body?.campaignId||"");
+ const status=req.body?.status;
+ if(!/^[a-f0-9-]{36}$/i.test(taskId)||!/^[a-f0-9-]{36}$/i.test(campaignId)||
+   !["open","in_progress","done"].includes(status)){
+  res.status(400).json({error:"Invalid assigned task update"});return;
+ }
+ const saved=await remote("/assignments/"+encodeURIComponent(taskId)+"/status","POST",{
+  gavhahUserId:uid,campaignId,status
+ });
+ res.json(saved);
+}));
 router.post("/askanus/connect/share-followup",requireAuth,endpoint(async(req,res)=>{
  const uid=getSessionUserId(req)!;
  const followupId=asNumber(req.body?.followupId);
