@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { and,eq } from "drizzle-orm";
 import { getSessionUserId,requireAuth } from "../middlewares/auth";
-import { maxPledges,maxReceipts,askanuscases,caseFollowups } from "@workspace/db/schema";
+import { maxPledges,maxReceipts,maxReceiptRefunds,askanuscases,caseFollowups } from "@workspace/db/schema";
 
 // This service is a client of Campaign Center, never a second store of team data.
 // Calls originate from the Gavhah API, never the browser. Secrets stay server-side.
@@ -94,6 +94,35 @@ router.post("/askanus/connect/share-followup",requireAuth,endpoint(async(req,res
  });
  // Canonical MAX ID is linked, not duplicated; private note/time stays at its origin.
  res.status(result.duplicate?200:201).json({...result,source:"gavhah_max"});
+}));
+router.get("/askanus/connect/reversals",requireAuth,endpoint(async(req,res)=>{
+ const uid=getSessionUserId(req)!;
+ // Owner-only refund events, without exposing notes/other people's records.
+ const rows=await db.select({
+  id:maxReceiptRefunds.id,receiptId:maxReceiptRefunds.receiptId,amount:maxReceiptRefunds.amount,
+  createdAt:maxReceiptRefunds.createdAt
+ }).from(maxReceiptRefunds).where(eq(maxReceiptRefunds.userId,uid)).limit(300);
+ res.setHeader("Cache-Control","private, no-store");
+ res.json(rows.map(r=>({...r,amount:Number(r.amount)})));
+}));
+router.post("/askanus/connect/share-reversal",requireAuth,endpoint(async(req,res)=>{
+ const uid=getSessionUserId(req)!;
+ const refundId=asNumber(req.body?.refundId);
+ const campaignId=String(req.body?.campaignId||"");
+ if(req.body?.confirmShare!==true||!refundId||!/^[a-f0-9-]{36}$/i.test(campaignId)){
+  res.status(400).json({error:"Choose a valid reversal and explicitly confirm sharing"});return;
+ }
+ const refund=(await db.select().from(maxReceiptRefunds)
+  .where(and(eq(maxReceiptRefunds.id,refundId),eq(maxReceiptRefunds.userId,uid))).limit(1))[0];
+ if(!refund){res.status(404).json({error:"This reversal is not yours"});return;}
+ const receipt=(await db.select().from(maxReceipts)
+  .where(and(eq(maxReceipts.id,refund.receiptId),eq(maxReceipts.userId,uid))).limit(1))[0];
+ if(!receipt)throw Object.assign(new Error("Original receipt not found"),{status:404});
+ const result=await remote("/finance-reversals","POST",{
+  gavhahUserId:uid,campaignId,originalReceiptId:receipt.id,refundId:refund.id,
+  amount:Number(refund.amount).toFixed(2)
+ });
+ res.status(result.duplicate?200:201).json({...result,note:"Accounting correction only. No card/bank refund executed."});
 }));
 router.post("/askanus/connect/share-finance",requireAuth,endpoint(async(req,res)=>{
  const uid=getSessionUserId(req)!;
