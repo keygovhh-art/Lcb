@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feature/gavhah-max-integration-20261014
+      - feature/max-campaign-connect-20261015
     paths:
       - '.github/workflows/max-mobile-browser.yml'
       - 'artifacts/api-server/tests/max-mobile-browser.cjs'
