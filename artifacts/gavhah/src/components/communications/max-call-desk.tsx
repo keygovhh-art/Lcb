@@ -398,7 +398,7 @@ export function MaxCallDesk() {
     <div id="max-history" className="scroll-mt-24"><MaxHistoryPanel /></div>
     <MaxPerformancePanel />
     <MaxSourceHelper contactId={contactId} contactName={chosenContact?.name} />
-    <GavhahConnectPanel caseId={caseId} />
+    <GavhahConnectPanel caseId={caseId} followups={current?.followUpNotes} />
     <section id="max-more" className="rounded-xl border bg-card p-4 sm:p-6 space-y-3 scroll-mt-24">
       <h3 className="font-bold text-lg flex items-center gap-2"><CheckCircle2 className="h-5 w-5"/> מיינע לעצטע רוף־באריכטן</h3>
       {calls.length===0 && <p className="text-sm text-muted-foreground">נאכנישט פאראן קיין אפגעהיטענע רוף־באריכטן.</p>}
