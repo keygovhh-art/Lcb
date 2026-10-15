@@ -496,6 +496,29 @@ try{
   r=await req(b,"/askanus/max/history?caseId="+disposableProjectId,"GET");
   status(r,200,"A second account cannot inspect deleted-case snapshots");
   assert.equal(r.data.items.length,0);
+  // The member can export ALL history (not merely first 40 screen records).
+  // Download is private even when the source case was deliberately deleted.
+  const exportA=await fetch(base+"/askanus/max/history/export.csv",{headers:{Cookie:a}});
+  assert.equal(exportA.status,200,"Owner may download complete history");
+  assert.ok(String(exportA.headers.get("content-type")).includes("text/csv"));
+  const csvHistory=await exportA.text();
+  assert.ok(csvHistory.startsWith("\uFEFFkind,action,project_id,record_id,title,details,happened_at"),
+    "History export header changed");
+  assert.ok(csvHistory.includes("pledge_fully_paid"),"Paid pledge history missing in CSV");
+  assert.ok(csvHistory.includes("case_explicitly_deleted"),"Explicitly deleted case audit not in CSV");
+  assert.ok(csvHistory.includes("followup_completed"),"Completed followups absent from CSV");
+  const filtered=await fetch(base+"/askanus/max/history/export.csv?caseId="+disposableProjectId+"&kind=events",
+    {headers:{Cookie:a}});
+  assert.equal(filtered.status,200,"Owner-filtered historical export");
+  assert.ok((await filtered.text()).includes("case_explicitly_deleted"));
+  const exportB=await fetch(base+"/askanus/max/history/export.csv",{headers:{Cookie:b}});
+  assert.equal(exportB.status,200,"Other member's private export available");
+  const privateB=await exportB.text();
+  assert.ok(!privateB.includes("QA Explicit Delete History"),"History leaked to second member");
+  assert.ok(!privateB.includes("QA monthly donor callback"),"Private task leaked to second member");
+  const invalidExport=await fetch(base+"/askanus/max/history/export.csv?kind=invalid",
+    {headers:{Cookie:a}});
+  assert.equal(invalidExport.status,400,"Reject unsupported export filters");
   r=await req(a,"/askanus/cases/"+projectId,"DELETE");
   status(r,409,"Cannot delete an audited financial case");
   r=await req(b,"/askanus/cases","GET");
