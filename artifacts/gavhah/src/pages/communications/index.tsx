@@ -1,3 +1,4 @@
+import { formatGregorianDateTime } from "@/lib/gregorian-date";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { MaxCallDesk } from "@/components/communications/max-call-desk";
@@ -186,7 +187,7 @@ export default function Communications() {
                   <div>
                     <p className="font-semibold text-foreground text-sm">{b.subject}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(b.createdAt).toLocaleString()} · {b.recipientCount} recipients · Website
+                      {formatGregorianDateTime(b.createdAt)} · {b.recipientCount} recipients · Website
                     </p>
                   </div>
                   <Badge variant="outline" className="shrink-0 text-xs gap-1">
