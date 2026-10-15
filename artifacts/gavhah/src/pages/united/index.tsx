@@ -22,7 +22,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
@@ -223,7 +223,7 @@ function SupporterRow({ supporter }: { supporter: any }) {
         )}
       </div>
       <span className="text-xs text-muted-foreground shrink-0">
-        {format(new Date(supporter.createdAt), "MMM d")}
+        {formatGregorianDate(new Date(supporter.createdAt), "MMM d")}
       </span>
     </div>
   );

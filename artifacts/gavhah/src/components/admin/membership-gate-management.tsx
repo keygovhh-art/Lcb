@@ -1,3 +1,4 @@
+import { formatGregorianDateTime } from "@/lib/gregorian-date";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -167,7 +168,7 @@ export function MembershipGateManagement() {
           <h3 className="flex gap-2 items-center text-sm font-semibold"><Eye className="h-4 w-4" />{yi?"לייוו־פאראויסקוק (נאר פאר דיר)":"Private preview"}</h3>
           <GateWelcome design={design} preview returnTo={section==="forum"?"/forum":"/directory"} />
           <p className="text-xs text-muted-foreground">{yi?"דער פאראויסקוק איז נאר פאר אדמין. אנדערע מענטשן זעען ביז פובליקירן דעם אלטן אויסשטעל.":"Only the admin sees this preview; visitors still see the old design until publication."}</p>
-          {publishedAt&&<p className="text-xs text-muted-foreground flex gap-1"><Lock className="h-3.5 w-3.5"/>{yi?"לעצטע פובליקאציע":"Last published"}: {new Date(publishedAt).toLocaleString()}</p>}
+          {publishedAt&&<p className="text-xs text-muted-foreground flex gap-1"><Lock className="h-3.5 w-3.5"/>{yi?"לעצטע פובליקאציע":"Last published"}: {formatGregorianDateTime(publishedAt)}</p>}
           {published&&!dirty&&<p className="text-xs text-muted-foreground">{yi?"דראפט באזירט אויף דעם לעצטן אויסשטעל":"Current saved/published design loaded"}</p>}
         </div>
       </div>

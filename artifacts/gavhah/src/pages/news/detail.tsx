@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Calendar, User, Eye, Share2, Pencil, Trash2 } from "lucide-react";
 import { SaveButton } from "@/components/shared/save-button";
 import { ReportButton } from "@/components/shared/report-button";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useLikeArticle } from "@/hooks/use-like-article";
 import { UpvoteButton } from "@/components/shared/upvote-button";
 import { useAuth } from "@/context/auth-context";
@@ -189,7 +189,7 @@ function ArticleBody({ article }: { article: any }) {
         <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3 sm:gap-4 text-sm text-muted-foreground pb-6 border-b">
           <div className="flex items-center gap-1.5">
             <Calendar className="h-4 w-4" />
-            <span>{format(new Date(article.createdAt), "MMMM d, yyyy")}</span>
+            <span>{formatGregorianDate(new Date(article.createdAt), "MMMM d, yyyy")}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <User className="h-4 w-4" />

@@ -1,3 +1,4 @@
+import { formatGregorianDate, formatGregorianYear } from "@/lib/gregorian-date";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
@@ -78,7 +79,7 @@ function Calendar({
     <div className="bg-card border rounded-xl p-5">
       <div className="flex items-center justify-between mb-4">
         <button onClick={prev} className="p-1.5 hover:bg-muted rounded-lg transition-colors"><ChevronLeft className="h-4 w-4" /></button>
-        <span className="font-serif font-bold text-primary">{MONTHS[viewMonth]} {viewYear}</span>
+        <span className="font-serif font-bold text-primary">{MONTHS[viewMonth]} {formatGregorianYear(viewYear)}</span>
         <button onClick={next} className="p-1.5 hover:bg-muted rounded-lg transition-colors"><ChevronRight className="h-4 w-4" /></button>
       </div>
       <div className="grid grid-cols-7 mb-2">
@@ -261,7 +262,7 @@ export default function Reservations() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between gap-4">
                   <h2 className="font-serif text-xl font-bold text-primary">
-                    Available Times — {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                    Available Times — {formatGregorianDate(selectedDate, "EEEE, MMMM d, yyyy")}
                   </h2>
                   <Badge variant="outline">{available.length} slots available</Badge>
                 </div>
@@ -294,7 +295,7 @@ export default function Reservations() {
                         <p className="font-semibold text-foreground mb-1">Selected Appointment</p>
                         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1.5"><CalendarDays className="h-4 w-4" />
-                            {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                            {formatGregorianDate(selectedDate, "EEEE, MMMM d, yyyy")}
                           </span>
                           <span className="flex items-center gap-1.5"><Clock className="h-4 w-4" /> {selectedTime}</span>
                         </div>
@@ -317,7 +318,7 @@ export default function Reservations() {
                   <div className="bg-muted/40 rounded-lg p-4 text-sm">
                     <div className="flex items-center gap-2 mb-1">
                       <CalendarDays className="h-4 w-4 text-secondary" />
-                      <span className="font-semibold">{selectedDate ? new Date(selectedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : ""}</span>
+                      <span className="font-semibold">{selectedDate ? formatGregorianDate(selectedDate, "EEEE, MMMM d, yyyy") : ""}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-secondary" />
@@ -371,7 +372,7 @@ export default function Reservations() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className="font-semibold text-foreground text-sm">
-                        {new Date(b.reservationDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                        {formatGregorianDate(b.reservationDate, "EEEE, MMMM d, yyyy")}
                       </span>
                       <Badge variant={b.status === "confirmed" ? "default" : "secondary"} className="capitalize text-xs">
                         {b.status === "confirmed" && <CheckCircle className="h-3 w-3 mr-1" />}

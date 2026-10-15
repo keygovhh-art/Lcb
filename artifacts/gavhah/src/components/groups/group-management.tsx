@@ -1,3 +1,4 @@
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -7,12 +8,15 @@ export type GroupOptions = {
   id: number; ownerId: number;
   allowReplies: boolean; replyApproval: boolean; postApproval: boolean;
   membersCanPost: boolean; membersCanReply: boolean; showViewCounts: boolean; allowDownvotes: boolean;
+  lockedSettings?:string[];
+  allowedCapabilities?:Record<string,boolean>;
 };
-type Membership = { id:number;userId:number;userName:string;status:string;role:string };
+type Membership = { id:number;userId:number;userName:string;status:string;role:string;protectedByPlatform?:boolean };
 type PendingPost = {id:number;content:string;authorName:string;createdAt:string};
 type PendingReply = {id:number;postId:number;content:string;authorName:string;createdAt:string};
 type Report = {id:number;postId:number;groupId?:number;reason:string;postExcerpt?:string;status:string;createdAt:string};
-const labels: Array<[keyof Omit<GroupOptions,"id"|"ownerId">,string,string]> = [
+type PublicSetting="allowReplies"|"replyApproval"|"postApproval"|"membersCanPost"|"membersCanReply"|"showViewCounts"|"allowDownvotes";
+const labels:Array<[PublicSetting,string,string]> = [
   ["membersCanPost","מעמבערס מעגן פובלישן פאוסטס","ווען אויסגעלאשן קענען נאר אדמינס פאוסטן"],
   ["postApproval","פאוסטס מוזן אדמין־אפראוועל","נייע מעמבער־פאוסטס בלייבן פריוואט ביז באשטעטיגט"],
   ["allowReplies","דערלויבן רעפלייען","מען קען פארמאכן די רעפליי־אפטיילונג"],
@@ -30,6 +34,7 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
 }) {
   const { toast }=useToast();
   const [options,setOptions]=useState(group);
+  const can=(key:string)=>staff||group.allowedCapabilities?.[key]!==false;
   const [saving,setSaving]=useState(false);
   const [nextOwner,setNextOwner]=useState<number|null>(null);
   const [busy,setBusy]=useState(false);
@@ -40,14 +45,15 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
   useEffect(()=>{setOptions(group);},[group]);
   const load=useCallback(async()=>{
     const calls=[
-      fetch(`/api/groups/${group.id}/moderation`,{credentials:"include",cache:"no-store"}),
-      fetch(`/api/groups/${group.id}/reports`,{credentials:"include",cache:"no-store"}),
+      can("moderatePosts")?fetch(`/api/groups/${group.id}/moderation`,{credentials:"include",cache:"no-store"}):null,
+      can("viewGroupReports")?fetch(`/api/groups/${group.id}/reports`,{credentials:"include",cache:"no-store"}):null,
     ];
     if(staff)calls.push(fetch("/api/admin/group-reports",{credentials:"include",cache:"no-store"}));
     const responses=await Promise.all(calls);
-    if(!responses[0].ok||!responses[1].ok)throw Error("Cannot load review dashboard");
-    setPending(await responses[0].json());
-    setReports(await responses[1].json());
+    if(responses[0]&&!responses[0].ok)throw Error("Cannot load review dashboard");
+    if(responses[1]&&!responses[1].ok)throw Error("Cannot load reports");
+    setPending(responses[0]?await responses[0].json():{posts:[],replies:[]});
+    setReports(responses[1]?await responses[1].json():[]);
     if(staff&&responses[2]?.ok)setStaffReports(await responses[2].json());
   },[group.id,staff]);
   useEffect(()=>{void load().catch(()=>{});},[load]);
@@ -67,7 +73,7 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
   const save=async()=>{
     setSaving(true);
     try{
-      const fields=Object.fromEntries(labels.map(([key])=>[key,options[key]]));
+      const fields=Object.fromEntries(labels.filter(([key])=>!group.lockedSettings?.includes(key)).map(([key])=>[key,options[key]]));
       const res=await fetch(`/api/groups/${group.id}`,{method:"PATCH",credentials:"include",
         headers:{"Content-Type":"application/json"},body:JSON.stringify(fields)});
       const body=await res.json().catch(()=>({}));
@@ -77,10 +83,10 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
     finally{setSaving(false);}
   };
   const buttons: Array<[typeof tab,string,React.ReactNode]>=[
-    ["settings","פארגעשריטענע סעטינגס",<Settings className="h-4 w-4"/>],
+    ...(can("manageGroupSettings")?[["settings","פארגעשריטענע סעטינגס",<Settings className="h-4 w-4"/>] as [typeof tab,string,React.ReactNode]]:[]),
     ["members","מעמבער־פארוואלטונג",<Users className="h-4 w-4"/>],
-    ["reviews",`רעוויאו (${pending.posts.length+pending.replies.length})`,<MessageSquare className="h-4 w-4"/>],
-    ["reports",`גרופ רעפארטס (${reports.filter(r=>r.status==="open").length})`,<Flag className="h-4 w-4"/>],
+    ...(can("moderatePosts")?[["reviews",`רעוויאו (${pending.posts.length+pending.replies.length})`,<MessageSquare className="h-4 w-4"/>] as [typeof tab,string,React.ReactNode]]:[]),
+    ...(can("viewGroupReports")?[["reports",`גרופ רעפארטס (${reports.filter(r=>r.status==="open").length})`,<Flag className="h-4 w-4"/>] as [typeof tab,string,React.ReactNode]]:[]),
     ...(staff?[["staff","גבהה־מערכת רעפארטס",<Shield className="h-4 w-4"/>] as [typeof tab,string,React.ReactNode]]:[]),
   ];
   return <section className="border rounded-2xl bg-card p-4 sm:p-6 space-y-5" dir="rtl">
@@ -100,14 +106,15 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
         variant={tab===key?"default":"outline"} onClick={()=>setTab(key)}
         className="min-h-10 whitespace-normal text-start gap-1">{icon}{title}</Button>)}
     </div>
-    {tab==="settings"&&<div className="space-y-3">
+    {tab==="settings"&&can("manageGroupSettings")&&<div className="space-y-3">
       {labels.map(([key,title,description])=><label key={key} className="flex gap-3 items-start rounded-xl border p-3 cursor-pointer">
         <input type="checkbox" className="accent-primary h-5 w-5 shrink-0 mt-0.5"
-          checked={Boolean(options[key])} onChange={e=>setOptions(old=>({...old,[key]:e.target.checked}))}/>
-        <span><span className="font-semibold text-sm block">{title}</span>
+          checked={Boolean(options[key])} disabled={group.lockedSettings?.includes(key)}
+          onChange={e=>setOptions(old=>({...old,[key]:e.target.checked}))}/>
+        <span><span className="font-semibold text-sm block">{title}{group.lockedSettings?.includes(key)?" · גבהה־קאנטראלירט":""}</span>
           <span className="text-xs text-muted-foreground block mt-0.5">{description}</span></span>
       </label>)}
-      <Button disabled={saving} onClick={()=>void save()}>{saving?"היט אפ...":"היט אפ אלע גרופ־סעטינגס"}</Button>
+      <Button disabled={saving||labels.every(([k])=>group.lockedSettings?.includes(k))} onClick={()=>void save()}>{saving?"היט אפ...":"היט אפ אלע גרופ־סעטינגס"}</Button>
     </div>}
     {tab==="members"&&<div className="space-y-3">
       {staff&&canChangeRoles&&<div className="rounded-xl border border-amber-500/30 bg-muted/20 p-3 space-y-2">
@@ -128,27 +135,29 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
         <div className="flex justify-between items-start gap-2">
           <div><p className="font-semibold">{member.userName}</p>
             <p className="text-xs text-muted-foreground">{member.role==="owner"?"גרינדער · הויפט־אדמין":["admin","moderator"].includes(member.role)?"גרופ־אדמין":"מעמבער"} · {statuses[member.status]||member.status}</p></div>
-          {member.userId===group.ownerId&&<span className="text-xs text-secondary font-semibold">באשיצט</span>}
+          {(member.userId===group.ownerId||member.protectedByPlatform)&&<span className="text-xs text-secondary font-semibold">
+            {member.userId===group.ownerId?"גרינדער · באשיצט":"באשיצט דורך גבהה"}
+          </span>}
         </div>
         {member.userId!==group.ownerId&&<div className="flex flex-wrap gap-1.5">
-          {member.status==="pending"&&<Button size="sm" disabled={busy}
+          {can("approveMembers")&&member.status==="pending"&&<Button size="sm" disabled={busy}
             onClick={()=>void update(`/api/groups/${group.id}/members/${member.id}`,{status:"approved"})}>אפראווען</Button>}
-          {member.status==="approved"&&<Button size="sm" variant="outline" disabled={busy}
+          {can("suspendMembers")&&(!member.protectedByPlatform||staff)&&member.status==="approved"&&<Button size="sm" variant="outline" disabled={busy}
             onClick={()=>void update(`/api/groups/${group.id}/members/${member.id}`,{status:"suspended"})}>סוספענדירן</Button>}
-          {member.status==="suspended"&&<Button size="sm" variant="outline" disabled={busy}
+          {can("restoreMembers")&&member.status==="suspended"&&<Button size="sm" variant="outline" disabled={busy}
             onClick={()=>void update(`/api/groups/${group.id}/members/${member.id}`,{status:"approved"})}>רעאקטיווירן</Button>}
-          {member.status==="removed"&&canChangeRoles&&<Button size="sm" variant="outline" disabled={busy}
+          {can("restoreMembers")&&member.status==="removed"&&canChangeRoles&&<Button size="sm" variant="outline" disabled={busy}
             onClick={()=>void update(`/api/groups/${group.id}/members/${member.id}`,{status:"approved"})}>צוריקנעמען</Button>}
-          {member.status!=="removed"&&<Button size="sm" variant="outline" disabled={busy}
+          {can("removeMembers")&&(!member.protectedByPlatform||staff)&&member.status!=="removed"&&<Button size="sm" variant="outline" disabled={busy}
             onClick={()=>{if(window.confirm("זיכער אראפנעמען דעם מעמבער?"))void update(`/api/groups/${group.id}/members/${member.id}`,{status:"removed"});}}>אראפנעמען</Button>}
-          {canChangeRoles&&member.status==="approved"&&member.role!=="admin"&&<Button size="sm" variant="outline" disabled={busy}
+          {can("manageAdmins")&&canChangeRoles&&member.status==="approved"&&member.role!=="admin"&&<Button size="sm" variant="outline" disabled={busy}
             onClick={()=>void update(`/api/groups/${group.id}/members/${member.id}`,{role:"admin"})}>מאכן אדמין</Button>}
-          {canChangeRoles&&member.role==="admin"&&<Button size="sm" variant="outline" disabled={busy}
+          {can("manageAdmins")&&canChangeRoles&&member.role==="admin"&&<Button size="sm" variant="outline" disabled={busy}
             onClick={()=>void update(`/api/groups/${group.id}/members/${member.id}`,{role:"member"})}>אראפנעמען אדמין־רעכטן</Button>}
         </div>}
       </div>)}
     </div>}
-    {tab==="reviews"&&<div className="space-y-4">
+    {tab==="reviews"&&can("moderatePosts")&&<div className="space-y-4">
       <h3 className="font-semibold">ווארטנדיגע פאוסטס ({pending.posts.length})</h3>
       {pending.posts.map(post=><div key={post.id} className="border rounded-xl p-3 space-y-2">
         <p className="text-xs font-semibold">{post.authorName}</p>
@@ -169,16 +178,16 @@ export function GroupManagement({group,members,canChangeRoles,staff,refresh}:{
       </div>)}
       {!pending.posts.length&&!pending.replies.length&&<p className="text-sm text-muted-foreground">נישטא קיין ווארטנדיגע פאוסטס אדער רעפלייען.</p>}
     </div>}
-    {tab==="reports"&&<div className="space-y-3">
+    {tab==="reports"&&can("viewGroupReports")&&<div className="space-y-3">
       <p className="text-xs text-muted-foreground">דא זענען בלויז באריכטן וואס זענען געשיקט געווארן צו דער גרופ. פריוואטע גבהה־באריכטן ווערן קיינמאל נישט אויסגעוויזן.</p>
       {reports.map(report=><div key={report.id} className="rounded-xl border p-3 space-y-2">
-        <p className="text-xs text-muted-foreground">פאוסט #{report.postId} · {report.createdAt.slice(0,10)}</p>
+        <p className="text-xs text-muted-foreground">פאוסט #{report.postId} · {formatGregorianDate(report.createdAt)}</p>
         <p className="text-sm whitespace-pre-wrap">{report.reason}</p>
         {report.postExcerpt&&<p className="rounded-lg border p-2 text-xs text-muted-foreground whitespace-pre-wrap">
           באריכטעטע אינהאלט: {report.postExcerpt}
         </p>}
         <div className="flex gap-2 items-center"><span className="text-xs">{report.status==="resolved"?"באהאנדלט":"ווארט אויף באהאנדלונג"}</span>
-          {report.status!=="resolved"&&<Button disabled={busy} size="sm" variant="outline"
+          {can("resolveGroupReports")&&report.status!=="resolved"&&<Button disabled={busy} size="sm" variant="outline"
             onClick={()=>void update(`/api/groups/${group.id}/reports/${report.id}`,{status:"resolved"})}>באשטעטיגן באהאנדלט</Button>}
         </div>
       </div>)}

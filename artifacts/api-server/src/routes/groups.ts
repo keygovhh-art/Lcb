@@ -7,6 +7,8 @@ import { resolveMemberDisplayName, resolvePublicPostingName } from "../lib/user-
 import { publicPostForViewer } from "../lib/public-posting-identity";
 import { deleteManagedMediaUrl } from "../lib/media-cleanup";
 import { logActivity } from "../lib/activity";
+import { platformGroupGrant, isPlatformSuperAdmin, auditGroupAction } from "../lib/group-staff-access";
+import { effectiveGroupSetting, groupPublicSettings, groupMemberCapabilities, groupAdminCan, groupMemberCan, groupSettingLocked } from "../lib/group-feature-controls";
 import { notifyUser, notifyStaff, queueStaffReview } from "../lib/notify";
 
 const router: IRouter = Router();
@@ -14,9 +16,10 @@ const router: IRouter = Router();
 function isStaffRole(role?: string) {
   return role === "admin" || role === "moderator" || role === "super_admin";
 }
-const canTransferOwner = (role?: string) => role === "admin" || role === "super_admin";
+const canTransferOwner = (role?: string) => role === "super_admin";
 async function isGroupManager(groupId:number,userId:number,role?:string,ownerId?:number) {
-  if(isStaffRole(role)||userId===ownerId)return true;
+  if(userId===ownerId)return true;
+  if((await platformGroupGrant(userId,groupId,role)).canModerate)return true;
   const [member]=await db.select().from(groupMembersTable).where(and(
     eq(groupMembersTable.groupId,groupId),eq(groupMembersTable.userId,userId),
     eq(groupMembersTable.status,"approved"),inArray(groupMembersTable.role,["admin","moderator"]),
@@ -37,7 +40,10 @@ router.get("/groups", async (req, res): Promise<void> => {
   let all = await db.select().from(groupsTable).orderBy(desc(groupsTable.createdAt));
   if (privacy) all = all.filter(g => g.privacy === privacy);
   if (search) all = all.filter(g => g.name.toLowerCase().includes(search.toLowerCase()));
-  res.json(all);
+  res.json(all.map(({password: _password,platformFeatureOverrides: _overrides,...g})=>({
+    ...g,...Object.fromEntries(groupPublicSettings.map(key=>[key,effectiveGroupSetting(
+      { ...g, platformFeatureOverrides: _overrides }, key)])),
+  })));
 });
 
 router.post("/groups", requireAuth, async (req, res): Promise<void> => {
@@ -93,7 +99,29 @@ router.get("/groups/:id", async (req, res): Promise<void> => {
   const id = parseInt(raw, 10);
   const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, id));
   if (!group) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(group);
+  const [current]=await Promise.all([getCurrentSessionUser(req)]);
+  const allowStaff=current?await platformGroupGrant(current.id,id,current.role):null;
+  const isOwner=current?.id===group.ownerId;
+  const manager=!!current&&(isOwner||!!allowStaff?.canModerate ||
+    await isGroupManager(id,current.id,current.role,group.ownerId));
+  const {password: _password,platformFeatureOverrides: _overrides,...safe}=group;
+  const effective=Object.fromEntries(groupPublicSettings.map(key=>[key,effectiveGroupSetting(group,key)]));
+  const allowedCapabilities=Object.fromEntries([
+    "manageGroupInfo","manageGroupSettings","deleteGroup","approveMembers",
+    "removeMembers","suspendMembers","restoreMembers","manageAdmins","moderatePosts",
+    "editOthersPosts","deleteOthersPosts","pinPosts","lockReplies","moderateReplies",
+    "deleteOthersReplies","viewGroupReports","resolveGroupReports",
+  ].map(key=>[key,manager && groupAdminCan(group,!!allowStaff?.superAdmin,
+    key as Parameters<typeof groupAdminCan>[2])]));
+  res.setHeader("Cache-Control","private, no-store");
+  const memberCapabilities=Object.fromEntries(groupMemberCapabilities.map(
+    key=>[key,groupMemberCan(group,!!allowStaff?.superAdmin,key)]));
+  res.json({...safe,...effective,
+    lockedSettings:manager?groupPublicSettings.filter(k=>groupSettingLocked(group,k)):[],
+    allowedCapabilities:{...memberCapabilities,...(manager?allowedCapabilities:{})},
+    platformAccess:allowStaff?.canViewPrivate??false,
+    platformCanModerate:allowStaff?.canModerate??false,
+  });
 });
 
 router.patch("/groups/:id", requireAuth, async (req, res): Promise<void> => {
@@ -105,12 +133,24 @@ router.patch("/groups/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Group admin required" }); return;
   }
   const { name, description, privacy, imageUrl } = req.body;
-  const controls = ["allowReplies","replyApproval","postApproval","membersCanPost","membersCanReply","showViewCounts","allowDownvotes"] as const;
+  const controls = groupPublicSettings;
+  const staff=isPlatformSuperAdmin(getSessionUserRole(req));
+  const editingInfo=[name,description,privacy,imageUrl].some(v=>v!==undefined);
+  const editingSettings=controls.some(key=>req.body[key]!==undefined);
+  if(editingInfo&&!groupAdminCan(existing,staff,"manageGroupInfo")){
+    res.status(403).json({error:"Group info editing disabled by Gavhah"});return;
+  }
+  if(editingSettings&&!groupAdminCan(existing,staff,"manageGroupSettings")){
+    res.status(403).json({error:"Group settings disabled by Gavhah"});return;
+  }
   const updates: Record<string, unknown> = {};
   for (const key of controls) {
     if (req.body[key] !== undefined) {
       if (typeof req.body[key] !== "boolean") {
         res.status(400).json({ error: key+" must be true or false" }); return;
+      }
+      if(!staff&&groupSettingLocked(existing,key)){
+        res.status(403).json({error:key+" is controlled by Gavhah"});return;
       }
       updates[key] = req.body[key];
     }
@@ -175,6 +215,9 @@ router.delete("/groups/:id", requireAuth, async (req, res): Promise<void> => {
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
   // A group can only be deleted by its owner or the platform administration;
   // delegated group admins can NEVER delete the group or its owner.
+  if(!groupAdminCan(existing,isPlatformSuperAdmin(getSessionUserRole(req)),"deleteGroup")){
+    res.status(403).json({error:"Group deletion disabled by Gavhah"});return;
+  }
   if (existing.ownerId !== getSessionUserId(req)! && !canTransferOwner(getSessionUserRole(req))) {
     res.status(403).json({ error: "Only the group owner or Gavhah administration can delete a group" }); return;
   }
@@ -204,6 +247,7 @@ router.post("/groups/:id/join", requireAuth, async (req, res): Promise<void> => 
   const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
   if (!group) { res.status(404).json({ error: "Group not found" }); return; }
 
+  if(!groupMemberCan(group,isPlatformSuperAdmin(getSessionUserRole(req)),"joinGroup")){res.status(403).json({error:"Joining this group is disabled by Gavhah"});return;}
   const desiredStatus = group.privacy === "private" ? "pending" : "approved";
   const [existing] = await db.select().from(groupMembersTable).where(
     and(eq(groupMembersTable.groupId, groupId), eq(groupMembersTable.userId, userId))
@@ -294,7 +338,8 @@ router.get("/groups/:id/members", async (req, res): Promise<void> => {
     return;
   }
 
-  if (group.ownerId === currentUser.id || isStaffRole(currentUser.role)) {
+  if (group.ownerId === currentUser.id ||
+    (await platformGroupGrant(currentUser.id,groupId,currentUser.role)).canViewPrivate) {
     const members = await db.select().from(groupMembersTable).where(eq(groupMembersTable.groupId, groupId));
     res.json(members);
     return;
@@ -331,15 +376,29 @@ router.patch("/groups/:id/members/:memberId",requireAuth,async(req,res):Promise<
   const staffRole=getSessionUserRole(req);
   const manager=await isGroupManager(groupId,actor,staffRole,group.ownerId);
   if(!manager){res.status(403).json({error:"Group admin required"});return;}
+  const staff=isPlatformSuperAdmin(staffRole);
+  const roleRequested=req.body?.role;
+  const statusRequested=req.body?.status;
   const [target]=await db.select().from(groupMembersTable).where(and(
     eq(groupMembersTable.id,memberId),eq(groupMembersTable.groupId,groupId),
   ));
   if(!target){res.status(404).json({error:"Member not found"});return;}
+  const capability=roleRequested!==undefined?"manageAdmins"
+    :statusRequested==="suspended"?"suspendMembers"
+    :statusRequested==="removed"?"removeMembers"
+    :statusRequested==="approved"&&target.status==="pending"?"approveMembers"
+    :statusRequested==="approved"?"restoreMembers":"approveMembers";
+  if(!groupAdminCan(group,staff,capability)){
+    res.status(403).json({error:"Member-management feature disabled by Gavhah"});return;
+  }
   // The owner may not be demoted, suspended, rejected or removed by group admins.
   // Even the owner cannot silently replace themselves. Only staff-admins may
   // transfer ownership through the separate privileged route.
   if(target.userId===group.ownerId||target.role==="owner"){
     res.status(403).json({error:"Group founder protected; only Gavhah system administration may transfer ownership"});return;
+  }
+  if(!staff&&(statusRequested==="removed"||statusRequested==="suspended"||statusRequested==="rejected")&&target.protectedByPlatform){
+    res.status(403).json({error:"This member is protected by Gavhah"});return;
   }
   const actorIsOwner=group.ownerId===actor;
   const systemAdmin=canTransferOwner(staffRole);
@@ -347,7 +406,7 @@ router.patch("/groups/:id/members/:memberId",requireAuth,async(req,res):Promise<
     eq(groupMembersTable.groupId,groupId),eq(groupMembersTable.userId,actor),
   )).limit(1);
   const actorGroupAdmin=actorMember[0]?.role==="admin";
-  const targetAdmin=target.role==="admin";
+  const targetAdmin=["admin","moderator"].includes(target.role);
   const role=req.body?.role;
   const status=req.body?.status;
   if(role===undefined&&status===undefined){res.status(400).json({error:"Choose a role or membership status"});return;}
@@ -402,9 +461,12 @@ router.get("/groups/:id/posts", async (req, res): Promise<void> => {
       eq(groupMembersTable.userId, currentUser.id),
       eq(groupMembersTable.status, "approved"),
     ));
-    if (!membership && group.ownerId !== currentUser.id && !isStaffRole(currentUser.role)) {
+    if (!membership && group.ownerId !== currentUser.id &&
+      !(await platformGroupGrant(currentUser.id,id,currentUser.role)).canViewPrivate) {
       res.status(403).json({ error: "Private group" }); return;
     }
+    if((await platformGroupGrant(currentUser.id,id,currentUser.role)).canViewPrivate)
+      await auditGroupAction(currentUser.id,"private_group_posts_read",id);
   }
 
   const viewer = await getCurrentSessionUser(req);
@@ -415,7 +477,7 @@ router.get("/groups/:id/posts", async (req, res): Promise<void> => {
     const safe=publicPostForViewer(row,viewer?.id,viewer?.role);
     const {downvotes, ...withoutDownvotes}=safe;
     return {...withoutDownvotes,moderationStatus:manager||row.authorId===viewer?.id?row.moderationStatus:"approved",
-      views:group.showViewCounts||manager?row.views:null,
+      views:effectiveGroupSetting(group,"showViewCounts")||manager?row.views:null,
       // Downvote counts are accessible only to group admins or Gavhah staff.
       ...(manager?{downvotes}:{}),
     };
@@ -436,12 +498,17 @@ router.patch("/groups/:id/posts/:postId", requireAuth, async (req, res): Promise
   if (post.authorId !== getSessionUserId(req)! && !manager) {
     res.status(403).json({ error: "Not allowed" }); return;
   }
-
+  if(post.authorId!==getSessionUserId(req)! && !groupAdminCan(group,isPlatformSuperAdmin(getSessionUserRole(req)),"editOthersPosts")){
+    res.status(403).json({error:"Admin post editing disabled by Gavhah"});return;
+  }
+  if(post.authorId===getSessionUserId(req)! && !groupMemberCan(group,isPlatformSuperAdmin(getSessionUserRole(req)),"editOwnPosts")){
+    res.status(403).json({error:"Post editing disabled by Gavhah"});return;
+  }
   const content = String(req.body?.content || "").trim();
   if (!content) { res.status(400).json({ error: "content required" }); return; }
   if (content.length > 10000) { res.status(400).json({ error: "content is too long" }); return; }
 
-  const nextStatus=!manager&&group.postApproval?"pending":post.moderationStatus;
+  const nextStatus=!manager&&effectiveGroupSetting(group,"postApproval")?"pending":post.moderationStatus;
   const [updated]=await db.transaction(async tx=>{
     const [updated]=await tx.update(groupPostsTable)
       .set({content,moderationStatus:nextStatus}).where(eq(groupPostsTable.id,postId)).returning();
@@ -457,7 +524,7 @@ router.patch("/groups/:id/posts/:postId", requireAuth, async (req, res): Promise
   // counts through the edit response.
   const safe=publicPostForViewer(updated,getSessionUserId(req)!,getSessionUserRole(req));
   const {downvotes, ...publicRecord}=safe;
-  res.json({...publicRecord,views:group.showViewCounts?updated.views:null});
+  res.json({...publicRecord,views:effectiveGroupSetting(group,"showViewCounts")?updated.views:null});
 });
 
 router.delete("/groups/:id/posts/:postId", requireAuth, async (req, res): Promise<void> => {
@@ -470,10 +537,17 @@ router.delete("/groups/:id/posts/:postId", requireAuth, async (req, res): Promis
   if (!post) { res.status(404).json({ error: "Not found" }); return; }
   const [group]=await db.select().from(groupsTable).where(eq(groupsTable.id,groupId));
   if(!group){res.status(404).json({error:"Group not found"});return;}
-  if(post.authorId !== getSessionUserId(req)! && !(await isGroupManager(groupId,getSessionUserId(req)!,getSessionUserRole(req),group.ownerId))){
+  const ownPost=post.authorId===getSessionUserId(req)!;
+  const staff=isPlatformSuperAdmin(getSessionUserRole(req));
+  if(!ownPost && !(await isGroupManager(groupId,getSessionUserId(req)!,getSessionUserRole(req),group.ownerId))){
     res.status(403).json({error:"Not allowed"});return;
   }
-
+  if(ownPost&&!groupMemberCan(group,staff,"deleteOwnPosts")){
+    res.status(403).json({error:"Deleting your own posts disabled by Gavhah"});return;
+  }
+  if(!ownPost&&!groupAdminCan(group,staff,"deleteOthersPosts")){
+    res.status(403).json({error:"Deleting other posts disabled by Gavhah"});return;
+  }
   await db.delete(entityLikesTable).where(and(
     eq(entityLikesTable.entityType, "group_post"),
     eq(entityLikesTable.entityId, postId),
@@ -497,7 +571,8 @@ router.post("/groups/:id/posts/:postId/like", requireAuth, async (req, res): Pro
   if (!group) { res.status(404).json({ error: "Not found" }); return; }
 
   const userId = getSessionUserId(req)!;
-  if (group.privacy === "private" && group.ownerId !== userId && !isStaffRole(getSessionUserRole(req))) {
+  if (group.privacy === "private" && group.ownerId !== userId &&
+    !(await platformGroupGrant(userId,groupId,getSessionUserRole(req))).canViewPrivate) {
     const [membership] = await db.select().from(groupMembersTable).where(and(
       eq(groupMembersTable.groupId, groupId),
       eq(groupMembersTable.userId, userId),
@@ -509,6 +584,9 @@ router.post("/groups/:id/posts/:postId/like", requireAuth, async (req, res): Pro
     }
   }
 
+  if(!groupMemberCan(group,isPlatformSuperAdmin(getSessionUserRole(req)),"upvotePosts")){
+    res.status(403).json({error:"Upvotes disabled by Gavhah"});return;
+  }
   const state = await setLikeState(userId, "group_post", postId);
   let likes = post.likes;
   if (state.changed) {
@@ -547,12 +625,13 @@ router.post("/groups/:id/posts", requireAuth, async (req, res): Promise<void> =>
     eq(groupMembersTable.userId, userId),
     eq(groupMembersTable.status, "approved"),
   ));
-  if (!membership && group.ownerId !== userId && !isStaffRole(getSessionUserRole(req))) {
+  if (!membership && group.ownerId !== userId &&
+    !(await platformGroupGrant(userId,groupId,getSessionUserRole(req))).canModerate) {
     res.status(403).json({ error: "Join this group before posting" });
     return;
   }
   const manager=await isGroupManager(groupId,userId,getSessionUserRole(req),group.ownerId);
-  if(!manager&&!group.membersCanPost){res.status(403).json({error:"Only group admins can publish right now"});return;}
+  if(!manager&&!effectiveGroupSetting(group,"membersCanPost")){res.status(403).json({error:"Only group admins can publish right now"});return;}
 
   const safeAuthorName = await resolvePublicPostingName(userId, authorName);
   const [post] = await db.insert(groupPostsTable).values({
@@ -560,7 +639,7 @@ router.post("/groups/:id/posts", requireAuth, async (req, res): Promise<void> =>
     groupId,
     authorId: userId,
     authorName: safeAuthorName,
-    moderationStatus:!manager&&group.postApproval?"pending":"approved",
+    moderationStatus:!manager&&effectiveGroupSetting(group,"postApproval")?"pending":"approved",
   }).returning();
 
   if(post.moderationStatus==="approved") await db.update(groupsTable)
@@ -571,7 +650,7 @@ router.post("/groups/:id/posts", requireAuth, async (req, res): Promise<void> =>
     res.status(201).json(post);return;
   }
   const {downvotes, ...publicRecord}=post;
-  res.status(201).json({...publicRecord,views:group.showViewCounts?post.views:null});
+  res.status(201).json({...publicRecord,views:effectiveGroupSetting(group,"showViewCounts")?post.views:null});
 });
 
 export default router;

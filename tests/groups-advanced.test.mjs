@@ -29,11 +29,11 @@ test("member approval suspension removal reactivation and delegated moderation a
  assert.match(admin,/רעאקטיווירן/);
 });
 test("reply and post review are enforced on server; pending content filtered from public",()=>{
- assert.match(base,/moderationStatus:!manager&&group\.postApproval\?"pending":"approved"/);
+ assert.match(base,/moderationStatus:!manager&&effectiveGroupSetting\(group,"postApproval"\)\?"pending":"approved"/);
  assert.match(base,/rows\.filter\(row => row\.moderationStatus==="approved"/);
  assert.match(base,/membersCanPost/);
  assert.match(advanced,/router\.get\("\/groups\/:id\/moderation",requireAuth/);
- assert.match(advanced,/replyApproval\?"pending":"approved"/);
+ assert.match(advanced,/effectiveGroupSetting\(ctx\.group,"replyApproval"\)\?"pending":"approved"/);
  assert.match(advanced,/Replies disabled/);
  assert.match(advanced,/Replies are locked/);
  assert.match(advanced,/router\.patch\("\/groups\/:id\/posts\/:postId\/review"/);
@@ -47,7 +47,7 @@ test("view counts are unique to signed-in members, and downvote counts are secre
  assert.match(advanced,/router\.post\("\/groups\/:id\/posts\/:postId\/view",requireAuth/);
  assert.match(advanced,/\.onConflictDoNothing\(\)/);
  assert.match(base,/const \{downvotes, \.\.\.withoutDownvotes\}=safe/);
- assert.match(base,/views:group\.showViewCounts\|\|manager\?row\.views:null/);
+ assert.match(base,/views:effectiveGroupSetting\(group,"showViewCounts"\)\|\|manager\?row\.views:null/);
  assert.match(advanced,/res\.json\(\{downvoted:result\}\)/);
  assert.match(extras,/post\.downvotes/);
  assert.match(extras,/manager&&typeof post\.downvotes/);

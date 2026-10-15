@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { User, UserMinus, Bookmark, BookmarkX, ArrowRight, UserPlus, BookmarkCheck, ExternalLink, Pencil, MapPin, LockKeyhole } from "lucide-react";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
 import { MemberMailingProfile } from "@/components/shared/member-mailing-profile";
@@ -337,7 +337,7 @@ export default function ProfilePage() {
                       {ENTITY_TYPE_LABEL[follow.entityType] ?? follow.entityType}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">Followed {format(new Date(follow.createdAt), "MMM d, yyyy")}</p>
+                  <p className="text-xs text-muted-foreground">Followed {formatGregorianDate(new Date(follow.createdAt), "MMM d, yyyy")}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {follow.entityUrl && (
@@ -392,7 +392,7 @@ export default function ProfilePage() {
                       {CONTENT_TYPE_LABEL[item.contentType] ?? item.contentType}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">Saved {format(new Date(item.createdAt), "MMM d, yyyy")}</p>
+                  <p className="text-xs text-muted-foreground">Saved {formatGregorianDate(new Date(item.createdAt), "MMM d, yyyy")}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {item.contentUrl && (

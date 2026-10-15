@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Plus, ArrowBigUp, Eye, MessageCircle, Lock, TrendingUp, Pin } from "lucide-react";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
 import { DiscussionTicker } from "@/components/shared/discussion-ticker";
 import { visibleForumTopic } from "@/lib/forum-topic";
@@ -99,7 +99,7 @@ export default function ForumList() {
                           </p>
                           <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                             <span>By <span className="font-medium text-foreground">{disc.authorName}</span></span>
-                            <span>{format(new Date(disc.createdAt), "MMM d, yyyy")}</span>
+                            <span>{formatGregorianDate(new Date(disc.createdAt), "MMM d, yyyy")}</span>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2 text-xs text-muted-foreground shrink-0">

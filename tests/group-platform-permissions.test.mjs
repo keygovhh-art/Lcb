@@ -1,0 +1,86 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const get=p=>readFileSync(p,"utf8");
+const group=get("artifacts/api-server/src/routes/groups.ts");
+const advanced=get("artifacts/api-server/src/routes/group-advanced.ts");
+const control=get("artifacts/api-server/src/routes/group-platform-control.ts");
+const acl=get("artifacts/api-server/src/lib/group-staff-access.ts");
+const helper=get("artifacts/api-server/src/lib/group-feature-controls.ts");
+const schema=get("lib/db/src/schema/groups.ts");
+const migration=get("lib/db/migrations/20261014_group_nested_replies_platform_controls.sql");
+const page=get("artifacts/gavhah/src/pages/groups/detail.tsx");
+const replies=get("artifacts/gavhah/src/components/groups/group-post-extras.tsx");
+const staff=get("artifacts/gavhah/src/components/admin/group-platform-management.tsx");
+const router=get("artifacts/api-server/src/routes/index.ts");
+const site=get("artifacts/gavhah/src/App.tsx");
+test("group posts are above the administration dashboard on group details",()=>{
+ assert(page.indexOf('<Tabs defaultValue="posts"')>=0);
+ assert(page.indexOf("</Tabs>")<page.indexOf('<GroupManagement'));
+ assert.match(page,/id="group-administration"/);
+});
+test("replies have arbitrary parent reply IDs, no depth cap, preserve children after deletion",()=>{
+ assert.match(schema,/parentReplyId: integer\("parent_reply_id"\)/);
+ assert.match(migration,/FOREIGN KEY \(parent_reply_id\)/);
+ assert.match(migration,/ON DELETE SET NULL/);
+ assert.match(advanced,/parentReplyId:parentId/);
+ assert.match(advanced,/parent\.postId|eq\(groupPostRepliesTable\.postId,pid\)/);
+ assert.match(advanced,/!parent\|\|parent\.deletedAt/);
+ assert.match(advanced,/deletedAt:new Date\(\)/);
+ assert.match(advanced,/const allById=new Map/);
+ assert.match(replies,/function threadedReplies/);
+ assert.match(replies,/stack\.length/);
+ assert.match(replies,/Math\.min\(r\.depth,5\)\*12/);
+ assert.match(replies,/parentReplyId:replyParent/);
+ assert.match(replies,/ענטפער אויף דעם רעפליי/);
+});
+test("private group access is only super_admin or explicitly granted",()=>{
+ assert.match(acl,/role==="super_admin"/);
+ assert.match(acl,/groupStaffAccessTable/);
+ assert.match(acl,/canViewPrivate:!!grant\?\.canViewPrivate/);
+ assert.match(advanced,/const grant=userId\?await platformGroupGrant/);
+ assert.match(advanced,/reader=group\.privacy==="public"\|\|active\|\|grant\.canViewPrivate/);
+ assert.match(group,/platformGroupGrant\(currentUser\.id,id,currentUser\.role\)/);
+ assert.match(group,/private_group_posts_read/);
+ assert.match(control,/private_group_posts_viewed/);
+ assert.match(control,/platformGroupGrant/);
+ assert.match(control,/superCheck\(req,res\)/);
+});
+test("super admin controls each individual feature, ordinary admins cannot bypass",()=>{
+ assert.match(helper,/groupAdminCapabilities/);
+ assert.match(helper,/groupMemberCapabilities/);
+ assert.match(helper,/effectiveGroupSetting/);
+ assert.match(helper,/groupSettingLocked/);
+ assert.match(group,/groupSettingLocked\(existing,key\)/);
+ assert.match(group,/Member-management feature disabled by Gavhah/);
+ assert.match(advanced,/groupAdminCan\(ctx\.group,ctx\.staff,"moderateReplies"\)/);
+ assert.match(advanced,/groupAdminCan\(ctx\.group,ctx\.staff,"deleteOthersReplies"\)/);
+ assert.match(control,/router\.patch\("\/admin\/group-control\/groups\/:id\/overrides",requireAuth/);
+ assert.match(staff,/const publicKeys=/);
+ assert.match(staff,/const adminKeys=/);
+});
+test("multiple members may be platform protected; group admin blocked server side",()=>{
+ assert.match(schema,/protectedByPlatform: boolean\("protected_by_platform"\)/);
+ assert.match(group,/target\.protectedByPlatform/);
+ assert.match(control,/member\.id|eq\(groupMembersTable\.id,mid\)/);
+ assert.match(control,/protectedByPlatform:req\.body\.protected/);
+ assert.match(staff,/באשיצן דעם מעמבער/);
+ assert.match(migration,/ADD COLUMN IF NOT EXISTS protected_by_platform/);
+});
+test("platform staff levels and per group grants are audit logged, cannot alter super admin",()=>{
+ assert.match(control,/RESERVED_SUPER_ADMIN_ID/);
+ assert.match(control,/target\.role==="super_admin"/);
+ assert.match(control,/\["member","group_staff","moderator","admin"\]/);
+ assert.match(control,/canViewPrivate:view,canModerate:mod/);
+ assert.match(control,/private_group_staff_permission_revoked/);
+ assert.match(control,/platform_staff_role_changed/);
+ assert.match(control,/sameOrigin\(req,res\)/);
+ assert.match(migration,/CREATE TABLE IF NOT EXISTS public\.group_access_audit/);
+ assert.match(site,/GroupTeamWorkspace/);
+ assert.match(router,/router\.use\(groupPlatformControlRouter\)/);
+});
+test("migration is strictly additive and not applied in current production",()=>{
+ assert.match(migration,/STAGING ONLY/);
+ assert.doesNotMatch(migration,/\bDROP\b|\bTRUNCATE\b|\bDELETE FROM\b|\bUPDATE public\.groups\b/);
+ assert.match(migration,/CREATE TABLE IF NOT EXISTS/);
+});

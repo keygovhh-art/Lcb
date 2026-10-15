@@ -1,3 +1,4 @@
+import { formatGregorianDateTime } from "@/lib/gregorian-date";
 import { useEffect, useMemo, useState } from "react";
 import { Archive, CalendarClock, CheckCircle2, Clock3, DollarSign, Heart, Pencil, Plus, RotateCcw, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -353,7 +354,7 @@ export function CharityManagement() {
                 <Star className="h-3 w-3 me-1"/>{live ? "Featured candidate" : "Featured when live"}
               </Badge>}
               {item.scheduledAt && item.publicationState === "scheduled" && <Badge variant="outline">
-                <CalendarClock className="h-3 w-3 me-1"/> {new Date(item.scheduledAt).toLocaleString()}
+                <CalendarClock className="h-3 w-3 me-1"/> {formatGregorianDateTime(item.scheduledAt)}
               </Badge>}
             </div>
             <div>

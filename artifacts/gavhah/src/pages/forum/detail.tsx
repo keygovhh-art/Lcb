@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Eye, MessageCircle, Lock, Pin, Pencil, Trash2 } from "lucide-react";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { ReportButton } from "@/components/shared/report-button";
 import { SaveButton } from "@/components/shared/save-button";
 import { MemberGate } from "@/components/shared/member-gate";
@@ -263,7 +263,7 @@ export default function ForumDetail() {
             <span className="font-semibold text-foreground text-sm">{comment.authorName}</span>
             <div className="flex items-center gap-1">
               <span className="text-xs text-muted-foreground">
-                {format(new Date(comment.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                {formatGregorianDate(new Date(comment.createdAt), "MMM d, yyyy 'at' h:mm a")}
               </span>
               {!!user && (comment.authorId === user.id || isAdmin) && (
                 <>
@@ -440,7 +440,7 @@ export default function ForumDetail() {
 
               <div className="text-sm text-muted-foreground mb-6 flex flex-wrap gap-4">
                 <span>Posted by <span className="font-semibold text-foreground">{discussion.authorName}</span></span>
-                <span>{format(new Date(discussion.createdAt), "MMMM d, yyyy")}</span>
+                <span>{formatGregorianDate(new Date(discussion.createdAt), "MMMM d, yyyy")}</span>
               </div>
 
               <div className="prose prose-slate max-w-none text-foreground leading-relaxed mb-8">

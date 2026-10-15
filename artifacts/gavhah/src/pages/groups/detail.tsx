@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Users, Lock, Globe, KeyRound, MessageCircle, Pencil, Trash2, Clock } from "lucide-react";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { MemberGate } from "@/components/shared/member-gate";
 import { DisplayAsSelector, type DisplayAs, getDisplayName } from "@/components/shared/display-as-selector";
 import { useAuth } from "@/context/auth-context";
@@ -62,13 +62,14 @@ export default function GroupDetail() {
 
   const isOwner = !!user && group?.ownerId === user.id;
   const ownMembership = !!user ? (members ?? []).find((member: any) => member.userId === user.id) : undefined;
-  const canManageGroup = !!user && (isOwner || isAdmin ||
+  const canManageGroup = !!user && (isOwner || !!group?.platformCanModerate ||
     (ownMembership?.status === "approved" && ["admin","moderator"].includes(ownMembership?.role)));
   const isPendingMember = ownMembership?.status === "pending";
-  const isMember = !!user && (isOwner || ownMembership?.status === "approved");
+  const isMember = !!user && (isOwner || !!group?.platformCanModerate || ownMembership?.status === "approved");
   const canWritePosts = isMember && (canManageGroup || !!group?.membersCanPost);
   const canReplyPosts = isMember && (canManageGroup || !!group?.membersCanReply);
-  const canReadPosts = !!group && (group.privacy === "public" || isMember || isAdmin);
+  const canReadPosts = !!group && (group.privacy === "public" || isMember || !!group.platformAccess);
+  const canGroupAction = (action:string) => canManageGroup && group?.allowedCapabilities?.[action]!==false;
 
   const { data: posts } = useListGroupPosts(numId, {
     query: { queryKey: getListGroupPostsQueryKey(numId), enabled: !!numId && canReadPosts },
@@ -297,17 +298,17 @@ export default function GroupDetail() {
                   <div className="flex flex-wrap gap-2 shrink-0">
                   {canManageGroup && (
                     <>
-                      <Button variant="outline" onClick={openGroupEdit} className="gap-2">
-                        <Pencil className="h-4 w-4" /> Edit Group
-                      </Button>
-                      <Button
+                      {canGroupAction("manageGroupInfo")&&<Button variant="outline" onClick={openGroupEdit} className="gap-2">
+                        <Pencil className="h-4 w-4" /> עדיט גרופ
+                      </Button>}
+                      {canGroupAction("deleteGroup") && (isOwner || user?.role==="super_admin") && <Button
                         variant="outline"
                         className="gap-2 text-destructive border-destructive/20"
                         onClick={() => void deleteGroup()}
                         disabled={deletingGroup}
                       >
-                        <Trash2 className="h-4 w-4" /> {deletingGroup ? "Deleting..." : "Delete Group"}
-                      </Button>
+                        <Trash2 className="h-4 w-4" /> {deletingGroup ? "מעקט..." : "אויסמעקן גרופ"}
+                      </Button>}
                     </>
                   )}
                   {isMember ? (
@@ -318,7 +319,7 @@ export default function GroupDetail() {
                     <Button variant="outline" className="shrink-0" disabled>
                       <Clock className="h-4 w-4 mr-2" /> Request Pending
                     </Button>
-                  ) : (
+                  ) : group.allowedCapabilities?.joinGroup!==false ? (
                     <MemberGate gate="groups" action="join this group" compact>
                       <Button
                         onClick={handleJoin}
@@ -329,14 +330,14 @@ export default function GroupDetail() {
                         {join.isPending ? "Joining..." : group.privacy === "private" ? "Request to Join" : "Join Group"}
                       </Button>
                     </MemberGate>
-                  )}
+                  ) : <p className="text-xs text-muted-foreground">גבהה האט צייטווייליג פארשפארט דעם זיך אנשליסן.</p>}
                   </div>
                 </div>
                 <p className="text-foreground mt-4 leading-relaxed">{group.description}</p>
                 <div className="flex gap-6 mt-6 pt-6 border-t text-sm text-muted-foreground">
                   <span className="flex items-center gap-1"><Users className="h-4 w-4" /> {group.memberCount} members</span>
                   <span className="flex items-center gap-1"><MessageCircle className="h-4 w-4" /> {group.postCount} posts</span>
-                  <span>Since {format(new Date(group.createdAt), "MMMM yyyy")}</span>
+                  <span>Since {formatGregorianDate(new Date(group.createdAt), "MMMM yyyy")}</span>
                 </div>
               </div>
             </div>
@@ -374,17 +375,6 @@ export default function GroupDetail() {
                 </div>
               </DialogContent>
             </Dialog>
-
-            {canManageGroup && <div className="mb-8">
-              <GroupManagement group={group} members={members||[]}
-                canChangeRoles={isOwner || ["admin","super_admin"].includes(user?.role||"")}
-                staff={isAdmin}
-                refresh={() => {
-                  void qc.invalidateQueries({queryKey:getGetGroupQueryKey(numId)});
-                  void qc.invalidateQueries({queryKey:getListGroupMembersQueryKey(numId)});
-                  void qc.invalidateQueries({queryKey:getListGroupPostsQueryKey(numId)});
-                }} />
-            </div>}
 
             <Tabs defaultValue="posts" className="space-y-6">
               <TabsList className="bg-muted/50">
@@ -425,16 +415,18 @@ export default function GroupDetail() {
                 </MemberGate>
 
                 {posts?.map(post => (
-                  <div key={post.id} className="bg-card border rounded-xl p-6">
+                  <div key={post.id} id={`group-post-${post.id}`} className="bg-card border rounded-xl p-6 scroll-mt-24">
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <span className="font-semibold text-foreground">{post.authorName}</span>
                       <div className="flex items-center gap-1">
                         <span className="text-xs text-muted-foreground">
-                          {format(new Date(post.createdAt), "MMM d, yyyy")}
+                          {formatGregorianDate(new Date(post.createdAt), "MMM d, yyyy")}
                         </span>
                         {!!user && (post.authorId === user.id || canManageGroup) && (
                           <>
-                            <Button
+                            {(post.authorId===user?.id
+                              ? group?.allowedCapabilities?.editOwnPosts!==false
+                              : canGroupAction("editOthersPosts"))&&<Button
                               size="icon"
                               variant="ghost"
                               className="h-7 w-7"
@@ -444,15 +436,17 @@ export default function GroupDetail() {
                               }}
                             >
                               <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
+                            </Button>}
+                            {(post.authorId===user?.id
+                              ? group?.allowedCapabilities?.deleteOwnPosts!==false
+                              : canGroupAction("deleteOthersPosts"))&&<Button
                               size="icon"
                               variant="ghost"
                               className="h-7 w-7 text-destructive"
                               onClick={() => void deletePost(post.id)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            </Button>}
                           </>
                         )}
                       </div>
@@ -477,7 +471,7 @@ export default function GroupDetail() {
                       <p className="text-foreground leading-relaxed whitespace-pre-wrap">{post.content}</p>
                     )}
                     <div className="flex items-center gap-4 mt-4 pt-4 border-t text-sm text-muted-foreground">
-                      {post.moderationStatus==="approved"&&<UpvoteButton
+                      {post.moderationStatus==="approved"&&group.allowedCapabilities?.upvotePosts!==false&&<UpvoteButton
                         active={postUpvotes.isLiked(post.id)}
                         count={post.likes}
                         onClick={() => void handlePostLike(post.id)}
@@ -509,10 +503,10 @@ export default function GroupDetail() {
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-foreground">{member.userName}</div>
                         <div className="text-xs text-muted-foreground capitalize">
-                          {member.status === "pending" ? "Membership request pending" : `${member.role} · Joined ${format(new Date(member.joinedAt), "MMM yyyy")}`}
+                          {member.status === "pending" ? "Membership request pending" : `${member.role} · Joined ${formatGregorianDate(new Date(member.joinedAt), "MMM yyyy")}`}
                         </div>
                       </div>
-                      {canManageGroup && member.status === "pending" && (
+                      {canGroupAction("approveMembers") && member.status === "pending" && (
                         <div className="flex gap-2 shrink-0">
                           <Button size="sm" className="bg-secondary hover:bg-secondary/90 text-white" onClick={() => void reviewMembership(member.id, "approved")}>
                             Approve
@@ -532,6 +526,17 @@ export default function GroupDetail() {
                 </div>
               </TabsContent>
             </Tabs>
+
+            {canManageGroup&&<div className="mt-10" id="group-administration">
+              <GroupManagement group={group} members={members||[]}
+                canChangeRoles={canGroupAction("manageAdmins") && (isOwner || user?.role==="super_admin")}
+                staff={user?.role==="super_admin"}
+                refresh={() => {
+                  void qc.invalidateQueries({queryKey:getGetGroupQueryKey(numId)});
+                  void qc.invalidateQueries({queryKey:getListGroupMembersQueryKey(numId)});
+                  void qc.invalidateQueries({queryKey:getListGroupPostsQueryKey(numId)});
+                }} />
+            </div>}
           </>
         ) : (
           <div className="text-center py-24">

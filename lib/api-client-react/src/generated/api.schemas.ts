@@ -121,6 +121,10 @@ export interface Group {
   membersCanReply: boolean;
   showViewCounts: boolean;
   allowDownvotes: boolean;
+  lockedSettings?: string[];
+  allowedCapabilities?: Record<string,boolean>;
+  platformAccess?: boolean;
+  platformCanModerate?: boolean;
   createdAt: string;
 }
 
@@ -293,6 +297,7 @@ export interface GroupMember {
   groupId: number;
   role: GroupMemberRole;
   status: GroupMemberStatus;
+  protectedByPlatform?: boolean;
   joinedAt: string;
 }
 

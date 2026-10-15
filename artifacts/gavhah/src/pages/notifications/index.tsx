@@ -9,7 +9,7 @@ import { Layout } from "@/components/layout/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bell, CheckCheck, MessageSquare, Heart, Users, Megaphone, Star, ArrowRight } from "lucide-react";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useAuth } from "@/context/auth-context";
 import { MemberGate } from "@/components/shared/member-gate";
 import { useToast } from "@/hooks/use-toast";
@@ -194,7 +194,7 @@ export default function NotificationsPage() {
                 </p>
                 <div className="mt-2 flex max-w-full flex-wrap items-center gap-x-3 gap-y-2">
                   <span className="text-xs text-muted-foreground">
-                    {format(new Date(notif.createdAt), "MMM d, h:mm a")}
+                    {formatGregorianDate(new Date(notif.createdAt), "MMM d, yyyy h:mm a")}
                   </span>
                   {!notif.isRead && (
                     <button

@@ -1,3 +1,4 @@
+import { formatGregorianDateTime } from "@/lib/gregorian-date";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarClock, Check, CheckCircle2, Clock, Flag, HandHeart, Inbox, MessageSquareText, RefreshCcw, Search, UserCog, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -598,7 +599,7 @@ export function OperationsInbox({onOpenPrivateAssistance}:{onOpenPrivateAssistan
                       </Badge>
                     )}
                     <span className="text-[11px] text-muted-foreground">
-                      {new Date(item.createdAt).toLocaleString()}
+                      {formatGregorianDateTime(item.createdAt)}
                     </span>
                   </div>
                   <h3 className="font-semibold text-foreground">{item.title}</h3>
@@ -699,7 +700,7 @@ export function OperationsInbox({onOpenPrivateAssistance}:{onOpenPrivateAssistan
                       <div className="space-y-1">
                         {item.workflow.notes.slice(-2).reverse().map((note, index) => (
                           <div key={index} className="text-xs rounded-md bg-background border px-2.5 py-2">
-                            <span className="text-muted-foreground">#{note.authorId} · {new Date(note.createdAt).toLocaleString()} — </span>
+                            <span className="text-muted-foreground">#{note.authorId} · {formatGregorianDateTime(note.createdAt)} — </span>
                             {note.text}
                           </div>
                         ))}
@@ -921,7 +922,7 @@ export function OperationsInbox({onOpenPrivateAssistance}:{onOpenPrivateAssistan
                 </Badge>
               </div>
               <p className="text-muted-foreground">
-                {entry.requester} · {new Date(entry.closedAt).toLocaleString()}
+                {entry.requester} · {formatGregorianDateTime(entry.closedAt)}
                 {entry.actorId ? ` · ${yi ? "אדמין" : "Staff"} #${entry.actorId}` : ""}
               </p>
               {entry.summary && <p className="whitespace-pre-wrap break-words">{entry.summary}</p>}

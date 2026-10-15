@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -20,6 +20,7 @@ export const groupsTable = pgTable("groups", {
   membersCanReply: boolean("members_can_reply").notNull().default(true),
   showViewCounts: boolean("show_view_counts").notNull().default(true),
   allowDownvotes: boolean("allow_downvotes").notNull().default(false),
+  platformFeatureOverrides: jsonb("platform_feature_overrides").$type<Record<string,boolean>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -29,6 +30,7 @@ export const groupMembersTable = pgTable("group_members", {
   userName: text("user_name").notNull(),
   groupId: integer("group_id").notNull(),
   role: text("role").notNull().default("member"),
+  protectedByPlatform: boolean("protected_by_platform").notNull().default(false),
   status: text("status").notNull().default("approved"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -66,6 +68,8 @@ export const groupPostDownvotesTable = pgTable("group_post_downvotes", {
 
 export const groupPostRepliesTable = pgTable("group_post_replies", {
   id: serial("id").primaryKey(),
+  parentReplyId: integer("parent_reply_id"),
+  deletedAt: timestamp("deleted_at",{withTimezone:true}),
   postId: integer("post_id").notNull().references(() => groupPostsTable.id,{onDelete:"cascade"}),
   authorId: integer("author_id").notNull(),
   authorName: text("author_name").notNull(),
@@ -101,3 +105,26 @@ export type GroupMember = typeof groupMembersTable.$inferSelect;
 export const insertGroupPostSchema = createInsertSchema(groupPostsTable).omit({ id: true, createdAt: true });
 export type InsertGroupPost = z.infer<typeof insertGroupPostSchema>;
 export type GroupPost = typeof groupPostsTable.$inferSelect;
+
+/** Only a real platform super admin can grant private-group access.
+ * The database role here is separate from group member administration.
+ */
+export const groupStaffAccessTable = pgTable("group_staff_access", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  groupId: integer("group_id").notNull(),
+  canViewPrivate: boolean("can_view_private").notNull().default(false),
+  canModerate: boolean("can_moderate").notNull().default(false),
+  grantedBy: integer("granted_by").notNull(),
+  updatedAt: timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[uniqueIndex("group_staff_access_user_group_unique").on(t.userId,t.groupId)]);
+
+export const groupAccessAuditTable=pgTable("group_access_audit",{
+  id:serial("id").primaryKey(),
+  actorId:integer("actor_id").notNull(),
+  targetUserId:integer("target_user_id"),
+  groupId:integer("group_id"),
+  action:text("action").notNull(),
+  details:jsonb("details").$type<Record<string,unknown>>().notNull().default({}),
+  createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+});

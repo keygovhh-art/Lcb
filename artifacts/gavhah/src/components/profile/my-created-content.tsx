@@ -1,3 +1,4 @@
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -134,7 +135,7 @@ export function MyCreatedContent() {
           <p className="font-semibold break-words" dir="auto">{item.title}</p>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <time className="text-xs text-muted-foreground">
-              {new Date(item.createdAt).toLocaleDateString("en-US")}
+              {formatGregorianDate(item.createdAt)}
             </time>
             <Link href={item.url}><Button size="sm" variant="outline" className="gap-1 min-h-9">
               <ExternalLink className="h-4 w-4"/> עפענען אפטיילונג

@@ -21,7 +21,7 @@ import {
   Search, Plus, Eye, Heart, Star, Globe, ChevronRight,
   AlertTriangle, Clock, Building2, Megaphone, HandHeart, Siren
 } from "lucide-react";
-import { format } from "date-fns";
+import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useLikeArticle } from "@/hooks/use-like-article";
 import { UpvoteButton } from "@/components/shared/upvote-button";
 import { ImageUploadField } from "@/components/shared/image-upload-field";
@@ -261,7 +261,7 @@ function NewsCard({ article, large = false }: { article: any; large?: boolean })
           )}
           {/* Meta row */}
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 flex-wrap gap-2">
-            <span>{format(new Date(article.createdAt), "MMM d, yyyy")}</span>
+            <span>{formatGregorianDate(new Date(article.createdAt), "MMM d, yyyy")}</span>
             <div className="flex items-center gap-3">
               {newsEngagement.showViews && (article.viewCount ?? 0) > 0 && (
                 <span className="flex items-center gap-1">

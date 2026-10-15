@@ -1,3 +1,4 @@
+import { formatGregorianDateTime } from "@/lib/gregorian-date";
 import { useCallback,useEffect,useMemo,useState } from "react";
 import { useLanguage } from "@/context/language-context";
 import { useToast } from "@/hooks/use-toast";
@@ -161,7 +162,7 @@ export function PrivateAssistanceManagement({onOpenOperations}:{onOpenOperations
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <h3 className="font-semibold text-lg">{help.name}</h3>
-              <p className="text-xs text-muted-foreground">#{help.id} · {help.location||"—"} · {new Date(help.createdAt).toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">#{help.id} · {help.location||"—"} · {formatGregorianDateTime(help.createdAt)}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant={help.urgency==="critical"?"destructive":"outline"}>{help.urgency}</Badge>
