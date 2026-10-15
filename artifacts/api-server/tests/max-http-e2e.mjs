@@ -496,6 +496,23 @@ try{
   r=await req(b,"/askanus/max/history?caseId="+disposableProjectId,"GET");
   status(r,200,"A second account cannot inspect deleted-case snapshots");
   assert.equal(r.data.items.length,0);
+  // More than 500 synthetic audit events prove the streaming export has no
+  // one-page cutoff. Runs against disposable GitHub Postgres only.
+  const {rows:[{user_id:historyOwnerId}]}=await pool.query(
+    "SELECT user_id FROM askanus_cases WHERE id=$1",[projectId]);
+  await pool.query(`
+    INSERT INTO max_history_events
+      (user_id,case_id,entity_type,entity_id,action,title,details)
+    SELECT $1,$2,'qa_bulk_history',number,'qa_export_bulk',
+      'QA_EXPORT_ENTRY_'||number::text,'Generated only in disposable QA'
+    FROM generate_series(1,525) AS number`,
+    [historyOwnerId,projectId]);
+  await pool.query(`
+    INSERT INTO max_history_events
+      (user_id,case_id,entity_type,entity_id,action,title,details)
+    VALUES ($1,$2,'qa_security',1,'qa_spreadsheet_safe',
+      '=HYPERLINK("https://example.invalid")','No link should execute')`,
+    [historyOwnerId,projectId]);
   // The member can export ALL history (not merely first 40 screen records).
   // Download is private even when the source case was deliberately deleted.
   const exportA=await fetch(base+"/askanus/max/history/export.csv",{headers:{Cookie:a}});
@@ -507,6 +524,10 @@ try{
   assert.ok(csvHistory.includes("pledge_fully_paid"),"Paid pledge history missing in CSV");
   assert.ok(csvHistory.includes("case_explicitly_deleted"),"Explicitly deleted case audit not in CSV");
   assert.ok(csvHistory.includes("followup_completed"),"Completed followups absent from CSV");
+  assert.ok(csvHistory.includes("QA_EXPORT_ENTRY_525"),"Export missed first chunk");
+  assert.ok(csvHistory.includes("QA_EXPORT_ENTRY_1"),"Export dropped records after page 500");
+  assert.ok(csvHistory.includes("'=HYPERLINK("),
+    "CSV formula entry not protected against spreadsheet execution");
   const filtered=await fetch(base+"/askanus/max/history/export.csv?caseId="+disposableProjectId+"&kind=events",
     {headers:{Cookie:a}});
   assert.equal(filtered.status,200,"Owner-filtered historical export");
