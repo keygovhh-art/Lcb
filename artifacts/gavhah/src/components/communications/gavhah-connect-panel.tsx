@@ -7,6 +7,7 @@ type Campaign={id:string;title:string;goal_amount:string;status:string;role:stri
 type Assignment={id:string;title:string;kind:string;priority:string;status:string;due_at:string|null};
 type Finance={id:number;amount:number;paidAmount?:number;refundedAmount?:number;caseId:number};
 type Overview={pledges:Finance[];receipts:Finance[]};
+type Reversal={id:number;receiptId:number;amount:number;createdAt:string};
 type LinkStatus={configured:boolean;linked:boolean;campaigns:Campaign[]};
 
 async function api<T>(url:string,init?:RequestInit):Promise<T>{
@@ -24,6 +25,9 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
  const [token,setToken]=useState("");
  const [campaignId,setCampaignId]=useState("");
  const [events,setEvents]=useState<Overview|null>(null);
+ const [reversals,setReversals]=useState<Reversal[]>([]);
+ const [refundId,setRefundId]=useState("");
+ const [refundConsent,setRefundConsent]=useState(false);
  const [eventKey,setEventKey]=useState("");
  const [assignments,setAssignments]=useState<Assignment[]>([]);
  const [consent,setConsent]=useState(false);
@@ -42,6 +46,9 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
  useEffect(()=>{
   if(!status?.linked)return;
   let cancelled=false;
+  void api<Reversal[]>("/api/askanus/connect/reversals").then(items=>{
+   if(!cancelled)setReversals(items);
+  }).catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"קארעקטור־טעות");});
   void api<Overview>("/api/askanus/finance/overview"+(caseId?"?caseId="+caseId:""))
     .then(result=>{if(!cancelled)setEvents(result);})
     .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"חשבונות־טעות");});
@@ -59,6 +66,18 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
   e.preventDefault();setPending(true);setError("");setMessage("");
   try{await api("/api/askanus/connect/redeem",post({code:token.trim()}));setToken("");await reload();setMessage("די צוויי אקאונטס זענען פארבונדן.");}
   catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}finally{setPending(false);}
+ };
+ const shareReversal=async(e:React.FormEvent)=>{
+  e.preventDefault();if(!refundConsent||!campaignId||!refundId)return;
+  setPending(true);setError("");setMessage("");
+  try{
+   const r=await api<{duplicate:boolean}>("/api/askanus/connect/share-reversal",post({
+    campaignId,refundId:Number(refundId),confirmShare:true
+   }));
+   setMessage(r.duplicate?"די קארעקטור איז שוין אריינגערעכנט.":"די מאנועלע קארעקטור איז פארבונדן מיטן קאמפיין; עס איז נישט קיין באנק־ריפאנד.");
+   setRefundConsent(false);
+  }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
+  finally{setPending(false);}
  };
  const shareFollowup=async(e:React.FormEvent)=>{
   e.preventDefault();if(!followupConsent||!campaignId||!followupId)return;
@@ -134,6 +153,18 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
        <span>איך באשטעטיג בפירוש צו מיטטיילן דעם נאכפאלג־מקור מיט די ערלויבטע קאמפיין־מאנשאפט.</span>
       </label>
       <Button disabled={pending||!followupConsent||!followupId||!campaignId} type="submit">מיטטיילן דעם נאכפאלג</Button>
+     </form>
+     <form onSubmit={shareReversal} className="space-y-3 rounded-lg border p-3">
+      <h4 className="font-semibold">קארעקטורן צו פריער מיטגעטיילטע נדבות</h4>
+      <p className="text-xs text-muted-foreground">אויב א באצאלונג איז פארראכטן אדער צוריקגעדרייט, דארפסטו מיטטיילן דעם צוגעבונדענעם אודיט־רעקארד, כדי דער קאמפיין זאל נישט ווייטער ציילן דעם גאנצן אלטן סכום.</p>
+      <select className="min-h-11 w-full rounded-lg border bg-background p-2" value={refundId} onChange={e=>{setRefundId(e.target.value);setRefundConsent(false);}} required>
+       <option value="">קלייב א מאנועלע קארעקטור</option>
+       {reversals.map(r=><option key={r.id} value={r.id}>קארעקטור #{r.id} · קבלה #{r.receiptId} · {cash(r.amount)}</option>)}
+      </select>
+      <label className="flex gap-2 text-sm items-start"><input type="checkbox" checked={refundConsent} onChange={e=>setRefundConsent(e.target.checked)} className="mt-1"/>
+       <span>איך באשטעטיג בפירוש צו מיטטיילן די אויסגעקליבענע קארעקטור מיטן קאמפיין.</span>
+      </label>
+      <Button disabled={pending||!refundConsent||!refundId||!campaignId} type="submit">מיטטיילן קארעקטור</Button>
      </form>
     </>}
     <Button variant="outline" disabled={pending} onClick={async()=>{
