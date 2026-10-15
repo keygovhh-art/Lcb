@@ -5,6 +5,8 @@ import { Label } from "@/components/ui/label";
 
 type Campaign={id:string;title:string;goal_amount:string;status:string;role:string};
 type Assignment={id:string;title:string;kind:string;priority:string;status:string;due_at:string|null};
+type CampaignRoom={id:string;title:string;room_status:string;floor_mode:string;live_program?:string|null;next_program_at?:string|null;openUrl:string|null};
+type RoomResponse={mode:string;rooms:CampaignRoom[]};
 type Finance={id:number;amount:number;paidAmount?:number;refundedAmount?:number;caseId:number};
 type Overview={pledges:Finance[];receipts:Finance[]};
 type Reversal={id:number;receiptId:number;amount:number;createdAt:string};
@@ -30,6 +32,7 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
  const [refundConsent,setRefundConsent]=useState(false);
  const [eventKey,setEventKey]=useState("");
  const [assignments,setAssignments]=useState<Assignment[]>([]);
+ const [campaignRooms,setCampaignRooms]=useState<CampaignRoom[]>([]);
  const [consent,setConsent]=useState(false);
  const [followupId,setFollowupId]=useState("");
  const [followupConsent,setFollowupConsent]=useState(false);
@@ -39,7 +42,7 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
  const reload=useCallback(async()=>{
   const result=await api<LinkStatus>("/api/askanus/connect/status");
   setStatus(result);
-  if(!result.linked||!result.campaigns?.length){setCampaignId("");setAssignments([]);return;}
+  if(!result.linked||!result.campaigns?.length){setCampaignId("");setAssignments([]);setCampaignRooms([]);return;}
   setCampaignId(p=>result.campaigns.some(c=>c.id===p)?p:result.campaigns[0].id);
  },[]);
  useEffect(()=>{void reload().catch(e=>setError(e instanceof Error?e.message:"פארבינדונגס־טעות"));},[reload]);
@@ -54,6 +57,14 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
     .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"חשבונות־טעות");});
   return ()=>{cancelled=true;};
  },[caseId,status?.linked]);
+ useEffect(()=>{
+  if(!campaignId){setCampaignRooms([]);return;}
+  let cancelled=false;
+  void api<RoomResponse>("/api/askanus/connect/rooms?campaignId="+encodeURIComponent(campaignId))
+   .then(result=>{if(!cancelled)setCampaignRooms(result.rooms||[]);})
+   .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"קאמפיין־זאל־פארבינדונג נישט געלונגען");});
+  return ()=>{cancelled=true;};
+ },[campaignId]);
  useEffect(()=>{
   if(!campaignId){setAssignments([]);return;}
   let cancelled=false;
@@ -137,6 +148,22 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
        {status.campaigns.map(c=><option key={c.id} value={c.id}>{c.title} — {c.role}</option>)}
       </select>
      </label>
+     <div className="rounded-lg border p-3 space-y-3">
+      <h4 className="font-semibold">מיינע לעבעדיגע קאמפיין־זאלן</h4>
+      <p className="text-xs text-muted-foreground">די זעלבע קאמפיין־מאנשאפט אין MAX. מען קען מיטהאלטן דעם פראגראם, אריינטשעקן און ארבעטן אין קאמפיין סענטער. ווידעא איז פרייוויליג; א באזונדערער איינלאג קען זיך פארלאנגען.</p>
+      {campaignRooms.length===0?<p className="text-sm text-muted-foreground">נאכנישטא קיין אפענע אדער צוגעגרייטע ווירטועלע קאמפיין־זאלן.</p>:
+       campaignRooms.map(room=><div key={room.id} className="border-b py-2 space-y-2">
+        <strong className="block">{room.title}</strong>
+        <span className="block text-xs text-muted-foreground">{room.room_status} · {room.floor_mode}
+         {room.live_program?" · יעצט: "+room.live_program:""}
+         {room.next_program_at?" · נעקסטער פראגראם: "+new Date(room.next_program_at).toLocaleString():""}
+        </span>
+        {room.openUrl?<a href={room.openUrl} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-semibold">
+           אריינגיין אינעם קאמפיין־זאל
+         </a>:<p className="text-xs text-muted-foreground">קאמפיין סענטער־לינק ווערט נאכנישט צוגעשטעלט.</p>}
+       </div>)}
+     </div>
      <div className="rounded-lg border p-3 space-y-2"><h4 className="font-semibold">מיינע קאמפיין־אויפגאבן</h4>
        {assignments.length===0?<p className="text-sm text-muted-foreground">נאך קיין צוגעטיילטע אויפגאבן.</p>:
         assignments.map(a=><div key={a.id} className="border-b py-3 text-sm flex flex-wrap items-center justify-between gap-3">
