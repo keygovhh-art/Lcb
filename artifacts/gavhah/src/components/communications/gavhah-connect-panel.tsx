@@ -19,7 +19,7 @@ const post=(body:object):RequestInit=>({method:"POST",headers:{"Content-Type":"a
 const cash=(number:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(Number(number||0));
 
 /** Optional team layer: personal MAX always works without Campaign Connect. */
-export function GavhahConnectPanel({caseId}:{caseId?:number|null}){
+export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;followups?:Array<{id:number;note:string;completed:boolean}>}){
  const [status,setStatus]=useState<LinkStatus|null>(null);
  const [token,setToken]=useState("");
  const [campaignId,setCampaignId]=useState("");
@@ -27,6 +27,8 @@ export function GavhahConnectPanel({caseId}:{caseId?:number|null}){
  const [eventKey,setEventKey]=useState("");
  const [assignments,setAssignments]=useState<Assignment[]>([]);
  const [consent,setConsent]=useState(false);
+ const [followupId,setFollowupId]=useState("");
+ const [followupConsent,setFollowupConsent]=useState(false);
  const [pending,setPending]=useState(false);
  const [message,setMessage]=useState("");
  const [error,setError]=useState("");
@@ -57,6 +59,18 @@ export function GavhahConnectPanel({caseId}:{caseId?:number|null}){
   e.preventDefault();setPending(true);setError("");setMessage("");
   try{await api("/api/askanus/connect/redeem",post({code:token.trim()}));setToken("");await reload();setMessage("די צוויי אקאונטס זענען פארבונדן.");}
   catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}finally{setPending(false);}
+ };
+ const shareFollowup=async(e:React.FormEvent)=>{
+  e.preventDefault();if(!followupConsent||!campaignId||!followupId)return;
+  setPending(true);setError("");setMessage("");
+  try{
+   const result=await api<{duplicate:boolean}>("/api/askanus/connect/share-followup",post({
+    campaignId,followupId:Number(followupId),shareScope:"assigned_managers",confirmShare:true
+   }));
+   setMessage(result.duplicate?"דער נאכפאלג איז שוין פארבונדן.":"דער זעלבער נאכפאלג־ID איז פארבונדן מיטן קאמפיין, אן מיטטיילן דיינע פריוואטע נאטיצן.");
+   setFollowupConsent(false);
+  }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
+  finally{setPending(false);}
  };
  const share=async(e:React.FormEvent)=>{
   e.preventDefault();if(!consent||!campaignId||!eventKey)return;
@@ -108,6 +122,18 @@ export function GavhahConnectPanel({caseId}:{caseId?:number|null}){
        <span>איך וויל בפירוש מיטטיילן די אויסגעקליבענע געלט־געשעעניש מיט דעם קאמפיין. מיינע פריוואטע נאטיצן בלייבן פריוואט.</span>
       </label>
       <Button disabled={pending||!consent||!eventKey||!campaignId} type="submit">מיטטיילן דעם רעקארד</Button>
+     </form>
+     <form onSubmit={shareFollowup} className="space-y-3 rounded-lg border p-3">
+      <h4 className="font-semibold">איין נאכפאלג מיטטיילן מיטן קאמפיין</h4>
+      <p className="text-xs text-muted-foreground">דער קאמפיין וועט באקומען בלויז א פארבינדונג צום זעלבן מקור־רעקארד. דער טעקסט און פריוואטע נאטיצן בלייבן אין דיין MAX־אקאונט.</p>
+      <select className="min-h-11 w-full rounded-lg border bg-background p-2" value={followupId} onChange={e=>{setFollowupId(e.target.value);setFollowupConsent(false);}} required>
+       <option value="">קלייב א נאכפאלג פונעם אויסגעקליבענעם פראיעקט</option>
+       {(followups||[]).map(f=><option key={f.id} value={f.id}>{f.completed?"פארטיג":"אפן"} · #{f.id} · {f.note.slice(0,65)}</option>)}
+      </select>
+      <label className="flex gap-2 text-sm items-start"><input type="checkbox" checked={followupConsent} onChange={e=>setFollowupConsent(e.target.checked)} className="mt-1"/>
+       <span>איך באשטעטיג בפירוש צו מיטטיילן דעם נאכפאלג־מקור מיט די ערלויבטע קאמפיין־מאנשאפט.</span>
+      </label>
+      <Button disabled={pending||!followupConsent||!followupId||!campaignId} type="submit">מיטטיילן דעם נאכפאלג</Button>
      </form>
     </>}
     <Button variant="outline" disabled={pending} onClick={async()=>{
