@@ -32,6 +32,15 @@
 - קיין איינגעבויטער קנעפל ווערט נישט אנגעצייכנט אלס ״דער נדבן האט צוריקגעגעבן רשות״ ווען נאר דער עסקן האט אראפגענומען דעם צייכן.
 - פונקטן וואס **מוזן** בלייבן באשיצט: פריוואטקייט פון אנדערע אקאונטס, אומבאשטעטיגטע געלט־רעקארדס, צווייפאכיגע חשבונות, זיכערע דאַטן און געזעצליכע פליכטן.
 
+## באשטעטיגט ביים נייעם רעליס־דורכקוק — 14 אקטאבער 2026
+- דער באשטעטיגטער Neon־פּראָדוקציע־ברענטש איז `br-orange-water-b43bfcoj`; אפגעזונדערטער MAX־טעסט־ברענטש `br-patient-mode-b49ljoyr`.
+- אויף ביידע זענען די עקזיסטירנדע ציילונגען: **8 פראיעקטן, 9 נאכפאלגן, 4 אויפגאבן, 13 אלטע געשיכטע־איינטראגן**; דערצו 2 פערזענליכע נאטיצן.
+- **פינף פונקטליכע דאַטאַבאַזע־פינגערפּרינטס שטימען** פאר אלע *אלטע פארגלייכבארע שפאלטן*: `askanus_cases`, `askanus_notes`, `askanus_tasks`, `case_activity_log`, `case_followups`. דאס איז אן אינדיווידועלע דאטא־אינהאלט־באשטעטיגונג (נישט בלויז ציילונגען), אבער עס ערזעצט נישט קיין פרישן באקאפ פאר דער עפנטליכער מיגראציע.
+- דער מיגראציע־ראנער `lib/db/scripts/max-additive-migrate.mjs` מאכט איצט אטאמישע אפהיטונגען, קאנטראלירט **10 MAX־טאבעלעס** און זייערע נויטיגע שפאלטן, און פארגלייכט די פינף אלטע ציילונגען *פאר און נאך* דער מיגראציע. ביים דורכפאל ווערט די טראַנזאַקציע צוריקגעדרייט.
+- א רעמאָוטער Neon־מיגראציע פארלאנגט יעצט `MAX_EXPECTED_DB_HOST`, גענוי דער באשטעטיגטער DB־האוסט. בלויז דער באקאפ־און־רעליס־איש קען שטעלן `MAX_PRODUCTION_MIGRATION_APPROVED=yes-reviewed-and-backed-up` **נאך** דער אויספרובירטער באקאפ.
+- א פריוואטער **פולער MAX־געשיכטע־CSV** קען פונעם טעלעפאן ארויסגענומען ווערן, אריינגערעכנט פארענדיגטע און אלטע רעקארדס. דער אוטענטיפיצירטער User־Filter איז דער זעלבער אין דער אנזיכט און אין דעם עקספארט. Downloaded CSV איז פריוואטע דאַטן; דארף ווערן פארווארט זיכער.
+- די עכטע Render־ווארקספעיס און פארבונדענע לעבעדיגע סערוויס דארפן נאך באשטעטיגט ווערן; גארנישט איז דעפּלויעט אויף Render דורך דעם דאָזיגן רעליס.
+
 ## אייביגע זיכערהייט־כללים
 1. א באקומענע נדבה איז „מאנועל באריכטעט“ ביז א געלט־פארוואלטער אדער באצאלונגס־סערוויס באשטעטיגט איר. מאך נישט אויס א „verified“ באצאלונג פון א סתם עסקן־באריכט.
 2. איין באצאלונג / refund / התחייבות איז איין auditable record מיט דער זעלבער idempotency key; קיין איבערגעשיקטע בקשה מעג צולייגן צוויי מאל.
@@ -45,7 +54,7 @@
 - [ ] זעהן אז Neon־production האט נאך נישט נייע MAX־טאבעלעס; **באקאפ/נייע snapshot פון אלע production data** גלייך פאר דער מיגראציע.
 - [ ] קודם דריי־מאל דורכקוקן אלע schema changes אויף א staging Neon branch — קיין אויסמעקן אלטע דאטן.
 - [ ] נאר נאכן באשטעטיגטן באַקאַפּ: additive transactional schema runner, EXPLICIT release permission:
-  `MAX_MIGRATION_MODE=production MAX_PRODUCTION_MIGRATION_APPROVED=yes-reviewed-and-backed-up node lib/db/scripts/max-additive-migrate.mjs`
+  `MAX_MIGRATION_MODE=production MAX_EXPECTED_DB_HOST=<independently-verified-neon-host> MAX_PRODUCTION_MIGRATION_APPROVED=yes-reviewed-and-backed-up node lib/db/scripts/max-additive-migrate.mjs`
   אלץ בלויז אין באשיצטן אָפּעראטאר־סביבה, קיינמאל ביים Build.
 - [ ] Re-verify production schema (seven MAX tables, due_time & time_zone, finance key constraints/indexes).
 - [ ] Merge PR `keygovhh-art/Lcb#10` to production `main` נאר נאך QA און schema approval.
