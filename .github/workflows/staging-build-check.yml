@@ -10,6 +10,10 @@ on:
       - feature/charity-queue-schedules-phone-donation-20261012
       - fix/my-askanus-followup-history-delete-20261013
       - feature/gavhah-max-integration-20261014
+      - feature/max-campaign-connect-20261015
+  pull_request:
+    branches:
+      - feature/gavhah-max-integration-20261014
   workflow_dispatch:
 jobs:
   verify:
