@@ -16,6 +16,15 @@ import causeSupportersRouter from "./cause-supporters";
 import featuredCausesRouter from "./featured-causes";
 import communityProjectsRouter from "./community-projects";
 import askanusRouter from "./askanus";
+import communicationsMaxRouter from "./communications-max";
+import communicationsFinanceRouter from "./communications-finance";
+import communicationsContactsTransferRouter from "./communications-contacts-transfer";
+import communicationsAssistantRouter from "./communications-assistant";
+import communicationsConsentRouter from "./communications-consent";
+import communicationsRemindersRouter from "./communications-reminders";
+import communicationsReportsRouter from "./communications-reports";
+import communicationsHistoryRouter from "./communications-history";
+import communicationsTodayRouter from "./communications-today";
 import socialRouter from "./social";
 import adminRouter from "./admin";
 import reservationsRouter from "./reservations";
@@ -49,7 +58,36 @@ router.use(platformRouter);
 router.use(causeSupportersRouter);
 router.use(featuredCausesRouter);
 router.use(communityProjectsRouter);
+// MAX/My Askanus changes are session-cookie authenticated. Cross-site requests
+// carrying an Origin must be from this host; preserve non-browser API clients.
+router.use("/askanus", (req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+  const origin = req.get("origin");
+  if (!origin) return next();
+  try {
+    const given = new URL(origin);
+    const requestedHost = req.get("x-forwarded-host") || req.get("host");
+    if ((given.protocol !== "https:" && given.protocol !== "http:") ||
+        !requestedHost || given.host !== requestedHost) {
+      res.status(403).json({error:"Cross-origin MAX changes are not permitted"});
+      return;
+    }
+  } catch {
+    res.status(403).json({error:"Invalid Origin"});
+    return;
+  }
+  next();
+});
 router.use(askanusRouter);
+router.use(communicationsMaxRouter);
+router.use(communicationsFinanceRouter);
+router.use(communicationsContactsTransferRouter);
+router.use(communicationsAssistantRouter);
+router.use(communicationsConsentRouter);
+router.use(communicationsRemindersRouter);
+router.use(communicationsReportsRouter);
+router.use(communicationsHistoryRouter);
+router.use(communicationsTodayRouter);
 router.use(socialRouter);
 router.use(adminRouter);
 router.use(reservationsRouter);

@@ -9,6 +9,7 @@ on:
       - fix/react-page-crash-root-and-error-noise-20261011
       - feature/charity-queue-schedules-phone-donation-20261012
       - fix/my-askanus-followup-history-delete-20261013
+      - feature/gavhah-max-integration-20261014
   workflow_dispatch:
 jobs:
   verify:
@@ -39,6 +40,18 @@ jobs:
         run: node --test tests/official-cause-join.test.mjs
       - name: Verify follow-up history, owner-only deletion and undo completion
         run: node --experimental-strip-types --test tests/case-followup-history.test.mjs
+      - name: Verify MAX and My Askanus shared case contract
+        run: node --test tests/communications-max-unified.test.mjs
+      - name: Verify advanced MAX pledge, donor, consent and second-brain contracts
+        run: node --test tests/max-ledger-donor360.test.mjs
+      - name: Verify MAX release safety regressions
+        run: node --test tests/max-release-integrity.test.mjs
+      - name: Verify recurring follow-up calendar rules
+        run: node --experimental-strip-types --test tests/max-recurring-followups.test.mjs
+      - name: Verify timezone-accurate MAX reminder clock
+        run: node --experimental-strip-types --test tests/max-reminder-clock.test.mjs
+      - name: Verify release migration refuses wrong database target or missing backup
+        run: node --test tests/max-migration-safety.test.mjs
       - name: Verify independent weekday selections for each minyan
         run: node --experimental-strip-types --test tests/minyan-weekdays.test.mjs
       - name: Verify group moderation, founder rights and report-target confidentiality

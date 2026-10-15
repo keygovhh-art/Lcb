@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, serial, text, integer, boolean, timestamp, numeric } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, serial, text, integer, boolean, timestamp, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const askanusStatusEnum = pgEnum("askanus_status", ["open", "in_progress", "closed"]);
 export const askanusUrgencyEnum = pgEnum("askanus_urgency", ["low", "medium", "high", "critical"]);
@@ -23,6 +23,7 @@ export const askanuscases = pgTable("askanus_cases", {
   sourceId: integer("source_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+  closedAt: timestamp("closed_at", {withTimezone:true}),
 });
 
 export const caseActivityLog = pgTable("case_activity_log", {
@@ -41,9 +42,15 @@ export const caseFollowups = pgTable("case_followups", {
   date: text("date").notNull(),
   note: text("note").notNull(),
   dueDate: text("due_date"),
+  dueTime: text("due_time"),
+  timeZone: text("time_zone"),
+  repeatRule: text("repeat_rule").notNull().default("none"),
+  repeatAnchorDay: integer("repeat_anchor_day"),
+  generatedFromId: integer("generated_from_id"),
   completed: boolean("completed").notNull().default(false),
+  completedAt: timestamp("completed_at", {withTimezone:true}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, t => [uniqueIndex("case_followups_generated_from_unique").on(t.generatedFromId)]);
 
 export const askanustasks = pgTable("askanus_tasks", {
   id: serial("id").primaryKey(),
@@ -52,6 +59,7 @@ export const askanustasks = pgTable("askanus_tasks", {
   caseTitle: text("case_title").notNull().default(""),
   deadline: text("deadline").notNull().default(""),
   completed: boolean("completed").notNull().default(false),
+  completedAt: timestamp("completed_at", {withTimezone:true}),
   priority: taskPriorityEnum("priority").notNull().default("medium"),
   notes: text("notes").notNull().default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
