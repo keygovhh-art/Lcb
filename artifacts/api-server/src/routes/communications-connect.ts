@@ -80,7 +80,8 @@ router.get("/askanus/connect/rooms",requireAuth,endpoint(async(req,res)=>{
  let origin="";
  try{const url=new URL(base);if(url.protocol==="https:")origin=url.origin;}catch{}
  res.setHeader("Cache-Control","private, no-store");
- res.json({mode:result.mode,rooms:(result.rooms||[]).map((r:{id:string;title:string;room_status:string;floor_mode:string;live_program?:string|null;next_program_at?:string|null})=>({
+ const roomItems=Array.isArray(result.rooms)?result.rooms as Array<{id:string;title:string;room_status:string;floor_mode:string;live_program?:string|null;next_program_at?:string|null}>:[];
+ res.json({mode:result.mode,rooms:roomItems.map(r=>({
   ...r,openUrl:origin?origin+"/?campaign="+encodeURIComponent(campaignId)+"&hall="+encodeURIComponent(r.id):null
  }))});
 }));
