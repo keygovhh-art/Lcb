@@ -27,7 +27,8 @@ async function remote(path:string,method:"GET"|"POST",body?:object){
   headers:{"x-gavhah-connect-secret":conf.secret,...(body?{"content-type":"application/json"}:{})},
   ...(body?{body:JSON.stringify(body)}:{}),
  });
- const result=await response.json().catch(()=>({}));
+ const parsed:unknown=await response.json().catch(()=>({}));
+ const result:Record<string,unknown>=parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed as Record<string,unknown>:{};
  if(!response.ok){
   // Never return a remote backend's stack trace or secrets to browsers.
   const known=[400,403,404,409,429,503].includes(response.status)?response.status:502;
