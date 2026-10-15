@@ -69,6 +69,21 @@ router.post("/askanus/connect/unlink",requireAuth,endpoint(async(req,res)=>{
  const result=await remote("/unlink","POST",{gavhahUserId:uid});
  res.json(result);
 }));
+// Read-only virtual campaign hall schedule for the linked MAX user.
+// Opening the URL separately requires Campaign Center Neon Auth membership.
+router.get("/askanus/connect/rooms",requireAuth,endpoint(async(req,res)=>{
+ const uid=getSessionUserId(req)!;
+ const campaignId=String(req.query.campaignId||"");
+ if(!/^[a-f0-9-]{36}$/i.test(campaignId)){res.status(400).json({error:"Invalid campaign"});return;}
+ const result=await remote("/rooms?gavhahUserId="+uid+"&campaignId="+encodeURIComponent(campaignId),"GET");
+ const base=String(process.env.GAVHAH_CONNECT_BASE_URL||"").replace(/\/+$/,"");
+ let origin="";
+ try{const url=new URL(base);if(url.protocol==="https:")origin=url.origin;}catch{}
+ res.setHeader("Cache-Control","private, no-store");
+ res.json({mode:result.mode,rooms:(result.rooms||[]).map((r:{id:string;title:string;room_status:string;floor_mode:string;live_program?:string|null;next_program_at?:string|null})=>({
+  ...r,openUrl:origin?origin+"/?campaign="+encodeURIComponent(campaignId)+"&hall="+encodeURIComponent(r.id):null
+ }))});
+}));
 router.get("/askanus/connect/assignments",requireAuth,endpoint(async(req,res)=>{
  const uid=getSessionUserId(req)!;
  const campaignId=String(req.query.campaignId||"");
