@@ -129,6 +129,16 @@ export function MaxHistoryPanel({caseId}:{caseId?:number}){
       <Search className="w-4 h-4 ml-1"/> זוכן
     </Button>
   </form>
+  <a
+    href={"/api/askanus/max/history/export.csv?"+new URLSearchParams({
+      kind,...(term?{q:term}:{}),...(caseId?{caseId:String(caseId)}:{}),
+    }).toString()}
+    download="gavhah-max-private-history.csv"
+    className="inline-flex min-h-11 items-center rounded-lg border px-3 text-sm font-semibold hover:bg-muted"
+    aria-label="ארויסנעמען די גאנצע אויסגעקליבענע געשיכטע אלס CSV־פייל"
+  >
+    <BookOpen className="w-4 h-4 ml-2"/> מיינע היסטאריע־דאַטן ארויסנעמען (CSV)
+  </a>
   <div className="flex flex-wrap gap-2">
     {groups.map(g=><Button key={g.kind} type="button" size="sm"
       variant={kind===g.kind?"default":"outline"}
