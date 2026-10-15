@@ -48,11 +48,13 @@ test("owner-only server route enforces authenticated parent-case ownership insid
   const schema = readFileSync("lib/db/src/schema/askanus.ts", "utf8");
   const spec = readFileSync("lib/api-spec/openapi.yaml", "utf8");
   assert.match(api, /router.delete\("\/askanus\/followups\/:id", requireAuth/);
-  assert.match(api, /db.delete\(caseFollowups\)\.where\(and\(/);
-  assert.match(api, /ac\.id = \$\{caseFollowups\.caseId\}/);
-  assert.match(api, /ac\.user_id = \$\{userId\}/);
+  assert.match(api, /tx.delete\(caseFollowups\)\.where\(and\(/);
+  assert.match(api, /ac\.id\s*=\s*\$\{caseFollowups\.caseId\}/);
+  assert.match(api, /ac\.user_id\s*=\s*\$\{userId\}/);
   assert.match(api, /Number\.isSafeInteger\(id\)/);
   assert.match(api, /res\.status\(404\)/);
+  assert.match(api, /followup_explicitly_deleted/);
+  assert.match(api, /maxHistoryEvents/);
   assert.match(spec, /operationId: deleteCaseFollowup/);
   assert.match(schema, /completed: boolean\("completed"\)\.notNull\(\)\.default\(false\)/);
 });
