@@ -19,21 +19,10 @@ const sections=new Set(["all","events","activities","followups","pledges",
 type Item={id:number;kind:string;action:string;caseId:number|null;entityId:number;
  title:string;details:string;happenedAt:Date|string};
 
-router.get("/askanus/max/history",requireAuth,async(req,res)=>{
-  const userId=getSessionUserId(req)!;
-  const kind=typeof req.query.kind==="string"?req.query.kind:"all";
-  const rawCase=req.query.caseId;
-  const caseId=rawCase===undefined?null:Number(rawCase);
-  const limit=Number(req.query.limit??40);
-  const offset=Number(req.query.offset??0);
-  const search=typeof req.query.q==="string"?req.query.q.trim():"";
-  if(!sections.has(kind)||!Number.isSafeInteger(limit)||limit<1||limit>100||
-    !Number.isSafeInteger(offset)||offset<0||offset>200000||
-    (caseId!==null&&(!Number.isSafeInteger(caseId)||caseId<=0))||search.length>120){
-    res.status(400).json({error:"Invalid private history filter"});return;
-  }
-  // Every UNION branch checks *server-side* session owner, including children
-  // that have no user_id field. No public campaign/cross-account access.
+// Both paginated browsing and the private CSV download use one owner-filtered
+// query, so they cannot silently diverge as new kinds of history are added.
+async function readHistoryPage(userId:number,kind:string,caseId:number|null,
+  search:string,limit:number,offset:number):Promise<Item[]> {
   const result=await db.execute(sql`
     WITH all_history AS (
       SELECT h.id::bigint AS id,'events'::text AS kind,h.action,
@@ -108,9 +97,32 @@ router.get("/askanus/max/history",requireAuth,async(req,res)=>{
       AND (${search}='' OR (title ILIKE '%'||${search}||'%'
         OR details ILIKE '%'||${search}||'%'))
     ORDER BY happened_at DESC,kind ASC,id DESC
-    LIMIT ${limit+1} OFFSET ${offset}
+    LIMIT ${limit} OFFSET ${offset}
   `);
-  const rows=(result.rows||[]) as unknown as Item[];
+  return (result.rows||[]) as unknown as Item[];
+}
+const csvCell=(value:unknown)=>{
+  let s=String(value??"");
+  // Spreadsheet formula injection protection, even on historical user text.
+  if(/^[ \t]*[=+\-@\t\r]/.test(s))s="'"+s;
+  return '"'+s.replace(/"/g,'""')+'"';
+};
+
+router.get("/askanus/max/history",requireAuth,async(req,res)=>{
+  const userId=getSessionUserId(req)!;
+  const kind=typeof req.query.kind==="string"?req.query.kind:"all";
+  const rawCase=req.query.caseId;
+  const caseId=rawCase===undefined?null:Number(rawCase);
+  const limit=Number(req.query.limit??40);
+  const offset=Number(req.query.offset??0);
+  const search=typeof req.query.q==="string"?req.query.q.trim():"";
+  if(!sections.has(kind)||!Number.isSafeInteger(limit)||limit<1||limit>100||
+    !Number.isSafeInteger(offset)||offset<0||offset>200000||
+    (caseId!==null&&(!Number.isSafeInteger(caseId)||caseId<=0))||search.length>120){
+    res.status(400).json({error:"Invalid private history filter"});return;
+  }
+  const rows=await readHistoryPage(userId,kind,caseId,search,limit+1,offset);
+
   res.setHeader("Cache-Control","private, no-store");
   res.json({items:rows.slice(0,limit).map(r=>({
     ...r,id:Number(r.id),entityId:Number(r.entityId),
@@ -118,4 +130,50 @@ router.get("/askanus/max/history",requireAuth,async(req,res)=>{
   })),hasMore:rows.length>limit,nextOffset:offset+Math.min(rows.length,limit),
   note:"Finished work, fully paid pledges and closed projects remain in permanent source records. Historical events are additional append-only snapshots. Financial details are manually reported unless externally verified."});
 });
+/** Entire owner-only timeline as CSV, safely streamed in batches.
+ * This intentionally includes completed, closed, paid and explicitly deleted
+ * audit events. No fixed 500-row download cap.
+ */
+router.get("/askanus/max/history/export.csv",requireAuth,async(req,res)=>{
+  const userId=getSessionUserId(req)!;
+  const kind=typeof req.query.kind==="string"?req.query.kind:"all";
+  const rawCase=req.query.caseId;
+  const caseId=rawCase===undefined?null:Number(rawCase);
+  const search=typeof req.query.q==="string"?req.query.q.trim():"";
+  if(!sections.has(kind)||(caseId!==null&&(!Number.isSafeInteger(caseId)||caseId<=0))
+    ||search.length>120){
+    res.status(400).json({error:"Invalid history export filter"});return;
+  }
+  // Fail before starting output if the first SQL query is unavailable.
+  const batchSize=500;
+  let offset=0;
+  let rows=await readHistoryPage(userId,kind,caseId,search,batchSize,offset);
+  res.setHeader("Content-Type","text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition",'attachment; filename="gavhah-max-private-history.csv"');
+  res.setHeader("Cache-Control","private, no-store");
+  res.setHeader("X-Content-Type-Options","nosniff");
+  res.write("\uFEFF"+"kind,action,project_id,record_id,title,details,happened_at\r\n");
+  try {
+    for(;;){
+      for(const row of rows){
+        if(res.destroyed)return;
+        const line=[
+          row.kind,row.action,row.caseId??"",row.entityId,row.title,row.details,
+          new Date(row.happenedAt).toISOString(),
+        ].map(csvCell).join(",")+"\r\n";
+        if(!res.write(line)){
+          await new Promise<void>(resolve=>res.once("drain",resolve));
+        }
+      }
+      offset+=rows.length;
+      if(rows.length<batchSize||res.destroyed)break;
+      rows=await readHistoryPage(userId,kind,caseId,search,batchSize,offset);
+    }
+    res.end();
+  }catch(err){
+    // Never send an HTML/JSON error in the middle of a CSV file.
+    if(!res.destroyed)res.destroy(err as Error);
+  }
+});
+
 export default router;
