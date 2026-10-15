@@ -60,6 +60,17 @@ const {chromium}=requireBrowser("playwright");
    for(const id of ["max-today","max-call","max-contacts","max-projects","max-more"]){
      assert.ok(await page.locator("#"+id).isVisible(),id+" missing on phone screen");
    }
+   // Personal history is visible on Android-sized screens and can be
+   // downloaded privately even after the follow-up is marked complete.
+   const historyPanel=page.getByRole("region",{name:"MAX שטענדיגע היסטאריע"});
+   await historyPanel.waitFor({state:"visible",timeout:15000});
+   const exportLink=historyPanel.locator('a[download="gavhah-max-private-history.csv"]');
+   await exportLink.waitFor({state:"visible",timeout:15000});
+   const [historyDownload]=await Promise.all([
+     page.waitForEvent("download",{timeout:15000}),
+     exportLink.click(),
+   ]);
+   assert.equal(historyDownload.suggestedFilename(),"gavhah-max-private-history.csv");
    const reports=page.getByRole("region",{name:"MAX פערזענליכע באריכטן"});
    await reports.getByRole("button",{name:"עפענען מיין באריכט"}).click();
    await reports.getByRole("button",{name:"30 טעג"}).waitFor({state:"visible",timeout:15000});
