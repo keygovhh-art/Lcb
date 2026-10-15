@@ -10,6 +10,8 @@ export * from "./cause-supporters";
 export * from "./featured-causes";
 export * from "./community-projects";
 export * from "./askanus";
+export * from "./communications-max";
+export * from "./communications-finance";
 export * from "./social";
 
 export * from "./reservations";

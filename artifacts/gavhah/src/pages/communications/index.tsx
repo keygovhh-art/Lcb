@@ -1,6 +1,7 @@
 import { formatGregorianDateTime } from "@/lib/gregorian-date";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/auth-context";
+import { MaxCallDesk } from "@/components/communications/max-call-desk";
 import { useToast } from "@/hooks/use-toast";
 import { MemberGate } from "@/components/shared/member-gate";
 import { Layout } from "@/components/layout/layout";
@@ -74,10 +75,10 @@ export default function Communications() {
         <div className="container mx-auto px-4 py-12">
           <div className="flex items-center gap-3 mb-2">
             <Radio className="h-8 w-8 text-secondary" />
-            <h1 className="font-serif text-4xl font-bold text-primary">Olam Hachesed Communications</h1>
+            <h1 className="font-serif text-4xl font-bold text-primary">עולם החסד — קאמוניקאציע MAX</h1>
           </div>
           <p className="text-muted-foreground font-serif italic ml-11 max-w-xl">
-            Website broadcasts are active. Phone, SMS, voicemail, and conference features will activate after a communications provider is connected.
+            דער פערזענליכער נדבן־און־רופן־ארבעטס־צענטער איז גרייט פאר מאנועלע באריכטן. אמת׳ע טעלעפאן־רופן, טעקסט־מעלדונגען און קאנפערענצן דארפן נאך א טעלעפאן־סערוויס.
           </p>
           <div className="ml-11 mt-4 flex flex-wrap gap-2">
             <Badge className="bg-green-100 text-green-800 border border-green-200 gap-1.5">
@@ -109,12 +110,15 @@ export default function Communications() {
           ))}
         </div>
 
-        <Tabs defaultValue="broadcast" className="space-y-8">
-          <TabsList className="bg-muted/50 h-auto p-1">
+        <Tabs defaultValue="calls" className="space-y-8">
+          <TabsList className="bg-muted/50 h-auto p-1 flex flex-wrap gap-1">
+            <TabsTrigger value="calls" className="gap-2"><Phone className="h-4 w-4" /> מיין MAX רופן־צענטער</TabsTrigger>
             <TabsTrigger value="broadcast" className="gap-2">
               <Megaphone className="h-4 w-4" /> Website Broadcast
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="calls" className="space-y-6"><MaxCallDesk /></TabsContent>
 
           {/* Broadcast */}
           <TabsContent value="broadcast" className="space-y-6">

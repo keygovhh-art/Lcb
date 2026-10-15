@@ -1,0 +1,102 @@
+name: MAX real mobile browser acceptance
+on:
+  push:
+    branches:
+      - feature/gavhah-max-integration-20261014
+      - feature/max-campaign-connect-20261015
+    paths:
+      - '.github/workflows/max-mobile-browser.yml'
+      - 'artifacts/api-server/tests/max-mobile-browser.cjs'
+      - 'artifacts/gavhah/src/components/communications/donor-360.tsx'
+      - 'artifacts/gavhah/src/components/communications/max-call-desk.tsx'
+      - 'artifacts/api-server/src/routes/communications-consent.ts'
+      - 'artifacts/api-server/src/routes/communications-reminders.ts'
+      - 'artifacts/gavhah/src/components/communications/max-reminder-inbox.tsx'
+      - 'artifacts/gavhah/src/components/communications/max-performance-panel.tsx'
+      - 'artifacts/gavhah/src/components/communications/max-history-panel.tsx'
+      - 'artifacts/api-server/src/routes/communications-history.ts'
+      - 'artifacts/api-server/src/routes/communications-reports.ts'
+      - 'artifacts/api-server/src/routes/communications-history.ts'
+      - 'artifacts/gavhah/src/components/communications/max-history-panel.tsx'
+  workflow_dispatch:
+jobs:
+  mobile-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: qa_local_password
+          POSTGRES_USER: qa_runner
+          POSTGRES_DB: gavhah_qa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U qa_runner -d gavhah_qa"
+          --health-interval 3s
+          --health-timeout 4s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://qa_runner:qa_local_password@127.0.0.1:5432/gavhah_qa
+      SESSION_SECRET: QA-ONLY-EPHEMERAL-GITHUB-ACTIONS-NOT-PRODUCTION-SECRET
+      SESSION_STORE: memory
+      NODE_ENV: production
+      PORT: 35148
+      SESSION_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install locked application dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Initialize disposable database schema and additive migrations
+        run: |
+          pnpm --filter @workspace/db run push-force
+          MAX_MIGRATION_MODE=staging node lib/db/scripts/max-additive-migrate.mjs
+      - name: Build actual API and React PWA bundles
+        run: |
+          pnpm --filter @workspace/api-server run build
+          pnpm --filter @workspace/gavhah run build
+      - name: Seed two test users and run the source-grounded REST journey
+        run: |
+          NODE_ENV=production PORT=35147 node artifacts/api-server/dist/index.mjs > /tmp/max-qa-api.log 2>&1 &
+          for n in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:35147/api/healthz >/dev/null; then break; fi
+            sleep 1
+          done
+          PORT=35147 pnpm --filter @workspace/api-server exec node tests/max-http-e2e.mjs
+      - name: Install isolated Chromium and browser driver
+        run: |
+          mkdir -p /tmp/gavhah-browser-qa
+          echo '{"private":true,"name":"gavhah-browser-qa"}' > /tmp/gavhah-browser-qa/package.json
+          npm install --prefix /tmp/gavhah-browser-qa playwright@1.56.1 --no-audit --no-fund
+          /tmp/gavhah-browser-qa/node_modules/.bin/playwright install --with-deps chromium
+      - name: Start production-style local site and conduct actual touch mobile test
+        run: |
+          PORT=35148 node artifacts/api-server/dist/index.mjs > /tmp/max-qa-web.log 2>&1 &
+          for n in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:35148/communications >/dev/null; then break; fi
+            sleep 1
+          done
+          node artifacts/api-server/tests/max-mobile-browser.cjs
+      - name: Preserve synthetic mobile evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gavhah-max-mobile-qa
+          if-no-files-found: ignore
+          path: |
+            /tmp/gavhah-max-my-mobile.png
+            /tmp/gavhah-max-contact-mobile.png
+            /tmp/gavhah-max-history-mobile.png
+      - name: Failure diagnostics
+        if: failure()
+        run: |
+          tail -n 80 /tmp/max-qa-api.log || true
+          tail -n 80 /tmp/max-qa-web.log || true
