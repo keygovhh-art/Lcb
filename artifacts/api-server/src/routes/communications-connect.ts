@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { and,eq } from "drizzle-orm";
 import { getSessionUserId,requireAuth } from "../middlewares/auth";
-import { maxPledges,maxReceipts } from "@workspace/db/schema";
+import { maxPledges,maxReceipts,askanuscases,caseFollowups } from "@workspace/db/schema";
 
 // This service is a client of Campaign Center, never a second store of team data.
 // Calls originate from the Gavhah API, never the browser. Secrets stay server-side.
@@ -76,6 +76,24 @@ router.get("/askanus/connect/assignments",requireAuth,endpoint(async(req,res)=>{
  const result=await remote("/assignments?gavhahUserId="+uid+"&campaignId="+encodeURIComponent(campaignId),"GET");
  res.setHeader("Cache-Control","private, no-store");
  res.json(result);
+}));
+router.post("/askanus/connect/share-followup",requireAuth,endpoint(async(req,res)=>{
+ const uid=getSessionUserId(req)!;
+ const followupId=asNumber(req.body?.followupId);
+ const campaignId=String(req.body?.campaignId||"");
+ const shareScope=req.body?.shareScope==="assigned_managers"?"assigned_managers":"campaign";
+ if(req.body?.confirmShare!==true||!followupId||!/^[a-f0-9-]{36}$/i.test(campaignId)){
+  res.status(400).json({error:"Select a valid follow-up and confirm sharing"});return;
+ }
+ const owned=await db.select({id:caseFollowups.id}).from(caseFollowups)
+  .innerJoin(askanuscases,eq(caseFollowups.caseId,askanuscases.id))
+  .where(and(eq(caseFollowups.id,followupId),eq(askanuscases.userId,uid))).limit(1);
+ if(!owned.length){res.status(404).json({error:"Your follow-up was not found"});return;}
+ const result=await remote("/followups","POST",{
+  gavhahUserId:uid,campaignId,followupId,shareScope
+ });
+ // Canonical MAX ID is linked, not duplicated; private note/time stays at its origin.
+ res.status(result.duplicate?200:201).json({...result,source:"gavhah_max"});
 }));
 router.post("/askanus/connect/share-finance",requireAuth,endpoint(async(req,res)=>{
  const uid=getSessionUserId(req)!;
