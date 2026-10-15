@@ -32,3 +32,9 @@ Date: 2026-10-15
 - Sponsor-backed paid MAX entitlements not activated without paid billing + verified contract.
 - Complete live-room audio/caller-ID/telephony, background push/email, transcription/voice storage, 360 full family merge and unrestricted AI are NOT implemented.
 - Keep previously completed personal histories indefinitely where permitted; only a deliberate authorized delete removes source documents, not financial audit.
+
+## 2026-10-15: Additional production merge gate
+- GitHub reports base MAX PR #10 against main as `mergeable: false`. Main contains a newer one-commit group-management release not in the MAX feature base (the branches have diverged).
+- The merge requires a careful, conflict-aware integration that preserves BOTH the already-published group controls and the unpublished MAX/My Askanus features. Do not force merge, overwrite main, or deploy a partial resolution.
+- MAX Connect PR #11 targets MAX PR #10's branch. Resolve and test the MAX base integration before attempting a combined Connect release.
+- This discovery does NOT authorize Render deployment or any production Neon schema writes.
