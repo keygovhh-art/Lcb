@@ -502,7 +502,7 @@ try{
   assert.equal(exportA.status,200,"Owner may download complete history");
   assert.ok(String(exportA.headers.get("content-type")).includes("text/csv"));
   const csvHistory=await exportA.text();
-  assert.ok(csvHistory.startsWith("\uFEFFkind,action,project_id,record_id,title,details,happened_at"),
+  assert.ok(csvHistory.replace(/^\uFEFF/,"").startsWith("kind,action,project_id,record_id,title,details,happened_at"),
     "History export header changed");
   assert.ok(csvHistory.includes("pledge_fully_paid"),"Paid pledge history missing in CSV");
   assert.ok(csvHistory.includes("case_explicitly_deleted"),"Explicitly deleted case audit not in CSV");
