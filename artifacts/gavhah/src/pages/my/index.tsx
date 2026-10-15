@@ -30,7 +30,7 @@ import {
   TrendingUp, DollarSign, HandHeart, BookOpen, ChevronLeft, ChevronRight,
   ChevronDown, ChevronUp, Target, ArrowUpRight, ArrowDownLeft, Phone
 } from "lucide-react";
-import { format } from "date-fns";
+import { formatGregorianDate, formatGregorianYear } from "@/lib/gregorian-date";
 
 // --- Types ---
 interface ActivityEntry {
@@ -397,7 +397,7 @@ function CaseCard({ c, onUpdated, highlighted = false }: {
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
               {c.contactName && <span className="flex items-center gap-1"><Users className="h-3 w-3" />{c.contactName}</span>}
               {c.deadline && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />Deadline: {c.deadline}</span>}
-              <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />Updated: {c.lastUpdated.slice(0, 10)}</span>
+              <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />Updated: {formatGregorianDate(c.lastUpdated)}</span>
             </div>
           </div>
         </div>
@@ -583,7 +583,7 @@ function HistoryCalendar({ onSelect, selected }: { onSelect: (d: string) => void
     <div className="bg-card border rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <button onClick={prev} className="p-1 hover:bg-muted rounded"><ChevronLeft className="h-4 w-4" /></button>
-        <span className="font-serif font-bold text-primary text-sm">{MONTHS[viewMonth]} {viewYear}</span>
+        <span className="font-serif font-bold text-primary text-sm">{MONTHS[viewMonth]} {formatGregorianYear(viewYear)}</span>
         <button onClick={next} className="p-1 hover:bg-muted rounded"><ChevronRight className="h-4 w-4" /></button>
       </div>
       <div className="grid grid-cols-7 mb-1">
@@ -906,7 +906,7 @@ export default function MyAskanus() {
               <div className="space-y-4">
                 <div className="bg-card border rounded-xl p-6">
                   <h3 className="font-serif font-bold text-primary text-lg mb-4">
-                    {format(new Date(historyDate + "T12:00:00"), "EEEE, MMMM d, yyyy")}
+                    {formatGregorianDate(new Date(historyDate + "T12:00:00"), "EEEE, MMMM d, yyyy")}
                   </h3>
                   {(() => {
                     const dayActivities = cases.flatMap(c =>
@@ -980,7 +980,7 @@ export default function MyAskanus() {
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-4">{note.content}</p>
-                  <p className="text-xs text-muted-foreground mt-3 border-t pt-2">{note.createdAt?.slice(0, 10)}</p>
+                  <p className="text-xs text-muted-foreground mt-3 border-t pt-2">{formatGregorianDate(note.createdAt)}</p>
                 </div>
               ))}
               {notes.length === 0 && (
@@ -1006,7 +1006,7 @@ export default function MyAskanus() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm ${!notif.isRead ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{notif.message}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{format(new Date(notif.createdAt), "MMM d, yyyy 'at' h:mm a")}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{formatGregorianDate(new Date(notif.createdAt), "MMM d, yyyy 'at' h:mm a")}</p>
                 </div>
                 {!notif.isRead && <div className="w-2 h-2 rounded-full bg-accent mt-2 shrink-0" />}
               </div>
