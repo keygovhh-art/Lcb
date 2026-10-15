@@ -38,3 +38,8 @@ Date: 2026-10-15
 - The merge requires a careful, conflict-aware integration that preserves BOTH the already-published group controls and the unpublished MAX/My Askanus features. Do not force merge, overwrite main, or deploy a partial resolution.
 - MAX Connect PR #11 targets MAX PR #10's branch. Resolve and test the MAX base integration before attempting a combined Connect release.
 - This discovery does NOT authorize Render deployment or any production Neon schema writes.
+
+## 2026-10-15 additional MAX Connect room handoff
+- Linked MAX members may request only active/planned virtual fundraising room titles, floor mode, current program and next scheduled time from Campaign Center using the authenticated server-to-server API. No donor names, phone numbers, messages or private case history exported.
+- Personal MAX displays its own campaign room list and an external room link. Campaign Center still requires its own Neon Auth, active organization/campaign membership and separate event join/check-in; a URL is not an authorization token.
+- This integration is staged under MAX PR #11 and CC PR #4 only. It needs two real Render deployments and end-to-end account testing before calling the link production-ready.
