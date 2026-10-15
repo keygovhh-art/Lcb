@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db, featuredCauseSupportersTable, projectMembersTable } from "@workspace/db";
-import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes } from "@workspace/db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { askanuscases, caseActivityLog, caseFollowups, askanustasks, askanusnotes, fundraisingCallReports, maxProgressEvents, maxPledges, maxReceipts, maxFollowupContacts, maxHistoryEvents } from "@workspace/db/schema";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
+import { isRepeatRule, nextRepeatDate, validCalendarDate } from "../lib/followup-recurrence";
 
 const router = Router();
 
@@ -17,11 +18,15 @@ const CASE_CATEGORIES = new Set([
 const TASK_PRIORITIES = new Set(["low", "medium", "high"]);
 const PROGRESS_ACTIONS = new Set(["funds_received", "funds_promised", "goal", "note", "followup", "status"]);
 
-function validDateString(value: unknown) {
-  if (value === undefined || value === null || value === "") return true;
-  return /^\d{4}-\d{2}-\d{2}$/.test(String(value));
-}
+const validDateString=validCalendarDate;
 
+function validFollowupTime(time:unknown,zone:unknown){
+  if(time===undefined||time===null||time==="")return true;
+  if(typeof time!=="string"||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time))return false;
+  if(typeof zone!=="string"||zone.length>80)return false;
+  try { new Intl.DateTimeFormat("en-US",{timeZone:zone}).format(); return true; }
+  catch{return false;}
+}
 function finiteNonNegative(value: unknown) {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0;
@@ -80,13 +85,47 @@ router.get("/me/official-joins", requireAuth, async (req, res) => {
 
 // --- Cases ---
 
+// Batch-load histories and follow-ups; do not run two extra queries per case.
+// Supports an unlimited number of stored follow-ups without N+1 database roundtrips.
 router.get("/askanus/cases", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
+  res.setHeader("Cache-Control", "private, no-store");
   const cases = await db.select().from(askanuscases)
     .where(eq(askanuscases.userId, userId))
     .orderBy(desc(askanuscases.lastUpdated));
-  const result = await Promise.all(cases.map(c => getCaseWithDetails(c.id, userId)));
-  res.json(result);
+  if (!cases.length) { res.json([]); return; }
+  const ids = cases.map(c => c.id);
+  const [allActivity, allFollowups] = await Promise.all([
+    db.select().from(caseActivityLog).where(inArray(caseActivityLog.caseId, ids))
+      .orderBy(desc(caseActivityLog.createdAt)),
+    db.select().from(caseFollowups).where(inArray(caseFollowups.caseId, ids))
+      .orderBy(desc(caseFollowups.createdAt)),
+  ]);
+  const activityMap = new Map<number, typeof allActivity>();
+  const followupMap = new Map<number, typeof allFollowups>();
+  for (const a of allActivity) {
+    const list = activityMap.get(a.caseId) ?? [];
+    list.push(a); activityMap.set(a.caseId, list);
+  }
+  for (const f of allFollowups) {
+    const list = followupMap.get(f.caseId) ?? [];
+    list.push(f); followupMap.set(f.caseId, list);
+  }
+  res.json(cases.map(c => ({
+    ...c,
+    goalAmount: Number(c.goalAmount),
+    fundsPromised: Number(c.fundsPromised),
+    fundsReceived: Number(c.fundsReceived),
+    createdAt: c.createdAt.toISOString(),
+    lastUpdated: c.lastUpdated.toISOString(),
+    activityLog: (activityMap.get(c.id) ?? []).map(a => ({
+      ...a, amount: a.amount != null ? Number(a.amount) : null,
+      createdAt: a.createdAt.toISOString(),
+    })),
+    followUpNotes: (followupMap.get(c.id) ?? []).map(f => ({
+      ...f, createdAt: f.createdAt.toISOString(),
+    })),
+  })));
 });
 
 router.post("/askanus/cases", requireAuth, async (req, res) => {
@@ -138,17 +177,26 @@ router.post("/askanus/cases", requireAuth, async (req, res) => {
 router.patch("/askanus/cases/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const userId = getSessionUserId(req)!;
-  const [owned] = await db.select({ id: askanuscases.id }).from(askanuscases).where(
-    and(eq(askanuscases.id, id), eq(askanuscases.userId, userId))
+  const [owned] = await db.select({
+    id:askanuscases.id,status:askanuscases.status,closedAt:askanuscases.closedAt,
+  }).from(askanuscases).where(
+    and(eq(askanuscases.id,id),eq(askanuscases.userId,userId))
   );
-  if (!owned) { res.status(404).json({ error: "Not found" }); return; }
+  if(!owned){res.status(404).json({error:"Not found"});return;}
   const { status, urgency, goalAmount, fundsPromised, fundsReceived, notes } = req.body;
+  // Financial totals are derived by idempotent ledger events, never overwritten
+  // directly by an unrelated case metadata patch.
+  if (fundsPromised !== undefined || fundsReceived !== undefined) {
+    res.status(409).json({error:"Use the audited progress/pledge/receipt endpoints to change money totals"});
+    return;
+  }
   const updates: Record<string, unknown> = { lastUpdated: new Date() };
 
   if (status !== undefined) {
     const clean = String(status);
     if (!CASE_STATUSES.has(clean)) { res.status(400).json({ error: "invalid status" }); return; }
     updates.status = clean;
+    updates.closedAt=clean==="closed"?(owned.status==="closed"?owned.closedAt||new Date():new Date()):null;
   }
   if (urgency !== undefined) {
     const clean = String(urgency);
@@ -159,18 +207,20 @@ router.patch("/askanus/cases/:id", requireAuth, async (req, res) => {
     if (!finiteNonNegative(goalAmount)) { res.status(400).json({ error: "goalAmount must be zero or greater" }); return; }
     updates.goalAmount = String(Number(goalAmount));
   }
-  if (fundsPromised !== undefined) {
-    if (!finiteNonNegative(fundsPromised)) { res.status(400).json({ error: "fundsPromised must be zero or greater" }); return; }
-    updates.fundsPromised = String(Number(fundsPromised));
-  }
-  if (fundsReceived !== undefined) {
-    if (!finiteNonNegative(fundsReceived)) { res.status(400).json({ error: "fundsReceived must be zero or greater" }); return; }
-    updates.fundsReceived = String(Number(fundsReceived));
-  }
   if (notes !== undefined) updates.notes = String(notes ?? "").trim().slice(0, 5000);
-  await db.update(askanuscases).set(updates).where(
-    and(eq(askanuscases.id, id), eq(askanuscases.userId, userId))
-  );
+  await db.transaction(async tx=>{
+    await tx.update(askanuscases).set(updates).where(
+      and(eq(askanuscases.id, id),eq(askanuscases.userId,userId))
+    );
+    if(status!==undefined){
+      await tx.insert(maxHistoryEvents).values({
+        userId,caseId:id,entityType:"case",entityId:id,
+        action:status==="closed"?"case_completed":status==="open"?"case_reopened":"case_status_changed",
+        title:"פראיעקט־מצב: "+String(status),
+        details:JSON.stringify({status,urgency:urgency??null,notes:notes??null}),
+      });
+    }
+  });
   const full = await getCaseWithDetails(id, userId);
   res.json(full);
 });
@@ -191,9 +241,46 @@ router.delete("/askanus/cases/:id", requireAuth, async (req, res) => {
     res.status(409).json({ error: "Official joined cases can be closed but not deleted. Use Close to keep your history." });
     return;
   }
-  await db.delete(caseActivityLog).where(eq(caseActivityLog.caseId, id));
-  await db.delete(caseFollowups).where(eq(caseFollowups.caseId, id));
-  await db.delete(askanuscases).where(eq(askanuscases.id, id));
+  // Do not erase a project with manually logged fundraising transactions.
+  // The communication report is audit evidence; archiving/closing is safer.
+  const [fundraising] = await db.select({ id: fundraisingCallReports.id })
+    .from(fundraisingCallReports).where(and(
+      eq(fundraisingCallReports.caseId, id),
+      eq(fundraisingCallReports.userId, userId),
+    )).limit(1);
+  if (fundraising) {
+    res.status(409).json({ error: "This case has a fundraising history. Close the case rather than deleting its financial audit trail." });
+    return;
+  }
+  const [progressMoney,pledgeMoney,receiptMoney] = await Promise.all([
+    db.select({id:maxProgressEvents.id}).from(maxProgressEvents)
+      .where(and(eq(maxProgressEvents.caseId,id),eq(maxProgressEvents.userId,userId))).limit(1),
+    db.select({id:maxPledges.id}).from(maxPledges)
+      .where(and(eq(maxPledges.caseId,id),eq(maxPledges.userId,userId))).limit(1),
+    db.select({id:maxReceipts.id}).from(maxReceipts)
+      .where(and(eq(maxReceipts.caseId,id),eq(maxReceipts.userId,userId))).limit(1),
+  ]);
+  if(progressMoney.length||pledgeMoney.length||receiptMoney.length){
+    res.status(409).json({error:"This case has audited monetary records. Close it to preserve the financial history."});
+    return;
+  }
+  // A genuine, explicitly confirmed deletion. Ordinary completion never
+  // calls DELETE. Snapshot the project's final nonfinancial state separately
+  // before destroying the row and its child notes/follow-ups.
+  await db.transaction(async tx=>{
+    const [whole]=await tx.select().from(askanuscases).where(and(
+      eq(askanuscases.id,id),eq(askanuscases.userId,userId))).for("update");
+    if(!whole)throw Error("CASE_NOT_FOUND");
+    await tx.insert(maxHistoryEvents).values({
+      userId,caseId:id,entityType:"case",entityId:id,
+      action:"case_explicitly_deleted",title:whole.title,
+      details:JSON.stringify({title:whole.title,status:whole.status,
+        description:whole.description,goalAmount:whole.goalAmount}),
+    });
+    await tx.delete(caseActivityLog).where(eq(caseActivityLog.caseId,id));
+    await tx.delete(caseFollowups).where(eq(caseFollowups.caseId,id));
+    await tx.delete(askanuscases).where(and(eq(askanuscases.id,id),eq(askanuscases.userId,userId)));
+  });
   res.json({ ok: true });
 });
 
@@ -201,7 +288,7 @@ router.delete("/askanus/cases/:id", requireAuth, async (req, res) => {
 router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const userId = getSessionUserId(req)!;
-  const { action, amount, note, from, dueDate, status, goal } = req.body;
+  const { action, amount, note, from, dueDate, dueTime, timeZone, repeatRule, status, goal } = req.body;
   const today = TODAY();
 
   const [existing] = await db.select().from(askanuscases).where(
@@ -225,70 +312,273 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
     res.status(400).json({ error: "note is required" });
     return;
   }
-  if (action === "followup" && !validDateString(dueDate)) {
+  if (action === "followup" && (!validDateString(dueDate) || !validFollowupTime(dueTime,timeZone) || (dueTime && !dueDate))) {
     res.status(400).json({ error: "invalid follow-up date" });
     return;
+  }
+  if(action==="followup" && (!isRepeatRule(repeatRule||"none") ||
+       (repeatRule && repeatRule!=="none" && !dueDate))){
+    res.status(400).json({error:"Recurring follow-ups require a valid rule and date"});return;
   }
   if (action === "status" && !CASE_STATUSES.has(String(status || ""))) {
     res.status(400).json({ error: "invalid status" });
     return;
   }
 
-  const caseUpdates: Record<string, unknown> = { lastUpdated: new Date() };
+  // User-provided idempotency key prevents double-counting if the network retries.
+  // This route shares the MAX pledge/receipt ledger and uses atomic SQL increments.
+  if(action==="funds_received" || action==="funds_promised"){
+    const requestId=String(req.body?.requestId??"").trim();
+    const amountNumber=Number(amount);
+    if(requestId.length<12 || requestId.length>128 ||
+       !Number.isFinite(amountNumber) || amountNumber<=0 || amountNumber>9999999999 ||
+       Math.abs(amountNumber*100-Math.round(amountNumber*100))>0.000001){
+      res.status(400).json({error:"A valid unique requestId and cents-precise positive amount are required"});
+      return;
+    }
+    const event=await db.transaction(async tx=>{
+      const [created]=await tx.insert(maxProgressEvents).values({
+        userId,caseId:id,eventKind:action,amount:String(amountNumber),requestId,
+      }).onConflictDoNothing().returning();
+      if(!created){
+        const [prior]=await tx.select().from(maxProgressEvents).where(and(
+          eq(maxProgressEvents.userId,userId),eq(maxProgressEvents.requestId,requestId)));
+        if(!prior || prior.caseId!==id || prior.eventKind!==action ||
+           Number(prior.amount)!==amountNumber) return "conflict" as const;
+        return "duplicate" as const;
+      }
+      if(action==="funds_received"){
+        await tx.insert(maxReceipts).values({
+          userId,caseId:id,amount:String(amountNumber),
+          method:"other",verification:"manually_reported",
+          requestId:"my-progress:"+requestId,reference:String(note||"").slice(0,240),
+        });
+      } else {
+        await tx.insert(maxPledges).values({
+          userId,caseId:id,amount:String(amountNumber),
+          note:from?"צוגעזאגט דורך "+String(from).slice(0,160):"מאנועל איינגעשריבענע התחייבות",
+        });
+      }
+      await tx.insert(caseActivityLog).values({
+        caseId:id,date:today,type:action,
+        amount:String(amountNumber),
+        note:action==="funds_received"
+          ? String(note||"$"+amountNumber.toFixed(2)+" manually reported received").slice(0,1500)
+          : "$"+amountNumber.toFixed(2)+" pledged"+(from?" by "+String(from).slice(0,160):""),
+      });
+      const [updated]=await tx.update(askanuscases).set({
+        ...(action==="funds_received"
+          ? {fundsReceived:sql`${askanuscases.fundsReceived} + ${String(amountNumber)}`}
+          : {fundsPromised:sql`${askanuscases.fundsPromised} + ${String(amountNumber)}`}),
+        lastUpdated:new Date(),
+      }).where(and(eq(askanuscases.id,id),eq(askanuscases.userId,userId))).returning();
+      if(!updated)throw new Error("Owned case missing during progress update");
+      return "created" as const;
+    });
+    if(event==="conflict"){res.status(409).json({error:"Request key conflicts with another money entry"});return;}
+    res.setHeader("Cache-Control","private, no-store");
+    const full=await getCaseWithDetails(id,userId);
+    res.json(full);
+    return;
+  }
 
-  if (action === "funds_received" && amount) {
-    const newTotal = Number(existing.fundsReceived) + Number(amount);
-    caseUpdates.fundsReceived = String(newTotal);
-    await db.insert(caseActivityLog).values({
-      caseId: id, date: today, type: "funds_received",
-      note: String(note || `${Number(amount).toLocaleString()} received`).trim().slice(0, 1500),
-      amount: String(amount),
-    });
-  } else if (action === "funds_promised" && amount) {
-    const newTotal = Number(existing.fundsPromised) + Number(amount);
-    caseUpdates.fundsPromised = String(newTotal);
-    const pledgeNote = from ? `$${Number(amount).toLocaleString()} pledged by ${from}` : `$${Number(amount).toLocaleString()} pledged`;
-    await db.insert(caseActivityLog).values({
-      caseId: id, date: today, type: "funds_promised",
-      note: pledgeNote.slice(0, 1500), amount: String(Number(amount)),
-    });
-  } else if (action === "goal" && goal !== undefined) {
+  // Metadata updates and their historical audit records must commit together.
+  await db.transaction(async tx=>{
+    const caseUpdates: Record<string, unknown> = { lastUpdated: new Date() };
+
+  if (action === "goal" && goal !== undefined) {
     caseUpdates.goalAmount = String(goal);
-    await db.insert(caseActivityLog).values({
+    await tx.insert(caseActivityLog).values({
       caseId: id, date: today, type: "update",
       note: `Goal updated to $${Number(goal).toLocaleString()}`,
     });
   } else if (action === "note" && note) {
-    await db.insert(caseActivityLog).values({ caseId: id, date: today, type: "note", note: String(note).trim().slice(0, 1500) });
+    await tx.insert(caseActivityLog).values({ caseId: id, date: today, type: "note", note: String(note).trim().slice(0, 1500) });
   } else if (action === "followup" && note) {
-    await db.insert(caseFollowups).values({ caseId: id, date: today, note: String(note).trim().slice(0, 1500), dueDate: dueDate || null });
+    const [newFollowup]=await tx.insert(caseFollowups).values({ caseId: id, date: today,
+      note: String(note).trim().slice(0, 1500), dueDate: dueDate || null,
+      dueTime:dueTime||null, timeZone:dueTime?timeZone:null,
+      repeatRule:repeatRule||"none",
+      repeatAnchorDay:repeatRule==="monthly"&&dueDate?Number(dueDate.slice(-2)):null,
+    }).returning();
+    await tx.insert(maxHistoryEvents).values({
+      userId,caseId:id,entityType:"followup",entityId:newFollowup.id,
+      action:"followup_created",title:newFollowup.note.slice(0,240),
+      details:JSON.stringify({note:newFollowup.note,dueDate:newFollowup.dueDate,
+        dueTime:newFollowup.dueTime,repeatRule:newFollowup.repeatRule}),
+    });
   } else if (action === "status" && status) {
     caseUpdates.status = status;
-    await db.insert(caseActivityLog).values({
+    caseUpdates.closedAt=status==="closed"?(existing.status==="closed"?existing.closedAt||new Date():new Date()):null;
+    await tx.insert(maxHistoryEvents).values({
+      userId,caseId:id,entityType:"case",entityId:id,
+      action:status==="closed"?"case_completed":status==="open"?"case_reopened":"case_status_changed",
+      title:existing.title,
+      details:JSON.stringify({status,previousStatus:existing.status}),
+    });
+    await tx.insert(caseActivityLog).values({
       caseId: id, date: today, type: "status_change",
       note: `Status changed to ${status.replace("_", " ")}`,
     });
   }
 
   if (Object.keys(caseUpdates).length > 1) {
-    await db.update(askanuscases).set(caseUpdates).where(eq(askanuscases.id, id));
+    await tx.update(askanuscases).set(caseUpdates).where(eq(askanuscases.id, id));
   }
 
+  });
   const full = await getCaseWithDetails(id, userId);
   res.json(full);
 });
 
-// Toggle followup
-router.patch("/askanus/followups/:id/toggle", requireAuth, async (req, res) => {
+// Idempotent completion with one, linked future follow-up per recurring event.
+router.patch("/askanus/followups/:id/toggle", requireAuth, async(req,res)=>{
+  const id=Number(req.params.id),userId=getSessionUserId(req)!;
+  if(!Number.isSafeInteger(id)||id<=0){res.status(400).json({error:"Invalid ID"});return;}
+  if(req.body?.completed!==undefined && typeof req.body.completed!=="boolean"){
+    res.status(400).json({error:"completed must be a boolean"});return;
+  }
+  const result=await db.transaction(async tx=>{
+    const [existing]=await tx.select().from(caseFollowups).where(eq(caseFollowups.id,id));
+    if(!existing)return {kind:"missing" as const};
+    const [owned]=await tx.select({id:askanuscases.id}).from(askanuscases)
+      .where(and(eq(askanuscases.id,existing.caseId),eq(askanuscases.userId,userId)));
+    if(!owned)return {kind:"missing" as const};
+    const desired=typeof req.body?.completed==="boolean"?req.body.completed:!existing.completed;
+    if(desired===existing.completed)return {kind:"same" as const,row:existing};
+    const [updated]=await tx.update(caseFollowups).set({
+      completed:desired,completedAt:desired?new Date():null,
+    })
+      .where(and(eq(caseFollowups.id,id),eq(caseFollowups.completed,existing.completed)))
+      .returning();
+    if(!updated)return {kind:"conflict" as const};
+    await tx.insert(maxHistoryEvents).values({
+      userId,caseId:existing.caseId,entityType:"followup",entityId:id,
+      action:desired?"followup_completed":"followup_reopened",
+      title:existing.note.slice(0,240),
+      details:JSON.stringify({note:existing.note,dueDate:existing.dueDate,
+        dueTime:existing.dueTime,timeZone:existing.timeZone,
+        repeatRule:existing.repeatRule,previousCompleted:existing.completed,
+        completed:desired,completedAt:updated.completedAt?.toISOString()??null}),
+    });
+    if(desired && isRepeatRule(existing.repeatRule) && existing.repeatRule!=="none" && existing.dueDate){
+      const nextDate=nextRepeatDate(existing.dueDate,existing.repeatRule,existing.repeatAnchorDay);
+      if(nextDate){
+        // The database unique generated_from_id index prevents double generation.
+        const [next]=await tx.insert(caseFollowups).values({
+          caseId:existing.caseId,date:new Date().toISOString().slice(0,10),
+          note:existing.note,dueDate:nextDate,dueTime:existing.dueTime,
+          timeZone:existing.timeZone,repeatRule:existing.repeatRule,
+          repeatAnchorDay:existing.repeatAnchorDay||Number(existing.dueDate.slice(-2)),
+          generatedFromId:id,
+        }).onConflictDoNothing().returning();
+        if(next){
+          await tx.insert(maxHistoryEvents).values({
+            userId,caseId:existing.caseId,entityType:"followup",entityId:next.id,
+            action:"followup_recurring_generated",title:next.note.slice(0,240),
+            details:JSON.stringify({dueDate:next.dueDate,dueTime:next.dueTime,
+              generatedFromId:existing.id,repeatRule:next.repeatRule}),
+          });
+          // Donor 360 and My Askanus always see the same new follow-up.
+          const [contact]=await tx.select().from(maxFollowupContacts)
+            .where(and(eq(maxFollowupContacts.followupId,id),eq(maxFollowupContacts.userId,userId)));
+          if(contact)await tx.insert(maxFollowupContacts).values({
+            userId,contactId:contact.contactId,followupId:next.id,
+          });
+        }
+      }
+    }
+    return {kind:"saved" as const,row:updated};
+  });
+  if(result.kind==="missing"){res.status(404).json({error:"Not found"});return;}
+  if(result.kind==="conflict"){res.status(409).json({error:"Follow-up was changed by another request; refresh"});return;}
+  res.setHeader("Cache-Control","private, no-store");
+  res.json({...result.row,createdAt:result.row.createdAt.toISOString()});
+});
+
+// Edit the SAME case follow-up from My Askanus or Communications MAX.
+// Authorization is performed in the UPDATE predicate, not trusted from the caller.
+router.patch("/askanus/followups/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
-  const [existing] = await db.select().from(caseFollowups).where(eq(caseFollowups.id, id));
-  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
-  const [ownedCase] = await db.select({ id: askanuscases.id }).from(askanuscases).where(
-    and(eq(askanuscases.id, existing.caseId), eq(askanuscases.userId, getSessionUserId(req)!))
-  );
-  if (!ownedCase) { res.status(404).json({ error: "Not found" }); return; }
-  const [updated] = await db.update(caseFollowups).set({ completed: !existing.completed }).where(eq(caseFollowups.id, id)).returning();
-  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+  const userId = getSessionUserId(req)!;
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid follow-up ID" }); return;
+  }
+  const updates: Partial<typeof caseFollowups.$inferInsert> = {};
+  if (req.body?.note !== undefined) {
+    const note = String(req.body.note ?? "").trim();
+    if (!note || note.length > 1500) { res.status(400).json({ error: "Invalid note" }); return; }
+    updates.note = note;
+  }
+  if (req.body?.dueDate !== undefined) {
+    if (!validDateString(req.body.dueDate)) {
+      res.status(400).json({ error: "Invalid due date" }); return;
+    }
+    updates.dueDate = req.body.dueDate ? String(req.body.dueDate) : null;
+  }
+  if (req.body?.dueTime !== undefined || req.body?.timeZone !== undefined) {
+    const [existingFollowup]=await db.select({dueDate:caseFollowups.dueDate,dueTime:caseFollowups.dueTime,timeZone:caseFollowups.timeZone})
+      .from(caseFollowups).where(and(eq(caseFollowups.id,id),sql`EXISTS (SELECT 1 FROM askanus_cases ac WHERE ac.id=${caseFollowups.caseId} AND ac.user_id=${userId})`));
+    if(!existingFollowup){res.status(404).json({error:"Not found"});return;}
+    const dueTime=req.body?.dueTime===undefined?existingFollowup.dueTime:req.body.dueTime;
+    const timeZone=req.body?.timeZone===undefined?existingFollowup.timeZone:req.body.timeZone;
+    const actualDate=req.body?.dueDate===undefined?existingFollowup.dueDate:req.body.dueDate;
+    if(!validFollowupTime(dueTime,timeZone) || (dueTime && !actualDate)){
+      res.status(400).json({error:"Invalid follow-up time/timezone"});return;
+    }
+    updates.dueTime=dueTime||null;
+    updates.timeZone=dueTime?timeZone:null;
+  }
+  if(req.body?.repeatRule!==undefined){
+    if(!isRepeatRule(req.body.repeatRule)){
+      res.status(400).json({error:"Invalid repeat rule"});return;
+    }
+    const [current]=await db.select({dueDate:caseFollowups.dueDate,completed:caseFollowups.completed})
+      .from(caseFollowups).where(and(eq(caseFollowups.id,id),
+        sql`EXISTS (SELECT 1 FROM askanus_cases ac WHERE ac.id=${caseFollowups.caseId} AND ac.user_id=${userId})`));
+    if(!current){res.status(404).json({error:"Not found"});return;}
+    if(current.completed){
+      res.status(409).json({error:"Reopen the completed follow-up before changing its recurrence"});return;
+    }
+    const futureDate=req.body?.dueDate===undefined?current.dueDate:req.body.dueDate;
+    if(req.body.repeatRule!=="none"&&!futureDate){
+      res.status(400).json({error:"A recurring follow-up requires a due date"});return;
+    }
+    updates.repeatRule=req.body.repeatRule;
+    updates.repeatAnchorDay=req.body.repeatRule==="monthly"&&futureDate
+      ?Number(String(futureDate).slice(-2)):null;
+  }
+  if (!Object.keys(updates).length) {
+    res.status(400).json({ error: "Nothing to update" }); return;
+  }
+  const updated=await db.transaction(async tx=>{
+    const ownedPredicate=and(eq(caseFollowups.id,id),
+      sql`EXISTS (SELECT 1 FROM askanus_cases ac
+        WHERE ac.id=${caseFollowups.caseId} AND ac.user_id=${userId})`);
+    const [previous]=await tx.select().from(caseFollowups)
+      .where(ownedPredicate).for("update");
+    if(!previous)return null;
+    const [current]=await tx.update(caseFollowups).set(updates)
+      .where(ownedPredicate).returning();
+    if(!current)return null;
+    const changed=Object.keys(updates).some(k=>{
+      const key=k as keyof typeof current;
+      return current[key]!==previous[key];
+    });
+    if(changed)await tx.insert(maxHistoryEvents).values({
+      userId,caseId:current.caseId,entityType:"followup",entityId:id,
+      action:"followup_edited",title:current.note.slice(0,240),
+      details:JSON.stringify({
+        before:{note:previous.note,dueDate:previous.dueDate,dueTime:previous.dueTime,
+          timeZone:previous.timeZone,repeatRule:previous.repeatRule},
+        after:{note:current.note,dueDate:current.dueDate,dueTime:current.dueTime,
+          timeZone:current.timeZone,repeatRule:current.repeatRule},
+      }),
+    });
+    return current;
+  });
+  if (!updated) { res.status(404).json({ error: "Follow-up not found" }); return; }
+  res.setHeader("Cache-Control", "private, no-store");
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
@@ -302,16 +592,27 @@ router.delete("/askanus/followups/:id", requireAuth, async (req, res) => {
     return;
   }
 
-  // Keep the ownership predicate INSIDE the DELETE for protection even when
-  // concurrent requests update case data. Do not reveal others' follow-ups.
-  const [deleted] = await db.delete(caseFollowups).where(and(
-    eq(caseFollowups.id, id),
-    sql`EXISTS (
-      SELECT 1 FROM askanus_cases ac
-      WHERE ac.id = ${caseFollowups.caseId}
-        AND ac.user_id = ${userId}
-    )`,
-  )).returning({ id: caseFollowups.id });
+  // Explicit Delete is different from Done. Snapshot the deleted work first.
+  // The historical event is independent of the source row and survives forever
+  // unless a separate, expressly authorized history-purge process is introduced.
+  const deleted = await db.transaction(async tx=>{
+    const [row]=await tx.delete(caseFollowups).where(and(
+      eq(caseFollowups.id,id),
+      sql`EXISTS (
+        SELECT 1 FROM askanus_cases ac
+        WHERE ac.id=${caseFollowups.caseId} AND ac.user_id=${userId}
+      )`,
+    )).returning();
+    if(row){
+      await tx.insert(maxHistoryEvents).values({
+        userId,caseId:row.caseId,entityType:"followup",entityId:row.id,
+        action:"followup_explicitly_deleted",title:row.note.slice(0,240),
+        details:JSON.stringify({note:row.note,dueDate:row.dueDate,
+          dueTime:row.dueTime,completed:row.completed,repeatRule:row.repeatRule}),
+      });
+    }
+    return row;
+  });
 
   if (!deleted) {
     res.status(404).json({ error: "Follow-up not found" });
@@ -374,6 +675,7 @@ router.patch("/askanus/tasks/:id", requireAuth, async (req, res) => {
   if (completed !== undefined) {
     if (typeof completed !== "boolean") { res.status(400).json({ error: "completed must be true or false" }); return; }
     updates.completed = completed;
+    updates.completedAt=completed?new Date():null;
   }
   if (priority !== undefined) {
     const clean = String(priority);
@@ -381,18 +683,55 @@ router.patch("/askanus/tasks/:id", requireAuth, async (req, res) => {
     updates.priority = clean;
   }
   if (notes !== undefined) updates.notes = String(notes ?? "").trim().slice(0, 3000);
-  const [updated] = await db.update(askanustasks).set(updates).where(
-    and(eq(askanustasks.id, id), eq(askanustasks.userId, getSessionUserId(req)!))
-  ).returning();
-  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
-  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+  const userId=getSessionUserId(req)!;
+  const updated=await db.transaction(async tx=>{
+    const [previous]=await tx.select().from(askanustasks).where(and(
+      eq(askanustasks.id,id),eq(askanustasks.userId,userId))).for("update");
+    if(!previous)return null;
+    if(completed!==undefined&&completed===previous.completed){
+      updates.completedAt=previous.completedAt;
+    }
+    const [current]=await tx.update(askanustasks).set(updates).where(and(
+      eq(askanustasks.id,id),eq(askanustasks.userId,userId))).returning();
+    if(!current)return null;
+    // An HTTP retry that leaves the same final state does not manufacture
+    // another "completed" historical event.
+    const changed=Object.keys(updates).some(k=>{
+      const key=k as keyof typeof current;
+      return current[key]!==previous[key];
+    });
+    if(changed){
+      await tx.insert(maxHistoryEvents).values({
+        userId,caseId:null,entityType:"task",entityId:id,
+        action:completed!==undefined&&completed!==previous.completed
+          ?(completed?"task_completed":"task_reopened"):"task_edited",
+        title:current.title,
+        details:JSON.stringify({title:current.title,caseTitle:current.caseTitle,
+          deadline:current.deadline,completed:current.completed,
+          priority:current.priority,notes:current.notes}),
+      });
+    }
+    return current;
+  });
+  if(!updated){res.status(404).json({error:"Not found"});return;}
+  res.json({...updated,createdAt:updated.createdAt.toISOString()});
 });
 
 router.delete("/askanus/tasks/:id", requireAuth, async (req, res) => {
-  await db.delete(askanustasks).where(
-    and(eq(askanustasks.id, Number(req.params.id)), eq(askanustasks.userId, getSessionUserId(req)!))
-  );
-  res.json({ ok: true });
+  const userId=getSessionUserId(req)!,id=Number(req.params.id);
+  if(!Number.isSafeInteger(id)||id<=0){res.status(400).json({error:"Invalid task ID"});return;}
+  const removed=await db.transaction(async tx=>{
+    const [row]=await tx.delete(askanustasks).where(and(
+      eq(askanustasks.id,id),eq(askanustasks.userId,userId))).returning();
+    if(row)await tx.insert(maxHistoryEvents).values({
+      userId,caseId:null,entityType:"task",entityId:id,action:"task_explicitly_deleted",
+      title:row.title,
+      details:JSON.stringify({title:row.title,completed:row.completed,notes:row.notes}),
+    });
+    return row;
+  });
+  if(!removed){res.status(404).json({error:"Task not found"});return;}
+  res.json({ok:true});
 });
 
 // --- Notes ---
