@@ -46,6 +46,8 @@ jobs:
         run: node --test tests/groups-advanced.test.mjs
       - name: Verify granular Gavhah permissions, private access, pinned members and reply threads
         run: node --test tests/group-platform-permissions.test.mjs
+      - name: Verify civil dates show apostrophe two-digit year and למספרם
+        run: node --experimental-strip-types --test tests/gregorian-date-format.test.mjs
       - name: Verify full group images and scrolling phone dialogs
         run: node --test tests/group-images-mobile-dialogs.test.mjs
       - name: Verify member My Creations privacy and independent help roles
