@@ -9,10 +9,11 @@ import {
   getListAskanusNotesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/auth-context";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { CaseFollowups } from "@/components/askanus/case-followups";
+import { MaxHistoryPanel } from "@/components/communications/max-history-panel";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -176,20 +177,24 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
   const qc = useQueryClient();
   const [tab, setTab] = useState<"received" | "promised" | "goal" | "note" | "followup">("received");
   const [received, setReceived] = useState({ amount: "", note: "" });
+  const [financeRequestId, setFinanceRequestId] = useState(() => crypto.randomUUID());
   const [promised, setPromised] = useState({ amount: "", from: "" });
   const [goal, setGoal] = useState(String(c.goalAmount || ""));
   const [note, setNote] = useState("");
-  const [followup, setFollowup] = useState({ note: "", dueDate: "" });
+  const [followup, setFollowup] = useState({ note: "", dueDate: "", dueTime: "", repeatRule: "none" });
   const progress = useUpdateAskanuscaseProgress();
   const { toast } = useToast();
 
   const save = () => {
     let body: Record<string, unknown> = { action: tab };
-    if (tab === "received") body = { action: "funds_received", amount: Number(received.amount), note: received.note };
-    else if (tab === "promised") body = { action: "funds_promised", amount: Number(promised.amount), from: promised.from };
+    if (tab === "received") body = { action: "funds_received", amount: Number(received.amount), note: received.note, requestId: financeRequestId };
+    else if (tab === "promised") body = { action: "funds_promised", amount: Number(promised.amount), from: promised.from, requestId: financeRequestId };
     else if (tab === "goal") body = { action: "goal", goal: Number(goal) };
     else if (tab === "note") body = { action: "note", note };
-    else if (tab === "followup") body = { action: "followup", note: followup.note, dueDate: followup.dueDate || undefined };
+    else if (tab === "followup") body = { action: "followup", note: followup.note, dueDate: followup.dueDate || undefined,
+      dueTime:followup.dueTime||undefined,
+      timeZone:followup.dueTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):undefined,
+      repeatRule:followup.repeatRule };
 
     progress.mutate(
       { id: c.id, data: body as any },
@@ -201,10 +206,11 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
           void onUpdated();
           setOpen(false);
           setReceived({ amount: "", note: "" });
+          setFinanceRequestId(crypto.randomUUID());
           setPromised({ amount: "", from: "" });
           setGoal(String(c.goalAmount || ""));
           setNote("");
-          setFollowup({ note: "", dueDate: "" });
+          setFollowup({ note: "", dueDate: "", dueTime: "", repeatRule: "none" });
           toast({ title: "Progress updated", description: "The case totals and history are updated now." });
         },
         onError: () => toast({ title: "Could not update progress", variant: "destructive" }),
@@ -287,6 +293,15 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
                 </div>
                 <div className="space-y-1.5"><Label className="font-semibold">Due Date <span className="font-normal text-muted-foreground">(optional)</span></Label>
                   <Input type="date" value={followup.dueDate} onChange={e => setFollowup(f => ({ ...f, dueDate: e.target.value }))} className="h-11" />
+                   <Input type="time" aria-label="נאכפאלג־שעה" disabled={!followup.dueDate} value={followup.dueTime} onChange={e => setFollowup(f => ({ ...f, dueTime: e.target.value }))} className="h-11" />
+                   <select aria-label="נאכפאלג איבערחזרן" value={followup.repeatRule}
+                     disabled={!followup.dueDate} onChange={e=>setFollowup(f=>({...f,repeatRule:e.target.value}))}
+                     className="w-full h-11 rounded-lg border bg-background px-3">
+                     <option value="none">איינמאליג</option>
+                     <option value="daily">יעדן טאג</option>
+                     <option value="weekly">יעדע וואך</option>
+                     <option value="monthly">יעדן חודש</option>
+                   </select>
                 </div>
               </div>
             )}
@@ -393,7 +408,7 @@ function CaseCard({ c, onUpdated, highlighted = false }: {
               {[
                 { label: "Goal", value: `$${goal.toLocaleString()}`, color: "text-primary font-bold" },
                 { label: "Received", value: `$${received.toLocaleString()}`, color: "text-green-700 font-bold" },
-                { label: "Promised", value: `$${promised.toLocaleString()}`, color: "text-blue-600 font-bold" },
+                { label: "אפענע התחייבויות", value: `${promised.toLocaleString()}`, color: "text-blue-600 font-bold" },
                 { label: "Remaining", value: `$${remaining.toLocaleString()}`, color: "text-secondary font-bold" },
               ].map(s => (
                 <div key={s.label}>
@@ -408,7 +423,7 @@ function CaseCard({ c, onUpdated, highlighted = false }: {
                 <div className="bg-blue-400/60 h-full transition-all" style={{ width: `${promisedPct}%` }} />
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span><span className="text-green-700 font-medium">{Math.round(receivedPct)}% received</span> · <span className="text-blue-600 font-medium">{Math.round(promisedPct)}% promised</span></span>
+                <span><span className="text-green-700 font-medium">{Math.round(receivedPct)}% received</span> · <span className="text-blue-600 font-medium">{Math.round(promisedPct)}% נאך אויסשטייענדיג</span></span>
                 {outstanding > 0 && <span className="text-secondary font-medium">${outstanding.toLocaleString()} still needed</span>}
                 {outstanding === 0 && remaining === 0 && <span className="text-green-700 font-medium">Fully funded!</span>}
               </div>
@@ -417,7 +432,7 @@ function CaseCard({ c, onUpdated, highlighted = false }: {
         ) : (received > 0 || promised > 0) ? (
           <div className="flex gap-4 text-sm">
             {received > 0 && <span className="text-green-700 font-medium"><ArrowDownLeft className="h-3.5 w-3.5 inline mr-1" />${received.toLocaleString()} received</span>}
-            {promised > 0 && <span className="text-blue-600 font-medium"><ArrowUpRight className="h-3.5 w-3.5 inline mr-1" />${promised.toLocaleString()} promised</span>}
+            {promised > 0 && <span className="text-blue-600 font-medium"><ArrowUpRight className="h-3.5 w-3.5 inline mr-1" />${promised.toLocaleString()} אפענע התחייבויות</span>}
           </div>
         ) : null}
 
@@ -737,11 +752,12 @@ export default function MyAskanus() {
         <div className="container mx-auto px-4 py-12">
           <div className="flex items-center gap-3 mb-1">
             <Star className="h-8 w-8 text-accent fill-accent" />
-            <h1 className="font-serif text-4xl font-bold">My Askanus</h1>
+            <h1 className="font-serif text-4xl font-bold">מיין עסקנות</h1>
           </div>
           <p className="font-serif italic text-primary-foreground/70 ml-11">
-            Your personal activism command center — organize, track, and measure your impact.
+            דער גרויסער איבערבליק: מיינע פראיעקטן, צילן, אויפגעברענגטע געלטער און נאכפאלגן.
           </p>
+          <Link href="/communications"><Button variant="secondary" className="mt-4 gap-2"><Phone className="h-4 w-4"/> גיין צו עולם החסד MAX — רופן, נדבנים און נאכפאלגן</Button></Link>
           <div className="mt-8 bg-white/10 rounded-2xl p-6 backdrop-blur-sm">
             <p className="text-xs uppercase tracking-widest font-semibold text-primary-foreground/60 mb-4">Today's Overview</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -749,7 +765,7 @@ export default function MyAskanus() {
                 { label: "Open Cases", value: openCases, icon: <HandHeart className="h-5 w-5" /> },
                 { label: "Pending Tasks", value: pendingTasks, icon: <CheckCircle className="h-5 w-5" /> },
                 { label: "Funds Outstanding", value: `$${totalOutstanding.toLocaleString()}`, icon: <DollarSign className="h-5 w-5" /> },
-                { label: "Follow-ups Due", value: openFollowups, icon: <Bell className="h-5 w-5" /> },
+                { label: "אפענע נאכפאלגן", value: openFollowups, icon: <Bell className="h-5 w-5" /> },
               ].map((s, i) => (
                 <div key={i} className="text-center">
                   <div className="flex items-center justify-center gap-1.5 text-primary-foreground/60 text-xs mb-1">{s.icon} {s.label}</div>
@@ -880,6 +896,7 @@ export default function MyAskanus() {
 
           {/* HISTORY */}
           <TabsContent value="history" className="space-y-6">
+            <MaxHistoryPanel />
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary mb-2">Activity History</h2>
               <p className="text-muted-foreground text-sm">Review your case activity log across all cases.</p>
