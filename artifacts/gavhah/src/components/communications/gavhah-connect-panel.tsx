@@ -62,6 +62,17 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
    .catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"מאנשאפט־פראבלעם");});
   return ()=>{cancelled=true;};
  },[campaignId]);
+ const updateAssignedTask=async(id:string,status:"open"|"in_progress"|"done")=>{
+  if(!campaignId||pending)return;
+  setPending(true);setError("");setMessage("");
+  try{
+   const saved=await api<{id:string;status:string}>("/api/askanus/connect/assignments/"+encodeURIComponent(id)+"/status",
+    post({campaignId,status}));
+   setAssignments(previous=>previous.map(task=>task.id===saved.id?{...task,status:saved.status}:task));
+   setMessage("די קאמפיין־אויפגאבע איז געענדערט אינעם זעלבן קאמפיין־רעקארד.");
+  }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
+  finally{setPending(false);}
+ };
  const connect=async(e:React.FormEvent)=>{
   e.preventDefault();setPending(true);setError("");setMessage("");
   try{await api("/api/askanus/connect/redeem",post({code:token.trim()}));setToken("");await reload();setMessage("די צוויי אקאונטס זענען פארבונדן.");}
@@ -128,7 +139,15 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
      </label>
      <div className="rounded-lg border p-3 space-y-2"><h4 className="font-semibold">מיינע קאמפיין־אויפגאבן</h4>
        {assignments.length===0?<p className="text-sm text-muted-foreground">נאך קיין צוגעטיילטע אויפגאבן.</p>:
-        assignments.map(a=><div key={a.id} className="border-b py-2 text-sm"><strong>{a.title}</strong><span className="block text-xs text-muted-foreground">{a.status} · {a.priority} · {a.due_at?.slice(0,10)||"אָן טאג"}</span></div>)}
+        assignments.map(a=><div key={a.id} className="border-b py-3 text-sm flex flex-wrap items-center justify-between gap-3">
+         <div className="min-w-0"><strong>{a.title}</strong><span className="block text-xs text-muted-foreground">{a.status} · {a.priority} · {a.due_at?.slice(0,10)||"אָן טאג"}</span></div>
+         <div className="flex flex-wrap gap-2">
+          {a.status!=="done"?
+           <Button type="button" size="sm" disabled={pending} onClick={()=>void updateAssignedTask(a.id,"done")}>פארענדיגט</Button>:
+           <Button type="button" size="sm" variant="outline" disabled={pending} onClick={()=>void updateAssignedTask(a.id,"open")}>צוריק עפענען</Button>}
+          {a.status==="open"&&<Button type="button" size="sm" variant="outline" disabled={pending} onClick={()=>void updateAssignedTask(a.id,"in_progress")}>אין ארבעט</Button>}
+         </div>
+        </div>)}
      </div>
      <form onSubmit={share} className="space-y-3 rounded-lg border p-3">
       <h4 className="font-semibold">מיטטיילן איין אויסגעקליבענע געלט־געשעעניש</h4>
