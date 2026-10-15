@@ -9,6 +9,7 @@ on:
       - fix/react-page-crash-root-and-error-noise-20261011
       - feature/charity-queue-schedules-phone-donation-20261012
       - fix/my-askanus-followup-history-delete-20261013
+      - feature/group-nested-replies-platform-controls-20261014
       - feature/gavhah-max-integration-20261014
       - feature/max-campaign-connect-20261015
   pull_request:
@@ -60,6 +61,10 @@ jobs:
         run: node --experimental-strip-types --test tests/minyan-weekdays.test.mjs
       - name: Verify group moderation, founder rights and report-target confidentiality
         run: node --test tests/groups-advanced.test.mjs
+      - name: Verify granular Gavhah permissions, private access, pinned members and reply threads
+        run: node --test tests/group-platform-permissions.test.mjs
+      - name: Verify civil dates show apostrophe two-digit year and למספרם
+        run: node --experimental-strip-types --test tests/gregorian-date-format.test.mjs
       - name: Verify full group images and scrolling phone dialogs
         run: node --test tests/group-images-mobile-dialogs.test.mjs
       - name: Verify member My Creations privacy and independent help roles
