@@ -159,6 +159,55 @@ router.delete("/admin/yemot/connection", requireAuth, admin, wrap(async (req, re
   await pool.query("DELETE FROM " + table + " WHERE id=1");
   res.json({ configured: false, enabled: false });
 }));
+// Read-only provider inventory before proposing ANY changes to root or child extensions.
+router.get("/admin/yemot/provider-directory", requireAuth, admin, wrap(async (req, res) => {
+  const requested=typeof req.query.path==="string"?req.query.path:"/";
+  if(!/^\/(?:[0-9]{1,3}(?:\/[0-9]{1,3}){0,2})?$/.test(requested)){
+    err(res,400,"Only a short numeric extension path is permitted");return;
+  }
+  const row=await getRow();
+  if(!row){err(res,404,"Configure the global hotline first");return;}
+  let token:string;
+  try{token=decode(row);}catch{err(res,503,"Stored Yemot secret unavailable");return;}
+  let result:any;
+  try{
+    const response=await fetch("https://www.call2all.co.il/ym/api/GetIVR2Dir",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({token,path:requested}),
+      redirect:"error",cache:"no-store",signal:AbortSignal.timeout(12000)
+    });
+    if(!response.ok)throw Error("Provider unavailable");
+    result=await response.json();
+  }catch{
+    err(res,502,"Could not read current provider extension directory");return;
+  }finally{token="";}
+  if(result?.responseStatus!=="OK"){
+    err(res,502,"Provider declined the read-only directory inspection");return;
+  }
+  // GetIVR2Dir uses separate dirs and files arrays. Never mistake a nonempty
+  // directory for a free test extension simply because the files list is empty.
+  const dirs=Array.isArray(result.dirs)?result.dirs:[];
+  const files=Array.isArray(result.files)?result.files:[];
+  const ini=Array.isArray(result.ini)?result.ini:[];
+  // Unknown provider response schemas must fail CLOSED.
+  if(!Array.isArray(result.dirs)||!Array.isArray(result.files)){
+    err(res,502,"Provider directory response does not contain verified dirs/files arrays");
+    return;
+  }
+  const safeName=(x:any)=>String(x?.name??x?.fileName??x?.what??"").slice(0,100);
+  const entries=[
+    ...dirs.slice(0,100).map((x:any)=>({name:safeName(x),type:"directory"})),
+    ...files.slice(0,100).map((x:any)=>({name:safeName(x),type:String(x.fileType??"file").slice(0,25)}))
+  ].filter(x=>x.name&&!x.name.includes("\\0"));
+  res.setHeader("Cache-Control","private, no-store");
+  res.json({path:requested,entries,responseOk:true,
+    providerTotal:dirs.length+files.length+ini.length,
+    totalDirectories:dirs.length,totalFiles:files.length,totalSettings:ini.length,
+    truncated:dirs.length>100||files.length>100,
+    safeToOverwrite:false,
+    note:"Read only. A missing directory in a partial listing is not proof that it is safe to create or replace."});
+}));
+
 // The reverse service endpoint exposes status only, NEVER the hotline token or caller lists.
 // Disabled unless both Render instances intentionally share a 32+ byte secret.
 router.get("/yemot/service/status", wrap(async (req, res) => {
