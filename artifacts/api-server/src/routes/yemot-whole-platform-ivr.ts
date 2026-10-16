@@ -81,7 +81,14 @@ export const phoneTree: Record<string,Item> = {
       "3":leaf("Export or import","/"),"4":leaf("Campaign accounting","/")
     }),
     "9":group("Plans and connections",{
-      "1":leaf("Six upgrade plans","/"),"2":leaf("Gavhah MAX Connect","/"),
+      "1":group("Six upgrade plans",{
+        "1":leaf("Personal Askan plan","/"),
+        "2":leaf("Chesed Quick plan","/"),
+        "3":leaf("Askan Pro plan","/"),
+        "4":leaf("Gabbai Pro plan","/"),
+        "5":leaf("Organization plan","/"),
+        "6":leaf("Custom plan","/")
+      }),"2":leaf("Gavhah MAX Connect","/"),
       "3":leaf("Central Yemot phone status","/"),"4":leaf("Special integrations","/")
     })
   })
