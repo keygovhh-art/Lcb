@@ -3,6 +3,8 @@ import { pool } from "@workspace/db";
 import { logger } from "./logger";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
+import { verifyGavhahPhonePin } from "../routes/phone-member-pin";
+import { campaignPhoneBridge } from "./campaign-center-phone-bridge";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -38,12 +40,12 @@ export function safeVoice(input:unknown,max=430){
   .replace(/\s+/g," ").trim().slice(0,max);
 }
 function voice(s:string){return "t-"+safeVoice(s,430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"|"record"="menu"){
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"|"record"|"pin"="menu"){
  if(mode==="record"){
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
    .send("read="+voice(prompt)+"=rr"+step+",,record");return;
  }
- const name=(mode==="code"?"ln":mode==="article"?"ar":"iv")+step;
+ const name=(mode==="code"?"ln":mode==="pin"?"pn":mode==="article"?"ar":"iv")+step;
  // Yehmot's documented read order is:
  // name, reuse, maxDigits, minDigits, timeout, playback, blockStar,
  // blockZero, replacement, allowedDigits, retries, emptyIsOk, emptyValue.
@@ -51,6 +53,8 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"cod
  // valid six/seven fields so a telephone speech issue can be isolated.
  const opts=mode==="code"
  ? [name,"no","8","8","12","No","no"]
+ : mode==="pin"
+ ? [name,"no","16","12","15","No","no"]
  : mode==="article"
  ? [name,"no","8","1","8","No","no"]
  : mode==="news"
@@ -262,7 +266,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let userId=s.member_id;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
-  const inputName=(replyMode?"rr":path==="125"?"ln":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851")?"pn":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   let goToProviderManagement=false;
@@ -325,7 +329,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
       feedback="Current upvote count is "+Number(r.rows[0]?.like_count||0)+". ";
      }
     }
-   }else if(path==="125"){
+   }else if(path==="1251"){
     if(digit==="0"){path="";}
     else if(/^\d{8}$/.test(digit)&&s.login_failures<5){
      const key=process.env.YEMOT_ENCRYPTION_KEY||"";
@@ -348,6 +352,27 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      s.login_failures++;
      feedback="Enter the eight digit website code. ";
     }
+   }else if(path==="1252"){
+    if(digit==="0"){path="125";}
+    else if(/^[0-9]{12,16}$/.test(digit)&&s.login_failures<5){
+     const verified=await verifyGavhahPhonePin(digit);
+     if(verified){
+      userId=verified;s.member_id=verified;s.linked_until=new Date(Date.now()+20*60*1000).toISOString();
+      s.login_failures=0;path="12";feedback="Your Gavhah website membership is verified for this call. ";
+     }else{s.login_failures++;feedback="Incorrect Gavhah hotline PIN. ";}
+    }else{s.login_failures++;feedback="Enter your Gavhah twelve to sixteen digit hotline PIN. ";}
+   }else if(path==="2851"){
+    if(digit==="0"){path="285";}
+    else if(/^[0-9]{12,16}$/.test(digit)&&s.login_failures<5){
+     try{
+      const cc=await campaignPhoneBridge("login",callHash,digit);
+      if(cc.authenticated){s.login_failures=0;path="2";feedback="Your separate Campaign Center membership is verified. ";}
+      else{s.login_failures++;feedback="Incorrect Campaign Center PIN or inactive membership. ";}
+     }catch{s.login_failures++;feedback="Campaign Center membership service is temporarily unavailable. ";}
+    }else{s.login_failures++;feedback="Enter your separate Campaign Center numeric PIN. ";}
+   }else if(path==="2853"){
+    try{await campaignPhoneBridge("logout",callHash);}catch{/* do not falsely claim remote logout */}
+    path="2";feedback="Return to Campaign Center. Verify the sign-out status from the account menu. ";
    }else if(path==="115"){
     if(digit==="0"){path="";confirmId=null;chunk=0;actionsOpen=false;}
     else if(confirmId===null){
@@ -417,15 +442,37 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
    step++;
   }
-  let mode:"menu"|"news"|"code"|"article"|"record"="menu",spoken=feedback;
-  if(reportMode){
+  let mode:"menu"|"news"|"code"|"article"|"record"|"pin"="menu",spoken=feedback;
+  if(path==="1252"||path==="2851"){
+   mode="pin";
+   spoken+=path==="1252"?
+    "Enter your private twelve to sixteen digit Gavhah hotline PIN. Do not enter your website password.":
+    "Enter your separate twelve to sixteen digit Campaign Center hotline PIN. Gavhah membership does not authorize Campaign Center.";
+   if(s.login_failures>=5){path=path==="1252"?"125":"285";mode="menu";spoken="Too many attempts this call. Please hang up and try again later. ";}
+  }else if(path==="1253"){
+   spoken=await memberAllowed(client,{...s,member_id:userId})?
+    "You are verified as a Gavhah member for this call. Press zero for the main menu.":
+    "Not signed into Gavhah. Open My Askanus account access to enter a website pairing code or your member hotline PIN.";
+  }else if(path==="1254"){
+   spoken="To open a Gavhah account, register on the Gavhah website to verify your contact information. Once your account is created, set a separate hotline PIN in My Askanus.";
+  }else if(path==="2852"){
+   try{
+    const cc=await campaignPhoneBridge("snapshot",callHash);
+    spoken=cc.authenticated?
+     "Campaign Center membership verified. Active organizations "+(cc.organizationCount||0)+". "+
+       (cc.organizations||[]).map(x=>x.name+" role "+x.role+".").join(" "):
+     "You are not signed into Campaign Center. Use account menu option one for your separate Campaign Center PIN.";
+   }catch{spoken="Campaign Center membership service is not configured or temporarily unavailable.";}
+  }else if(path==="2854"){
+   spoken="To open a separate Campaign Center account, complete the website Neon Auth signup and join an organization. Then set your own Campaign Center phone PIN.";
+  }else if(reportMode){
    spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
   }else if(replyMode){
    mode="record";spoken+="Record your reply after the beep and press pound when finished. You may cancel by hanging up.";
   }else if(actionsOpen){
    const articleId=await currentNewsId(path,position,confirmId);
    spoken+=await actionsMenu(client,articleId,userId,await memberAllowed(client,{...s,member_id:userId}));
-  }else if(path==="125"){
+  }else if(path==="1251"){
    mode="code";spoken+="Enter the eight digit code shown in My Askanus on your website. "+
     "Codes expire after five minutes. Never share it with others.";
    if(s.login_failures>=5){path="12";mode="menu";spoken="Too many attempts. Hang up and try again later. ";}
