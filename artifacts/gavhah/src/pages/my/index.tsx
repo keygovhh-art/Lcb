@@ -30,6 +30,7 @@ import {
   TrendingUp, DollarSign, HandHeart, BookOpen, ChevronLeft, ChevronRight,
   ChevronDown, ChevronUp, Target, ArrowUpRight, ArrowDownLeft, Phone
 } from "lucide-react";
+import { JewishDatePicker } from "@/components/shared/jewish-date-picker";
 import { formatGregorianDate, formatGregorianYear } from "@/lib/gregorian-date";
 
 // --- Types ---
@@ -157,7 +158,7 @@ function NewCaseDialog({ onAdded }: { onAdded: () => void }) {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5"><Label className="font-semibold">Deadline</Label><Input type="date" value={form.deadline} onChange={s("deadline")} className="h-11" /></div>
+            <div className="space-y-1.5"><Label className="font-semibold">Deadline</Label><JewishDatePicker value={form.deadline} onChange={date=>setForm(f=>({...f,deadline:date}))}/></div>
             <div className="space-y-1.5">
               <Label className="font-semibold">Fundraising Goal ($)</Label>
               <Input type="number" min="0" value={form.goalAmount} onChange={s("goalAmount")} placeholder="0" className="h-11" />
@@ -292,7 +293,7 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
                   <Textarea value={followup.note} onChange={e => setFollowup(f => ({ ...f, note: e.target.value }))} placeholder="What needs to be followed up on?" className="resize-none min-h-20" />
                 </div>
                 <div className="space-y-1.5"><Label className="font-semibold">Due Date <span className="font-normal text-muted-foreground">(optional)</span></Label>
-                  <Input type="date" value={followup.dueDate} onChange={e => setFollowup(f => ({ ...f, dueDate: e.target.value }))} className="h-11" />
+                  <JewishDatePicker value={followup.dueDate} onChange={date=>setFollowup(f=>({...f,dueDate:date}))}/>
                    <Input type="time" aria-label="נאכפאלג־שעה" disabled={!followup.dueDate} value={followup.dueTime} onChange={e => setFollowup(f => ({ ...f, dueTime: e.target.value }))} className="h-11" />
                    <select aria-label="נאכפאלג איבערחזרן" value={followup.repeatRule}
                      disabled={!followup.dueDate} onChange={e=>setFollowup(f=>({...f,repeatRule:e.target.value}))}
@@ -549,7 +550,7 @@ function NewTaskDialog({ onAdded, caseTitle = "" }: { onAdded: () => void; caseT
           <div className="space-y-1.5"><Label className="font-semibold">Task *</Label><Input value={form.title} onChange={s("title")} placeholder="What needs to be done?" className="h-11" required /></div>
           <div className="space-y-1.5"><Label className="font-semibold">Related Case <span className="text-muted-foreground font-normal">(optional)</span></Label><Input value={form.caseTitle} onChange={s("caseTitle")} placeholder="Case name" className="h-11" /></div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5"><Label className="font-semibold">Deadline</Label><Input type="date" value={form.deadline} onChange={s("deadline")} className="h-11" /></div>
+            <div className="space-y-1.5"><Label className="font-semibold">Deadline</Label><JewishDatePicker value={form.deadline} onChange={date=>setForm(f=>({...f,deadline:date}))}/></div>
             <div className="space-y-1.5"><Label className="font-semibold">Priority</Label>
               <Select value={form.priority} onValueChange={s("priority")}>
                 <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
@@ -570,6 +571,7 @@ function NewTaskDialog({ onAdded, caseTitle = "" }: { onAdded: () => void; caseT
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 function HistoryCalendar({ onSelect, selected }: { onSelect: (d: string) => void; selected: string }) {
+  const [showJewish,setShowJewish]=useState(false);
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(new Date().getMonth());
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
@@ -581,6 +583,8 @@ function HistoryCalendar({ onSelect, selected }: { onSelect: (d: string) => void
   const todayStr = new Date().toISOString().slice(0, 10);
   return (
     <div className="bg-card border rounded-xl p-4">
+      <button className="rounded-lg border px-3 py-2 mb-3" onClick={()=>setShowJewish(v=>!v)}>{showJewish?"ענגלישער קאלענדאר":"אידישער קאלענדאר"}</button>
+      {showJewish ? <JewishDatePicker value={selected} onChange={onSelect}/> : <>
       <div className="flex items-center justify-between mb-3">
         <button onClick={prev} className="p-1 hover:bg-muted rounded"><ChevronLeft className="h-4 w-4" /></button>
         <span className="font-serif font-bold text-primary text-sm">{MONTHS[viewMonth]} {formatGregorianYear(viewYear)}</span>
@@ -609,6 +613,7 @@ function HistoryCalendar({ onSelect, selected }: { onSelect: (d: string) => void
           );
         })}
       </div>
+      </>}
     </div>
   );
 }
