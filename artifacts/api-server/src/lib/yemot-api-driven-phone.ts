@@ -533,7 +533,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     const cc=await campaignPhoneBridge("snapshot",callHash);
     spoken=cc.authenticated?
      "Campaign Center membership verified. Active organizations "+(cc.organizationCount||0)+". "+
-       (cc.organizations||[]).map(x=>x.name+" role "+x.role+".").join(" "):
+       (cc.organizations||[]).map(x=>(safeVoice(x.name,70)||"a Campaign Center organization")+" role "+x.role+".").join(" "):
      "You are not signed into Campaign Center. Use account menu option one for your separate Campaign Center PIN.";
    }catch{spoken="Campaign Center membership service is not configured or temporarily unavailable.";}
   }else if(path==="2854"){
