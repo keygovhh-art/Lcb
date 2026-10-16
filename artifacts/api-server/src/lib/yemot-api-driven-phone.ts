@@ -27,10 +27,12 @@ export function safeVoice(input:unknown,max=430){
   .replace(/\s+/g," ").trim().slice(0,max);
 }
 function voice(s:string){return "t-"+safeVoice(s,430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"="menu"){
- const name=(mode==="code"?"ln":"iv")+step;
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"="menu"){
+ const name=(mode==="code"?"ln":mode==="article"?"ar":"iv")+step;
  const opts=mode==="code"
  ? [name,"no","8","1","12","Digits","yes"]
+ : mode==="article"
+ ? [name,"no","8","1","8","Digits","yes"]
  : mode==="news"
  ? [name,"no","1","0","6","Digits","yes","","","012348","","","","","no"]
  : [name,"no","1","1","8","Digits","yes"];
@@ -92,6 +94,29 @@ async function newsPrompt(path:string,position:number,chunkIndex:number){
   text:headline+chunks[part]+
    ". Press 1 to continue, 2 to restart, 3 for important and critical news, 4 for all news, 8 for previous, or zero for the main menu.",
   hasMore:part<chunks.length-1
+ };
+}
+async function articlePrompt(client:import("pg").PoolClient,id:number,part:number){
+ const r=await client.query<{title:string;content:string|null;summary:string|null}>(
+  "SELECT title,content,summary FROM public.news WHERE id=$1",[id]);
+ if(!r.rows[0])return {text:"This news update was not found. Press 2 to enter another article number or zero for the main menu.",hasMore:false};
+ const data=r.rows[0];
+ const body=safeVoice(data.content||data.summary,30000);
+ const parts:string[]=[];
+ let remain=body;
+ while(remain.length){
+  if(remain.length<=230){parts.push(remain);break;}
+  let split=remain.lastIndexOf(" ",230);
+  if(split<140)split=230;
+  parts.push(remain.slice(0,split));
+  remain=remain.slice(split).trimStart();
+ }
+ if(!parts.length)parts.push("This update needs an English or approved Yiddish recording.");
+ const current=Math.min(part,parts.length-1);
+ return{
+  text:(current===0?"Article "+id+". "+(safeVoice(data.title,80)||"Yiddish headline")+". ":"")+
+   parts[current]+". Press 1 for next part, 2 to enter a new article number, or zero for the main menu.",
+  hasMore:current<parts.length-1
  };
 }
 async function memberAllowed(client:import("pg").PoolClient,state:State){
@@ -164,7 +189,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
   let userId=s.member_id;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;}
-  const raw=req.body?.[(path==="125"?"ln":"iv")+step]??req.query[(path==="125"?"ln":"iv")+step];
+  const inputName=(path==="125"?"ln":path==="115"&&!confirmId?"ar":"iv")+step;
+  const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   if(raw!==undefined&&raw!==null){
    const digit=String(raw).trim();
@@ -190,6 +216,17 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     }else{
      s.login_failures++;
      feedback="Enter the eight digit website code. ";
+    }
+   }else if(path==="115"){
+    if(digit==="0"){path="";confirmId=null;chunk=0;}
+    else if(confirmId===null){
+     if(/^\d{1,8}$/.test(digit)&&Number(digit)>0){
+      confirmId=Number(digit);chunk=0;
+     }
+    }else if(digit==="2"){confirmId=null;chunk=0;}
+    else if(digit==="1"){
+     const current=await articlePrompt(client,confirmId,chunk);
+     if(current.hasMore)chunk++;
     }
    }else if(newsPath(path)){
     if(digit==="0"){path="";position=0;chunk=0;}
@@ -230,11 +267,17 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
    step++;
   }
-  let mode:"menu"|"news"|"code"="menu",spoken=feedback;
+  let mode:"menu"|"news"|"code"|"article"="menu",spoken=feedback;
   if(path==="125"){
    mode="code";spoken+="Enter the eight digit code shown in My Askanus on your website. "+
     "Codes expire after five minutes. Never share it with others.";
    if(s.login_failures>=5){path="12";mode="menu";spoken="Too many attempts. Hang up and try again later. ";}
+  }else if(path==="115"){
+   if(confirmId===null){
+    mode="article";spoken+="Enter a news article number to hear its full text. Press zero for the main menu.";
+   }else{
+    spoken+=(await articlePrompt(client,confirmId,chunk)).text;
+   }
   }else if(newsPath(path)){
    mode="news";spoken+=(await newsPrompt(path,position,chunk)).text;
   }else if(personalPaths.has(path)){
