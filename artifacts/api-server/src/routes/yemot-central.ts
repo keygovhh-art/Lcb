@@ -241,91 +241,120 @@ router.get("/admin/yemot/provider-directory", requireAuth, admin, wrap(async (re
 }));
 
 
-// Install exactly ONE provider-side root API gateway after a conscious action
-// by the signed-in Gavhah super administrator. Never modify provider menus
-// automatically during startup, and never modify any nested extension.
+// Child-only install, explicitly owner-approved. NEVER write the root ext.ini,
+// modify an existing extension, delete content, or infer "unused" from an
+// absent ext.ini alone. The existing line has 15 folders + 104 messages.
 router.get("/admin/yemot/installation", requireAuth, admin, wrap(async(_req,res)=>{
-  const status=await pool.query(
-    "SELECT line_number,state,provider_summary,safe_message,updated_at FROM public.gavhah_yemot_ivr_install WHERE id=1");
-  res.setHeader("Cache-Control","private, no-store");
-  res.json(status.rows[0]||{state:"not_queued"});
+ const status=await pool.query(
+  "SELECT line_number,state,provider_summary,safe_message,updated_at FROM public.gavhah_yemot_ivr_install WHERE id=1");
+ res.setHeader("Cache-Control","private, no-store");
+ res.json(status.rows[0]||{state:"not_queued"});
 }));
-router.post("/admin/yemot/install-root",requireAuth,admin,wrap(async(req,res)=>{
-  const line="6055621286";
-  if(req.body?.confirm!=="INSTALL_EMPTY_6055621286"){
-    err(res,400,"Explicit confirmation for the new empty 6055621286 hotline required");return;
+// Fail closed on the former root installer route even if stale phone/browser
+// bundles continue calling it.
+router.post("/admin/yemot/install-root", requireAuth, admin, wrap(async(_req,res)=>{
+ err(res,410,"Root installation is permanently disabled. Use add-only isolated extension.");
+}));
+router.post("/admin/yemot/install-child",requireAuth,admin,wrap(async(req,res)=>{
+ const line="6055621286";
+ if(req.body?.confirm!=="ADD_ONLY_6055621286"){
+  err(res,400,"Explicit approval to add only an unused child extension required");return;
+ }
+ const provider=await getRow();
+ if(!provider||provider.line_number!==line||!provider.last_verified_at){
+  err(res,409,"Saved, tested Yemot connection must correspond to 6055621286");return;
+ }
+ // Single install attempt at a time. A blocked previously ambiguous write must
+ // be inspected and not blindly retried.
+ const locked=await pool.query(
+  "UPDATE public.gavhah_yemot_ivr_install SET state='installing',"+
+  "safe_message='Checking existing provider folders without changing any files',updated_at=now() "+
+  "WHERE id=1 AND line_number=$1 AND state IN ('queued','blocked') RETURNING id",
+  [line]);
+ if(!locked.rowCount){
+  err(res,409,"Installation is already running or provider acceptance already recorded");return;
+ }
+ let providerAccepted=false;
+ let token="";
+ let candidate="";
+ try{
+  token=decode(provider);
+  const callProvider=async(action:string,params:Record<string,string>)=>{
+   const body=new URLSearchParams({token,...params});
+   const r=await fetch("https://www.call2all.co.il/ym/api/"+action,{
+    method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},
+    body,redirect:"error",cache:"no-store",signal:AbortSignal.timeout(15000)
+   });
+   if(!r.ok)throw Error("Yemot "+action+" network or permission error");
+   return await r.json() as any;
+  };
+  const root=await callProvider("GetIVR2Dir",{path:"/"});
+  if(root?.responseStatus!=="OK"||!Array.isArray(root.dirs)||
+    !Array.isArray(root.files)||!Array.isArray(root.ini)||!Array.isArray(root.messages)||
+    !Array.isArray(root.html)){
+   throw Error("Could not safely read complete provider root listing");
   }
-  const row=await getRow();
-  if(!row||row.line_number!==line||!row.last_verified_at){
-    err(res,409,"Configured and verified hotline must be 6055621286");return;
+  const known=new Set<string>();
+  for(const entry of root.dirs){
+   const name=typeof entry==="string"?entry:String(entry?.name??entry?.fileName??entry?.path??entry?.what??"");
+   const trimmed=name.trim().replace(/\/+$/,"");
+   const number=trimmed.split(/[/:]/).pop()||"";
+   if(!/^[0-9]{1,3}$/.test(number)){
+    throw Error("Unrecognized root extension name. Refusing to choose a slot.");
+   }
+   known.add(number);
   }
-  const lock=await pool.query(
-    "UPDATE public.gavhah_yemot_ivr_install SET state='installing',"+
-    "safe_message='Checking provider root before installation',updated_at=now() "+
-    "WHERE id=1 AND line_number=$1 AND state IN ('queued','blocked') RETURNING id",
-    [line]);
-  if(!lock.rowCount){
-    err(res,409,"Hotline installation was already started or completed");return;
+  const choices=["99","98","97","96","95","94","93","92","91","90",
+                 "899","898","897","896","895","894","893","892","891","890"];
+  candidate=choices.find(x=>!known.has(x))||"";
+  if(!candidate)throw Error("No unused child extension in the reserved candidate pool");
+  const check=await callProvider("CheckIfFileExists",{path:"ivr2:"+candidate+"/ext.ini"});
+  if(check?.responseStatus!=="OK"||check?.fileExists!==false){
+   throw Error("Candidate child extension is not confirmed empty. No changes made.");
   }
-  let providerAccepted=false;
-  let token="";
-  try{
-    token=decode(row);
-    const callProvider=async(action:string,params:Record<string,string>)=>{
-      const response=await fetch("https://www.call2all.co.il/ym/api/"+action,{
-        method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},
-        body:JSON.stringify({token,...params}),redirect:"error",cache:"no-store",
-        signal:AbortSignal.timeout(15000)
-      });
-      if(!response.ok)throw Error("Could not reach Yemot provider API");
-      const data:any=await response.json();
-      if(data?.responseStatus!=="OK")throw Error("Yemot declined the "+action+" request");
-      return data;
-    };
-    // Official GetIVR2Dir ROOT path is "/", NOT "ivr2:/".
-    const inventory=await callProvider("GetIVR2Dir",{path:"/"});
-    const decision=rootPreflight(inventory);
-    if(!decision.canInstall){
-      await pool.query(
-       "UPDATE public.gavhah_yemot_ivr_install SET provider_summary=$1::jsonb,updated_at=now() WHERE id=1",
-       [JSON.stringify({counts:decision.counts,settingKeys:decision.settingKeys,
-         iniNames:decision.iniNames,reason:decision.reason})]);
-      throw Error(decision.reason);
-    }
-    // The voice callback is identified by a random key sent only to Yemot's
-    // provider-side root settings; the app stores its SHA-256 digest.
-    const callbackSecret=randomBytes(32).toString("hex");
-    const callbackHash=createHash("sha256").update(callbackSecret).digest("hex");
-    await pool.query(
-      "UPDATE public.gavhah_yemot_ivr_install SET callback_hash=$1,"+
-      "safe_message='Provider root verified empty; preparing API gateway',updated_at=now() WHERE id=1",
-      [callbackHash]);
-    await callProvider("UpdateExtension",{
-      path:"ivr2:",type:"api",title:"Gavhah and Campaign Center",
-      api_link:"https://gavhah.onrender.com/api/yemot/ivr",api_url_post:"yes",
-      api_add_0:"entryKey="+callbackSecret,language:"en"
-    });
-    providerAccepted=true;
-    await pool.query("UPDATE public.gavhah_yemot_global SET enabled=true,updated_at=now() WHERE id=1 AND last_verified_at IS NOT NULL");
-    await pool.query("UPDATE public.gavhah_yemot_ivr_install SET state='live',"+
-      "safe_message='Yemot acknowledged root API gateway; a real telephone call is still required',"+
-      "provider_summary=$1::jsonb,updated_at=now() WHERE id=1",
-      [JSON.stringify({providerAccepted:true,callerVerified:false,rootApiOnly:true,number:line})]);
-    res.setHeader("Cache-Control","private, no-store");
-    res.json({installedByProvider:true,phoneCallVerified:false,lineNumber:line,
-      message:"Yemot accepted the single API bridge. Call 6055621286 to verify the English welcome."});
-  }catch(e){
-    const safe=e instanceof Error?e.message:"Provider installation was not completed";
-    // A network timeout after a provider write is ambiguous; do not retry
-    // without another provider inspection. No implicit second write.
-    await pool.query("UPDATE public.gavhah_yemot_ivr_install SET state='blocked',"+
-      "safe_message=$1,updated_at=now() WHERE id=1",[safe.slice(0,160)]).catch(()=>{});
-    if(!providerAccepted){
-      await pool.query("UPDATE public.gavhah_yemot_global SET enabled=false WHERE id=1").catch(()=>{});
-    }
-    res.status(409).json({installedByProvider:providerAccepted,phoneCallVerified:false,
-      error:"Installation stopped: "+safe.slice(0,140)});
-  }finally{token="";}
+  const callbackSecret=randomBytes(32).toString("hex");
+  const callbackHash=createHash("sha256").update(callbackSecret).digest("hex");
+  await pool.query(
+   "UPDATE public.gavhah_yemot_ivr_install SET callback_hash=$1,"+
+   "target_path=$2,provider_summary=$3::jsonb,updated_at=now() WHERE id=1",
+   [callbackHash,"/"+candidate,JSON.stringify({
+    rootFolders:root.dirs.length,rootMessages:root.messages.length,
+    rootFiles:root.files.length,rootSettings:root.ini.length,
+    reservedChild:"/"+candidate,addOnly:true,noRootChanges:true
+   })]);
+  const answer=await callProvider("UpdateExtension",{
+   path:"ivr2:"+candidate,type:"api",title:"Gavhah API Gateway",
+   api_link:"https://gavhah.onrender.com/api/yemot/ivr",api_url_post:"yes",
+   api_add_0:"entryKey="+callbackSecret,language:"en"
+  });
+  if(answer?.responseStatus!=="OK")throw Error("Yemot did not accept the new child extension");
+  providerAccepted=true;
+  await pool.query("UPDATE public.gavhah_yemot_global SET enabled=true,updated_at=now() "+
+   "WHERE id=1 AND last_verified_at IS NOT NULL");
+  await pool.query("UPDATE public.gavhah_yemot_ivr_install SET state='live',"+
+   "safe_message=$1,provider_summary=provider_summary||$2::jsonb,updated_at=now() WHERE id=1",
+   ["Provider accepted NEW add-only extension /"+candidate+
+      "; root unchanged. Verify access through existing root navigation.",
+    JSON.stringify({providerAccepted:true,phoneCallVerified:false})]);
+  res.setHeader("Cache-Control","private,no-store");
+  res.json({providerAccepted:true,rootUntouched:true,extension:"/"+candidate,
+   callTestVerified:false,
+   message:"Yemot accepted NEW extension /"+candidate+
+     ". Existing root, folders and recordings untouched. Test accessing extension "+
+     candidate+" from the existing root menu. Exact DTMF routing needs phone verification."});
+ }catch(e){
+  const diagnostic=e instanceof Error?e.message:"Unknown provider install failure";
+  // An ambiguous network response may have created the extension. The next
+  // attempt must see that extension listed and refuse to overwrite it.
+  await pool.query("UPDATE public.gavhah_yemot_ivr_install SET state='blocked',"+
+   "safe_message=$1,provider_summary=provider_summary||$2::jsonb,updated_at=now() WHERE id=1",
+   [diagnostic.slice(0,165),JSON.stringify({lastCandidate:candidate||null,providerAccepted})]).catch(()=>{});
+  if(!providerAccepted){
+   await pool.query("UPDATE public.gavhah_yemot_global SET enabled=false WHERE id=1").catch(()=>{});
+  }
+  res.status(409).json({providerAccepted,rootUntouched:true,
+   error:"Add-only installation stopped: "+diagnostic.slice(0,140)});
+ }finally{token="";}
 }));
 
 // The reverse service endpoint exposes status only, NEVER the hotline token or caller lists.
