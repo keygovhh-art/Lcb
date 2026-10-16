@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { randomBytes, createCipheriv, createDecipheriv, timingSafeEqual } from "node:crypto";
+import { randomBytes, createCipheriv, createDecipheriv, createHash, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAuth, getCurrentSessionUser } from "../middlewares/auth";
 
@@ -206,6 +206,99 @@ router.get("/admin/yemot/provider-directory", requireAuth, admin, wrap(async (re
     truncated:dirs.length>100||files.length>100,
     safeToOverwrite:false,
     note:"Read only. A missing directory in a partial listing is not proof that it is safe to create or replace."});
+}));
+
+
+// Install exactly ONE provider-side root API gateway after a conscious action
+// by the signed-in Gavhah super administrator. Never modify provider menus
+// automatically during startup, and never modify any nested extension.
+router.get("/admin/yemot/installation", requireAuth, admin, wrap(async(_req,res)=>{
+  const status=await pool.query(
+    "SELECT line_number,state,provider_summary,safe_message,updated_at FROM public.gavhah_yemot_ivr_install WHERE id=1");
+  res.setHeader("Cache-Control","private, no-store");
+  res.json(status.rows[0]||{state:"not_queued"});
+}));
+router.post("/admin/yemot/install-root",requireAuth,admin,wrap(async(req,res)=>{
+  const line="6055621286";
+  if(req.body?.confirm!=="INSTALL_EMPTY_6055621286"){
+    err(res,400,"Explicit confirmation for the new empty 6055621286 hotline required");return;
+  }
+  const row=await getRow();
+  if(!row||row.line_number!==line||!row.last_verified_at){
+    err(res,409,"Configured and verified hotline must be 6055621286");return;
+  }
+  const lock=await pool.query(
+    "UPDATE public.gavhah_yemot_ivr_install SET state='installing',"+
+    "safe_message='Checking provider root before installation',updated_at=now() "+
+    "WHERE id=1 AND line_number=$1 AND state IN ('queued','blocked') RETURNING id",
+    [line]);
+  if(!lock.rowCount){
+    err(res,409,"Hotline installation was already started or completed");return;
+  }
+  let providerAccepted=false;
+  let token="";
+  try{
+    token=decode(row);
+    const callProvider=async(action:string,params:Record<string,string>)=>{
+      const response=await fetch("https://www.call2all.co.il/ym/api/"+action,{
+        method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},
+        body:JSON.stringify({token,...params}),redirect:"error",cache:"no-store",
+        signal:AbortSignal.timeout(15000)
+      });
+      if(!response.ok)throw Error("Could not reach Yemot provider API");
+      const data:any=await response.json();
+      if(data?.responseStatus!=="OK")throw Error("Yemot declined the "+action+" request");
+      return data;
+    };
+    // Official GetIVR2Dir ROOT path is "/", NOT "ivr2:/".
+    const inventory=await callProvider("GetIVR2Dir",{path:"/"});
+    if(!Array.isArray(inventory.dirs)||!Array.isArray(inventory.files)||
+       !Array.isArray(inventory.ini)||!Array.isArray(inventory.messages)||
+       !Array.isArray(inventory.html)){
+      throw Error("Provider returned incomplete root inventory. Nothing changed.");
+    }
+    if(inventory.dirs.length||inventory.files.length||inventory.ini.length||
+       inventory.messages.length||inventory.html.length){
+      throw Error("Provider root is not empty. Refusing to replace any existing files.");
+    }
+    if(inventory.extIni&&typeof inventory.extIni==="object"&&
+       Object.keys(inventory.extIni).some(key=>!["title","language"].includes(key))){
+      throw Error("Root already has extension settings. Refusing to replace them.");
+    }
+    // The voice callback is identified by a random key sent only to Yemot's
+    // provider-side root settings; the app stores its SHA-256 digest.
+    const callbackSecret=randomBytes(32).toString("hex");
+    const callbackHash=createHash("sha256").update(callbackSecret).digest("hex");
+    await pool.query(
+      "UPDATE public.gavhah_yemot_ivr_install SET callback_hash=$1,"+
+      "safe_message='Provider root verified empty; preparing API gateway',updated_at=now() WHERE id=1",
+      [callbackHash]);
+    await callProvider("UpdateExtension",{
+      path:"ivr2:/",type:"api",title:"Gavhah and Campaign Center",
+      api_link:"https://gavhah.onrender.com/api/yemot/ivr",api_url_post:"yes",
+      api_add_0:"entryKey="+callbackSecret,language:"en"
+    });
+    providerAccepted=true;
+    await pool.query("UPDATE public.gavhah_yemot_global SET enabled=true,updated_at=now() WHERE id=1 AND last_verified_at IS NOT NULL");
+    await pool.query("UPDATE public.gavhah_yemot_ivr_install SET state='live',"+
+      "safe_message='Yemot acknowledged root API gateway; a real telephone call is still required',"+
+      "provider_summary=$1::jsonb,updated_at=now() WHERE id=1",
+      [JSON.stringify({providerAccepted:true,callerVerified:false,rootApiOnly:true,number:line})]);
+    res.setHeader("Cache-Control","private, no-store");
+    res.json({installedByProvider:true,phoneCallVerified:false,lineNumber:line,
+      message:"Yemot accepted the single API bridge. Call 6055621286 to verify the English welcome."});
+  }catch(e){
+    const safe=e instanceof Error?e.message:"Provider installation was not completed";
+    // A network timeout after a provider write is ambiguous; do not retry
+    // without another provider inspection. No implicit second write.
+    await pool.query("UPDATE public.gavhah_yemot_ivr_install SET state='blocked',"+
+      "safe_message=$1,updated_at=now() WHERE id=1",[safe.slice(0,160)]).catch(()=>{});
+    if(!providerAccepted){
+      await pool.query("UPDATE public.gavhah_yemot_global SET enabled=false WHERE id=1").catch(()=>{});
+    }
+    res.status(409).json({installedByProvider:providerAccepted,phoneCallVerified:false,
+      error:"Installation stopped: "+safe.slice(0,140)});
+  }finally{token="";}
 }));
 
 // The reverse service endpoint exposes status only, NEVER the hotline token or caller lists.
