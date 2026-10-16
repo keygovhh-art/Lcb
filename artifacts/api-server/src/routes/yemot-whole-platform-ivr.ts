@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
+import { publicPhoneNews,publicPhoneCharity,renderNewsMenu,renderSelectedNews,renderCharityMenu,renderSelectedCharity } from "../lib/yemot-public-content";
 
 // Complete PHONE NAVIGATION MAP, not a claim of completed phone features.
 // The menu currently ONLY names modules. Caller phone numbers are NOT identity.
@@ -142,6 +143,18 @@ router.all("/yemot/ivr",async(req:Request,res:Response)=>{
   }
   const current=path?phoneNode(path):undefined;
   res.set("Cache-Control","no-store").type("text/plain; charset=utf-8");
+  // These two sections now fetch actual PUBLIC Gavhah database records, not
+  // static menu placeholders. Caller identity grants NO other data access.
+  if(path==="111"){
+    const news=await publicPhoneNews();
+    const pressed=req.body?.newsItem??req.query.newsItem;
+    return res.send(pressed===undefined?renderNewsMenu(news):renderSelectedNews(news,pressed));
+  }
+  if(path==="151"){
+    const charities=await publicPhoneCharity();
+    const pressed=req.body?.charityItem??req.query.charityItem;
+    return res.send(pressed===undefined?renderCharityMenu(charities):renderSelectedCharity(charities,pressed));
+  }
   if(current&&!current.children){
     const details=(current.details||"This section is online only for now.")+" Returning to your menu.";
     // Complete the voice message and let Yemot return to the configured menu.
