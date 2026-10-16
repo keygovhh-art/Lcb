@@ -245,7 +245,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
   (confirmId===-x.id?"Press 6 again to confirm reopening. ":"")+
   "Press 1 for next, 2 to restart, 3 to create a callback task, 4 to change this task priority, 7 to set the deadline, 8 for previous, 9 twice to delete, or zero for main menu.";
  if(path==="122")return heading+
-  "Case actions: 1 next, 2 restart, 3 change status, 4 change urgency, 5 create callback case, 6 add followup, 7 record contact attempt, 8 previous, 0 main menu. "+
+  "Case actions: 1 next, 2 restart, 3 change status, 4 change urgency, 5 create callback case, 6 add followup, 7 record contact attempt, 8 previous, 9 find case by website number, 0 main menu. "+
   "Status "+safeVoice(x.status,30)+". Priority "+safeVoice(x.urgency,30)+". "+
   (x.category?"Category "+safeVoice(x.category,45)+". ":"")+
   (x.description?"Description "+(safeVoice(x.description,160)||"Needs an English voice version")+". ":"")+
@@ -297,7 +297,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let noteDeleteTarget=s.note_delete_target,noteRecordMode=s.note_record_mode||false;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
-  const inputName=(noteRecordMode?"rr":caseAction==="create"?"rg":caseAction==="followup"?"dt":taskAction==="create"?"rg":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(noteRecordMode?"rr":caseAction==="jump"?"ar":caseAction==="create"?"rg":caseAction==="followup"?"dt":taskAction==="create"?"rg":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   let goToProviderManagement=false;
@@ -488,6 +488,20 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      feedback="Sign in to your own Gavhah account before changing a case. ";
     }else if(digit==="0"){
      caseAction="";caseActionTarget=null;path="";page=0;
+    }else if(caseAction==="jump"){
+     const id=/^[1-9][0-9]{0,7}$/.test(digit)?Number(digit):0;
+     if(!id){feedback="Enter a valid case number up to eight digits. ";}
+     else{
+      const target=await client.query<{id:number;place:string}>(
+       "SELECT c.id, (SELECT count(*)::text FROM public.askanus_cases newer "+
+       "WHERE newer.user_id=$1 AND (newer.created_at,newer.id)>(c.created_at,c.id)) AS place "+
+       "FROM public.askanus_cases c WHERE c.user_id=$1 AND c.id=$2",[userId,id]);
+      if(!target.rows[0])feedback="This case number is not available on your own website account. ";
+      else{
+       page=Number(target.rows[0].place);caseAction="";caseActionTarget=null;
+       feedback="Opened your own Gavhah case number "+id+". ";
+      }
+     }
     }else if(caseAction==="contact"){
      if(digit!=="9"){caseAction="";caseActionTarget=null;feedback="Contact attempt cancelled. ";}
      else{
@@ -554,6 +568,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
       [userId,page]);
      if(note.rows[0])noteDeleteTarget=note.rows[0].id;
      else feedback="No private note at the current list position. ";
+    }
+    else if(path==="122"&&digit==="9"&&userId&&
+      await memberAllowed(client,{...s,member_id:userId})){
+     caseAction="jump";caseActionTarget=null;
+     feedback="Find a case by its website number. ";
     }
     else if(path==="122"&&digit==="5"&&userId&&
       await memberAllowed(client,{...s,member_id:userId})){
@@ -679,7 +698,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    mode="menu";
    spoken+="WARNING. You are about to delete this private note permanently from your own Gavhah website. Press nine AGAIN to confirm, or zero to cancel.";
   }else if(caseAction&&path==="122"){
-   if(caseAction==="contact"){
+   if(caseAction==="jump"){
+    mode="article";
+    spoken+="Enter your own Gavhah case number from the website, up to eight digits, followed by pound. Other members' cases cannot be opened.";
+   }else if(caseAction==="contact"){
     mode="menu";
     spoken+="Confirm logging an attempted contact in this case website activity. Press nine again to confirm. Press zero to cancel. This will NOT make an outbound call.";
    }else if(caseAction==="create"){
