@@ -39,3 +39,6 @@ ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS signup_stag
 -- Additive keypad-task workflow state, no live migration before release.
 ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS task_action text NOT NULL DEFAULT '';
 ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS task_action_target integer;
+
+ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS case_action text NOT NULL DEFAULT '';
+ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS case_action_target integer;
