@@ -18,6 +18,14 @@ on:
       - 'artifacts/api-server/src/routes/communications-reports.ts'
       - 'artifacts/api-server/src/routes/communications-history.ts'
       - 'artifacts/gavhah/src/components/communications/max-history-panel.tsx'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'artifacts/gavhah/src/pages/my/index.tsx'
+      - 'artifacts/gavhah/src/components/askanus/personal-focus-brain-dump.tsx'
+      - 'artifacts/api-server/tests/max-mobile-browser.cjs'
+      - '.github/workflows/max-mobile-browser.yml'
   workflow_dispatch:
 jobs:
   mobile-acceptance:
@@ -92,6 +100,7 @@ jobs:
           name: gavhah-max-mobile-qa
           if-no-files-found: ignore
           path: |
+            /tmp/gavhah-personal-focus-mobile.png
             /tmp/gavhah-max-my-mobile.png
             /tmp/gavhah-max-contact-mobile.png
             /tmp/gavhah-max-history-mobile.png
