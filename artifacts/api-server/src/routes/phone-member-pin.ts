@@ -5,8 +5,10 @@ import { pool } from "@workspace/db";
 import { requireAuth, getCurrentSessionUser } from "../middlewares/auth";
 import { hashPassword, verifyPassword } from "../lib/crypto";
 import { isReservedSuperAdminName } from "../lib/super-admin";
+import { createRateLimiter } from "../middlewares/rate-limit";
 
 const router=Router();
+const sensitiveLimiter=createRateLimiter({name:"member-phone-pin",windowMs:15*60*1000,max:10,message:"Too many PIN changes or reviews. Please wait."});
 const derive=promisify(scrypt);
 const PIN=/^[0-9]{12,16}$/;
 const PEPPER_NAMESPACE="gavhah:phone-pin:v1:";
@@ -103,7 +105,7 @@ router.get("/admin/phone/join-requests",requireAuth,async(req,res,next)=>{
   res.set("Cache-Control","private,no-store").json({requests:requests.rows});
  }catch(e){next(e);}
 });
-router.post("/admin/phone/join-requests/:id/review",requireAuth,async(req,res,next)=>{
+router.post("/admin/phone/join-requests/:id/review",sensitiveLimiter,requireAuth,async(req,res,next)=>{
  try{
   if(!originAllowed(req)){res.sendStatus(403);return;}
   const actor=await getCurrentSessionUser(req);
@@ -167,7 +169,7 @@ router.get("/account/phone-pin",requireAuth,async(req,res,next)=>{
   res.set("Cache-Control","no-store").json({configured:!!r.rowCount,requiresActivation:!!r.rows[0]?.activation_required,lastChangedAt:r.rows[0]?.updated_at||null,owner:"gavhah",minimumDigits:12,maximumDigits:16});
  }catch(e){next(e);}
 });
-router.put("/account/phone-pin",requireAuth,async(req,res,next)=>{
+router.put("/account/phone-pin",sensitiveLimiter,requireAuth,async(req,res,next)=>{
  try{
   if(!originAllowed(req)){res.sendStatus(403);return;}
   const user=await getCurrentSessionUser(req);
@@ -191,7 +193,7 @@ router.put("/account/phone-pin",requireAuth,async(req,res,next)=>{
   res.set("Cache-Control","no-store").json({configured:true,owner:"gavhah"});
  }catch(e){next(e);}
 });
-router.post("/account/phone-pin/activate",requireAuth,async(req,res,next)=>{
+router.post("/account/phone-pin/activate",sensitiveLimiter,requireAuth,async(req,res,next)=>{
  try{
   if(!originAllowed(req)){res.sendStatus(403);return;}
   const user=await getCurrentSessionUser(req);
@@ -217,7 +219,7 @@ router.post("/account/phone-pin/activate",requireAuth,async(req,res,next)=>{
   res.json({configured:true,activated:true,owner:"gavhah"});
  }catch(e){next(e);}
 });
-router.delete("/account/phone-pin",requireAuth,async(req,res,next)=>{
+router.delete("/account/phone-pin",sensitiveLimiter,requireAuth,async(req,res,next)=>{
  try{
   if(!originAllowed(req)){res.sendStatus(403);return;}
   const user=await getCurrentSessionUser(req);
@@ -230,7 +232,7 @@ router.delete("/account/phone-pin",requireAuth,async(req,res,next)=>{
   res.json({configured:false});
  }catch(e){next(e);}
 });
-router.post("/admin/phone/member-pin",requireAuth,async(req,res,next)=>{
+router.post("/admin/phone/member-pin",sensitiveLimiter,requireAuth,async(req,res,next)=>{
  try{
   if(!originAllowed(req)){res.sendStatus(403);return;}
   const actor=await getCurrentSessionUser(req);
