@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 
 // Complete PHONE NAVIGATION MAP, not a claim of completed phone features.
@@ -119,10 +119,15 @@ const router=Router();
 router.all("/yemot/ivr",async(req:Request,res:Response)=>{
   // This is intentionally public-information ONLY, with a separate provider
   // callback secret. Never query users, donations, or account private data.
-  const stored=process.env.YEMOT_IVR_CALLBACK_KEY||"";
   const supplied=String(req.body?.entryKey??req.query.entryKey??"");
-  const a=Buffer.from(stored),b=Buffer.from(supplied);
-  if(stored.length<32||a.length!==b.length||!timingSafeEqual(a,b))
+  if(!/^[a-f0-9]{64}$/.test(supplied))
+    return res.status(403).type("text/plain").send("Access denied");
+  const stored=await pool.query("SELECT callback_hash,state FROM public.gavhah_yemot_ivr_install WHERE id=1");
+  const known=stored.rows[0]?.callback_hash;
+  const claimed=stored.rows[0]?.state;
+  const hashed=createHash("sha256").update(supplied).digest("hex");
+  if(typeof known!=="string" || !["installing","live"].includes(claimed) ||
+     known.length!==hashed.length || !timingSafeEqual(Buffer.from(known),Buffer.from(hashed)))
     return res.status(403).type("text/plain").send("Access denied");
   const active=await pool.query("SELECT enabled,last_verified_at FROM public.gavhah_yemot_global WHERE id=1");
   if(!active.rows[0]?.enabled||!active.rows[0]?.last_verified_at)
