@@ -113,3 +113,32 @@ export async function createCaseFollowupFromPad(
  return{ok:true,message:"A non recurring website followup was created for case "+
   caseId+" on "+due+". No appointment time was assumed."};
 }
+
+
+/**
+ * Staff/member-entered contact attempt for OWN case, no money or outbound
+ * call implied: records a note in the canonical site case timeline only.
+ */
+export async function logMyCaseContactAttempt(
+ client:PoolClient,userId:number,caseId:number
+):Promise<{ok:boolean;message:string}>{
+ const row=await client.query<{id:number;title:string}>(
+  "SELECT id,title FROM public.askanus_cases WHERE id=$1 AND user_id=$2 FOR UPDATE",
+  [caseId,userId]);
+ const c=row.rows[0];
+ if(!c)return{ok:false,message:"No such case in your own Gavhah website account."};
+ const date=await client.query<{today:string}>(
+  "SELECT to_char(now() AT TIME ZONE 'America/New_York','YYYY-MM-DD') AS today");
+ const recorded=date.rows[0]?.today;
+ await client.query(
+  "INSERT INTO public.case_activity_log(case_id,date,type,note) VALUES($1,$2,'contact',$3)",
+  [caseId,recorded,"Member reported a contact attempt through the verified Gavhah hotline. This does not confirm the contact answered."]);
+ await client.query(
+  "INSERT INTO public.max_history_events(user_id,case_id,entity_type,entity_id,action,title,details) "+
+  "VALUES($1,$2,'case',$2,'contact_attempt_logged',$3,$4)",
+  [userId,caseId,"Contact attempt logged",JSON.stringify({source:"phone",outgoingCallMade:false,answerConfirmed:false})]);
+ await client.query(
+  "UPDATE public.askanus_cases SET last_updated=now() WHERE id=$1 AND user_id=$2",
+  [caseId,userId]);
+ return{ok:true,message:"Your contact attempt has been added to this case's website activity timeline. This confirms only that you logged the attempt; it does not claim a call was actually placed."};
+}
