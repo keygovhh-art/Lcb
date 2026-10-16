@@ -131,9 +131,9 @@ router.all("/yemot/ivr",async(req:Request,res:Response)=>{
   const current=path?phoneNode(path):undefined;
   res.set("Cache-Control","no-store").type("text/plain; charset=utf-8");
   if(current&&!current.children){
-    const details=(current.details||"This section is online only for now.")+" Press zero to return.";
-    // Next iteration prompts same branch. Read-only and no real transactions.
-    return res.send("read=t-"+details.replace(/[&=,\r\n]/g," ").slice(0,350)+"=nav4,,1,1,6,Digits,yes");
+    const details=(current.details||"This section is online only for now.")+" Returning to your menu.";
+    // Complete the voice message and let Yemot return to the configured menu.
+    return res.send("id_list_message=t-"+details.replace(/[&=,\r\n]/g," ").slice(0,350));
   }
   const depth=Math.min(path.length,4);
   return res.send("read=t-"+phonePrompt(path)+"=nav"+depth+",,1,1,8,Digits,yes");
