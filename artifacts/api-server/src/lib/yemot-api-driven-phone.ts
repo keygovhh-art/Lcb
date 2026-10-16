@@ -6,7 +6,7 @@ import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } fro
 import { verifyGavhahPhonePin, requestGavhahPhoneAccount } from "../routes/phone-member-pin";
 import { campaignPhoneBridge } from "./campaign-center-phone-bridge";
 import { createCallTask, changePhoneTaskPriority, changePhoneTaskDeadline, setPhoneTaskCompleted, deletePhoneTask } from "./yemot-askanus-task-actions";
-import { updateMyCaseOnPhone } from "./yemot-askanus-case-actions";
+import { updateMyCaseOnPhone, createCallbackCase, createCaseFollowupFromPad } from "./yemot-askanus-case-actions";
 import { deleteMyPhoneNote } from "./yemot-askanus-note-actions";
 import { readMyFollowup, setMySimpleFollowupCompleted } from "./yemot-askanus-followup-actions";
 
@@ -233,7 +233,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
  const listTitle=path==="121"?"All my tasks":path==="127"?"Unfinished tasks":
    path==="128"?"Overdue tasks":path==="129"?"Tasks due within seven days":
    path==="122"?"My cases":"My private notes";
- if(!x)return "End of "+listTitle+". "+(isTask?"Press 3 to add a callback task. ":"")+"Press 2 to restart, 8 for previous, or zero for main menu.";
+ if(!x)return "End of "+listTitle+". "+(isTask?"Press 3 to add a callback task. ":path==="122"?"Press 5 to create a callback case. ":"")+"Press 2 to restart, 8 for previous, or zero for main menu.";
  const heading=listTitle+" item "+(page+1)+". "+(safeVoice(x.title,105)||"This title needs English audio")+". ";
  if(isTask)return heading+
   "Priority "+safeVoice(x.priority,25)+". "+(x.completed?"Completed. ":"Not yet completed. ")+
@@ -253,7 +253,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
   "Recorded goal "+Number(x.goal_amount||0)+" dollars. "+
   "Promised "+Number(x.funds_promised||0)+" dollars. "+
   "Received "+Number(x.funds_received||0)+" dollars. "+
-  "Press 1 for next, 2 to restart, 3 to change case status, 4 to change case urgency, 8 for previous or zero for main menu.";
+  "Press 1 for next, 2 restart, 3 change case status, 4 change urgency, 5 create a callback case, 6 add followup with due date, 8 previous or zero for main menu.";
  return heading+(safeVoice(x.content,285)||"This note needs an English voice version.")+
   ". Press 1 for next, 2 to restart, 8 for previous, or press 9 twice to delete this private note. Press zero for main menu.";
 }
@@ -296,7 +296,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let noteDeleteTarget=s.note_delete_target;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
-  const inputName=(taskAction==="create"?"rg":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(caseAction==="create"?"rg":caseAction==="followup"?"dt":taskAction==="create"?"rg":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   let goToProviderManagement=false;
@@ -479,6 +479,14 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      feedback="Sign in to your own Gavhah account before changing a case. ";
     }else if(digit==="0"){
      caseAction="";caseActionTarget=null;path="";page=0;
+    }else if(caseAction==="create"){
+     const result=await createCallbackCase(client,userId!,digit);
+     feedback=result.message+" ";
+     if(result.ok){caseAction="";caseActionTarget=null;confirmId=null;page=0;}
+    }else if(caseAction==="followup"){
+     const result=await createCaseFollowupFromPad(client,userId!,caseActionTarget||0,digit);
+     feedback=result.message+" ";
+     if(result.ok){caseAction="";caseActionTarget=null;confirmId=null;}
     }else{
      const result=await updateMyCaseOnPhone(client,userId!,caseActionTarget||0,
        caseAction==="status"?"status":"urgency",digit);
@@ -526,14 +534,19 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      if(note.rows[0])noteDeleteTarget=note.rows[0].id;
      else feedback="No private note at the current list position. ";
     }
-    else if(path==="122"&&["3","4"].includes(digit)&&userId&&
+    else if(path==="122"&&digit==="5"&&userId&&
+      await memberAllowed(client,{...s,member_id:userId})){
+     caseAction="create";caseActionTarget=null;
+     feedback="Create a callback case by entering the contact telephone number. ";
+    }
+    else if(path==="122"&&["3","4","6"].includes(digit)&&userId&&
       await memberAllowed(client,{...s,member_id:userId})){
      const item=await client.query<{id:number}>(
       "SELECT id FROM public.askanus_cases WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",
       [userId,page]);
      if(!item.rows[0])feedback="No case at this position. Press two to restart. ";
      else{
-      caseAction=digit==="3"?"status":"urgency";
+      caseAction=digit==="3"?"status":digit==="4"?"urgency":"followup";
       caseActionTarget=item.rows[0].id;
      }
     }
@@ -642,10 +655,18 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    mode="menu";
    spoken+="WARNING. You are about to delete this private note permanently from your own Gavhah website. Press nine AGAIN to confirm, or zero to cancel.";
   }else if(caseAction&&path==="122"){
-   mode="menu";
-   spoken+=caseAction==="status"?
-    "Change case status on your Gavhah website. Press 1 open, 2 in progress, or 3 closed. Press zero to cancel.":
-    "Change case urgency on your Gavhah website. Press 1 low, 2 medium, 3 high or 4 critical. Press zero to cancel.";
+   if(caseAction==="create"){
+    mode="phone";
+    spoken+="Enter the ten to fifteen digit contact phone number followed by pound. A new callback case is created on your own Gavhah website; it does not create a donor or change money.";
+   }else if(caseAction==="followup"){
+    mode="date";
+    spoken+="Enter eight digit followup date YYYYMMDD followed by pound. The reminder will be attached to this case in your Gavhah website. No time or recurring cycle is assumed.";
+   }else{
+    mode="menu";
+    spoken+=caseAction==="status"?
+      "Change case status on your Gavhah website. Press 1 open, 2 in progress, or 3 closed. Press zero to cancel.":
+      "Change case urgency on your Gavhah website. Press 1 low, 2 medium, 3 high or 4 critical. Press zero to cancel.";
+   }
   }else if(taskAction&&taskPaths.has(path)){
    if(taskAction==="create"){
     mode="phone";
