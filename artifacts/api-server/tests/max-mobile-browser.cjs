@@ -21,6 +21,24 @@ const {chromium}=requireBrowser("playwright");
    const myBody=await page.locator("body").innerText();
    assert.ok(myBody.length>100,"My Askanus rendered a blank page");
    await page.screenshot({path:"/tmp/gavhah-max-my-mobile.png",fullPage:true});
+   // Actual 390px Android-sized Personal Focus + Brain Dump regression.
+   await page.getByRole("tab",{name:/מיין Focus און Brain Dump/}).click();
+   await page.getByRole("heading",{name:/מיין Focus Center/}).waitFor({state:"visible",timeout:15000});
+   await page.getByRole("heading",{name:/Brain Dump/}).waitFor({state:"visible",timeout:15000});
+   await page.getByPlaceholder("איך דארף געדענקען… וויכטיגע מחשבות… געדאנקען פאר מארגן…")
+     .fill("QA Private Brain Dump " + Date.now());
+   await page.getByRole("button",{name:"אפהיטן פריוואט"}).click();
+   await page.getByText("אפגעהיטן אין דיינע פריוואטע נאטיצן.")
+     .waitFor({state:"visible",timeout:15000});
+   const savedNotes=await context.request.get(base+"/api/askanus/notes");
+   assert.equal(savedNotes.status(),200,"Private Brain Dump notes route failed");
+   assert.ok((await savedNotes.json()).some(n=>n.title.startsWith("מחשבות: QA Private Brain Dump")),
+     "Brain Dump was not saved in canonical Askanus notes database");
+   await page.getByRole("button",{name:"זען מיינע נאטיצן"}).click();
+   await page.getByRole("tab",{name:"Notes"}).waitFor({state:"visible",timeout:15000});
+   await page.getByRole("tab",{name:/מיין Focus און Brain Dump/}).click();
+   await page.screenshot({path:"/tmp/gavhah-personal-focus-mobile.png",fullPage:true});
+
    // Seed a single due follow-up by the authorized member. This tests the
    // actual touch UI (not a mock) and leaves the real database untouched.
    const casesResponse=await context.request.get(base+"/api/askanus/cases");
