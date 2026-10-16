@@ -85,7 +85,7 @@ export function YemotCentralManagement() {
     </form>
     <div className="rounded-xl border bg-card p-5 space-y-4">
       <h3 className="font-bold">פארבינדונגס־טעסט</h3>
-      <p className="text-sm text-muted-foreground">דער טעסט לייענט בלויז דעם חשבון־מצב פון ימות. קיין רופן אדער שלוחות ווערן נישט געענדערט.</p>
+      <p className="text-sm text-muted-foreground">דער טעסט לייענט בלויז דעם חשבון־מצב פון ימות. ער באשטעטיגט נישט אז דער אריינגעלייגטער האטליין־נומער געהערט צום שליסל. קיין רופן אדער שלוחות ווערן נישט געענדערט.</p>
       <div className="flex gap-2 flex-wrap">
         <Button disabled={busy||!status.configured} onClick={()=>void work(async()=>{
           const r=await call("test",{method:"POST",body:"{}"});
