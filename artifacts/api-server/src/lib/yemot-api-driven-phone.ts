@@ -245,6 +245,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
   (confirmId===-x.id?"Press 6 again to confirm reopening. ":"")+
   "Press 1 for next, 2 to restart, 3 to create a callback task, 4 to change this task priority, 7 to set the deadline, 8 for previous, 9 twice to delete, or zero for main menu.";
  if(path==="122")return heading+
+  "Case actions: 1 next, 2 restart, 3 change status, 4 change urgency, 5 create callback case, 6 add followup, 7 record contact attempt, 8 previous, 0 main menu. "+
   "Status "+safeVoice(x.status,30)+". Priority "+safeVoice(x.urgency,30)+". "+
   (x.category?"Category "+safeVoice(x.category,45)+". ":"")+
   (x.description?"Description "+(safeVoice(x.description,160)||"Needs an English voice version")+". ":"")+
@@ -253,9 +254,9 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
   "Recorded goal "+Number(x.goal_amount||0)+" dollars. "+
   "Promised "+Number(x.funds_promised||0)+" dollars. "+
   "Received "+Number(x.funds_received||0)+" dollars. "+
-  "Press 1 for next, 2 restart, 3 change case status, 4 change urgency, 5 create a callback case, 6 add followup with due date, 7 log attempted contact with confirmation, 8 previous or zero for main menu.";
- return heading+(safeVoice(x.content,285)||"This note needs an English voice version.")+
-  ". Press 1 for next, 2 to restart, 3 to record a PRIVATE voice note, 8 for previous, or press 9 twice to delete this private note. Press zero for main menu.";
+  "That is the current information saved in your Gavhah website.";
+ return heading+"Note actions: press 1 next, 2 restart, 3 record private note, 8 previous, 9 twice delete selected note, or zero main. "+
+  (safeVoice(x.content,180)||"This note needs an English voice version.");
 }
 
 function sourceCallId(req:Request){
