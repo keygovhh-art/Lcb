@@ -20,7 +20,7 @@ const categories:Record<string,string>={
 };
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124"]);
-const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center.";
+const root="Welcome to Gavhah and Campaign Center  Press 1 for Gavhah  Press 2 for Campaign Center";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -35,13 +35,18 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"cod
    .send("read="+voice(prompt)+"=rr"+step+",,record");return;
  }
  const name=(mode==="code"?"ln":mode==="article"?"ar":"iv")+step;
+ // Yehmot's documented read order is:
+ // name, reuse, maxDigits, minDigits, timeout, playback, blockStar,
+ // blockZero, replacement, allowedDigits, retries, emptyIsOk, emptyValue.
+ // Never shift positions or block digit zero. Most menus use the smallest
+ // valid six/seven fields so a telephone speech issue can be isolated.
  const opts=mode==="code"
- ? [name,"no","8","1","12","Digits","yes"]
+ ? [name,"no","8","8","12","No","no"]
  : mode==="article"
- ? [name,"no","8","1","8","Digits","yes"]
+ ? [name,"no","8","1","8","No","no"]
  : mode==="news"
- ? [name,"no","1","0","6","Digits","yes","","","012348","","","","","no"]
- : [name,"no","1","1","8","Digits","yes"];
+ ? [name,"no","1","0","7","No","no","no","","0123456789","1","Ok","None"]
+ : [name,"no","1","1","8","No","no"];
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("read="+voice(prompt)+"="+opts.join(","));
 }
 function menuPrompt(path:string,tree:Record<string,TreeNode>){
