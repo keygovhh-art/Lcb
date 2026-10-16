@@ -61,3 +61,11 @@ All operations use Gavhah verified member_id, canonical askanus tables, transact
 ### Release gates
 - Additive phone session task_action / task_action_target / case_action / case_action_target / note_delete_target in the STAGED SQL file artifacts/api-server/sql/20261016_gavhah_phone_members.sql.
 - No production Neon migration, main merge, Render deployment or Yemot change. Test staging migration, two-user ownership isolation, date validation, callback duplicate handling, confirm/cancel safety, MAX history, phone hearing and keypad on an authorized future deployment.
+
+## Iteration 3 — Member Followups (STAGED, not live)
+- Existing main phone menu Gavhah > People and Contacts > Follow ups (1-3-4) now maps to authenticated My Askanus case followups from case_followups joined to cases belonging to the exact Gavhah user_id.
+- Reads deadline, time, note (English-safe or fallback), recurrence, completion and navigates with 1/2/8/0.
+- Nonrecurring followups: press 5 twice to mark complete, press 6 twice to reopen. Changes are tenant/owner scoped, row-locked, and audited in MAX history in the same transaction.
+- Recurring followups are READ ONLY on the phone: the normal website creates the next dated instance and transfers linked donor/contact references, therefore phone completion deliberately blocks until that recurrence process is implemented end-to-end.
+- This is partial phone functionality. Arbitrary note creation and full recurring rule editing, notification scheduling and contact editing remain pending.
+- No files or production data were changed. Test future release against actual website recur dates, timezone, idempotent duplicate callbacks, and two-user isolation.
