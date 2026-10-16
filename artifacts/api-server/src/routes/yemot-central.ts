@@ -55,6 +55,7 @@ const publicStatus = (row: ProviderRow | null) => ({
   lastTestAt: row?.last_test_at ?? null,
   updatedAt: row?.updated_at ?? null,
   storageReady: !!key(),
+  lineNumberVerified: false, // GetTemplates tests account access, not ownership of the typed telephone DID.
   token: "NEVER_RETURNED",
   menu: [
     { digit: "1", label: "גבהה", extension: "/1", installed: false },
@@ -132,6 +133,8 @@ router.post("/admin/yemot/test", requireAuth, admin, wrap(async (_req, res) => {
     verified = true;
     templates = data.templates.length;
   } catch {
+    // If provider verification stops working, revoke the stored verification and disable use.
+    await pool.query("UPDATE " + table + " SET enabled=false,last_verified_at=NULL WHERE id=1 AND token_ciphertext=$1", [row.token_ciphertext]);
     res.status(502).json({ connected: false, error: "ימות API connection test failed. Check the provider token and permissions." });
     return;
   } finally { token = ""; }
