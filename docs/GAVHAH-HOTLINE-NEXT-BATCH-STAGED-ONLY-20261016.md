@@ -78,3 +78,13 @@ All operations use Gavhah verified member_id, canonical askanus tables, transact
 - These phone actions require an active Gavhah login and the selected case must belong to that member.
 - Do not claim full parity: case financial ledger mutations, advanced recurrence, arbitrary text editing and linked case deletion remain unimplemented on phone.
 - Do not deploy or run production database migration without explicit user approval.
+
+
+## Private voice notes: Gavhah member-only, STAGING
+- My Askanus > Notes (phone 1-2-3): while reading a note, press 3 to begin a private recording. Recording path must pass provider-owned WAV validation; a new canonical private askanus_notes item is created in the same DB transaction as member call-state update.
+- Additive DB table gavhah_phone_private_note_audio maps existing site note ID to verified member user ID and provider WAV pointer; recording fingerprint is unique to prevent callback duplicates. No public website route and no Campaign Center record.
+- Authenticated website API GET /api/askanus/phone-voice-notes and /api/askanus/phone-voice-notes/:noteId/audio require the CURRENT site session, active status, site note ownership and same original user_id, before bytes are proxied. Audio is bounded to six megabytes and marked private/no-store.
+- My Askanus > Notes renders audio controls in the same Notes tab, with an explicit refresh button. Deleted parent notes automatically delete metadata via FK cascade.
+- Release gate: Yemot actual recording response and provider WAV pointer shape have NOT been tested. Provider recording availability/retention are unverified. Must test with physical call on approved staging/release after both consent and isolated member identities. Never claim full audio playback is already live.
+- Current limitation: voice note editing/transcription, audio deletion from provider itself and arbitrary Yiddish TTS are NOT implemented.
+- Never publish draft or production migrate without explicit user approval.
