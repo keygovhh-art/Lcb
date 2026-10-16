@@ -9,12 +9,24 @@ const leaf=(label:string,web:string,details="This module is mapped. Private acti
 export const phoneTree: Record<string,Item> = {
   "1":group("Gavhah. Global Kindness Network",{
     "1":group("News and updates",{
-      "1":leaf("Latest news","/news"),"2":leaf("Community notices","/news"),"3":leaf("Important and critical news","/news"),
-      "4":leaf("Open a selected news article","/news/:id")
+      "1":leaf("All updates, newest first","/news"),
+      "2":group("Browse news categories",{
+        "1":leaf("Emergency appeals","/news"),"2":leaf("Fundraising","/news"),
+        "3":leaf("Announcements","/news"),"4":leaf("Volunteer calls","/news"),
+        "5":leaf("Community alerts","/news"),"6":leaf("Organization updates","/news"),
+        "7":leaf("Bikur Cholim","/news"),"8":leaf("Community","/news"),
+        "9":leaf("Medical and wedding news","/news")
+      }),
+      "3":leaf("Important and critical news","/news"),
+      "4":leaf("Featured updates","/news")
     }),
     "2":group("My Askanus and MAX",{
-      "1":leaf("Today's tasks","/my"),"2":leaf("Projects and goals","/my"),
-      "3":leaf("Personal history","/my"),"4":leaf("MAX personal dashboard","/communications")
+      "1":leaf("My tasks, including marking complete","/my"),
+      "2":leaf("My personal cases and goals","/my"),
+      "3":leaf("My private notes","/my"),
+      "4":leaf("My personal dashboard","/my"),
+      "5":leaf("Securely link my website account by eight-digit code","/my"),
+      "6":leaf("Log out of this phone session","/my")
     }),
     "3":group("People and contacts",{
       "1":leaf("Donor 360","/communications"),"2":leaf("Contacts","/communications"),
