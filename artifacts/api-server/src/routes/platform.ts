@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and } from "drizzle-orm";
 import {
   db, announcementsTable, reportsTable, notificationsTable,
-  broadcastsTable, usersTable, volunteerProfilesTable, newsTable, discussionsTable,
+  broadcastsTable, hotlineMailboxItems, usersTable, volunteerProfilesTable, newsTable, discussionsTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { createRateLimiter } from "../middlewares/rate-limit";
@@ -152,68 +152,64 @@ router.get("/broadcasts", requireAdmin, async (_req, res): Promise<void> => {
 });
 
 router.post("/broadcasts", requireAdmin, async (req, res): Promise<void> => {
-  const authorId = getSessionUserId(req)!;
-  const { recipientGroup, channel, subject, message } = req.body;
-
-  if (!String(subject || "").trim() || !String(message || "").trim()) {
-    res.status(400).json({ error: "subject and message are required" });
-    return;
+  const authorId=getSessionUserId(req)!;
+  const {recipientGroup,channel,subject,message}=req.body??{};
+  const requestId=req.body?.requestId===undefined?null:String(req.body.requestId||"").trim();
+  const title=String(subject||"").trim().slice(0,240);
+  const body=String(message||"").trim().slice(0,5000);
+  const targets=new Set(["website","hotline_inbox","both"]);
+  if(!title||!body||!targets.has(channel)||!new Set(["all","admins","volunteers"]).has(recipientGroup)
+    ||(requestId!==null&&!/^[a-f0-9-]{36}$/i.test(requestId))){
+    res.status(400).json({error:"Choose valid recipients and a website or hotline-inbox channel"});return;
   }
-  if (channel !== "website") {
-    res.status(400).json({ error: "Only website notifications are active right now" });
-    return;
-  }
-
-  const users = await db.select({
-    id: usersTable.id,
-    role: usersTable.role,
-    status: usersTable.status,
+  // No SMS, outbound calls, voicemail deposit at the provider, or TTS billing.
+  const users=await db.select({
+    id:usersTable.id,role:usersTable.role,status:usersTable.status,
   }).from(usersTable);
-
-  let recipientIds = users
-    .filter(u => u.status === "active")
-    .map(u => u.id);
-
-  if (recipientGroup === "admins") {
-    recipientIds = users
-      .filter(u => u.status === "active" && (u.role === "admin" || u.role === "moderator"))
-      .map(u => u.id);
-  } else if (recipientGroup === "volunteers") {
-    const volunteerRows = await db.select({ userId: volunteerProfilesTable.userId }).from(volunteerProfilesTable);
-    const volunteers = new Set(volunteerRows.map(v => v.userId));
-    recipientIds = users
-      .filter(u => u.status === "active" && volunteers.has(u.id))
-      .map(u => u.id);
-  } else if (recipientGroup !== "all") {
-    res.status(400).json({ error: "Unsupported recipient group" });
-    return;
-  }
-
-  const cleanSubject = String(subject).trim().slice(0, 240);
-  const cleanMessage = String(message).trim().slice(0, 5000);
-
-  if (recipientIds.length > 0) {
-    await db.insert(notificationsTable).values(
-      recipientIds.map(userId => ({
-        userId,
-        type: "broadcast",
-        message: `${cleanSubject} — ${cleanMessage}`,
-        linkUrl: "/notifications",
-        isRead: false,
-      }))
-    );
-  }
-
-  const [broadcast] = await db.insert(broadcastsTable).values({
-    authorId,
-    subject: cleanSubject,
-    message: cleanMessage,
-    recipientGroup,
-    channel: "website",
-    recipientCount: recipientIds.length,
-  }).returning();
-
-  res.status(201).json(broadcast);
+  const volunteers=recipientGroup==="volunteers"
+    ?new Set((await db.select({userId:volunteerProfilesTable.userId}).from(volunteerProfilesTable)).map(v=>v.userId))
+    :new Set<number>();
+  const recipients=users.filter(u=>u.status==="active"&&(
+    recipientGroup==="all" ||
+    (recipientGroup==="admins"&&["admin","moderator","super_admin"].includes(u.role)) ||
+    (recipientGroup==="volunteers"&&volunteers.has(u.id))
+  )).map(u=>u.id);
+  const result=await db.transaction(async tx=>{
+    const [saved]=await tx.insert(broadcastsTable).values({
+      authorId,subject:title,message:body,recipientGroup,channel,
+      recipientCount:recipients.length,requestId,
+    }).onConflictDoNothing().returning();
+    if(!saved){
+      const [old]=await tx.select().from(broadcastsTable).where(and(
+        eq(broadcastsTable.authorId,authorId),eq(broadcastsTable.requestId,requestId!)));
+      if(!old||old.subject!==title||old.message!==body||old.channel!==channel||
+         old.recipientGroup!==recipientGroup)return {kind:"conflict" as const};
+      return {kind:"duplicate" as const,broadcast:old};
+    }
+    // Fan out in chunks to stay below Postgres' query-parameter limit.
+    for(let i=0;i<recipients.length;i+=250){
+      const batch=recipients.slice(i,i+250);
+      if(channel==="website"||channel==="both"){
+        await tx.insert(notificationsTable).values(batch.map(userId=>({
+          userId,type:"broadcast",message:title+" — "+body,
+          linkUrl:"/notifications",isRead:false,
+        })));
+      }
+      if(channel==="hotline_inbox"||channel==="both"){
+        await tx.insert(hotlineMailboxItems).values(batch.map(userId=>({
+          userId,broadcastId:saved.id,subject:title,message:body,
+        })));
+      }
+    }
+    return {kind:"created" as const,broadcast:saved};
+  });
+  res.setHeader("Cache-Control","private, no-store");
+  if(result.kind==="conflict"){res.status(409).json({error:"Broadcast request ID already used for different content"});return;}
+  res.status(result.kind==="duplicate"?200:201).json({
+    ...result.broadcast,duplicate:result.kind==="duplicate",
+    hotlineProviderDelivered:false,externalPhoneCalls:0,externalSms:0,
+    message:"Internal inbox delivery only. Actual IVR playback requires hotline API integration.",
+  });
 });
 
 // Notifications
