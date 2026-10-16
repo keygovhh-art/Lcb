@@ -3,7 +3,8 @@ import { createHmac, randomBytes, randomInt, scrypt, timingSafeEqual } from "nod
 import { promisify } from "node:util";
 import { pool } from "@workspace/db";
 import { requireAuth, getCurrentSessionUser } from "../middlewares/auth";
-import { verifyPassword } from "../lib/crypto";
+import { hashPassword, verifyPassword } from "../lib/crypto";
+import { isReservedSuperAdminName } from "../lib/super-admin";
 
 const router=Router();
 const derive=promisify(scrypt);
@@ -67,6 +68,97 @@ export async function verifyGavhahPhonePin(pin:string):Promise<number|null>{
  await pool.query("UPDATE public.gavhah_phone_member_pins SET failed_attempts=0,locked_until=NULL WHERE user_id=$1",[row.user_id]);
  return row.user_id;
 }
+// Unverified phone applications remain PENDING and confer NO membership.
+// All application details stay in Gavhah's database, not Yemot folders.
+export async function requestGavhahPhoneAccount(contact:string,pin:string,callHash:string){
+ if(!/^[0-9]{10,15}$/.test(contact)||!validPin(pin)||!/^[a-f0-9]{64}$/.test(callHash))
+  return "The phone number or numerical password is invalid.";
+ const existing=await pool.query(
+  "SELECT 1 FROM public.users WHERE phone=$1 LIMIT 1",[contact]);
+ if(existing.rowCount)return "If you have an existing account, please use the login option.";
+ const recent=await pool.query(
+  "SELECT 1 FROM public.gavhah_phone_join_requests WHERE (call_hash=$1 AND submitted_at>now()-interval '24 hours') "+
+  "OR (contact_phone=$2 AND status='pending') LIMIT 1",[callHash,contact]);
+ if(recent.rowCount)return "A registration request for this call or number is already awaiting verification.";
+ const salt=randomBytes(16).toString("hex");
+ const verifier=await slowHash(pin,salt);
+ const pwHash=await hashPassword(pin);
+ try{
+  await pool.query(
+   "INSERT INTO public.gavhah_phone_join_requests(call_hash,contact_phone,website_password_hash,pin_index,pin_salt,pin_verifier) "+
+   "VALUES($1,$2,$3,$4,$5,$6)",[callHash,contact,pwHash,lookup(pin),salt,verifier]);
+ }catch(e){
+  if((e as {code?:string})?.code==="23505")return "A request is already awaiting contact verification.";
+  throw e;
+ }
+ return "Your Gavhah membership request was saved in our website administration system. Your phone number must be verified by our team before the account can become active. The chosen numeric password will work on the website after approval. Your request is not yet a membership.";
+}
+router.get("/admin/phone/join-requests",requireAuth,async(req,res,next)=>{
+ try{
+  const actor=await getCurrentSessionUser(req);
+  if(!actor||!["admin","super_admin"].includes(actor.role)){res.sendStatus(403);return;}
+  const requests=await pool.query(
+   "SELECT id,contact_phone,status,submitted_at FROM public.gavhah_phone_join_requests "+
+   "WHERE status='pending' ORDER BY submitted_at ASC LIMIT 100");
+  res.set("Cache-Control","private,no-store").json({requests:requests.rows});
+ }catch(e){next(e);}
+});
+router.post("/admin/phone/join-requests/:id/review",requireAuth,async(req,res,next)=>{
+ try{
+  if(!originAllowed(req)){res.sendStatus(403);return;}
+  const actor=await getCurrentSessionUser(req);
+  if(!actor||!["admin","super_admin"].includes(actor.role)){res.sendStatus(403);return;}
+  const own=await pool.query<{password_hash:string}>(
+   "SELECT password_hash FROM public.users WHERE id=$1",[actor.id]);
+  if(!own.rows[0]||!await verifyPassword(String(req.body?.adminPassword||""),own.rows[0].password_hash)){
+   res.status(401).json({error:"Administrator website password confirmation required"});return;
+  }
+  const id=Number(req.params.id),decision=req.body?.decision;
+  if(!Number.isSafeInteger(id)||id<=0||!["approved","rejected"].includes(decision)){
+   res.status(400).json({error:"Invalid review"});return;
+  }
+  if(decision==="approved"&&req.body?.contactVerified!==true){
+   res.status(400).json({error:"Explicit independent contact verification required before membership approval"});return;
+  }
+  const name=String(req.body?.name||"").trim().slice(0,120);
+  const nickname=String(req.body?.nickname||name).trim().slice(0,120);
+  if(decision==="approved"&&
+      (!name||!nickname||isReservedSuperAdminName(name)||isReservedSuperAdminName(nickname))){
+   res.status(400).json({error:"Valid verified member name and nickname required"});return;
+  }
+  const client=await pool.connect();
+  try{
+   await client.query("BEGIN");
+   const result=await client.query(
+    "SELECT * FROM public.gavhah_phone_join_requests WHERE id=$1 AND status='pending' FOR UPDATE",[id]);
+   const pending=result.rows[0];
+   if(!pending){await client.query("ROLLBACK");res.status(409).json({error:"Request already reviewed"});return;}
+   let memberId:number|null=null;
+   if(decision==="approved"){
+    const exists=await client.query("SELECT id FROM public.users WHERE phone=$1",[pending.contact_phone]);
+    if(exists.rowCount){await client.query("ROLLBACK");res.status(409).json({error:"Phone number already belongs to another account"});return;}
+    const created=await client.query<{id:number}>(
+     "INSERT INTO public.users(name,nickname,phone,password_hash,role,status) "+
+     "VALUES($1,$2,$3,$4,'member','active') RETURNING id",
+     [name,nickname,pending.contact_phone,pending.website_password_hash]);
+    memberId=created.rows[0].id;
+    await client.query(
+     "INSERT INTO public.gavhah_phone_member_pins(user_id,pin_index,pin_salt,pin_verifier,assigned_by,activation_required) "+
+     "VALUES($1,$2,$3,$4,$5,false)",
+     [memberId,pending.pin_index,pending.pin_salt,pending.pin_verifier,actor.id]);
+   }
+   await client.query(
+    "UPDATE public.gavhah_phone_join_requests SET status=$1,reviewed_at=now(),reviewed_by=$2,created_user_id=$3 "+
+    "WHERE id=$4",[decision,actor.id,memberId,id]);
+   await client.query("COMMIT");
+   res.json({reviewed:true,decision,memberId,owner:"gavhah"});
+  }catch(e){
+   await client.query("ROLLBACK").catch(()=>{});
+   if((e as {code?:string})?.code==="23505"){res.status(409).json({error:"Account identity or PIN already exists"});return;}
+   throw e;
+  }finally{client.release();}
+ }catch(e){next(e);}
+});
 router.get("/account/phone-pin",requireAuth,async(req,res,next)=>{
  try{
   const user=await getCurrentSessionUser(req);
