@@ -6,7 +6,7 @@ import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } fro
 import { verifyGavhahPhonePin, requestGavhahPhoneAccount } from "../routes/phone-member-pin";
 import { campaignPhoneBridge } from "./campaign-center-phone-bridge";
 import { createCallTask, changePhoneTaskPriority, changePhoneTaskDeadline, setPhoneTaskCompleted, deletePhoneTask } from "./yemot-askanus-task-actions";
-import { updateMyCaseOnPhone, createCallbackCase, createCaseFollowupFromPad } from "./yemot-askanus-case-actions";
+import { updateMyCaseOnPhone, createCallbackCase, createCaseFollowupFromPad, logMyCaseContactAttempt } from "./yemot-askanus-case-actions";
 import { deleteMyPhoneNote,createMyRecordedPhoneNote } from "./yemot-askanus-note-actions";
 import { readMyFollowup, setMySimpleFollowupCompleted } from "./yemot-askanus-followup-actions";
 
@@ -253,7 +253,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
   "Recorded goal "+Number(x.goal_amount||0)+" dollars. "+
   "Promised "+Number(x.funds_promised||0)+" dollars. "+
   "Received "+Number(x.funds_received||0)+" dollars. "+
-  "Press 1 for next, 2 restart, 3 change case status, 4 change urgency, 5 create a callback case, 6 add followup with due date, 8 previous or zero for main menu.";
+  "Press 1 for next, 2 restart, 3 change case status, 4 change urgency, 5 create a callback case, 6 add followup with due date, 7 log attempted contact with confirmation, 8 previous or zero for main menu.";
  return heading+(safeVoice(x.content,285)||"This note needs an English voice version.")+
   ". Press 1 for next, 2 to restart, 3 to record a PRIVATE voice note, 8 for previous, or press 9 twice to delete this private note. Press zero for main menu.";
 }
@@ -487,6 +487,13 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      feedback="Sign in to your own Gavhah account before changing a case. ";
     }else if(digit==="0"){
      caseAction="";caseActionTarget=null;path="";page=0;
+    }else if(caseAction==="contact"){
+     if(digit!=="9"){caseAction="";caseActionTarget=null;feedback="Contact attempt cancelled. ";}
+     else{
+      const result=await logMyCaseContactAttempt(client,userId!,caseActionTarget||0);
+      feedback=result.message+" ";
+      if(result.ok){caseAction="";caseActionTarget=null;confirmId=null;}
+     }
     }else if(caseAction==="create"){
      const result=await createCallbackCase(client,userId!,digit);
      feedback=result.message+" ";
@@ -552,14 +559,14 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      caseAction="create";caseActionTarget=null;
      feedback="Create a callback case by entering the contact telephone number. ";
     }
-    else if(path==="122"&&["3","4","6"].includes(digit)&&userId&&
+    else if(path==="122"&&["3","4","6","7"].includes(digit)&&userId&&
       await memberAllowed(client,{...s,member_id:userId})){
      const item=await client.query<{id:number}>(
       "SELECT id FROM public.askanus_cases WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",
       [userId,page]);
      if(!item.rows[0])feedback="No case at this position. Press two to restart. ";
      else{
-      caseAction=digit==="3"?"status":digit==="4"?"urgency":"followup";
+      caseAction=digit==="3"?"status":digit==="4"?"urgency":digit==="6"?"followup":"contact";
       caseActionTarget=item.rows[0].id;
      }
     }
@@ -671,7 +678,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    mode="menu";
    spoken+="WARNING. You are about to delete this private note permanently from your own Gavhah website. Press nine AGAIN to confirm, or zero to cancel.";
   }else if(caseAction&&path==="122"){
-   if(caseAction==="create"){
+   if(caseAction==="contact"){
+    mode="menu";
+    spoken+="Confirm logging an attempted contact in this case website activity. Press nine again to confirm. Press zero to cancel. This will NOT make an outbound call.";
+   }else if(caseAction==="create"){
     mode="phone";
     spoken+="Enter the ten to fifteen digit contact phone number followed by pound. A new callback case is created on your own Gavhah website; it does not create a donor or change money.";
    }else if(caseAction==="followup"){
