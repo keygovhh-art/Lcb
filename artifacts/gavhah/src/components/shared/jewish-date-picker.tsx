@@ -33,11 +33,28 @@ function yearMonths(y:number):HebrewMonth[]{
  }
  yearCache.set(y,result);return result;
 }
+/** Real Hebrew letters with gershayim, including special 15 and 16. */
+function hebrewNumeral(n:number):string{
+ const letters:[number,string][]=[
+  [400,"ת"],[300,"ש"],[200,"ר"],[100,"ק"],[90,"צ"],[80,"פ"],
+  [70,"ע"],[60,"ס"],[50,"נ"],[40,"מ"],[30,"ל"],[20,"כ"],
+  [10,"י"],[9,"ט"],[8,"ח"],[7,"ז"],[6,"ו"],[5,"ה"],[4,"ד"],[3,"ג"],[2,"ב"],[1,"א"]
+ ];
+ if(!Number.isSafeInteger(n)||n<1||n>6999)return String(n);
+ let rest=n>=5000?n%1000:n,chars="";
+ while(rest>0){
+  if(rest===15){chars+="טו";break;}
+  if(rest===16){chars+="טז";break;}
+  const pair=letters.find(([size])=>size<=rest);
+  if(!pair)break;chars+=pair[1];rest-=pair[0];
+ }
+ return chars.length<2?chars+"׳":chars.slice(0,-1)+"״"+chars.slice(-1);
+}
 function dayPreview(iso:string){
  const d=parse(iso);if(!d)return "";
- const p=part(d),hdate=he.format(d);
- const yearHe=new Intl.NumberFormat("he",{useGrouping:false}).format(p.year);
- return hdate.replace(yearHe,String(p.year));
+ const p=part(d);
+ const month=he.formatToParts(d).find(q=>q.type==="month")?.value||p.month;
+ return hebrewNumeral(p.day)+" "+month+" "+hebrewNumeral(p.year);
 }
 const weekdays=["זונטאג","מאנטאג","דינסטאג","מיטוואך","דאנערשטאג","פרייטאג","שבת"];
 export function JewishDatePicker({value,onChange,label,id}:{
@@ -99,7 +116,7 @@ export function JewishDatePicker({value,onChange,label,id}:{
        {Array.from({length:firstDay},(_,i)=><span key={"blank"+i}/>)}
        {(shown?.days||[]).map(({day,iso})=><button key={iso} type="button" aria-selected={iso===value}
         onClick={()=>pick(iso)} className={"min-h-9 rounded-md border text-xs "+(iso===value?"bg-primary text-primary-foreground":"")}>
-        {day}</button>)}
+        {hebrewNumeral(day)}</button>)}
      </div>
     </>
    }
