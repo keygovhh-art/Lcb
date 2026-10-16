@@ -6,8 +6,8 @@ import { getSessionUserId, requireAuth } from "../middlewares/auth";
 import { isRepeatRule, validCalendarDate } from "../lib/followup-recurrence";
 
 const router = Router();
-const moneyKinds = new Set(["none", "received", "pledged"]);
-const outcomes = new Set(["spoke", "no_answer", "callback", "not_interested", "do_not_call", "other"]);
+const moneyKinds = new Set(["none", "received", "pledged", "split"]);
+const outcomes = new Set(["spoke", "no_answer", "callback", "not_interested", "do_not_call", "partial_paid", "other"]);
 const clean = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 const cleanTags = (value: unknown) => {
   const original=clean(value,600);
@@ -20,7 +20,7 @@ const formatContact = (c: typeof communicationContacts.$inferSelect) => ({
   ...c, createdAt: c.createdAt.toISOString(), updatedAt: c.updatedAt.toISOString(),
 });
 const formatCall = (r: typeof fundraisingCallReports.$inferSelect) => ({
-  ...r, amount: Number(r.amount), createdAt: r.createdAt.toISOString(),
+  ...r, amount: Number(r.amount),paidAmount:Number(r.paidAmount),pledgedAmount:Number(r.pledgedAmount), createdAt: r.createdAt.toISOString(),
 });
 
 // User-scoped contact records; campaign admins have no implicit access.
@@ -160,6 +160,11 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   const outcome = clean(body.outcome, 32);
   const moneyKind = clean(body.moneyKind, 32) || "none";
   const amount = Number(body.amount ?? 0);
+  const paidAmount = moneyKind==="split" ? Number(body.paidAmount ?? 0) : moneyKind==="received" ? amount : 0;
+  const pledgedAmount = moneyKind==="split" ? Number(body.pledgedAmount ?? 0) : moneyKind==="pledged" ? amount : 0;
+  const outcomeDetail = clean(body.outcomeDetail, 400);
+  const moodDetail = clean(body.moodDetail, 400);
+
   const followupNote = clean(body.followupNote, 1500);
   const dueDate = clean(body.dueDate, 10) || null;
   const dueTime = clean(body.dueTime, 5) || null;
@@ -180,6 +185,15 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
       Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001 ||
       (moneyKind === "none" && amount !== 0) ||
       (moneyKind !== "none" && amount <= 0) ||
+      !Number.isFinite(paidAmount) || !Number.isFinite(pledgedAmount) ||
+      paidAmount < 0 || pledgedAmount < 0 ||
+      Math.abs(paidAmount*100-Math.round(paidAmount*100))>0.000001 ||
+      Math.abs(pledgedAmount*100-Math.round(pledgedAmount*100))>0.000001 ||
+      (moneyKind==="split" && (paidAmount<=0 || pledgedAmount<=0 ||
+        Math.abs(amount-paidAmount-pledgedAmount)>0.000001)) ||
+      (outcome==="partial_paid" && moneyKind!=="split") ||
+      (outcomeDetail.length>0 && outcome!=="other") ||
+      (moodDetail.length>0 && mood!=="other") ||
       !isoDate(dueDate) || !isRepeatRule(repeatRule) ||
       (repeatRule!=="none" && (!followupNote||!dueDate)) || (dueTime && (!followupNote || !dueDate)) || (followupNote && !dueDate && body.dueDate) ||
       (contactId !== null && !safeId(contactId)) ||
@@ -199,47 +213,57 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   const result = await db.transaction(async tx => {
     const [saved] = await tx.insert(fundraisingCallReports).values({
       userId, caseId, contactId, contactName, outcome, moneyKind,
-      amount: String(amount), note, requestId, observedMood:mood,
+      amount:String(amount), paidAmount:String(paidAmount), pledgedAmount:String(pledgedAmount),
+      outcomeDetail, moodDetail, note, requestId, observedMood:mood,
     }).onConflictDoNothing().returning();
     if (!saved) {
       const [existing] = await tx.select().from(fundraisingCallReports).where(and(
         eq(fundraisingCallReports.userId,userId),eq(fundraisingCallReports.requestId,requestId)));
       if(!existing || existing.caseId!==caseId || Number(existing.amount)!==amount ||
-          existing.moneyKind!==moneyKind || existing.contactId!==contactId || existing.outcome!==outcome){
+          existing.moneyKind!==moneyKind || existing.contactId!==contactId || existing.outcome!==outcome ||
+          Number(existing.paidAmount)!==paidAmount || Number(existing.pledgedAmount)!==pledgedAmount ||
+          existing.outcomeDetail!==outcomeDetail || existing.moodDetail!==moodDetail){
         return {kind:"conflict" as const};
       }
       return {kind:"duplicate" as const, report:existing};
     }
     await tx.insert(caseActivityLog).values({
       caseId,date:today,type:"contact",
-      note: `Manual call report: ${contactName} — ${outcome} (observed mood: ${mood})${note ? " — "+note : ""}`.slice(0,1500),
+      note: `Manual call report: ${contactName} — ${outcome}${outcomeDetail ? " ("+outcomeDetail+")" : ""} (observed mood: ${mood}${moodDetail ? ": "+moodDetail : ""})${note ? " — "+note : ""}`.slice(0,1500),
     });
     if(outcome==="do_not_call" && contactId!==null) {
       await tx.update(communicationContacts).set({
         doNotCall:true,optOutReason:note||"Asked not to be called",updatedAt:new Date(),
       }).where(and(eq(communicationContacts.id,contactId),eq(communicationContacts.userId,userId)));
     }
-    if (moneyKind==="pledged") {
+    // One call can contain money received NOW and a separate OUTSTANDING promise.
+    // Never include the paid portion in maxPledges or the remaining promise in maxReceipts.
+    if(pledgedAmount>0){
       await tx.insert(maxPledges).values({
-        userId,caseId,contactId,callReportId:saved.id,amount:String(amount),note,
+        userId,caseId,contactId,callReportId:saved.id,amount:String(pledgedAmount),note,
       });
-    } else if (moneyKind==="received") {
-      await tx.insert(maxReceipts).values({
-        userId,caseId,contactId,callReportId:saved.id,amount:String(amount),
-        requestId:"call:"+requestId,method:"other",verification:"manually_reported",
+      await tx.insert(caseActivityLog).values({
+        caseId,date:today,type:"funds_promised",
+        note:`Manual pledge: ${contactName} — $${pledgedAmount.toFixed(2)} outstanding`,
+        amount:String(pledgedAmount),
       });
     }
-    if (moneyKind !== "none") {
-      await tx.insert(caseActivityLog).values({
-        caseId,date:today,type:moneyKind === "received" ? "funds_received" : "funds_promised",
-        note: `Manual report: ${contactName} — ${moneyKind === "received" ? "received" : "pledged"} $${amount.toFixed(2)}`.slice(0,1500),
-        amount:String(amount),
+    if(paidAmount>0){
+      await tx.insert(maxReceipts).values({
+        userId,caseId,contactId,callReportId:saved.id,amount:String(paidAmount),
+        requestId:"call:"+requestId,method:"other",verification:"manually_reported",
       });
+      await tx.insert(caseActivityLog).values({
+        caseId,date:today,type:"funds_received",
+        note:`Manual receipt: ${contactName} — $${paidAmount.toFixed(2)} received`,
+        amount:String(paidAmount),
+      });
+    }
+    if(paidAmount>0||pledgedAmount>0) {
       await tx.update(askanuscases).set({
-        ...(moneyKind === "received"
-          ? { fundsReceived: sql`${askanuscases.fundsReceived} + ${String(amount)}` }
-          : { fundsPromised: sql`${askanuscases.fundsPromised} + ${String(amount)}` }),
-        lastUpdated: new Date(),
+        fundsReceived:sql`${askanuscases.fundsReceived} + ${String(paidAmount)}`,
+        fundsPromised:sql`${askanuscases.fundsPromised} + ${String(pledgedAmount)}`,
+        lastUpdated:new Date(),
       }).where(and(eq(askanuscases.id,caseId),eq(askanuscases.userId,userId)));
     }
     if (followupNote) {
