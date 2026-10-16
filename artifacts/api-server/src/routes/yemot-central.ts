@@ -159,6 +159,33 @@ router.delete("/admin/yemot/connection", requireAuth, admin, wrap(async (req, re
   await pool.query("DELETE FROM " + table + " WHERE id=1");
   res.json({ configured: false, enabled: false });
 }));
+// A brand-new Yemot line can already contain its default ext.ini. This
+// is configuration, not user content. UpdateExtension updates supplied keys
+// within ext.ini without deleting the file or unrelated keys. Block when any
+// other file, audio message or child extension is present or the current
+// extension settings are not clearly the default menu.
+function rootPreflight(result:any) {
+ const groups=["dirs","files","ini","messages","html"] as const;
+ const valid=groups.every(k=>Array.isArray(result?.[k]));
+ const counts=Object.fromEntries(groups.map(k=>[k,Array.isArray(result?.[k])?result[k].length:null]));
+ const fileName=(x:any)=>String(x?.name??x?.fileName??x?.what??"").split("/").pop()?.toLowerCase()||"";
+ const iniNames:string[]=Array.isArray(result?.ini)?result.ini.map(fileName):[];
+ const defaultIni=iniNames.every(name=>name==="ext.ini");
+ const settings=result?.extIni;
+ const keys=(settings&&typeof settings==="object"&&!Array.isArray(settings))?Object.keys(settings):[];
+ const allowedSettings=keys.every(k=>["type","title","language"].includes(k)) &&
+   (!settings?.type||["menu","playfile"].includes(String(settings.type).toLowerCase()));
+ const noContent=valid&&result.dirs.length===0&&result.files.length===0&&
+  result.messages.length===0&&result.html.length===0;
+ const canInstall=noContent&&defaultIni&&allowedSettings;
+ let reason="Root can accept a single API entry without replacing existing content.";
+ if(!valid)reason="Provider returned an incomplete root inventory; no changes made.";
+ else if(!noContent)reason="Provider has existing folders, files, audio messages or reports; root needs review.";
+ else if(!defaultIni)reason="Provider contains non-default .ini settings files; root needs review.";
+ else if(!allowedSettings)reason="Provider has non-default root settings; root needs review.";
+ return {canInstall,counts,reason,settingKeys:keys.slice(0,30),iniNames:iniNames.slice(0,30)};
+}
+
 // Read-only provider inventory before proposing ANY changes to root or child extensions.
 router.get("/admin/yemot/provider-directory", requireAuth, admin, wrap(async (req, res) => {
   const requested=typeof req.query.path==="string"?req.query.path:"/";
@@ -195,17 +222,22 @@ router.get("/admin/yemot/provider-directory", requireAuth, admin, wrap(async (re
     return;
   }
   const safeName=(x:any)=>String(x?.name??x?.fileName??x?.what??"").slice(0,100);
-  const entries=[
-    ...dirs.slice(0,100).map((x:any)=>({name:safeName(x),type:"directory"})),
-    ...files.slice(0,100).map((x:any)=>({name:safeName(x),type:String(x.fileType??"file").slice(0,25)}))
-  ].filter(x=>x.name&&!x.name.includes("\\0"));
+  const groups=[
+    {items:dirs,label:"directory"},{items:files,label:"file"},
+    {items:ini,label:"ini"},{items:Array.isArray(result.messages)?result.messages:[],label:"audio/message"},
+    {items:Array.isArray(result.html)?result.html:[],label:"html"}
+  ];
+  const entries=groups.flatMap(g=>g.items.slice(0,60).map((x:any)=>({
+    name:safeName(x),type:g.label
+  }))).filter(x=>x.name&&!x.name.includes("\\0"));
+  const preflight=requested==="/"?rootPreflight(result):null;
   res.setHeader("Cache-Control","private, no-store");
   res.json({path:requested,entries,responseOk:true,
-    providerTotal:dirs.length+files.length+ini.length,
+    providerTotal:groups.reduce((count,g)=>count+g.items.length,0),
     totalDirectories:dirs.length,totalFiles:files.length,totalSettings:ini.length,
-    truncated:dirs.length>100||files.length>100,
+    truncated:groups.some(g=>g.items.length>60),preflight,
     safeToOverwrite:false,
-    note:"Read only. A missing directory in a partial listing is not proof that it is safe to create or replace."});
+    note:"Read only. A default ext.ini does not itself mean a previous user configured the hotline. No content is deleted."});
 }));
 
 
@@ -252,18 +284,13 @@ router.post("/admin/yemot/install-root",requireAuth,admin,wrap(async(req,res)=>{
     };
     // Official GetIVR2Dir ROOT path is "/", NOT "ivr2:/".
     const inventory=await callProvider("GetIVR2Dir",{path:"/"});
-    if(!Array.isArray(inventory.dirs)||!Array.isArray(inventory.files)||
-       !Array.isArray(inventory.ini)||!Array.isArray(inventory.messages)||
-       !Array.isArray(inventory.html)){
-      throw Error("Provider returned incomplete root inventory. Nothing changed.");
-    }
-    if(inventory.dirs.length||inventory.files.length||inventory.ini.length||
-       inventory.messages.length||inventory.html.length){
-      throw Error("Provider root is not empty. Refusing to replace any existing files.");
-    }
-    if(inventory.extIni&&typeof inventory.extIni==="object"&&
-       Object.keys(inventory.extIni).some(key=>!["title","language"].includes(key))){
-      throw Error("Root already has extension settings. Refusing to replace them.");
+    const decision=rootPreflight(inventory);
+    if(!decision.canInstall){
+      await pool.query(
+       "UPDATE public.gavhah_yemot_ivr_install SET provider_summary=$1::jsonb,updated_at=now() WHERE id=1",
+       [JSON.stringify({counts:decision.counts,settingKeys:decision.settingKeys,
+         iniNames:decision.iniNames,reason:decision.reason})]);
+      throw Error(decision.reason);
     }
     // The voice callback is identified by a random key sent only to Yemot's
     // provider-side root settings; the app stores its SHA-256 digest.
@@ -274,7 +301,7 @@ router.post("/admin/yemot/install-root",requireAuth,admin,wrap(async(req,res)=>{
       "safe_message='Provider root verified empty; preparing API gateway',updated_at=now() WHERE id=1",
       [callbackHash]);
     await callProvider("UpdateExtension",{
-      path:"ivr2:/",type:"api",title:"Gavhah and Campaign Center",
+      path:"ivr2:",type:"api",title:"Gavhah and Campaign Center",
       api_link:"https://gavhah.onrender.com/api/yemot/ivr",api_url_post:"yes",
       api_add_0:"entryKey="+callbackSecret,language:"en"
     });
