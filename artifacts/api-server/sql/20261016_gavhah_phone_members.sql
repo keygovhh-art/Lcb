@@ -42,3 +42,5 @@ ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS task_action
 
 ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS case_action text NOT NULL DEFAULT '';
 ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS case_action_target integer;
+
+ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS note_delete_target integer;
