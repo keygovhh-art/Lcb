@@ -14,6 +14,7 @@ import { useAuth } from "@/context/auth-context";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { CaseFollowups } from "@/components/askanus/case-followups";
 import { MaxHistoryPanel } from "@/components/communications/max-history-panel";
+import { PersonalFocusBrainDump } from "@/components/askanus/personal-focus-brain-dump";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -624,6 +625,7 @@ export default function MyAskanus() {
     if (isLoaded && !isAuthenticated) navigate("/login");
   }, [isLoaded, isAuthenticated, navigate]);
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().slice(0, 10));
+  const [personalSection,setPersonalSection]=useState(() => Number(new URLSearchParams(window.location.search).get("case"))>0?"cases":"focus");
   const [newNote, setNewNote] = useState({ title: "", content: "" });
   const [editNoteId, setEditNoteId] = useState<number | null>(null);
   const [caseFilter, setCaseFilter] = useState<"all" | "open" | "in_progress" | "closed">("all");
@@ -792,8 +794,9 @@ export default function MyAskanus() {
       </div>
 
       <div className="container mx-auto px-4 py-10">
-        <Tabs defaultValue="cases" className="space-y-8">
+        <Tabs value={personalSection} onValueChange={setPersonalSection} className="space-y-8">
           <TabsList className="bg-muted/50 h-auto p-1 flex flex-wrap gap-1">
+            <TabsTrigger value="focus" className="gap-2"><Target className="h-4 w-4" /> מיין Focus און Brain Dump</TabsTrigger>
             <TabsTrigger value="cases" className="gap-2">
               <HandHeart className="h-4 w-4" /> Cases
               {openCases > 0 && <span className="bg-secondary text-white text-xs rounded-full px-1.5">{openCases}</span>}
@@ -809,6 +812,11 @@ export default function MyAskanus() {
               {unread > 0 && <span className="bg-destructive text-white text-xs rounded-full px-1.5">{unread}</span>}
             </TabsTrigger>
           </TabsList>
+
+          {/* Private focus uses the SAME notes and tasks records as My Askanus; no data fork. */}
+          <TabsContent value="focus" className="space-y-5">
+            <PersonalFocusBrainDump onOpenTasks={()=>setPersonalSection("tasks")} onOpenNotes={()=>setPersonalSection("notes")} onOpenHistory={()=>setPersonalSection("history")}/>
+          </TabsContent>
 
           {/* CASES */}
           <TabsContent value="cases" className="space-y-4">
