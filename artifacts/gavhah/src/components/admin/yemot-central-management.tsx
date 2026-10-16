@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { GavhahAdminPhonePinPanel } from "@/components/askanus/hotline-member-pin";
+import { GavhahAdminPhonePinPanel, GavhahPhoneJoinReview } from "@/components/askanus/hotline-member-pin";
 
 type Status = {
   configured: boolean;
@@ -54,6 +54,7 @@ export function YemotCentralManagement() {
 
   return <div dir="rtl" lang="yi" className="max-w-3xl space-y-5">
     <GavhahAdminPhonePinPanel />
+    <GavhahPhoneJoinReview />
     <div className="rounded-xl border bg-card p-5 space-y-2">
       <h2 className="text-xl font-bold">ימות המשיח — איין צענטראלער API</h2>
       <p className="text-sm text-muted-foreground">
