@@ -169,7 +169,7 @@ function rootPreflight(result:any) {
  const valid=groups.every(k=>Array.isArray(result?.[k]));
  const counts=Object.fromEntries(groups.map(k=>[k,Array.isArray(result?.[k])?result[k].length:null]));
  const fileName=(x:any)=>String(x?.name??x?.fileName??x?.what??"").split("/").pop()?.toLowerCase()||"";
- const iniNames=Array.isArray(result?.ini)?result.ini.map(fileName):[];
+ const iniNames:string[]=Array.isArray(result?.ini)?result.ini.map(fileName):[];
  const defaultIni=iniNames.every(name=>name==="ext.ini");
  const settings=result?.extIni;
  const keys=(settings&&typeof settings==="object"&&!Array.isArray(settings))?Object.keys(settings):[];
