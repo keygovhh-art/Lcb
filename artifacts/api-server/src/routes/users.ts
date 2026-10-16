@@ -87,8 +87,8 @@ router.post("/users", registrationLimiter, async (req, res): Promise<void> => {
     res.status(400).json({ error: "email or phone is required" });
     return;
   }
-  if (!password || password.length < 8) {
-    res.status(400).json({ error: "password must be at least 8 characters" });
+  if (!password || password.length < 8 || (/^[0-9]+$/.test(password) && password.length < 12)) {
+    res.status(400).json({ error: "Mixed passwords must be at least 8 characters; numbers-only passwords require 12 digits" });
     return;
   }
 
