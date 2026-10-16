@@ -213,7 +213,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
  const listTitle=path==="121"?"All my tasks":path==="127"?"Unfinished tasks":
    path==="128"?"Overdue tasks":path==="129"?"Tasks due within seven days":
    path==="122"?"My cases":"My private notes";
- if(!x)return "End of "+listTitle+". Press 2 to restart, 8 for previous, or zero for main menu.";
+ if(!x)return "End of "+listTitle+". "+(isTask?"Press 3 to add a callback task. ":"")+"Press 2 to restart, 8 for previous, or zero for main menu.";
  const heading=listTitle+" item "+(page+1)+". "+(safeVoice(x.title,105)||"This title needs English audio")+". ";
  if(isTask)return heading+
   "Priority "+safeVoice(x.priority,25)+". "+(x.completed?"Completed. ":"Not yet completed. ")+
@@ -223,7 +223,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
   (x.completed?"Press 6 twice to reopen this task. ":"Press 5 twice to mark this task complete. ")+
   (confirmId===x.id?"Press 5 again to confirm completion. ":"")+
   (confirmId===-x.id?"Press 6 again to confirm reopening. ":"")+
-  "Press 1 for next, 8 for previous, 2 for restart, or zero for main menu.";
+  "Press 1 for next, 2 to restart, 3 to create a callback task, 4 to change this task priority, 7 to set the deadline, 8 for previous, 9 twice to delete, or zero for main menu.";
  if(path==="122")return heading+
   "Status "+safeVoice(x.status,30)+". Priority "+safeVoice(x.urgency,30)+". "+
   (x.category?"Category "+safeVoice(x.category,45)+". ":"")+
