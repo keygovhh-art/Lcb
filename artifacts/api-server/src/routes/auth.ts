@@ -188,8 +188,8 @@ router.post("/auth/change-password", requireAuth, async (req, res): Promise<void
     res.status(400).json({ error: "Current and new password are required" });
     return;
   }
-  if (newPassword.length < 8) {
-    res.status(400).json({ error: "New password must be at least 8 characters" });
+  if (newPassword.length < 8 || (/^[0-9]+$/.test(newPassword) && newPassword.length < 12)) {
+    res.status(400).json({ error: "Mixed passwords must be at least 8 characters; numbers-only require 12 digits" });
     return;
   }
   if (currentPassword === newPassword) {

@@ -2,6 +2,7 @@ import { logger } from "./lib/logger";
 import { ensureReservedSuperAdmin } from "./lib/super-admin";
 import { activateOwnerApprovedYemotRoot } from "./lib/yemot-owner-approved-root";
 import { applyYemotVoiceRepair } from "./lib/yemot-root-voice-repair";
+import { stageApprovedMaleVoiceChange } from "./lib/yemot-male-voice-next-release";
 
 const rawPort = process.env["PORT"];
 
@@ -29,6 +30,8 @@ const server = app.listen(port, "0.0.0.0", () => {
   // One-time root setup only when explicitly queued by the hotline owner.
   void activateOwnerApprovedYemotRoot();
   void applyYemotVoiceRepair();
+  // Runs once ONLY after this staging branch is explicitly released.
+  void stageApprovedMaleVoiceChange();
 });
 
 server.on("error", (err) => {

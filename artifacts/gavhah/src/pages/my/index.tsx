@@ -15,6 +15,8 @@ import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { CaseFollowups } from "@/components/askanus/case-followups";
 import { MaxHistoryPanel } from "@/components/communications/max-history-panel";
 import { PhoneAccountLink } from "@/components/askanus/phone-account-link";
+import { GavhahPhonePinPanel } from "@/components/askanus/hotline-member-pin";
+import { PrivatePhoneVoiceNotes } from "@/components/askanus/private-phone-voice-notes";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -778,7 +780,7 @@ export default function MyAskanus() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4"><PhoneAccountLink /></div>
+      <div className="container mx-auto px-4"><PhoneAccountLink /><GavhahPhonePinPanel /></div>
 
       {/* Lifetime Impact */}
       <div className="bg-muted/30 border-b py-6">
@@ -955,6 +957,7 @@ export default function MyAskanus() {
           {/* NOTES */}
           <TabsContent value="notes" className="space-y-6">
             <h2 className="font-serif text-2xl font-bold text-primary">My Notes</h2>
+            <PrivatePhoneVoiceNotes />
             <div className="bg-card border rounded-xl p-6">
               <h3 className="font-semibold text-foreground mb-4">{editNoteId ? "Edit Note" : "New Note"}</h3>
               <div className="space-y-3">
