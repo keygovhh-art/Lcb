@@ -159,6 +159,43 @@ router.delete("/admin/yemot/connection", requireAuth, admin, wrap(async (req, re
   await pool.query("DELETE FROM " + table + " WHERE id=1");
   res.json({ configured: false, enabled: false });
 }));
+// Read-only provider inventory before proposing ANY changes to root or child extensions.
+router.get("/admin/yemot/provider-directory", requireAuth, admin, wrap(async (req, res) => {
+  const requested=typeof req.query.path==="string"?req.query.path:"/";
+  if(!/^\/(?:[0-9]{1,3}(?:\/[0-9]{1,3}){0,2})?$/.test(requested)){
+    err(res,400,"Only a short numeric extension path is permitted");return;
+  }
+  const row=await getRow();
+  if(!row){err(res,404,"Configure the global hotline first");return;}
+  let token:string;
+  try{token=decode(row);}catch{err(res,503,"Stored Yemot secret unavailable");return;}
+  let result:any;
+  try{
+    const response=await fetch("https://www.call2all.co.il/ym/api/GetIVR2Dir",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({token,path:requested}),
+      redirect:"error",cache:"no-store",signal:AbortSignal.timeout(12000)
+    });
+    if(!response.ok)throw Error("Provider unavailable");
+    result=await response.json();
+  }catch{
+    err(res,502,"Could not read current provider extension directory");return;
+  }finally{token="";}
+  if(result?.responseStatus!=="OK"){
+    err(res,502,"Provider declined the read-only directory inspection");return;
+  }
+  // File/folder NAMES only: do not reflect provider metadata, URLs, audio or secrets.
+  const raw=Array.isArray(result.files)?result.files:
+    Array.isArray(result.entries)?result.entries:Array.isArray(result.items)?result.items:[];
+  const entries=raw.slice(0,200).map((x:any)=>({
+    name:String(x.name??x.fileName??"").slice(0,130),
+    type:String(x.type??x.fileType??"").slice(0,45)
+  })).filter((x:{name:string})=>x.name);
+  res.setHeader("Cache-Control","private, no-store");
+  res.json({path:requested,entries,responseOk:true,providerTotal:raw.length,
+    note:"Read only: no extensions, messages or IVR settings were modified."});
+}));
+
 // The reverse service endpoint exposes status only, NEVER the hotline token or caller lists.
 // Disabled unless both Render instances intentionally share a 32+ byte secret.
 router.get("/yemot/service/status", wrap(async (req, res) => {
