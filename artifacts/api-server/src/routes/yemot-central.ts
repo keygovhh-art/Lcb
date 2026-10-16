@@ -288,29 +288,46 @@ router.post("/admin/yemot/install-child",requireAuth,admin,wrap(async(req,res)=>
    if(!r.ok)throw Error("Yemot "+action+" network or permission error");
    return await r.json() as any;
   };
+  // Existing root content NEVER blocks a new, verified unused child path.
+  // Ignore root messages, recordings, settings and other subfolders.
   const root=await callProvider("GetIVR2Dir",{path:"/"});
-  if(root?.responseStatus!=="OK"||!Array.isArray(root.dirs)||
-    !Array.isArray(root.files)||!Array.isArray(root.ini)||!Array.isArray(root.messages)||
-    !Array.isArray(root.html)){
-   throw Error("Could not safely read complete provider root listing");
+  if(root?.responseStatus!=="OK"||!Array.isArray(root.dirs)){
+   throw Error("Could not list provider folders to protect existing content. No changes made.");
   }
   const known=new Set<string>();
   for(const entry of root.dirs){
-   const name=typeof entry==="string"?entry:String(entry?.name??entry?.fileName??entry?.path??entry?.what??entry?.dir??"");
+   const name=typeof entry==="string"?entry:String(
+     entry?.name??entry?.fileName??entry?.what??entry?.path??entry?.dir??"");
    const trimmed=name.trim().replace(/\/+$/,"");
-   if(!trimmed)throw Error("Provider returned an unnamed directory; cannot safely select a free extension.");
    const number=trimmed.split(/[/:]/).pop()||"";
-   // Names like 'system' or 'recordings' are valid existing folders, but can
-   // never collide with a purely numeric candidate. Preserve them unchanged.
-   if(/^[0-9]{1,3}$/.test(number))known.add(number);
+   if(/^\d{1,3}$/.test(number))known.add(number);
+   // Non-numeric and unknown existing directories are intentionally left
+   // untouched. They must never block a distinct numeric child path.
   }
-  const choices=["99","98","97","96","95","94","93","92","91","90",
-                 "899","898","897","896","895","894","893","892","891","890"];
-  candidate=choices.find(x=>!known.has(x))||"";
-  if(!candidate)throw Error("No unused child extension in the reserved candidate pool");
-  const check=await callProvider("CheckIfFileExists",{path:"ivr2:"+candidate+"/ext.ini"});
-  if(check?.responseStatus!=="OK"||check?.fileExists!==false){
-   throw Error("Candidate child extension is not confirmed empty. No changes made.");
+  // Prefer short, easy-to-dial extensions; keep searching when one is taken.
+  // Avoid using root or rewriting existing child settings under any condition.
+  const choices=[
+   ...Array.from({length:10},(_,i)=>String(99-i)),
+   ...Array.from({length:100},(_,i)=>String(899-i)),
+   ...Array.from({length:100},(_,i)=>String(799-i)),
+   ...Array.from({length:100},(_,i)=>String(699-i))
+  ];
+  let checked=0,occupied=0;
+  for(const number of choices){
+   if(known.has(number)){occupied++;continue;}
+   const check=await callProvider("CheckIfFileExists",{path:"ivr2:"+number+"/ext.ini"});
+   if(check?.responseStatus!=="OK"||typeof check.fileExists!=="boolean"){
+    // Unknown API response is NOT proof that a path is free. Do not risk
+    // changing someone else's existing extension.
+    throw Error("Yemot did not verify unused extension availability. Existing content remains untouched.");
+   }
+   checked++;
+   if(check.fileExists){occupied++;continue;}
+   candidate=number;
+   break;
+  }
+  if(!candidate){
+   throw Error("No available isolated child found in the scanned extension range; no existing content was changed.");
   }
   const callbackSecret=randomBytes(32).toString("hex");
   const callbackHash=createHash("sha256").update(callbackSecret).digest("hex");
@@ -318,9 +335,11 @@ router.post("/admin/yemot/install-child",requireAuth,admin,wrap(async(req,res)=>
    "UPDATE public.gavhah_yemot_ivr_install SET callback_hash=$1,"+
    "target_path=$2,provider_summary=$3::jsonb,updated_at=now() WHERE id=1",
    [callbackHash,"/"+candidate,JSON.stringify({
-    rootFolders:root.dirs.length,rootMessages:root.messages.length,
-    rootFiles:root.files.length,rootSettings:root.ini.length,
-    reservedChild:"/"+candidate,addOnly:true,noRootChanges:true
+    rootFolders:root.dirs.length,rootMessages:Array.isArray(root.messages)?root.messages.length:null,
+    rootFiles:Array.isArray(root.files)?root.files.length:null,
+    rootSettings:Array.isArray(root.ini)?root.ini.length:null,
+    reservedChild:"/"+candidate,addOnly:true,noRootChanges:true,
+    availabilityChecked:checked,occupiedCandidatesSkipped:occupied
    })]);
   const answer=await callProvider("UpdateExtension",{
    path:"ivr2:"+candidate,type:"api",title:"Gavhah API Gateway",
