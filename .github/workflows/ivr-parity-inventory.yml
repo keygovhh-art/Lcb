@@ -1,0 +1,20 @@
+name: Gavhah phone parity route audit
+on:
+  push:
+    branches:
+      - feature/whole-platform-yemot-ivr-english-20261015
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gavhah-route-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Require roadmap entry for every Gavhah website route
+        run: node scripts/audit-phone-route-parity.mjs
