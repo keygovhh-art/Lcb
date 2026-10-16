@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import type { Request, Response } from "express";
+import { phoneNewsVote, saveVoiceNewsReply } from "./yemot-news-engagement";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -10,6 +11,7 @@ type State={
  step:number;path:string;news_position:number;news_chunk:number;
  member_id:number|null;linked_until:string|null;login_failures:number;
  phone_page:number;selected_item_id:number|null;
+ news_actions_open:boolean;news_reply_mode:boolean;news_reply_target:number|null;
 };
 const categories:Record<string,string>={
  "1121":"emergency_appeal","1122":"fundraising","1123":"announcement",
@@ -27,7 +29,11 @@ export function safeVoice(input:unknown,max=430){
   .replace(/\s+/g," ").trim().slice(0,max);
 }
 function voice(s:string){return "t-"+safeVoice(s,430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"="menu"){
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"|"record"="menu"){
+ if(mode==="record"){
+  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
+   .send("read="+voice(prompt)+"=rr"+step+",,record");return;
+ }
  const name=(mode==="code"?"ln":mode==="article"?"ar":"iv")+step;
  const opts=mode==="code"
  ? [name,"no","8","1","12","Digits","yes"]
@@ -92,7 +98,7 @@ async function newsPrompt(path:string,position:number,chunkIndex:number){
   (safeVoice(post.title,65)||"This title is in Yiddish")+". ":"";
  return{
   text:headline+chunks[part]+
-   ". Press 1 to continue, 2 to restart, 3 for important and critical news, 4 for all news, 8 for previous, or zero for the main menu.",
+   ". Press 1 for this update actions, 2 for next, 3 for important news, 4 for all updates, 8 for previous, or zero for the main menu.",
   hasMore:part<chunks.length-1
  };
 }
@@ -115,9 +121,23 @@ async function articlePrompt(client:import("pg").PoolClient,id:number,part:numbe
  const current=Math.min(part,parts.length-1);
  return{
   text:(current===0?"Article "+id+". "+(safeVoice(data.title,80)||"Yiddish headline")+". ":"")+
-   parts[current]+". Press 1 for next part, 2 to enter a new article number, or zero for the main menu.",
+   parts[current]+". Press 1 for article actions, 2 for next part, 8 to restart this article, or zero for the main menu.",
   hasMore:current<parts.length-1
  };
+}
+async function currentNewsId(path:string,position:number,chosen:number|null):Promise<number|null>{
+ if(path==="115")return chosen;
+ const post=await getNews(path,position);
+ return post?.id||null;
+}
+async function actionsMenu(client:import("pg").PoolClient,articleId:number|null,userId:number|null,validMember:boolean){
+ if(!articleId)return "This news update is no longer available. Press nine to resume or zero for the main menu.";
+ const r=await client.query<{like_count:number}>("SELECT like_count FROM public.news WHERE id=$1",[articleId]);
+ const counter=r.rows[0]?.like_count??0;
+ return "Update "+articleId+" options. Press 1 to upvote. Press 2 to remove an upvote. "+
+  "Press 3 to record an audio reply for moderation. Press 4 to hear current upvote count. "+
+  "Press 9 to return to listening or zero for the main menu. "+
+  "Current upvotes "+counter+". "+(validMember?"You are signed in.":"To vote or reply, first link your account with the website code under My Askanus.") ;
 }
 async function memberAllowed(client:import("pg").PoolClient,state:State){
  if(!state.member_id||!state.linked_until||new Date(state.linked_until).getTime()<Date.now())return false;
@@ -185,16 +205,51 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
  try{
   await client.query("BEGIN");
   await client.query("INSERT INTO public.gavhah_yemot_call_states(call_hash) VALUES($1) ON CONFLICT(call_hash) DO NOTHING",[callHash]);
-  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
+  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,news_actions_open,news_reply_mode,news_reply_target FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
   let userId=s.member_id;
-  if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;}
-  const inputName=(path==="125"?"ln":path==="115"&&!confirmId?"ar":"iv")+step;
+  let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target;
+  if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;}
+  const inputName=(replyMode?"rr":path==="125"?"ln":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   if(raw!==undefined&&raw!==null){
    const digit=String(raw).trim();
-   if(path==="125"){
+   if(replyMode){
+    if(!await memberAllowed(client,{...s,member_id:userId})){
+      replyMode=false;actionsOpen=true;feedback="Phone login expired. Please pair your account on the website. ";
+    }else{
+      const result=await saveVoiceNewsReply(client,replyTarget||0,userId!,callHash,digit);
+      replyMode=false;actionsOpen=true;feedback=result.info+" ";
+    }
+   }else if(actionsOpen){
+    const articleId=await currentNewsId(path,position,confirmId);
+    if(digit==="0"){path="";position=0;chunk=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;}
+    else if(digit==="9"){actionsOpen=false;}
+    else if(digit==="1"||digit==="2"){
+     if(!articleId){feedback="News update not found. ";}
+     else if(!await memberAllowed(client,{...s,member_id:userId})){
+       feedback="Please link your account with an eight digit code in My Askanus before voting. ";
+     }else{
+       const response=await phoneNewsVote(client,userId!,articleId,digit==="1");
+       feedback=response.info+" ";
+     }
+    }else if(digit==="3"){
+     if(!articleId){feedback="News update not found. ";}
+     else if(!await memberAllowed(client,{...s,member_id:userId})){
+       feedback="Please link your account before recording a reply. ";
+     }else{
+       replyMode=true;replyTarget=articleId;actionsOpen=false;
+       feedback="Your recording will be submitted for review and published on the same website article only after approval. ";
+     }
+    }else if(digit==="4"){
+     if(!articleId){feedback="News update not found. ";}
+     else{
+      const r=await client.query("SELECT like_count FROM public.news WHERE id=$1",[articleId]);
+      feedback="Current upvote count is "+Number(r.rows[0]?.like_count||0)+". ";
+     }
+    }
+   }else if(path==="125"){
     if(digit==="0"){path="";}
     else if(/^\d{8}$/.test(digit)&&s.login_failures<5){
      const key=process.env.YEMOT_ENCRYPTION_KEY||"";
@@ -218,23 +273,23 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      feedback="Enter the eight digit website code. ";
     }
    }else if(path==="115"){
-    if(digit==="0"){path="";confirmId=null;chunk=0;}
+    if(digit==="0"){path="";confirmId=null;chunk=0;actionsOpen=false;}
     else if(confirmId===null){
-     if(/^\d{1,8}$/.test(digit)&&Number(digit)>0){
-      confirmId=Number(digit);chunk=0;
-     }
-    }else if(digit==="2"){confirmId=null;chunk=0;}
-    else if(digit==="1"){
+     if(/^\d{1,8}$/.test(digit)&&Number(digit)>0){confirmId=Number(digit);chunk=0;}
+    }else if(digit==="1"){actionsOpen=true;}
+    else if(digit==="8"){chunk=0;}
+    else if(digit==="2"||digit===""||digit==="None"){
      const current=await articlePrompt(client,confirmId,chunk);
      if(current.hasMore)chunk++;
+     else{confirmId=null;chunk=0;feedback="End of article. Enter another article number. ";}
     }
    }else if(newsPath(path)){
-    if(digit==="0"){path="";position=0;chunk=0;}
+    if(digit==="0"){path="";position=0;chunk=0;actionsOpen=false;}
+    else if(digit==="1"){actionsOpen=true;}
     else if(digit==="3"){path=newsImportant;position=0;chunk=0;}
     else if(digit==="4"){path=newsAll;position=0;chunk=0;}
-    else if(digit==="2"){position=0;chunk=0;}
     else if(digit==="8"){position=Math.max(0,position-1);chunk=0;}
-    else if(digit==="1"||digit===""||digit==="None"){
+    else if(digit==="2"||digit===""||digit==="None"){
      const now=await newsPrompt(path,position,chunk);
      if(now.hasMore)chunk++;else{position++;chunk=0;}
     }
@@ -267,8 +322,13 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
    step++;
   }
-  let mode:"menu"|"news"|"code"|"article"="menu",spoken=feedback;
-  if(path==="125"){
+  let mode:"menu"|"news"|"code"|"article"|"record"="menu",spoken=feedback;
+  if(replyMode){
+   mode="record";spoken+="Record your reply after the beep and press pound when finished. You may cancel by hanging up.";
+  }else if(actionsOpen){
+   const articleId=await currentNewsId(path,position,confirmId);
+   spoken+=await actionsMenu(client,articleId,userId,await memberAllowed(client,{...s,member_id:userId}));
+  }else if(path==="125"){
    mode="code";spoken+="Enter the eight digit code shown in My Askanus on your website. "+
     "Codes expire after five minutes. Never share it with others.";
    if(s.login_failures>=5){path="12";mode="menu";spoken="Too many attempts. Hang up and try again later. ";}
@@ -288,8 +348,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
   }else spoken+=menuPrompt(path,tree);
   await client.query("UPDATE public.gavhah_yemot_call_states "+
-   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,updated_at=now() "+
-   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures]);
+   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,updated_at=now() "+
+   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget]);
   await client.query("COMMIT");
   sendRead(res,spoken,step,mode);
  }catch(err){await client.query("ROLLBACK").catch(()=>{});throw err;}
