@@ -184,16 +184,28 @@ router.get("/admin/yemot/provider-directory", requireAuth, admin, wrap(async (re
   if(result?.responseStatus!=="OK"){
     err(res,502,"Provider declined the read-only directory inspection");return;
   }
-  // File/folder NAMES only: do not reflect provider metadata, URLs, audio or secrets.
-  const raw=Array.isArray(result.files)?result.files:
-    Array.isArray(result.entries)?result.entries:Array.isArray(result.items)?result.items:[];
-  const entries=raw.slice(0,200).map((x:any)=>({
-    name:String(x.name??x.fileName??"").slice(0,130),
-    type:String(x.type??x.fileType??"").slice(0,45)
-  })).filter((x:{name:string})=>x.name);
+  // GetIVR2Dir uses separate dirs and files arrays. Never mistake a nonempty
+  // directory for a free test extension simply because the files list is empty.
+  const dirs=Array.isArray(result.dirs)?result.dirs:[];
+  const files=Array.isArray(result.files)?result.files:[];
+  const ini=Array.isArray(result.ini)?result.ini:[];
+  // Unknown provider response schemas must fail CLOSED.
+  if(!Array.isArray(result.dirs)||!Array.isArray(result.files)){
+    err(res,502,"Provider directory response does not contain verified dirs/files arrays");
+    return;
+  }
+  const safeName=(x:any)=>String(x?.name??x?.fileName??x?.what??"").slice(0,100);
+  const entries=[
+    ...dirs.slice(0,100).map((x:any)=>({name:safeName(x),type:"directory"})),
+    ...files.slice(0,100).map((x:any)=>({name:safeName(x),type:String(x.fileType??"file").slice(0,25)}))
+  ].filter(x=>x.name&&!x.name.includes("\\0"));
   res.setHeader("Cache-Control","private, no-store");
-  res.json({path:requested,entries,responseOk:true,providerTotal:raw.length,
-    note:"Read only: no extensions, messages or IVR settings were modified."});
+  res.json({path:requested,entries,responseOk:true,
+    providerTotal:dirs.length+files.length+ini.length,
+    totalDirectories:dirs.length,totalFiles:files.length,totalSettings:ini.length,
+    truncated:dirs.length>100||files.length>100,
+    safeToOverwrite:false,
+    note:"Read only. A missing directory in a partial listing is not proof that it is safe to create or replace."});
 }));
 
 // The reverse service endpoint exposes status only, NEVER the hotline token or caller lists.
