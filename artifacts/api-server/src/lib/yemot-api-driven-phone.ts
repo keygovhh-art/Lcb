@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import type { Request, Response } from "express";
-import { phoneNewsVote, saveVoiceNewsReply } from "./yemot-news-engagement";
+import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -11,7 +11,7 @@ type State={
  step:number;path:string;news_position:number;news_chunk:number;
  member_id:number|null;linked_until:string|null;login_failures:number;
  phone_page:number;selected_item_id:number|null;
- news_actions_open:boolean;news_reply_mode:boolean;news_reply_target:number|null;
+ news_actions_open:boolean;news_reply_mode:boolean;news_reply_target:number|null;news_report_mode:boolean;
 };
 const categories:Record<string,string>={
  "1121":"emergency_appeal","1122":"fundraising","1123":"announcement",
@@ -136,6 +136,7 @@ async function actionsMenu(client:import("pg").PoolClient,articleId:number|null,
  const counter=r.rows[0]?.like_count??0;
  return "Update "+articleId+" options. Press 1 to upvote. Press 2 to remove an upvote. "+
   "Press 3 to record an audio reply for moderation. Press 4 to hear current upvote count. "+
+  "Press 5 to save this article. Press 6 to remove it from saved. Press 7 to report this article. "+
   "Press 9 to return to listening or zero for the main menu. "+
   "Current upvotes "+counter+". "+(validMember?"You are signed in.":"To vote or reply, first link your account with the website code under My Askanus.") ;
 }
@@ -205,11 +206,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
  try{
   await client.query("BEGIN");
   await client.query("INSERT INTO public.gavhah_yemot_call_states(call_hash) VALUES($1) ON CONFLICT(call_hash) DO NOTHING",[callHash]);
-  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,news_actions_open,news_reply_mode,news_reply_target FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
+  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
   let userId=s.member_id;
-  let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target;
-  if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;}
+  let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
+  if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
   const inputName=(replyMode?"rr":path==="125"?"ln":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
@@ -221,6 +222,14 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     }else{
       const result=await saveVoiceNewsReply(client,replyTarget||0,userId!,callHash,digit);
       replyMode=false;actionsOpen=true;feedback=result.info+" ";
+    }
+   }else if(reportMode){
+    if(digit==="0"){path="";actionsOpen=false;reportMode=false;}
+    else if(digit==="9"){reportMode=false;actionsOpen=true;}
+    else{
+     if(!await memberAllowed(client,{...s,member_id:userId})){feedback="Please link your account first. ";}
+     else if(replyTarget){feedback=(await phoneNewsReport(client,userId!,replyTarget,digit))+" ";}
+     reportMode=false;actionsOpen=true;
     }
    }else if(actionsOpen){
     const articleId=await currentNewsId(path,position,confirmId);
@@ -242,6 +251,16 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
        replyMode=true;replyTarget=articleId;actionsOpen=false;
        feedback="Your recording will be submitted for review and published on the same website article only after approval. ";
      }
+    }else if(digit==="5"||digit==="6"){
+     if(!articleId){feedback="News update not found. ";}
+     else if(!await memberAllowed(client,{...s,member_id:userId})){
+      feedback="Please link your account before saving an update. ";
+     }else{feedback=(await phoneNewsSave(client,userId!,articleId,digit==="5"))+" ";}
+    }else if(digit==="7"){
+     if(!articleId){feedback="News update not found. ";}
+     else if(!await memberAllowed(client,{...s,member_id:userId})){
+      feedback="Please link your account before reporting an update. ";
+     }else{replyTarget=articleId;reportMode=true;actionsOpen=false;}
     }else if(digit==="4"){
      if(!articleId){feedback="News update not found. ";}
      else{
@@ -323,7 +342,9 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    step++;
   }
   let mode:"menu"|"news"|"code"|"article"|"record"="menu",spoken=feedback;
-  if(replyMode){
+  if(reportMode){
+   spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
+  }else if(replyMode){
    mode="record";spoken+="Record your reply after the beep and press pound when finished. You may cancel by hanging up.";
   }else if(actionsOpen){
    const articleId=await currentNewsId(path,position,confirmId);
@@ -348,8 +369,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
   }else spoken+=menuPrompt(path,tree);
   await client.query("UPDATE public.gavhah_yemot_call_states "+
-   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,updated_at=now() "+
-   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget]);
+   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,updated_at=now() "+
+   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode]);
   await client.query("COMMIT");
   sendRead(res,spoken,step,mode);
  }catch(err){await client.query("ROLLBACK").catch(()=>{});throw err;}
