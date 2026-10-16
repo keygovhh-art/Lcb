@@ -146,14 +146,30 @@ async function currentNewsId(path:string,position:number,chosen:number|null):Pro
  return post?.id||null;
 }
 async function actionsMenu(client:import("pg").PoolClient,articleId:number|null,userId:number|null,validMember:boolean){
- if(!articleId)return "This news update is no longer available. Press nine to resume or zero for the main menu.";
+ if(!articleId)return "This news update is no longer available. Press nine to resume or zero for main menu.";
  const r=await client.query<{like_count:number}>("SELECT like_count FROM public.news WHERE id=$1",[articleId]);
- const counter=r.rows[0]?.like_count??0;
- return "Update "+articleId+" options. Press 1 to upvote. Press 2 to remove an upvote. "+
-  "Press 3 to record an audio reply for moderation. Press 4 to hear current upvote count. "+
-  "Press 5 to save this article. Press 6 to remove it from saved. Press 7 to report this article. "+
-  "Press 9 to return to listening or zero for the main menu. "+
-  "Current upvotes "+counter+". "+(validMember?"You are signed in.":"To vote or reply, first link your account with the website code under My Askanus.") ;
+ if(!r.rowCount)return "This news update has been removed. Press nine to resume or zero for main menu.";
+ const count=r.rows[0]?.like_count??0;
+ const replies=await client.query<{total:number}>(
+  "SELECT count(*)::int AS total FROM public.gavhah_news_voice_replies "+
+  "WHERE news_id=$1 AND status='approved'",[articleId]);
+ let personal="";
+ if(validMember&&userId){
+  // These are the exact site-backed member rows, NOT caller-ID assumptions.
+  const state=await client.query<{voted:boolean;saved:boolean}>(
+   "SELECT EXISTS(SELECT 1 FROM public.entity_likes WHERE entity_type='news' AND entity_id=$1 AND user_id=$2) AS voted,"+
+   "EXISTS(SELECT 1 FROM public.saved_items WHERE content_type='news' AND content_id=$1 AND user_id=$2) AS saved",
+   [articleId,userId]);
+  personal=(state.rows[0]?.voted?"You have upvoted this update. ":"You have not upvoted this update. ")+
+   (state.rows[0]?.saved?"This update is in your saved list. ":"This update is not in your saved list. ");
+ }
+ return "Update "+articleId+" actions. "+
+  personal+"Current upvotes "+count+". Approved voice replies "+(replies.rows[0]?.total||0)+". "+
+  "Press 1 to upvote, 2 to remove upvote, 3 to record a reply for moderation, "+
+  "4 to repeat the vote count, 5 to save, 6 to remove saved, 7 to report. "+
+  "Press 9 to return to listening, or zero for main menu. "+
+  (validMember?"Your website account is securely linked. ":
+   "To vote save or reply please link your website account under My Askanus.");
 }
 async function memberAllowed(client:import("pg").PoolClient,state:State){
  if(!state.member_id||!state.linked_until||new Date(state.linked_until).getTime()<Date.now())return false;
