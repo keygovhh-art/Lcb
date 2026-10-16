@@ -168,35 +168,49 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
    "(SELECT count(*) FROM public.askanus_cases WHERE user_id=$1 AND status!='closed')::int AS open_cases,"+
    "(SELECT count(*) FROM public.askanus_notes WHERE user_id=$1)::int AS notes",[userId]);
   const x=r.rows[0];
-  return "My Askanus dashboard. "+x.pending+" pending tasks, "+x.open_cases+" open cases and "+x.notes+
-   " notes. This is the same account as the website. Press zero for the main menu.";
+  return "My Askanus dashboard. "+x.pending+" pending tasks, "+x.open_cases+
+   " open cases and "+x.notes+" notes. This is the same account as the website. Press zero for main menu.";
  }
- const spec=path==="121"?
-  {table:"askanus_tasks",fields:"id,title,deadline,priority,completed",name:"tasks"}:
+ const isTask=taskPaths.has(path);
+ const spec=isTask?
+  {table:"askanus_tasks",fields:"id,title,case_title,deadline,priority,completed,notes",name:"tasks"}:
   path==="122"?
-  {table:"askanus_cases",fields:"id,title,status,urgency,deadline,goal_amount",name:"cases"}:
+  {table:"askanus_cases",fields:"id,title,status,urgency,deadline,goal_amount,description,contact_name,category,funds_promised,funds_received",name:"cases"}:
   {table:"askanus_notes",fields:"id,title,content",name:"notes"};
- // Identifiers are fixed constants. No user-supplied SQL identifiers.
+ const qualifier=isTask?taskWhere[path]:"";
+ // Identifiers and query fragments are constants, never supplied by callers.
  const r=await client.query(
    "SELECT "+spec.fields+" FROM public."+spec.table+
-   " WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",[userId,page]);
+   " WHERE user_id=$1 "+qualifier+" ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",[userId,page]);
  const x=r.rows[0];
- if(!x)return "You have reached the end of your "+spec.name+
-  ". Press 2 to restart, 8 for previous, or zero for the main menu.";
- const heading=spec.name+" item "+(page+1)+". "+(safeVoice(x.title,125)||"This title needs an English audio version")+". ";
- if(path==="121")return heading+
-  "Priority "+x.priority+". "+(x.completed?"Completed. ":"Not yet completed. ")+
+ const listTitle=path==="121"?"All my tasks":path==="127"?"Unfinished tasks":
+   path==="128"?"Overdue tasks":path==="129"?"Tasks due within seven days":
+   path==="122"?"My cases":"My private notes";
+ if(!x)return "End of "+listTitle+". Press 2 to restart, 8 for previous, or zero for main menu.";
+ const heading=listTitle+" item "+(page+1)+". "+(safeVoice(x.title,105)||"This title needs English audio")+". ";
+ if(isTask)return heading+
+  "Priority "+safeVoice(x.priority,25)+". "+(x.completed?"Completed. ":"Not yet completed. ")+
   (x.deadline?"Due "+safeVoice(x.deadline,28)+". ":"")+
-  (x.completed?"":"Press 5, then press 5 again, to mark this task complete. ")+
-  (confirmId===x.id?"Confirm completion by pressing 5 now. ":"")+
-  "Press 1 for next, 8 for previous, 2 for restart, or zero for the main menu.";
- if(path==="122")return heading+"Status "+x.status+". Priority "+x.urgency+". "+
+  (x.case_title?"Related case "+(safeVoice(x.case_title,50)||"listed on your website")+". ":"")+
+  (x.notes?"Task notes "+(safeVoice(x.notes,110)||"need an English audio version")+". ":"")+
+  (x.completed?"Press 6 twice to reopen this task. ":"Press 5 twice to mark this task complete. ")+
+  (confirmId===x.id?"Press 5 again to confirm completion. ":"")+
+  (confirmId===-x.id?"Press 6 again to confirm reopening. ":"")+
+  "Press 1 for next, 8 for previous, 2 for restart, or zero for main menu.";
+ if(path==="122")return heading+
+  "Status "+safeVoice(x.status,30)+". Priority "+safeVoice(x.urgency,30)+". "+
+  (x.category?"Category "+safeVoice(x.category,45)+". ":"")+
+  (x.description?"Description "+(safeVoice(x.description,160)||"Needs an English voice version")+". ":"")+
+  (x.contact_name?"Contact "+(safeVoice(x.contact_name,45)||"Listed on your website")+". ":"")+
   (x.deadline?"Deadline "+safeVoice(x.deadline,22)+". ":"")+
-  "Recorded goal "+Number(x.goal_amount)+" dollars. "+
-  "Press 1 for next, 8 for previous, 2 to restart, or zero for the main menu.";
- return heading+(safeVoice(x.content,170)||"This note needs an English audio version.")+
-  ". Press 1 for next, 8 for previous, 2 to restart, or zero for the main menu.";
+  "Recorded goal "+Number(x.goal_amount||0)+" dollars. "+
+  "Promised "+Number(x.funds_promised||0)+" dollars. "+
+  "Received "+Number(x.funds_received||0)+" dollars. "+
+  "Press 1 for next, 8 for previous, 2 to restart, or zero for main menu.";
+ return heading+(safeVoice(x.content,285)||"This note needs an English voice version.")+
+  ". Press 1 for next, 8 for previous, 2 to restart, or zero for main menu.";
 }
+
 function sourceCallId(req:Request){
  const raw=String(req.body?.ApiCallId??req.query.ApiCallId??"");
  return /^[A-Za-z0-9_.:-]{8,160}$/.test(raw)?raw:null;
