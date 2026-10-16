@@ -38,3 +38,26 @@ The current working root API and 0 provider management option must remain unchan
 - Keep both PRs DRAFT; do not change Neon production schema or Render service environment now.
 - Before approved release: apply SQL migrations after backup in staging, validate no existing account is granted unauthorized PIN, two phone calls with different Gavhah identities, two CC organization subjects in separate tenants, malicious/unknown PIN, 5-failure throttles, banned/suspended member, admin-issued unactivated PIN, repeated web registration, failed provider shared secret.
 - The original working root welcome, Press 0 provider management, audio files, and existing voice must remain unchanged until explicit deployment approval. The requested male voice remains staged.
+
+
+## Iteration 2 — My Askanus keypad CRUD (STAGED ONLY, NOT LIVE)
+All operations use Gavhah verified member_id, canonical askanus tables, transactional MAX history, same single Yemot API entry. No caller-ID identity.
+
+### Tasks
+- Press 3 on any own task list: enter a 10–15 digit number to create one website callback task, title Call [number], standard medium priority, and associated notes. This is structured numeric task creation, not arbitrary dictation/TTS transcription.
+- Press 4 on selected task: priority 1 low, 2 medium, 3 high. Press 5 twice complete, 6 twice reopen, 7 and eight digits YYYYMMDD to set deadline (eight zeros clears), 9 twice to delete current task; 1 next, 2 restart, 8 previous, 0 main.
+- Task changes are owner-scoped by user_id and selected immutable task id, with website max_history_events inserted in same transaction. Limit to fifteen new callback tasks per member per hour.
+- Full arbitrary-text task title/notes editing is not yet implemented by phone.
+
+### Cases
+- Private case option 3 changes case status: 1 open, 2 in progress, 3 closed; option 4 changes urgency: 1 low, 2 medium, 3 high, 4 critical.
+- Case rows are user_id-scoped, progress amounts are NEVER written by these controls, max_history_events logs changed fields and old/new values.
+- Case creation, finance/ledger modifications and full arbitrary notes remain pending.
+
+### Private notes
+- Read own note; press 9 twice to permanently delete selected personal note; zero cancels. A private audit record is retained, never a copy of the deleted note content.
+- Recording/transcribing new notes is not yet implemented.
+
+### Release gates
+- Additive phone session task_action / task_action_target / case_action / case_action_target / note_delete_target in the STAGED SQL file artifacts/api-server/sql/20261016_gavhah_phone_members.sql.
+- No production Neon migration, main merge, Render deployment or Yemot change. Test staging migration, two-user ownership isolation, date validation, callback duplicate handling, confirm/cancel safety, MAX history, phone hearing and keypad on an authorized future deployment.
