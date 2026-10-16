@@ -25,7 +25,9 @@ export async function campaignPhoneBridge(action:RequestAction,callHash:string,p
   body:JSON.stringify({callHash,...(action==="login"?{pin}: {})}),
   signal:AbortSignal.timeout(9000),cache:"no-store",redirect:"error"
  });
- const result:CampaignPhoneSnapshot=await r.json().catch(()=>({authenticated:false}));
+ const payload:unknown=await r.json().catch(()=>({authenticated:false}));
+ const result:CampaignPhoneSnapshot=payload&&typeof payload==="object"&&"authenticated" in payload&&
+  typeof payload.authenticated==="boolean" ? payload as CampaignPhoneSnapshot:{authenticated:false};
  if(!r.ok){
   if(r.status===401||r.status===403)return{authenticated:false};
   throw Error("Campaign Center telephone membership service unavailable");
