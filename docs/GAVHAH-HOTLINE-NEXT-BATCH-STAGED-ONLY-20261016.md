@@ -88,3 +88,10 @@ All operations use Gavhah verified member_id, canonical askanus tables, transact
 - Release gate: Yemot actual recording response and provider WAV pointer shape have NOT been tested. Provider recording availability/retention are unverified. Must test with physical call on approved staging/release after both consent and isolated member identities. Never claim full audio playback is already live.
 - Current limitation: voice note editing/transcription, audio deletion from provider itself and arbitrary Yiddish TTS are NOT implemented.
 - Never publish draft or production migrate without explicit user approval.
+
+
+## Additional case timeline action — Draft only
+- On the authenticated member's currently selected case, phone key 7 opens a contact-attempt confirmation. Press 9 again to record the attempt or 0 to cancel. The case ID and user ID are verified again in the canonical database under row lock.
+- This writes an actual website case_activity_log entry of type contact, updates last_updated, and writes max_history_events for the same member. It NEVER places an outbound call and NEVER claims a recipient answered. The confirmation describes an attempt as the member's own log, not a verified external event.
+- No financial ledger, donor balances, member identity or provider configuration is changed.
+- Physical DTMF testing remains a future release gate; no Render deployment, production migration, or provider API changes were made for this batch.
