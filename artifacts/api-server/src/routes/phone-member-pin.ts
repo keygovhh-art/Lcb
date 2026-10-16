@@ -99,6 +99,32 @@ router.put("/account/phone-pin",requireAuth,async(req,res,next)=>{
   res.set("Cache-Control","no-store").json({configured:true,owner:"gavhah"});
  }catch(e){next(e);}
 });
+router.post("/account/phone-pin/activate",requireAuth,async(req,res,next)=>{
+ try{
+  if(!originAllowed(req)){res.sendStatus(403);return;}
+  const user=await getCurrentSessionUser(req);
+  if(!user){res.sendStatus(401);return;}
+  const pin=req.body?.pin;
+  if(!validPin(pin)){res.status(400).json({error:"Enter your admin-issued 12–16 digit code"});return;}
+  const current=await pool.query<{password_hash:string}>(
+   "SELECT password_hash FROM public.users WHERE id=$1",[user.id]);
+  if(!current.rows[0]||!await verifyPassword(String(req.body?.currentPassword||""),current.rows[0].password_hash)){
+   res.status(401).json({error:"Your personal Gavhah website password is required"});return;
+  }
+  const candidate=await pool.query<{pin_salt:string;pin_verifier:string;pin_index:string}>(
+   "SELECT pin_salt,pin_verifier,pin_index FROM public.gavhah_phone_member_pins WHERE user_id=$1 AND activation_required=true",[user.id]);
+  const row=candidate.rows[0];
+  if(!row||row.pin_index!==lookup(pin)){res.status(401).json({error:"Incorrect PIN or activation already complete"});return;}
+  const actual=Buffer.from(await slowHash(pin,row.pin_salt),"hex");
+  const expected=Buffer.from(row.pin_verifier,"hex");
+  if(actual.length!==expected.length||!timingSafeEqual(actual,expected)){
+   res.status(401).json({error:"Incorrect PIN"});return;
+  }
+  await pool.query(
+   "UPDATE public.gavhah_phone_member_pins SET activation_required=false,updated_at=now() WHERE user_id=$1",[user.id]);
+  res.json({configured:true,activated:true,owner:"gavhah"});
+ }catch(e){next(e);}
+});
 router.delete("/account/phone-pin",requireAuth,async(req,res,next)=>{
  try{
   if(!originAllowed(req)){res.sendStatus(403);return;}
