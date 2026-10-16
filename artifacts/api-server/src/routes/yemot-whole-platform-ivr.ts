@@ -148,7 +148,10 @@ router.all("/yemot/ivr",async(req:Request,res:Response)=>{
     return res.send("id_list_message=t-"+details.replace(/[&=,\r\n]/g," ").slice(0,350));
   }
   const depth=Math.min(path.length,4);
-  const readOptions=["nav"+depth,"","1","1","8","NO","yes","no","","","1","","","","no"].join(",");
+  // Yemot's read contract: variable, confirm, digits count, minimum count,
+  // wait timeout, data type and repetition. Keep it deliberately minimal:
+  // nav0,no,1,1,8,Digits,yes (documented provider API response pattern).
+  const readOptions=["nav"+depth,"no","1","1","8","Digits","yes"].join(",");
   return res.send("read=t-"+phonePrompt(path)+"="+readOptions);
 });
 export default router;
