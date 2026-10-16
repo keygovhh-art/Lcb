@@ -32,3 +32,4 @@ CREATE TABLE IF NOT EXISTS public.gavhah_phone_join_requests (
  UNIQUE(call_hash,contact_phone)
 );
 CREATE INDEX IF NOT EXISTS gavhah_phone_join_pending ON public.gavhah_phone_join_requests(status,submitted_at);
+CREATE UNIQUE INDEX IF NOT EXISTS gavhah_phone_join_one_pending_contact ON public.gavhah_phone_join_requests(contact_phone) WHERE status='pending';
