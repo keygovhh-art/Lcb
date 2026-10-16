@@ -27,7 +27,10 @@ export const phoneTree: Record<string,Item> = {
       "3":leaf("My private notes","/my"),
       "4":leaf("My personal dashboard","/my"),
       "5":leaf("Securely link my website account by eight-digit code","/my"),
-      "6":leaf("Log out of this phone session","/my")
+      "6":leaf("Log out of this phone session","/my"),
+      "7":leaf("My unfinished tasks","/my"),
+      "8":leaf("My overdue tasks","/my"),
+      "9":leaf("Tasks due in the next seven days","/my")
     }),
     "3":group("People and contacts",{
       "1":leaf("Donor 360","/communications"),"2":leaf("Contacts","/communications"),
