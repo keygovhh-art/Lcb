@@ -4,11 +4,14 @@ on:
     branches:
       - feature/gavhah-max-integration-20261014
       - feature/max-campaign-connect-20261015
+      - feature/gavhah-personal-focus-brain-dump-20261016
     paths:
       - '.github/workflows/max-mobile-browser.yml'
       - 'artifacts/api-server/tests/max-mobile-browser.cjs'
       - 'artifacts/gavhah/src/components/communications/donor-360.tsx'
       - 'artifacts/gavhah/src/components/communications/max-call-desk.tsx'
+      - 'artifacts/gavhah/src/pages/my/index.tsx'
+      - 'artifacts/gavhah/src/components/askanus/personal-focus-brain-dump.tsx'
       - 'artifacts/api-server/src/routes/communications-consent.ts'
       - 'artifacts/api-server/src/routes/communications-reminders.ts'
       - 'artifacts/gavhah/src/components/communications/max-reminder-inbox.tsx'
