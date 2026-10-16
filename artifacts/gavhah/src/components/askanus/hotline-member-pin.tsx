@@ -94,3 +94,59 @@ export function GavhahAdminPhonePinPanel(){
   {response&&<p className="text-sm" role="status">{response}</p>}
  </section>;
 }
+
+
+type PhoneJoin={id:string;contact_phone:string;submitted_at:string};
+export function GavhahPhoneJoinReview(){
+ const [items,setItems]=useState<PhoneJoin[]>([]);
+ const [selected,setSelected]=useState("");
+ const [name,setName]=useState("");
+ const [nickname,setNickname]=useState("");
+ const [password,setPassword]=useState("");
+ const [verified,setVerified]=useState(false);
+ const [message,setMessage]=useState("");
+ const [busy,setBusy]=useState(false);
+ async function refresh(){
+  try{
+   const response=await fetch("/api/admin/phone/join-requests",{credentials:"same-origin",cache:"no-store"});
+   if(!response.ok)throw Error("Could not read join applications");
+   const value=await response.json();
+   setItems(Array.isArray(value.requests)?value.requests:[]);
+  }catch(e){setMessage(e instanceof Error?e.message:"Could not load applications");}
+ }
+ async function review(decision:"approved"|"rejected"){
+  setBusy(true);setMessage("");
+  try{
+   const response=await fetch("/api/admin/phone/join-requests/"+encodeURIComponent(selected)+"/review",{
+    method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({decision,contactVerified:verified,name,nickname,adminPassword:password})
+   });
+   const value=await response.json().catch(()=>({}));
+   if(!response.ok)throw Error(value.error||"Could not review request");
+   setMessage(decision==="approved"?"The verified caller now has a real Gavhah website and phone member account.":"Request rejected.");
+   setPassword("");setSelected("");setName("");setNickname("");setVerified(false);await refresh();
+  }catch(e){setMessage(e instanceof Error?e.message:"Review failed");}finally{setBusy(false);}
+ }
+ return <section className="rounded-xl border p-4 space-y-3">
+  <h3 className="font-semibold">Gavhah Telephone Account Applications — Pending Review</h3>
+  <p className="text-sm">A telephone number is NOT proof of account ownership. Verify it independently before approving. Applications remain unprivileged and cannot access Gavhah before approval.</p>
+  <Button variant="outline" onClick={()=>void refresh()}>Refresh pending applications</Button>
+  <label className="text-sm block">Pending request
+   <select value={selected} onChange={e=>setSelected(e.target.value)} className="w-full border rounded-md p-2">
+    <option value="">Choose an application</option>
+    {items.map(x=><option value={x.id} key={x.id}>Request {x.id}, telephone {x.contact_phone}</option>)}
+   </select>
+  </label>
+  <Input placeholder="Verified member name" value={name} onChange={e=>setName(e.target.value)}/>
+  <Input placeholder="Member nickname" value={nickname} onChange={e=>setNickname(e.target.value)}/>
+  <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={verified} onChange={e=>setVerified(e.target.checked)}/>
+    I independently verified that the applicant owns this contact number</label>
+  <Input type="password" placeholder="Your administrator website password" autoComplete="current-password"
+   value={password} onChange={e=>setPassword(e.target.value)}/>
+  <div className="flex flex-wrap gap-2">
+   <Button disabled={!selected||!verified||!name||!password||busy} onClick={()=>void review("approved")}>Approve and Create Gavhah Member</Button>
+   <Button variant="outline" disabled={!selected||!password||busy} onClick={()=>void review("rejected")}>Reject application</Button>
+  </div>
+  {message&&<p role="status" className="text-sm">{message}</p>}
+ </section>;
+}
