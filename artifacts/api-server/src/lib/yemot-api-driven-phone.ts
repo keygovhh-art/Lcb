@@ -269,7 +269,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let signupPhone=s.signup_phone,signupStage=s.signup_stage;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
-  const inputName=(replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":(path==="1254"&&signupStage===0)?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   let goToProviderManagement=false;
@@ -385,6 +385,16 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
       else{s.login_failures++;feedback="Incorrect Campaign Center PIN or inactive membership. ";}
      }catch{s.login_failures++;feedback="Campaign Center membership service is temporarily unavailable. ";}
     }else{s.login_failures++;feedback="Enter your separate Campaign Center numeric PIN. ";}
+   }else if(path==="2854"){
+    if(/^[0-9]{10,15}$/.test(digit)){
+     try{
+      const submitted=await campaignPhoneBridge("join-request",callHash,undefined,digit);
+      feedback=submitted.requested?
+       "Your Campaign Center account opening request was saved in the Campaign Center software. You are not a member yet. After identity verification, complete Neon Auth website signup and join an organization. ":
+       "Campaign Center registration request was not accepted. ";
+      path="285";
+     }catch{feedback="Campaign Center telephone account requests are temporarily unavailable. ";}
+    }else feedback="Enter your ten to fifteen digit contact telephone number. ";
    }else if(path==="2853"){
     try{await campaignPhoneBridge("logout",callHash);}catch{/* do not falsely claim remote logout */}
     path="2";feedback="Return to Campaign Center. Verify the sign-out status from the account menu. ";
@@ -527,7 +537,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      "You are not signed into Campaign Center. Use account menu option one for your separate Campaign Center PIN.";
    }catch{spoken="Campaign Center membership service is not configured or temporarily unavailable.";}
   }else if(path==="2854"){
-   spoken="To open a separate Campaign Center account, complete the website Neon Auth signup and join an organization. Then set your own Campaign Center phone PIN.";
+   mode="phone";
+   spoken="Campaign Center account opening. Enter your ten to fifteen digit contact telephone number, followed by pound. We will save your application in Campaign Center software. Your contact must be verified and Neon Auth website signup completed before you are a member.";
   }else if(reportMode){
    spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
   }else if(replyMode){
