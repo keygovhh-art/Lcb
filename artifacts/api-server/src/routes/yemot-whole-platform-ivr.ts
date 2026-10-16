@@ -10,7 +10,8 @@ const leaf=(label:string,web:string,details="This module is mapped. Private acti
 export const phoneTree: Record<string,Item> = {
   "1":group("Gavhah. Global Kindness Network",{
     "1":group("News and updates",{
-      "1":leaf("Latest news","/news"),"2":leaf("Community notices","/news"),"3":leaf("Important alerts","/notifications")
+      "1":leaf("Latest news","/news"),"2":leaf("Community notices","/news"),"3":leaf("Important alerts","/notifications"),
+      "4":leaf("Open a selected news article","/news/:id")
     }),
     "2":group("My Askanus and MAX",{
       "1":leaf("Today's tasks","/my"),"2":leaf("Projects and goals","/my"),
@@ -30,14 +31,18 @@ export const phoneTree: Record<string,Item> = {
     }),
     "6":group("Community",{
       "1":leaf("Groups","/groups"),"2":leaf("Discussion forum","/forum"),
-      "3":leaf("Directory","/directory"),"4":leaf("Connections","/connections")
+      "3":leaf("Directory","/directory"),"4":leaf("Connections","/connections"),
+      "5":leaf("Create a forum post","/forum/new"),"6":leaf("Read a selected forum topic","/forum/:id"),
+      "7":leaf("Open a selected group","/groups/:id")
     }),
     "7":group("Minyans and appointments",{
       "1":leaf("Minyan directory","/minyans"),"2":leaf("Reservations","/reservations")
     }),
     "8":group("Messages and account",{
       "1":leaf("Notifications","/notifications"),"2":leaf("My profile","/profile"),
-      "3":leaf("Search","/search")
+      "3":leaf("Search","/search"),"4":leaf("Sign in or link my account","/login"),
+      "5":leaf("Create an account","/register"),"6":leaf("Privacy information","/privacy"),
+      "7":leaf("Terms and conditions","/terms"),"8":leaf("Gavhah welcome homepage","/")
     }),
     "9":group("Management and reports",{
       "1":leaf("Personal overview","/dashboard"),"2":leaf("System center","/system"),
