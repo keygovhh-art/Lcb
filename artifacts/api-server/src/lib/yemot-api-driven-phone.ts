@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
+import { logger } from "./logger";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 
@@ -47,7 +48,9 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"cod
  : mode==="news"
  ? [name,"no","1","0","7","No","no","no","","0123456789","1","Ok","None"]
  : [name,"no","1","1","8","No","no"];
- res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("read="+voice(prompt)+"="+opts.join(","));
+ const providerBody="read="+voice(prompt)+"="+opts.join(",");
+ if(step===0)logger.info({ivrResponse:"read",mode,step,promptCharacters:prompt.length,patternVersion:"basic-read-v2"},"Yemot welcome reply delivered");
+ res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
 }
 function menuPrompt(path:string,tree:Record<string,TreeNode>){
  let nodes=tree,current:TreeNode|undefined;
