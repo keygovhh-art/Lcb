@@ -5,6 +5,7 @@ import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import { verifyGavhahPhonePin, requestGavhahPhoneAccount } from "../routes/phone-member-pin";
 import { campaignPhoneBridge } from "./campaign-center-phone-bridge";
+import { createCallTask, changePhoneTaskPriority, changePhoneTaskDeadline, setPhoneTaskCompleted, deletePhoneTask } from "./yemot-askanus-task-actions";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -14,6 +15,7 @@ type State={
  step:number;path:string;news_position:number;news_chunk:number;
  member_id:number|null;linked_until:string|null;login_failures:number;
  phone_page:number;selected_item_id:number|null;signup_phone:string|null;signup_stage:number;
+ task_action:string;task_action_target:number|null;
  news_actions_open:boolean;news_reply_mode:boolean;news_reply_target:number|null;news_report_mode:boolean;
 };
 const categories:Record<string,string>={
@@ -40,12 +42,12 @@ export function safeVoice(input:unknown,max=430){
   .replace(/\s+/g," ").trim().slice(0,max);
 }
 function voice(s:string){return "t-"+safeVoice(s,430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"="menu"){
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"|"date"="menu"){
  if(mode==="record"){
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
    .send("read="+voice(prompt)+"=rr"+step+",,record");return;
  }
- const name=(mode==="code"?"ln":mode==="pin"?"pn":mode==="phone"?"rg":mode==="article"?"ar":"iv")+step;
+ const name=(mode==="code"?"ln":mode==="pin"?"pn":mode==="phone"?"rg":mode==="date"?"dt":mode==="article"?"ar":"iv")+step;
  // Yehmot's documented read order is:
  // name, reuse, maxDigits, minDigits, timeout, playback, blockStar,
  // blockZero, replacement, allowedDigits, retries, emptyIsOk, emptyValue.
@@ -57,6 +59,8 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"cod
  ? [name,"no","16","12","15","No","no"]
  : mode==="phone"
  ? [name,"no","15","10","15","No","no"]
+ : mode==="date"
+ ? [name,"no","8","8","15","No","no"]
  : mode==="article"
  ? [name,"no","8","1","8","No","no"]
  : mode==="news"
@@ -263,13 +267,14 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
  try{
   await client.query("BEGIN");
   await client.query("INSERT INTO public.gavhah_yemot_call_states(call_hash) VALUES($1) ON CONFLICT(call_hash) DO NOTHING",[callHash]);
-  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,signup_phone,signup_stage,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
+  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,signup_phone,signup_stage,task_action,task_action_target,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
   let userId=s.member_id;
   let signupPhone=s.signup_phone,signupStage=s.signup_stage;
+  let taskAction=s.task_action||"",taskActionTarget=s.task_action_target;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
-  const inputName=(replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(taskAction==="create"?"ct":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   let goToProviderManagement=false;
@@ -512,7 +517,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
    step++;
   }
-  let mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"="menu",spoken=feedback;
+  let mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"|"date"="menu",spoken=feedback;
   if(path==="1252"||path==="2851"){
    mode="pin";
    spoken+=path==="1252"?
@@ -566,8 +571,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
   }else spoken+=menuPrompt(path,tree);
   await client.query("UPDATE public.gavhah_yemot_call_states "+
-   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,signup_phone=$15,signup_stage=$16,updated_at=now() "+
-   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,signupPhone,signupStage]);
+   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,signup_phone=$15,signup_stage=$16,task_action=$17,task_action_target=$18,updated_at=now() "+
+   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,signupPhone,signupStage,taskAction,taskActionTarget]);
   await client.query("COMMIT");
   if(goToProviderManagement){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/0");
