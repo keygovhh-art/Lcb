@@ -95,3 +95,8 @@ All operations use Gavhah verified member_id, canonical askanus tables, transact
 - This writes an actual website case_activity_log entry of type contact, updates last_updated, and writes max_history_events for the same member. It NEVER places an outbound call and NEVER claims a recipient answered. The confirmation describes an attempt as the member's own log, not a verified external event.
 - No financial ledger, donor balances, member identity or provider configuration is changed.
 - Physical DTMF testing remains a future release gate; no Render deployment, production migration, or provider API changes were made for this batch.
+
+## Exact case lookup — member isolation
+- In Gavhah My Askanus > Cases, key 9 asks for an existing site case number (up to eight digits), then jumps to its actual place in the user-owned list. Ownership is checked using the same user_id as on the website. Neither presence nor content of another member's case is exposed.
+- This key does not grant any account login, mutate data, or call anyone; it just sets the listening cursor within the current verified member's own cases.
+- Physical keypad and voice playback still require testing after approved release. No current Render or provider changes.
