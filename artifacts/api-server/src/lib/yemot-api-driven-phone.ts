@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
@@ -186,14 +186,19 @@ function sourceCallId(req:Request){
  const raw=String(req.body?.ApiCallId??req.query.ApiCallId??"");
  return /^[A-Za-z0-9_.:-]{8,160}$/.test(raw)?raw:null;
 }
-function exactSecret(req:Request){
- const expect=process.env.YEMOT_IVR_CALLBACK_KEY||"";
+async function exactSecret(req:Request){
  const supplied=String(req.body?.entryKey??req.query.entryKey??"");
- return expect.length>=32&&expect.length===supplied.length&&
-  timingSafeEqual(Buffer.from(expect),Buffer.from(supplied))?expect:null;
+ if(!/^[a-f0-9]{64}$/.test(supplied))return null;
+ const result=await pool.query<{callback_hash:string;state:string}>(
+  "SELECT callback_hash,state FROM public.gavhah_yemot_ivr_install WHERE id=1");
+ const expected=result.rows[0]?.callback_hash;
+ if(typeof expected!=="string"||!["installing","live"].includes(result.rows[0]?.state))return null;
+ const provided=createHash("sha256").update(supplied).digest("hex");
+ return expected.length===provided.length&&
+  timingSafeEqual(Buffer.from(expected),Buffer.from(provided))?supplied:null;
 }
 export async function handleYemotApp(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<void>{
- const secret=exactSecret(req);
+ const secret=await exactSecret(req);
  if(!secret){res.status(403).type("text/plain").send("Access denied");return;}
  const active=await pool.query("SELECT enabled,last_verified_at FROM public.gavhah_yemot_global WHERE id=1");
  if(!active.rows[0]?.enabled||!active.rows[0]?.last_verified_at){

@@ -34,10 +34,12 @@ export function YemotCentralManagement() {
   const [error,setError] = useState("");
   const [loaded,setLoaded] = useState(false);
   const [directory,setDirectory] = useState<{path:string;entries:Array<{name:string;type:string}>;providerTotal:number}|null>(null);
+  const [install,setInstall] = useState<{state:string;safe_message?:string}|null>(null);
 
   const refresh = async () => {
     const s = await call("status") as Status;
     setStatus(s);
+    setInstall(await call("installation").catch(()=>null));
     setHotline(v => v || s.lineNumber || "");
     setLoaded(true);
   };
@@ -129,6 +131,27 @@ export function YemotCentralManagement() {
           {directory.entries.map((f,i)=><li key={i}><span dir="ltr">{f.name}</span> {f.type}</li>)}
         </ul>:<p>No files were listed by the provider.</p>}
       </div>}
+      <div className="rounded-lg border p-4 space-y-3">
+        <h4 className="font-semibold">Install single API gateway for this new empty hotline</h4>
+        <p className="text-sm text-muted-foreground">
+          This does not build menus inside Yemot. It installs only one root API forwarding entry
+          to the Gavhah server; the server controls all menus, account linking, votes, replies and data.
+          The provider's root folder must be empty. Existing content is never overwritten.
+        </p>
+        <p className="text-sm">Installation status: <strong>{install?.state || "not checked"}</strong></p>
+        {install?.safe_message && <p role="status" className="text-sm">{install.safe_message}</p>}
+        <Button disabled={busy||!status.configured||!status.verified||status.lineNumber!=="6055621286"||install?.state==="live"||install?.state==="installing"}
+          onClick={()=>{if(!window.confirm("Install the single API gateway on the new EMPTY 605-562-1286 root? Existing content will NOT be replaced."))return;
+            void work(async()=>{
+              const result=await call("install-root",{method:"POST",body:JSON.stringify({confirm:"INSTALL_EMPTY_6055621286"})});
+              setMessage(result.message || "Provider setup requested. Call the line to test the English greeting.");
+            });}}>
+          Install and connect hotline 605-562-1286
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Provider acceptance is not the same as a physical call test. The existing saved API token stays encrypted and is never shown.
+        </p>
+      </div>
       <p className="text-sm text-muted-foreground">
         Root menu replacement is not enabled. First inspect the provider and verify an unused test extension.
         The stored API token is never displayed.
