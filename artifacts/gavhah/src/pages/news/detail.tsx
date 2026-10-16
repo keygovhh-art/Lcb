@@ -20,6 +20,7 @@ import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
 import { ImageUploadField } from "@/components/shared/image-upload-field";
+import { NewsVoiceReplies } from "@/components/news/phone-voice-replies";
 
 const CATEGORY_LABELS: Record<string, string> = {
   medical: "Medical Assistance",
@@ -264,6 +265,8 @@ function ArticleBody({ article }: { article: any }) {
           <p key={i}>{para}</p>
         ))}
       </div>
+
+      <NewsVoiceReplies newsId={article.id} />
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
