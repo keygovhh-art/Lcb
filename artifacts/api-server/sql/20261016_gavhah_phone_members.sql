@@ -33,3 +33,5 @@ CREATE TABLE IF NOT EXISTS public.gavhah_phone_join_requests (
 );
 CREATE INDEX IF NOT EXISTS gavhah_phone_join_pending ON public.gavhah_phone_join_requests(status,submitted_at);
 CREATE UNIQUE INDEX IF NOT EXISTS gavhah_phone_join_one_pending_contact ON public.gavhah_phone_join_requests(contact_phone) WHERE status='pending';
+ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS signup_phone text;
+ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS signup_stage smallint NOT NULL DEFAULT 0;
