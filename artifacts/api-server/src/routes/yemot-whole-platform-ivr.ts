@@ -18,7 +18,8 @@ export const phoneTree: Record<string,Item> = {
         "9":leaf("Medical and wedding news","/news")
       }),
       "3":leaf("Important and critical news","/news"),
-      "4":leaf("Featured updates","/news")
+      "4":leaf("Featured updates","/news"),
+      "5":leaf("Read an update by its article number","/news/:id")
     }),
     "2":group("My Askanus and MAX",{
       "1":leaf("My tasks, including marking complete","/my"),
