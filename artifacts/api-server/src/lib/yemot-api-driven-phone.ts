@@ -434,9 +434,54 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     // A sign-out action is deliberately reachable only through My Askanus.
     userId=null;s.member_id=null;s.linked_until=null;path="12";feedback="You have signed out from this call. ";
    }else{
-    path=treeSelect(path,digit,tree);
-    if(path==="126"){
-      userId=null;s.member_id=null;s.linked_until=null;path="12";feedback="You have signed out from this call. ";
+    const target=treeSelect(path,digit,tree);
+    // No caller-ID-based access: every website member-only module must first
+    // pass the SAME live member status validation as its web counterpart.
+    const gavhahPrivate=target.startsWith("13")||target.startsWith("14")||
+      target.startsWith("19")||target==="182"||
+      (target.startsWith("12")&&!["12","125","1251","1252","1253","1254","126"].includes(target))||
+      ["165","1712","154"].includes(target);
+    const ccAccount=target.startsWith("285");
+    const ccProtected=target.startsWith("2")&&target.length>=2&&target!=="2"&&
+      !target.startsWith("29")&&!ccAccount&&target!=="28";
+    if(gavhahPrivate && !await memberAllowed(client,{...s,member_id:userId})){
+      path="125";
+      feedback="This Gavhah feature requires your own active Gavhah membership. Choose temporary website code or numerical phone PIN. ";
+    }else if(gavhahPrivate&&target.startsWith("19")){
+      const member=await client.query<{role:string}>("SELECT role FROM public.users WHERE id=$1",[userId]);
+      const role=member.rows[0]?.role;
+      const requiresStaff=target.startsWith("192")||target.startsWith("193")||target.startsWith("194");
+      const requiresSuper=target.startsWith("193");
+      if((requiresSuper&&role!=="super_admin")||
+         (requiresStaff&&!["admin","super_admin","moderator"].includes(role))){
+        feedback="This administrator-only Gavhah section is not permitted for your member role. ";
+      }else path=target;
+    }else if(ccProtected){
+      try{
+       const cc=await campaignPhoneBridge("snapshot",callHash);
+       if(!cc.authenticated){
+        path="285";
+        feedback="Campaign Center requires a separate Campaign Center member login. Enter your Campaign Center PIN under member access. ";
+       }else{
+        // Branch-scoped manager, finance and organization administration
+        // checks happen independently on Campaign Center's own service.
+        const elevated=(cc.organizations||[]).some(o=>["owner","manager","finance","auditor"].includes(o.role));
+        const manager=(cc.organizations||[]).some(o=>["owner","manager"].includes(o.role));
+        const needsManager=target.startsWith("28")||target.startsWith("253");
+        const needsFinance=target.startsWith("24");
+        if((needsManager&&!manager)||(needsFinance&&!elevated)){
+         feedback="Your Campaign Center membership does not permit this management or finance option. ";
+        }else path=target;
+       }
+      }catch{
+       path="285";feedback="Campaign Center membership is not available for secure verification. Private access is blocked. ";
+      }
+    }else{
+      path=target;
+      if(path==="126"){
+       userId=null;s.member_id=null;s.linked_until=null;path="12";
+       feedback="You have signed out from Gavhah for this call. Campaign Center sessions are separate. ";
+      }
     }
     position=0;chunk=0;page=0;confirmId=null;
    }
