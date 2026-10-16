@@ -21,3 +21,4 @@ export * from "./broadcasts";
 export * from "./media";
 export * from "./member-mailing";
 export * from "./member-contact-methods";
+export * from "./hotline-mailbox";

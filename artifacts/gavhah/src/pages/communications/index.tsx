@@ -2,6 +2,7 @@ import { formatGregorianDateTime } from "@/lib/gregorian-date";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { MaxCallDesk } from "@/components/communications/max-call-desk";
+import { HotlineMemberInbox } from "@/components/communications/hotline-member-inbox";
 import { useToast } from "@/hooks/use-toast";
 import { MemberGate } from "@/components/shared/member-gate";
 import { Layout } from "@/components/layout/layout";
@@ -19,11 +20,13 @@ export default function Communications() {
   const { toast } = useToast();
   const [broadcastForm, setBroadcastForm] = useState({
     recipientGroup: "all",
+    channel:"website",
     subject: "",
     message: "",
   });
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
   const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastRequestId,setBroadcastRequestId]=useState(()=>crypto.randomUUID());
 
   const loadBroadcasts = async () => {
     if (!isAdmin) return;
@@ -50,7 +53,8 @@ export default function Communications() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipientGroup: broadcastForm.recipientGroup,
-          channel: "website",
+          channel:broadcastForm.channel,
+          requestId:broadcastRequestId,
           subject: broadcastForm.subject.trim(),
           message: broadcastForm.message.trim(),
         }),
@@ -62,8 +66,9 @@ export default function Communications() {
       }
       const sent = await res.json();
       setBroadcasts(current => [sent, ...current.filter((b: any) => b.id !== sent.id)]);
-      setBroadcastForm({ recipientGroup: "all", subject: "", message: "" });
-      toast({ title: "Broadcast sent", description: `Delivered to ${sent.recipientCount} website notification inboxes.` });
+      setBroadcastForm({recipientGroup:"all",channel:"website",subject:"",message:""});
+      setBroadcastRequestId(crypto.randomUUID());
+      toast({ title: "מעסעדזשעס אפגעהיטן", description: `${sent.recipientCount} מיטגלידער · קיין SMS אדער ארויסרופן.` });
     } finally {
       setBroadcastSending(false);
     }
@@ -114,44 +119,45 @@ export default function Communications() {
           <TabsList className="bg-muted/50 h-auto p-1 flex flex-wrap gap-1">
             <TabsTrigger value="calls" className="gap-2"><Phone className="h-4 w-4" /> מיין MAX רופן־צענטער</TabsTrigger>
             <TabsTrigger value="broadcast" className="gap-2">
-              <Megaphone className="h-4 w-4" /> Website Broadcast
+              <Megaphone className="h-4 w-4" /> מעלדונגען
             </TabsTrigger>
+            <TabsTrigger value="hotline-inbox" className="gap-2"><Voicemail className="h-4 w-4" /> מיין האטליין־אינבאקס</TabsTrigger>
           </TabsList>
 
           <TabsContent value="calls" className="space-y-6"><MaxCallDesk /></TabsContent>
+          <TabsContent value="hotline-inbox" className="space-y-6"><HotlineMemberInbox/></TabsContent>
 
           {/* Broadcast */}
           <TabsContent value="broadcast" className="space-y-6">
-            <h2 className="font-serif text-2xl font-bold text-primary">Broadcast Messaging</h2>
+            <h2 className="font-serif text-2xl font-bold text-primary">מעלדונגען פאר מיטגלידער</h2>
             <div className="bg-card border rounded-xl p-6">
-              <h3 className="font-semibold text-foreground mb-4">Send Broadcast Message</h3>
+              <h3 className="font-semibold text-foreground mb-4">שיקן א מעלדונג צו מיטגלידער</h3>
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="font-semibold">Recipient Group</Label>
+                    <Label className="font-semibold">צו וועלכע מיטגלידער?</Label>
                     <Select value={broadcastForm.recipientGroup} onValueChange={v => setBroadcastForm(f => ({ ...f, recipientGroup: v }))}>
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Members</SelectItem>
-                        <SelectItem value="volunteers">Volunteers Only</SelectItem>
-                        <SelectItem value="admins">Admins Only</SelectItem>
+                        <SelectItem value="all">אלע מיטגלידער</SelectItem>
+                        <SelectItem value="volunteers">נאר עסקנים</SelectItem>
+                        <SelectItem value="admins">נאר מנהלים</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="font-semibold">Channel</Label>
-                    <Select value="website">
-                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                    <Label className="font-semibold">וואו זאל די מעלדונג אנקומען?</Label>
+                    <Select value={broadcastForm.channel} onValueChange={channel=>setBroadcastForm(f=>({...f,channel}))}>
+                      <SelectTrigger className="h-11"><SelectValue/></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="website">Website Notification</SelectItem>
-                        <SelectItem value="email" disabled>Email — not connected</SelectItem>
-                        <SelectItem value="sms" disabled>SMS — not connected</SelectItem>
-                      </SelectContent>
-                    </Select>
+                        <SelectItem value="website">בלויז וועבזייטל־מעלדונג</SelectItem>
+                        <SelectItem value="hotline_inbox">בלויז פערזענליכער האטליין־אינבאקס</SelectItem>
+                        <SelectItem value="both">וועבזייטל און האטליין־אינבאקס</SelectItem>
+                      </SelectContent>                    </Select>
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="font-semibold">Subject</Label>
+                  <Label className="font-semibold">קעפל</Label>
                   <Input
                     className="h-11"
                     placeholder="Message subject..."
@@ -160,7 +166,7 @@ export default function Communications() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="font-semibold">Message</Label>
+                  <Label className="font-semibold">מעסעדזש</Label>
                   <Textarea
                     placeholder="Your broadcast message..."
                     className="min-h-28 resize-none"
@@ -173,8 +179,9 @@ export default function Communications() {
                   onClick={() => void sendWebsiteBroadcast()}
                   disabled={!isAdmin || broadcastSending}
                 >
-                  <Send className="h-4 w-4" /> {broadcastSending ? "Sending..." : "Send Website Broadcast"}
+                  <Send className="h-4 w-4" /> {broadcastSending ? "שיקט…" : "אפהיטן אינבאקס־מעסעדזשעס"}
                 </Button>
+                <p className="text-xs text-muted-foreground">דאס איז אן אינערליכער האטליין־אינבאקס. קיין רוף אדער SMS ווערט נישט ארויסגעשיקט; טעלעפאן־אודיא דארף נאך א זיכערער IVR־פארבינדונג.</p>
                 {!isAdmin && (
                   <p className="text-xs text-muted-foreground">Only administrators can send platform-wide broadcasts.</p>
                 )}
@@ -187,7 +194,7 @@ export default function Communications() {
                   <div>
                     <p className="font-semibold text-foreground text-sm">{b.subject}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatGregorianDateTime(b.createdAt)} · {b.recipientCount} recipients · Website
+                      {formatGregorianDateTime(b.createdAt)} · {b.recipientCount} מיטגלידער · {b.channel==="both"?"ביידע אינבאקסן":b.channel==="hotline_inbox"?"האטליין־אינבאקס":"וועבזייטל"}
                     </p>
                   </div>
                   <Badge variant="outline" className="shrink-0 text-xs gap-1">
