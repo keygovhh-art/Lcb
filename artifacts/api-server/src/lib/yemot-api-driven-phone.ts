@@ -6,6 +6,7 @@ import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } fro
 import { verifyGavhahPhonePin, requestGavhahPhoneAccount } from "../routes/phone-member-pin";
 import { campaignPhoneBridge } from "./campaign-center-phone-bridge";
 import { createCallTask, changePhoneTaskPriority, changePhoneTaskDeadline, setPhoneTaskCompleted, deletePhoneTask } from "./yemot-askanus-task-actions";
+import { updateMyCaseOnPhone } from "./yemot-askanus-case-actions";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -16,6 +17,7 @@ type State={
  member_id:number|null;linked_until:string|null;login_failures:number;
  phone_page:number;selected_item_id:number|null;signup_phone:string|null;signup_stage:number;
  task_action:string;task_action_target:number|null;
+ case_action:string;case_action_target:number|null;
  news_actions_open:boolean;news_reply_mode:boolean;news_reply_target:number|null;news_report_mode:boolean;
 };
 const categories:Record<string,string>={
@@ -233,7 +235,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
   "Recorded goal "+Number(x.goal_amount||0)+" dollars. "+
   "Promised "+Number(x.funds_promised||0)+" dollars. "+
   "Received "+Number(x.funds_received||0)+" dollars. "+
-  "Press 1 for next, 8 for previous, 2 to restart, or zero for main menu.";
+  "Press 1 for next, 2 to restart, 3 to change case status, 4 to change case urgency, 8 for previous or zero for main menu.";
  return heading+(safeVoice(x.content,285)||"This note needs an English voice version.")+
   ". Press 1 for next, 8 for previous, 2 to restart, or zero for main menu.";
 }
@@ -267,11 +269,12 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
  try{
   await client.query("BEGIN");
   await client.query("INSERT INTO public.gavhah_yemot_call_states(call_hash) VALUES($1) ON CONFLICT(call_hash) DO NOTHING",[callHash]);
-  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,signup_phone,signup_stage,task_action,task_action_target,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
+  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,signup_phone,signup_stage,task_action,task_action_target,case_action,case_action_target,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
   let userId=s.member_id;
   let signupPhone=s.signup_phone,signupStage=s.signup_stage;
   let taskAction=s.task_action||"",taskActionTarget=s.task_action_target;
+  let caseAction=s.case_action||"",caseActionTarget=s.case_action_target;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
   const inputName=(taskAction==="create"?"ct":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
@@ -451,11 +454,34 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
       if(result.ok){page=0;path="121";}
      }
     }
+   }else if(caseAction&&path==="122"){
+    if(!await memberAllowed(client,{...s,member_id:userId})){
+     caseAction="";caseActionTarget=null;path="125";
+     feedback="Sign in to your own Gavhah account before changing a case. ";
+    }else if(digit==="0"){
+     caseAction="";caseActionTarget=null;path="";page=0;
+    }else{
+     const result=await updateMyCaseOnPhone(client,userId!,caseActionTarget||0,
+       caseAction==="status"?"status":"urgency",digit);
+     feedback=result.message+" ";
+     if(result.ok){caseAction="";caseActionTarget=null;confirmId=null;}
+    }
    }else if(personalPaths.has(path)){
-    if(digit==="0"){path="";page=0;confirmId=null;taskAction="";taskActionTarget=null;}
+    if(digit==="0"){path="";page=0;confirmId=null;taskAction="";taskActionTarget=null;caseAction="";caseActionTarget=null;}
     else if(digit==="1"){page++;confirmId=null;}
     else if(digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(digit==="2"){page=0;confirmId=null;}
+    else if(path==="122"&&["3","4"].includes(digit)&&userId&&
+      await memberAllowed(client,{...s,member_id:userId})){
+     const item=await client.query<{id:number}>(
+      "SELECT id FROM public.askanus_cases WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",
+      [userId,page]);
+     if(!item.rows[0])feedback="No case at this position. Press two to restart. ";
+     else{
+      caseAction=digit==="3"?"status":"urgency";
+      caseActionTarget=item.rows[0].id;
+     }
+    }
     else if(taskPaths.has(path)&&digit==="3"&&userId&&
       await memberAllowed(client,{...s,member_id:userId})){
      taskAction="create";taskActionTarget=null;
@@ -551,11 +577,17 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     }
     position=0;chunk=0;page=0;confirmId=null;
     if(!taskPaths.has(path)){taskAction="";taskActionTarget=null;}
+    if(path!=="122"){caseAction="";caseActionTarget=null;}
    }
    step++;
   }
   let mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"|"date"="menu",spoken=feedback;
-  if(taskAction&&taskPaths.has(path)){
+  if(caseAction&&path==="122"){
+   mode="menu";
+   spoken+=caseAction==="status"?
+    "Change case status on your Gavhah website. Press 1 open, 2 in progress, or 3 closed. Press zero to cancel.":
+    "Change case urgency on your Gavhah website. Press 1 low, 2 medium, 3 high or 4 critical. Press zero to cancel.";
+  }else if(taskAction&&taskPaths.has(path)){
    if(taskAction==="create"){
     mode="phone";
     spoken+="Enter a ten to fifteen digit callback phone number followed by pound. A new website task titled Call this number will be added to your own Gavhah tasks.";
@@ -622,8 +654,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
   }else spoken+=menuPrompt(path,tree);
   await client.query("UPDATE public.gavhah_yemot_call_states "+
-   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,signup_phone=$15,signup_stage=$16,task_action=$17,task_action_target=$18,updated_at=now() "+
-   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,signupPhone,signupStage,taskAction,taskActionTarget]);
+   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,signup_phone=$15,signup_stage=$16,task_action=$17,task_action_target=$18,case_action=$19,case_action_target=$20,updated_at=now() "+
+   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,signupPhone,signupStage,taskAction,taskActionTarget,caseAction,caseActionTarget]);
   await client.query("COMMIT");
   if(goToProviderManagement){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/0");
