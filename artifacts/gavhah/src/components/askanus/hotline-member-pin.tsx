@@ -37,9 +37,26 @@ export function GavhahPhonePinPanel(){
   <label htmlFor="gavhah-current-password" className="text-sm font-medium block">Confirm your current Gavhah website password</label>
   <Input id="gavhah-current-password" type="password" dir="ltr" autoComplete="current-password"
    value={password} onChange={e=>setPassword(e.target.value)}/>
+  <div className="flex flex-wrap gap-2">
   <Button type="button" disabled={busy||!password||!/^[0-9]{12,16}$/.test(pin)} onClick={()=>void save()}>
-   {busy?"Saving...":"Save private Gavhah hotline PIN"}
+   {busy?"Saving...":"Save my own Gavhah hotline PIN"}
   </Button>
+  <Button type="button" variant="outline" disabled={busy||!password||!/^[0-9]{12,16}$/.test(pin)}
+   onClick={()=>void (async()=>{
+    setBusy(true);setMessage("");
+    try {
+     const response=await fetch("/api/account/phone-pin/activate",{
+      method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({pin,currentPassword:password})
+     });
+     const result=await response.json().catch(()=>({}));
+     if(!response.ok)throw Error(result.error||"Activation failed");
+     setMessage("Your administrator-issued Gavhah PIN is now activated for your own website membership.");
+     setPin("");setPassword("");
+    }catch(e){setMessage(e instanceof Error?e.message:"Activation failed");}
+    finally{setBusy(false);}
+   })()}>Activate administrator-issued PIN</Button>
+  </div>
   {message&&<p role="status" className="text-sm">{message}</p>}
  </section>;
 }
