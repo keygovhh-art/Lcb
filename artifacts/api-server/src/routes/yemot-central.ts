@@ -159,7 +159,7 @@ router.delete("/admin/yemot/connection", requireAuth, admin, wrap(async (req, re
 // The reverse service endpoint exposes status only, NEVER the hotline token or caller lists.
 // Disabled unless both Render instances intentionally share a 32+ byte secret.
 router.get("/yemot/service/status", wrap(async (req, res) => {
-  const configured = process.env.GAVHAH_CONNECT_SHARED_SECRET || "";
+  const configured = process.env.YEMOT_CENTRAL_SHARED_SECRET || "";
   const provided = req.get("x-gavhah-connect-secret") || "";
   const a = Buffer.from(configured), b = Buffer.from(provided);
   if (configured.length < 32 || a.length !== b.length || !timingSafeEqual(a,b)) {
