@@ -33,7 +33,7 @@ export function YemotCentralManagement() {
   const [message,setMessage] = useState("");
   const [error,setError] = useState("");
   const [loaded,setLoaded] = useState(false);
-  const [directory,setDirectory] = useState<{path:string;entries:Array<{name:string;type:string}>;providerTotal:number}|null>(null);
+  const [directory,setDirectory] = useState<{path:string;entries:Array<{name:string;type:string}>;providerTotal:number;preflight?:{canInstall:boolean;counts:Record<string,number|null>;reason:string;settingKeys:string[];iniNames:string[]}}|null>(null);
   const [install,setInstall] = useState<{state:string;safe_message?:string}|null>(null);
 
   const refresh = async () => {
@@ -127,16 +127,22 @@ export function YemotCentralManagement() {
       </Button>
       {directory&&<div className="text-sm rounded-lg border p-3">
         <strong>Existing directory: {directory.path} ({directory.providerTotal} entries)</strong>
-        {directory.entries.length?<ul className="list-disc ps-5">
-          {directory.entries.map((f,i)=><li key={i}><span dir="ltr">{f.name}</span> {f.type}</li>)}
-        </ul>:<p>No files were listed by the provider.</p>}
+        {directory.preflight&&<div className="mt-2 space-y-1">
+          <p>Safe default-only root: <strong>{directory.preflight.canInstall?"Yes — provider default config only":"Not confirmed — check the items below"}</strong></p>
+          <p>{directory.preflight.reason}</p>
+          <p>Items: folders {directory.preflight.counts.dirs ?? "?"}, files {directory.preflight.counts.files ?? "?"}, settings {directory.preflight.counts.ini ?? "?"}, audio {directory.preflight.counts.messages ?? "?"}, reports {directory.preflight.counts.html ?? "?"}</p>
+          <p>Root setting names: {directory.preflight.settingKeys.join(", ")||"(none)"}</p>
+        </div>}
+        {directory.entries.length?<ul className="list-disc ps-5 mt-2">
+          {directory.entries.map((f,i)=><li key={i}><span dir="ltr">{f.name}</span> — {f.type}</li>)}
+        </ul>:<p>No file or folder names were listed by the provider.</p>}
       </div>}
       <div className="rounded-lg border p-4 space-y-3">
         <h4 className="font-semibold">Install single API gateway for this new empty hotline</h4>
         <p className="text-sm text-muted-foreground">
           This does not build menus inside Yemot. It installs only one root API forwarding entry
           to the Gavhah server; the server controls all menus, account linking, votes, replies and data.
-          The provider's root folder must be empty. Existing content is never overwritten.
+          A brand-new line may contain a default ext.ini file. The safe installer accepts only that default configuration, and refuses existing recordings, other files or child extensions.
         </p>
         <p className="text-sm">Installation status: <strong>{install?.state || "not checked"}</strong></p>
         {install?.safe_message && <p role="status" className="text-sm">{install.safe_message}</p>}
@@ -146,15 +152,15 @@ export function YemotCentralManagement() {
               const result=await call("install-root",{method:"POST",body:JSON.stringify({confirm:"INSTALL_EMPTY_6055621286"})});
               setMessage(result.message || "Provider setup requested. Call the line to test the English greeting.");
             });}}>
-          Install and connect hotline 605-562-1286
+          {install?.state==="blocked"?"Recheck and connect hotline 605-562-1286":"Install and connect hotline 605-562-1286"}
         </Button>
         <p className="text-xs text-muted-foreground">
           Provider acceptance is not the same as a physical call test. The existing saved API token stays encrypted and is never shown.
         </p>
       </div>
       <p className="text-sm text-muted-foreground">
-        Root menu replacement is not enabled. First inspect the provider and verify an unused test extension.
-        The stored API token is never displayed.
+        The installer changes only the root API settings after inspecting the provider.
+        Existing audio and child extensions are never deleted. The stored API token is never displayed.
       </p>
     </div>
     {message && <p role="status" className="text-sm text-green-800">{message}</p>}
