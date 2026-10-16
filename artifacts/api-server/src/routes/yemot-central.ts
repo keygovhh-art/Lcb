@@ -296,13 +296,13 @@ router.post("/admin/yemot/install-child",requireAuth,admin,wrap(async(req,res)=>
   }
   const known=new Set<string>();
   for(const entry of root.dirs){
-   const name=typeof entry==="string"?entry:String(entry?.name??entry?.fileName??entry?.path??entry?.what??"");
+   const name=typeof entry==="string"?entry:String(entry?.name??entry?.fileName??entry?.path??entry?.what??entry?.dir??"");
    const trimmed=name.trim().replace(/\/+$/,"");
+   if(!trimmed)throw Error("Provider returned an unnamed directory; cannot safely select a free extension.");
    const number=trimmed.split(/[/:]/).pop()||"";
-   if(!/^[0-9]{1,3}$/.test(number)){
-    throw Error("Unrecognized root extension name. Refusing to choose a slot.");
-   }
-   known.add(number);
+   // Names like 'system' or 'recordings' are valid existing folders, but can
+   // never collide with a purely numeric candidate. Preserve them unchanged.
+   if(/^[0-9]{1,3}$/.test(number))known.add(number);
   }
   const choices=["99","98","97","96","95","94","93","92","91","90",
                  "899","898","897","896","895","894","893","892","891","890"];
