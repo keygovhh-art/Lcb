@@ -15,3 +15,8 @@ CREATE INDEX IF NOT EXISTS hotline_mailbox_owner_idx
  ON public.hotline_mailbox_items(user_id,created_at DESC);
 ALTER TABLE public.hotline_mailbox_items ENABLE ROW LEVEL SECURITY;
 -- Direct clients have no RLS policy; only the authenticated server API may read.
+
+-- Avoid duplicate platform-wide deliveries on browser retries.
+ALTER TABLE public.broadcasts ADD COLUMN IF NOT EXISTS request_id text;
+CREATE UNIQUE INDEX IF NOT EXISTS broadcasts_author_request_unique
+ ON public.broadcasts(author_id,request_id) WHERE request_id IS NOT NULL;
