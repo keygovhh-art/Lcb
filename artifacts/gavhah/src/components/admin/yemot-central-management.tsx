@@ -33,6 +33,7 @@ export function YemotCentralManagement() {
   const [message,setMessage] = useState("");
   const [error,setError] = useState("");
   const [loaded,setLoaded] = useState(false);
+  const [directory,setDirectory] = useState<{path:string;entries:Array<{name:string;type:string}>;providerTotal:number}|null>(null);
 
   const refresh = async () => {
     const s = await call("status") as Status;
@@ -110,6 +111,27 @@ export function YemotCentralManagement() {
         דאס איז דער צוגעגרייטער מעניו־פלאן. די צוויי ימות־שלוחות, זייער קול־מעסעדזש און עכטע רופן־פונקציעס
         ווערן נאך נישט אוטאמאטיש געשטעלט. מען וועט קודם פרובירן דעם איינציגן שליסל און באשטעטיגן
         אז אן עקזיסטירנדער מעניו ווערט נישט איבערגעשריבן.
+      </p>
+    </div>
+    <div className="rounded-xl border bg-card p-5 space-y-3" dir="ltr" lang="en">
+      <h3 className="font-bold">English hotline preview and extension safety check</h3>
+      <p className="text-sm text-muted-foreground">Planned telephone menu: Press 1 for Gavhah, or 2 for Campaign Center.
+      Each has complete nested menus for its sections. Private actions require a separate verified telephone login.
+      No live provider extensions are changed by this panel.</p>
+      <Button variant="outline" disabled={busy || !status.configured}
+        onClick={()=>void work(async()=>{const r=await call("provider-directory?path=%2F");
+          setDirectory(r);setMessage("Current provider root folder inspected, with no changes.");})}>
+        Inspect the existing provider root folder (read-only)
+      </Button>
+      {directory&&<div className="text-sm rounded-lg border p-3">
+        <strong>Existing directory: {directory.path} ({directory.providerTotal} entries)</strong>
+        {directory.entries.length?<ul className="list-disc ps-5">
+          {directory.entries.map((f,i)=><li key={i}><span dir="ltr">{f.name}</span> {f.type}</li>)}
+        </ul>:<p>No files were listed by the provider.</p>}
+      </div>}
+      <p className="text-sm text-muted-foreground">
+        Root menu replacement is not enabled. First inspect the provider and verify an unused test extension.
+        The stored API token is never displayed.
       </p>
     </div>
     {message && <p role="status" className="text-sm text-green-800">{message}</p>}
