@@ -106,13 +106,11 @@ export function YemotCentralManagement() {
     <div className="rounded-xl border bg-card p-5 space-y-3">
       <h3 className="font-bold">איין האטליין — צוויי אפטיילונגען</h3>
       <div className="grid gap-2 sm:grid-cols-2">
-        <div className="rounded-lg border p-3"><strong>דרוק 1 — גבהה</strong><div className="text-sm text-muted-foreground" dir="ltr">/1</div></div>
-        <div className="rounded-lg border p-3"><strong>דרוק 2 — קאמפיין סענטער</strong><div className="text-sm text-muted-foreground" dir="ltr">/2</div></div>
+        <div className="rounded-lg border p-3"><strong>דרוק 1 — גבהה</strong><div className="text-sm text-muted-foreground" dir="ltr">Gavhah API</div></div>
+        <div className="rounded-lg border p-3"><strong>דרוק 2 — קאמפיין סענטער</strong><div className="text-sm text-muted-foreground" dir="ltr">Campaign Center API</div></div>
       </div>
       <p className="text-sm text-muted-foreground">
-        דאס איז דער צוגעגרייטער מעניו־פלאן. די צוויי ימות־שלוחות, זייער קול־מעסעדזש און עכטע רופן־פונקציעס
-        ווערן נאך נישט אוטאמאטיש געשטעלט. מען וועט קודם פרובירן דעם איינציגן שליסל און באשטעטיגן
-        אז אן עקזיסטירנדער מעניו ווערט נישט איבערגעשריבן.
+        די גאנצע טעלעפאן־נאוויגאציע קומט פון אונזער איינציגן גבהה־API, נישט פון צוויי באזונדערע ימות־שלוחות.
       </p>
     </div>
     <div className="rounded-xl border bg-card p-5 space-y-3" dir="ltr" lang="en">
@@ -138,29 +136,29 @@ export function YemotCentralManagement() {
         </ul>:<p>No file or folder names were listed by the provider.</p>}
       </div>}
       <div className="rounded-lg border p-4 space-y-3">
-        <h4 className="font-semibold">Add one unused extension — never change the root</h4>
+        <h4 className="font-semibold">Main menu — Gavhah and Campaign Center</h4>
         <p className="text-sm text-muted-foreground">
-          This will create ONE NEW, UNUSED numerical extension (for example /99) pointing at the Gavhah API.
-          The main/root menu, all existing 15 extensions and 104 recordings will NOT be changed, moved or deleted.
-          You may need a separate root menu shortcut to reach it by phone.
+          The hotline owner approved the root menu. Press 1 for Gavhah or 2 for
+          Campaign Center. The one central API controls all menu options and actions.
+          Existing recordings, messages, folders, and unrelated ext.ini keys are NOT
+          deleted. Updating the root's type affects what callers hear, not the stored files.
         </p>
         <p className="text-sm">Installation status: <strong>{install?.state || "not checked"}</strong></p>
         {install?.safe_message && <p role="status" className="text-sm">{install.safe_message}</p>}
-        {(install?.target_path&&install.target_path!=="/")&&<p className="text-sm">Reserved API extension: <strong>{install.target_path}</strong> (root menu unchanged)</p>}
-        <Button disabled={busy||!status.configured||!status.verified||status.lineNumber!=="6055621286"||install?.state==="live"||install?.state==="installing"}
-          onClick={()=>{if(!window.confirm("ADD ONLY ONE UNUSED extension to 605-562-1286? Keep ALL existing root files, 15 directories, and 104 recordings unchanged."))return;
-            void work(async()=>{
-              const result=await call("install-child",{method:"POST",body:JSON.stringify({confirm:"ADD_ONLY_6055621286"})});
-              setMessage(result.message || "New child extension accepted; verify access from the root menu.");
-            });}}>
-          {install?.state==="blocked"?"Check and add an unused extension":"Add only a new API extension"}
-        </Button>
+        <Button variant="outline" disabled={busy}
+          onClick={()=>void work(async()=>{
+            const state=await call("installation");
+            setInstall(state);
+            setMessage(state.safe_message || "Installation status refreshed.");
+          })}>Refresh root installation status</Button>
         <p className="text-xs text-muted-foreground">
-          Provider acceptance is not the same as a physical call test. The existing saved API token stays encrypted and is never shown.
+          Only the named API settings are updated. Original hotline files remain
+          intact. Provider acknowledgement does not substitute for a physical call test.
         </p>
       </div>
       <p className="text-sm text-muted-foreground">
-        The installer only CREATES a previously unused child extension. It never modifies the root menu or any existing files, audio or child folders. You can test entering the new extension from the existing phone menu if it supports that key. The saved API token is never displayed.
+        The installation is queued once on the backend and runs after the Gavhah
+        server is ready. No manual API token or separate extension is required.
       </p>
     </div>
     {message && <p role="status" className="text-sm text-green-800">{message}</p>}
