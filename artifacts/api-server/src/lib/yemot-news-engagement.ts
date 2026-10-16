@@ -64,3 +64,44 @@ export async function fetchModeratedNewsAudio(path:string):Promise<Uint8Array>{
   return bytes;
  }finally{token="";}
 }
+
+
+// Telephone save and report use the SAME canonical rows as website /saved
+// and /reports. Their state is per verified website-linked member.
+export async function phoneNewsSave(client:PoolClient,userId:number,newsId:number,desired:boolean){
+ const news=await client.query<{title:string}>("SELECT title FROM public.news WHERE id=$1",[newsId]);
+ if(!news.rows[0])return "News update not found.";
+ if(desired){
+  await client.query(
+   "INSERT INTO public.saved_items(user_id,content_type,content_id,content_title,content_url) "+
+   "VALUES($1,'news',$2,$3,$4) ON CONFLICT(user_id,content_type,content_id) DO NOTHING",
+   [userId,newsId,news.rows[0].title,"/news/"+newsId]);
+  return "This update is saved to your website account.";
+ }
+ await client.query(
+  "DELETE FROM public.saved_items WHERE user_id=$1 AND content_type='news' AND content_id=$2",
+  [userId,newsId]);
+ return "This update was removed from your website saved list.";
+}
+export async function phoneNewsReport(client:PoolClient,userId:number,newsId:number,reasonDigit:string){
+ const reasons:Record<string,string>={
+  "1":"spam","2":"inappropriate","3":"misinformation","4":"harassment","5":"other"
+ };
+ const reason=reasons[reasonDigit];
+ if(!reason)return "Invalid report reason. Please select one through five.";
+ const exists=await client.query("SELECT id FROM public.news WHERE id=$1",[newsId]);
+ if(!exists.rowCount)return "News update not found.";
+ // Same-site one-pending-report-per-member rule; rate limit also prevents
+ // serial anonymous misuse across news records. Caller is web-code verified.
+ const repeated=await client.query(
+  "SELECT id FROM public.reports WHERE content_type='news' AND content_id=$1 "+
+  "AND reporter_id=$2 AND status='pending' LIMIT 1",[newsId,userId]);
+ if(repeated.rowCount)return "You already have a pending report on this update.";
+ const volume=await client.query<{total:string}>(
+  "SELECT COUNT(*)::text AS total FROM public.reports WHERE reporter_id=$1 AND created_at>now()-interval '1 hour'",[userId]);
+ if(Number(volume.rows[0]?.total||0)>=5)return "Report limit reached. Please try again later.";
+ await client.query(
+  "INSERT INTO public.reports(content_type,content_id,reason,description,reporter_id,status) "+
+  "VALUES('news',$1,$2,NULL,$3,'pending')",[newsId,reason,userId]);
+ return "Your report has been saved to the same website administration review queue.";
+}
