@@ -8,6 +8,7 @@ import { campaignPhoneBridge } from "./campaign-center-phone-bridge";
 import { createCallTask, changePhoneTaskPriority, changePhoneTaskDeadline, setPhoneTaskCompleted, deletePhoneTask } from "./yemot-askanus-task-actions";
 import { updateMyCaseOnPhone } from "./yemot-askanus-case-actions";
 import { deleteMyPhoneNote } from "./yemot-askanus-note-actions";
+import { readMyFollowup, setMySimpleFollowupCompleted } from "./yemot-askanus-followup-actions";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -27,7 +28,7 @@ const categories:Record<string,string>={
  "1128":"community"
 };
 const newsAll="111",newsImportant="113";
-const personalPaths=new Set(["121","122","123","124","127","128","129"]);
+const personalPaths=new Set(["121","122","123","124","127","128","129","134"]);
 const taskPaths=new Set(["121","127","128","129"]);
 // Deadline values are ISO YYYY-MM-DD text. Compare New York local dates.
 const taskWhere:Record<string,string>={
@@ -192,6 +193,22 @@ async function memberAllowed(client:import("pg").PoolClient,state:State){
  return r.rowCount===1;
 }
 async function myPrompt(client:import("pg").PoolClient,path:string,userId:number,page:number,confirmId:number|null){
+ if(path==="134"){
+  const followup=await readMyFollowup(client,userId,page);
+  if(!followup)return "No more personal followups. Press 2 to restart, 8 for previous or zero for main menu.";
+  const note=safeVoice(followup.note,170)||"This followup needs an English audio version";
+  const recurrence=followup.repeat_rule&&followup.repeat_rule!=="none";
+  return "Personal followup number "+(page+1)+". "+note+". "+
+   (followup.due_date?"Due "+safeVoice(followup.due_date,24)+". ":"No deadline. ")+
+   (followup.due_time?"At "+safeVoice(followup.due_time,16)+". ":"")+
+   (followup.completed?"Completed. ":"Not completed. ")+
+   (recurrence?"This followup repeats "+safeVoice(followup.repeat_rule,35)+
+    ". To complete a recurring followup use the website, which creates the next occurrence correctly. ":
+    followup.completed?"Press 6 twice to reopen this followup. ":"Press 5 twice to mark this followup done. ")+
+   (confirmId===followup.id?"Press 5 again to confirm. ":"")+
+   (confirmId===-followup.id?"Press 6 again to confirm. ":"")+
+   "Press 1 for next, 2 to restart, 8 for previous or zero for main menu.";
+ }
  if(path==="124"){
   const r=await client.query(
    "SELECT (SELECT count(*) FROM public.askanus_tasks WHERE user_id=$1 AND completed=false)::int AS pending,"+
@@ -482,6 +499,25 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     else if(digit==="1"){page++;confirmId=null;}
     else if(digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(digit==="2"){page=0;confirmId=null;}
+    else if(path==="134"&&["5","6"].includes(digit)&&userId&&
+      await memberAllowed(client,{...s,member_id:userId})){
+     const item=await readMyFollowup(client,userId,page);
+     if(!item){confirmId=null;feedback="No followup at this position. ";}
+     else if(item.repeat_rule&&item.repeat_rule!=="none"){
+      confirmId=null;feedback="Recurring followups must be completed on the website to preserve the next scheduled occurrence. ";
+     }else{
+      const wanted=digit==="5";
+      if(item.completed===wanted){
+       confirmId=null;feedback=wanted?"Followup is already complete. ":"Followup is already open. ";
+      }else if(confirmId===(wanted?item.id:-item.id)){
+       const result=await setMySimpleFollowupCompleted(client,userId,item.id,wanted);
+       feedback=result.message+" ";confirmId=null;if(result.ok)page=0;
+      }else{
+       confirmId=wanted?item.id:-item.id;
+       feedback="Press "+digit+" AGAIN to confirm changing this followup status. ";
+      }
+     }
+    }
     else if(path==="123"&&digit==="9"&&userId&&
       await memberAllowed(client,{...s,member_id:userId})){
      const note=await client.query<{id:number}>(
