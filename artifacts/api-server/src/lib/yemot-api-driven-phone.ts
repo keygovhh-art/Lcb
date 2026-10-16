@@ -502,7 +502,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
    step++;
   }
-  let mode:"menu"|"news"|"code"|"article"|"record"|"pin"="menu",spoken=feedback;
+  let mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"="menu",spoken=feedback;
   if(path==="1252"||path==="2851"){
    mode="pin";
    spoken+=path==="1252"?
