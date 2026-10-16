@@ -1,7 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { timingSafeEqual } from "node:crypto";
-import { pool } from "@workspace/db";
-import { publicPhoneNews,publicPhoneCharity,renderNewsMenu,renderSelectedNews,renderCharityMenu,renderSelectedCharity } from "../lib/yemot-public-content";
+import { handleYemotApp } from "../lib/yemot-api-driven-phone";
 
 // Complete PHONE NAVIGATION MAP, not a claim of completed phone features.
 // The menu currently ONLY names modules. Caller phone numbers are NOT identity.
@@ -11,7 +9,7 @@ const leaf=(label:string,web:string,details="This module is mapped. Private acti
 export const phoneTree: Record<string,Item> = {
   "1":group("Gavhah. Global Kindness Network",{
     "1":group("News and updates",{
-      "1":leaf("Latest news","/news"),"2":leaf("Community notices","/news"),"3":leaf("Important alerts","/notifications"),
+      "1":leaf("Latest news","/news"),"2":leaf("Community notices","/news"),"3":leaf("Important and critical news","/news"),
       "4":leaf("Open a selected news article","/news/:id")
     }),
     "2":group("My Askanus and MAX",{
@@ -117,54 +115,9 @@ export function phonePrompt(path:string):string {
   return [pre,choices,path?"Press zero to go back.":""].filter(Boolean).join(" ").replace(/[&=,\r\n]/g," ").slice(0,1200);
 }
 const router=Router();
-router.all("/yemot/ivr",async(req:Request,res:Response)=>{
-  // This is intentionally public-information ONLY, with a separate provider
-  // callback secret. Never query users, donations, or account private data.
-  const stored=process.env.YEMOT_IVR_CALLBACK_KEY||"";
-  const supplied=String(req.body?.entryKey??req.query.entryKey??"");
-  const a=Buffer.from(stored),b=Buffer.from(supplied);
-  if(stored.length<32||a.length!==b.length||!timingSafeEqual(a,b))
-    return res.status(403).type("text/plain").send("Access denied");
-  const active=await pool.query("SELECT enabled,last_verified_at FROM public.gavhah_yemot_global WHERE id=1");
-  if(!active.rows[0]?.enabled||!active.rows[0]?.last_verified_at)
-    return res.status(503).type("text/plain").send("Hotline integration not yet enabled");
-  // Each read uses a fresh parameter name; provider sends all earlier
-  // values back. Never treat a phone number or ApiCallId as a login.
-  let path="";
-  for(let step=0;step<4;step++){
-    const value=req.body?.["nav"+step]??req.query["nav"+step];
-    if(value===undefined||value===null)break;
-    const digit=String(value);
-    if(!/^[0-9]$/.test(digit))break;
-    if(digit==="0"){path=path.slice(0,-1);continue;}
-    const next=path+digit;
-    if(!phoneNode(next))break;
-    path=next;
-  }
-  const current=path?phoneNode(path):undefined;
-  res.set("Cache-Control","no-store").type("text/plain; charset=utf-8");
-  // These two sections now fetch actual PUBLIC Gavhah database records, not
-  // static menu placeholders. Caller identity grants NO other data access.
-  if(path==="111"){
-    const news=await publicPhoneNews();
-    const pressed=req.body?.newsItem??req.query.newsItem;
-    return res.send(pressed===undefined?renderNewsMenu(news):renderSelectedNews(news,pressed));
-  }
-  if(path==="151"){
-    const charities=await publicPhoneCharity();
-    const pressed=req.body?.charityItem??req.query.charityItem;
-    return res.send(pressed===undefined?renderCharityMenu(charities):renderSelectedCharity(charities,pressed));
-  }
-  if(current&&!current.children){
-    const details=(current.details||"This section is online only for now.")+" Returning to your menu.";
-    // Complete the voice message and let Yemot return to the configured menu.
-    return res.send("id_list_message=t-"+details.replace(/[&=,\r\n]/g," ").slice(0,350));
-  }
-  const depth=Math.min(path.length,4);
-  // Yemot's read contract: variable, confirm, digits count, minimum count,
-  // wait timeout, data type and repetition. Keep it deliberately minimal:
-  // nav0,no,1,1,8,Digits,yes (documented provider API response pattern).
-  const readOptions=["nav"+depth,"no","1","1","8","Digits","yes"].join(",");
-  return res.send("read=t-"+phonePrompt(path)+"="+readOptions);
+// Exactly one Yemot API callback; all menus, filters, and per-call steps live
+// in our own application and Neon DB. No provider-side child menu required.
+router.all("/yemot/ivr",(req:Request,res:Response,next)=>{
+  void handleYemotApp(req,res,phoneTree).catch(next);
 });
 export default router;
