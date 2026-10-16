@@ -1,6 +1,7 @@
 import { logger } from "./lib/logger";
 import { ensureReservedSuperAdmin } from "./lib/super-admin";
 import { activateOwnerApprovedYemotRoot } from "./lib/yemot-owner-approved-root";
+import { applyYemotVoiceRepair } from "./lib/yemot-root-voice-repair";
 
 const rawPort = process.env["PORT"];
 
@@ -27,6 +28,7 @@ const server = app.listen(port, "0.0.0.0", () => {
   logger.info({ port, host: "0.0.0.0" }, "Server listening");
   // One-time root setup only when explicitly queued by the hotline owner.
   void activateOwnerApprovedYemotRoot();
+  void applyYemotVoiceRepair();
 });
 
 server.on("error", (err) => {
