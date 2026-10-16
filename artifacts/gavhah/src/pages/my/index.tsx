@@ -15,6 +15,7 @@ import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { CaseFollowups } from "@/components/askanus/case-followups";
 import { MaxHistoryPanel } from "@/components/communications/max-history-panel";
 import { PhoneAccountLink } from "@/components/askanus/phone-account-link";
+import { GavhahPhonePinPanel } from "@/components/askanus/hotline-member-pin";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -778,7 +779,7 @@ export default function MyAskanus() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4"><PhoneAccountLink /></div>
+      <div className="container mx-auto px-4"><PhoneAccountLink /><GavhahPhonePinPanel /></div>
 
       {/* Lifetime Impact */}
       <div className="bg-muted/30 border-b py-6">
