@@ -1,5 +1,6 @@
 import { logger } from "./lib/logger";
 import { ensureReservedSuperAdmin } from "./lib/super-admin";
+import { installApprovedFreshYemotLine } from "./lib/yemot-install-once";
 
 const rawPort = process.env["PORT"];
 
@@ -24,6 +25,8 @@ logger.info("Application modules loaded");
 
 const server = app.listen(port, "0.0.0.0", () => {
   logger.info({ port, host: "0.0.0.0" }, "Server listening");
+  // Only executes once for the explicit, pre-approved queued install record.
+  void installApprovedFreshYemotLine();
 });
 
 server.on("error", (err) => {
