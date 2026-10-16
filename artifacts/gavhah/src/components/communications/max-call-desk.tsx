@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListAskanuscasesQueryKey } from "@workspace/api-client-react";
 import { Link } from "wouter";
+import { JewishDateField } from "@/components/communications/jewish-date-field";
 import { Bell, BookOpen, CheckCircle2, ContactRound, PhoneCall, Plus, RefreshCw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -385,8 +386,7 @@ export function MaxCallDesk() {
           <div className="space-y-1"><Label htmlFor="max-callback">נאכפאלג צולייגן (אפציאנעל)</Label>
             <Textarea id="max-callback" placeholder="למשל: צוריק רופן איבער א טשעק" value={followupNote} onChange={e=>setFollowupNote(e.target.value)}/></div>
           {followupNote.trim() && <div className="space-y-1"><Label htmlFor="max-due">ווען דארף מען נאכפאלגן?</Label>
-            <Input id="max-due" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/>
-            <Input aria-label="נאכפאלג־שעה" type="time" disabled={!dueDate} value={dueTime} onChange={e=>setDueTime(e.target.value)}/>
+            <JewishDateField label="אידישער אדער ענגלישער נאכפאלג־דאטום" value={dueDate} onChange={setDueDate} timeValue={dueTime} onTimeChange={setDueTime}/>
             <select aria-label="איבערחזרן רוף־נאכפאלג" disabled={!dueDate} value={repeatRule}
               onChange={e=>setRepeatRule(e.target.value)} className="w-full h-11 rounded-lg border bg-background px-2">
               <option value="none">איינמאליג</option><option value="daily">יעדן טאג</option>
@@ -405,8 +405,7 @@ export function MaxCallDesk() {
         <div className="space-y-1"><Label htmlFor="max-follow">א נייעם נאכפאלג</Label>
           <Input id="max-follow" value={quickNote} onChange={e=>setQuickNote(e.target.value)} placeholder="וואס דארף איך נאך ערלעדיגן?" required/></div>
         <div className="space-y-1"><Label htmlFor="max-follow-date">דאטום (אפציאנעל)</Label>
-          <Input id="max-follow-date" type="date" value={quickDate} onChange={e=>setQuickDate(e.target.value)}/>
-          <Input aria-label="נאכפאלג־שעה" type="time" disabled={!quickDate} value={quickTime} onChange={e=>setQuickTime(e.target.value)}/>
+          <JewishDateField value={quickDate} onChange={setQuickDate} timeValue={quickTime} onTimeChange={setQuickTime} label="נאכפאלג־דאטום"/>
           <select aria-label="איבערחזרן דעם נאכפאלג" disabled={!quickDate} value={quickRepeat}
             onChange={e=>setQuickRepeat(e.target.value)} className="w-full h-11 rounded-lg border bg-background px-2">
             <option value="none">איינמאליג</option><option value="daily">יעדן טאג</option>
