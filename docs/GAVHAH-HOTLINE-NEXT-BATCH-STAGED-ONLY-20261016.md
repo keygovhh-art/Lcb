@@ -69,3 +69,12 @@ All operations use Gavhah verified member_id, canonical askanus tables, transact
 - Recurring followups are READ ONLY on the phone: the normal website creates the next dated instance and transfers linked donor/contact references, therefore phone completion deliberately blocks until that recurrence process is implemented end-to-end.
 - This is partial phone functionality. Arbitrary note creation and full recurring rule editing, notification scheduling and contact editing remain pending.
 - No files or production data were changed. Test future release against actual website recur dates, timezone, idempotent duplicate callbacks, and two-user isolation.
+
+## Case management — staged incremental batch
+- My Askanus > My personal cases, phone keys 1-2-2.
+- Press 3 to change current member-owned case status open/in_progress/closed. Press 4 to change urgency low/medium/high/critical. Both use canonical askanus_cases and max_history_events with ownership check.
+- Press 5 to create an internal callback case: enter 10-15 digit contact number. Creates General case without financial changes, writes the site's case_activity_log and personal history, capped to ten per hour. Contact phone never authenticates any account.
+- Press 6 to create nonrecurring, date-only followup on selected case: enter YYYYMMDD. Writes canonical case_followups with America/New_York time zone, unspecified time, repeat_rule=none, and max_history_events history. No money transactions or appointments generated.
+- These phone actions require an active Gavhah login and the selected case must belong to that member.
+- Do not claim full parity: case financial ledger mutations, advanced recurrence, arbitrary text editing and linked case deletion remain unimplemented on phone.
+- Do not deploy or run production database migration without explicit user approval.
