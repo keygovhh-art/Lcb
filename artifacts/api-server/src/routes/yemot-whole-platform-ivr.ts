@@ -26,7 +26,12 @@ export const phoneTree: Record<string,Item> = {
       "2":leaf("My personal cases and goals","/my"),
       "3":leaf("My private notes","/my"),
       "4":leaf("My personal dashboard","/my"),
-      "5":leaf("Securely link my website account by eight-digit code","/my"),
+      "5":group("Gavhah account access",{
+        "1":leaf("One time eight digit website pairing code","/my"),
+        "2":leaf("My separate numeric member hotline PIN","/my"),
+        "3":leaf("Check my Gavhah member login status","/my"),
+        "4":leaf("Open a Gavhah membership account","/register")
+      }),
       "6":leaf("Log out of this phone session","/my"),
       "7":leaf("My unfinished tasks","/my"),
       "8":leaf("My overdue tasks","/my"),
@@ -98,7 +103,13 @@ export const phoneTree: Record<string,Item> = {
     }),
     "8":group("Reports and management",{
       "1":leaf("Manager overview","/"),"2":leaf("Activity log","/"),
-      "3":leaf("Export or import","/"),"4":leaf("Campaign accounting","/")
+      "3":leaf("Export or import","/"),"4":leaf("Campaign accounting","/"),
+      "5":group("Campaign Center member access",{
+        "1":leaf("Sign in with my Campaign Center numeric hotline PIN","/"),
+        "2":leaf("Check my Campaign Center membership","/"),
+        "3":leaf("Sign out from this Campaign Center phone session","/"),
+        "4":leaf("Open my Campaign Center account on the website","/")
+      })
     }),
     "9":group("Plans and connections",{
       "1":group("Six upgrade plans",{
