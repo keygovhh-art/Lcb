@@ -44,3 +44,15 @@ ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS case_action
 ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS case_action_target integer;
 
 ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS note_delete_target integer;
+
+-- Private telephone voice notes are owned by the SAME Gavhah note record.
+-- Audio is never served publicly, unlike moderated public news replies.
+CREATE TABLE IF NOT EXISTS public.gavhah_phone_private_note_audio (
+ note_id integer PRIMARY KEY REFERENCES public.askanus_notes(id) ON DELETE CASCADE,
+ user_id integer NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+ provider_recording_path text NOT NULL,
+ fingerprint char(64) NOT NULL UNIQUE,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS gavhah_phone_private_note_audio_owner ON public.gavhah_phone_private_note_audio(user_id,created_at);
+ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS note_record_mode boolean NOT NULL DEFAULT false;
