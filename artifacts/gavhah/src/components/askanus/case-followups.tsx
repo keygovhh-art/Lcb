@@ -1,3 +1,4 @@
+import { JewishDateField } from "@/components/communications/jewish-date-field";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListAskanuscasesQueryKey } from "@workspace/api-client-react";
@@ -150,10 +151,7 @@ export function CaseFollowups({ caseId, followups, onUpdated }: {
             <div className="space-y-2">
               <Textarea aria-label="נאכפאלג־נאטיץ" value={editNote} onChange={e => setEditNote(e.target.value)}
                 className="min-h-20" maxLength={1500} />
-              <Input aria-label="באשטימטער נאכפאלג־דאטום" type="date" value={editDueDate}
-                onChange={e => setEditDueDate(e.target.value)} />
-              <Input aria-label="באשטימטע שעה" type="time" value={editDueTime}
-                disabled={!editDueDate} onChange={e=>setEditDueTime(e.target.value)} />
+              <JewishDateField value={editDueDate} onChange={setEditDueDate} timeValue={editDueTime} onTimeChange={setEditDueTime} label="באשטימטער נאכפאלג־דאטום"/>
               <label className="text-xs block">ווידערהאלן דעם נאכפאלג</label>
               <select aria-label="ווידערהאלן נאכפאלג" className="w-full min-h-11 rounded-md border bg-background px-2"
                 value={editRepeatRule} onChange={e=>setEditRepeatRule(e.target.value)} disabled={!editDueDate}>

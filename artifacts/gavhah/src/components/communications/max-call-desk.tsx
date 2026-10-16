@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListAskanuscasesQueryKey } from "@workspace/api-client-react";
 import { Link } from "wouter";
+import { JewishDateField } from "@/components/communications/jewish-date-field";
 import { Bell, BookOpen, CheckCircle2, ContactRound, PhoneCall, Plus, RefreshCw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,7 @@ type PersonalCase = {
   followUpNotes:CaseFollowupEntry[];
 };
 type Contact = { id:number; name:string; phone:string; email:string; notes:string; organization?:string;city?:string;tags?:string; doNotCall?:boolean; preferredHours?:string };
-type Call = {id:number; caseId:number; contactName:string; outcome:string; moneyKind:string; amount:number; note:string; createdAt:string};
+type Call = {id:number; caseId:number; contactName:string; outcome:string; moneyKind:string; amount:number; paidAmount:number;pledgedAmount:number;outcomeDetail:string;moodDetail:string; note:string; createdAt:string};
 type TodaySummary = {
   summary:{dueOrOverdueFollowups:number;totalOpenFollowups:number;openTasks:number;openPromiseBalance:number};
   nextTasks:Array<{id:number;title:string;deadline:string;priority:string;caseTitle:string}>;
@@ -40,7 +41,7 @@ const json = (body:unknown,method="POST"):RequestInit => ({
 const outcomeNames:Record<string,string> = {
   spoke:"גערעדט",no_answer:"נישט געענטפערט",callback:"בעט צוריקצורופן",
   do_not_call:"בעט נישט מער צו רופן",
-  not_interested:"נישט אינטערעסירט",other:"אנדערע",
+  not_interested:"נישט אינטערעסירט",partial_paid:"זיך אונטערגענומען און געגעבן א חלק",other:"אנדערע",
 };
 
 export function MaxCallDesk() {
@@ -62,6 +63,10 @@ export function MaxCallDesk() {
   const [outcome,setOutcome] = useState("spoke");
   const [moneyKind,setMoneyKind] = useState("none");
   const [amount,setAmount] = useState("");
+  const [paidAmount,setPaidAmount]=useState("");
+  const [pledgedAmount,setPledgedAmount]=useState("");
+  const [outcomeDetail,setOutcomeDetail]=useState("");
+  const [moodDetail,setMoodDetail]=useState("");
   const [note,setNote] = useState("");
   const [mood,setMood] = useState("neutral");
   const [revision,setRevision] = useState(0);
@@ -170,7 +175,11 @@ export function MaxCallDesk() {
       const result=await request<{duplicate:boolean;report:Call}>(
         "/api/askanus/cases/"+caseId+"/call-reports",
         json({requestId,contactId,contactName:name.trim(),outcome,moneyKind,mood,
-          amount:moneyKind==="none"?0:Number(amount),note,followupNote,dueDate:dueDate||null,dueTime:dueTime||null,
+          amount:moneyKind==="split"?Number(paidAmount)+Number(pledgedAmount):moneyKind==="none"?0:Number(amount),
+          paidAmount:moneyKind==="split"?Number(paidAmount):moneyKind==="received"?Number(amount):0,
+          pledgedAmount:moneyKind==="split"?Number(pledgedAmount):moneyKind==="pledged"?Number(amount):0,
+          outcomeDetail:outcome==="other"?outcomeDetail.trim():"",moodDetail:mood==="other"?moodDetail.trim():"",
+          note,followupNote,dueDate:dueDate||null,dueTime:dueTime||null,
           timeZone:dueTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):null,
           repeatRule}),
       );
@@ -178,7 +187,7 @@ export function MaxCallDesk() {
         ? "דער פריערדיגער באריכט איז שוין אפגעהיטן. קיין צווייטע נדבה איז נישט צוגערעכנט."
         : "דער רוף־באריכט איז אפגעהיטן. מיין עסקנות באנוצט די זעלבע פראיעקט־דאַטן.");
       setCalls(items=>[result.report,...items.filter(r=>r.id!==result.report.id)].slice(0,100));
-      setRequestId(crypto.randomUUID());setOutcome("spoke");setMoneyKind("none");setAmount("");setMood("neutral");setRevision(v=>v+1);
+      setRequestId(crypto.randomUUID());setOutcome("spoke");setMoneyKind("none");setAmount("");setPaidAmount("");setPledgedAmount("");setOutcomeDetail("");setMoodDetail("");setMood("neutral");setRevision(v=>v+1);
       setNote("");setFollowupNote("");setDueDate("");setDueTime("");setRepeatRule("none");
       await load();
       await qc.invalidateQueries({queryKey:getListAskanuscasesQueryKey()});
@@ -337,17 +346,29 @@ export function MaxCallDesk() {
           <div className="space-y-1"><Label htmlFor="max-name">מיט וועמען האסטו גערעדט?</Label>
             <Input id="max-name" value={name} onChange={e=>setName(e.target.value)} required maxLength={240}/></div>
           <div className="space-y-1"><Label htmlFor="max-outcome">וואס איז געשען?</Label>
-            <select id="max-outcome" className="w-full h-11 rounded-lg border bg-background px-3" value={outcome} onChange={e=>setOutcome(e.target.value)}>
+            <select id="max-outcome" className="w-full h-11 rounded-lg border bg-background px-3" value={outcome} onChange={e=>{setOutcome(e.target.value);if(e.target.value==="partial_paid")setMoneyKind("split");}}>
               {Object.entries(outcomeNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}
-            </select></div>
+            </select>
+            {outcome==="other"&&<Input aria-label="וואס איז אנדערש געשען (אפציאנעל)" placeholder="באשרייב וואס איז געשען (אפציאנעל)" maxLength={400} value={outcomeDetail} onChange={e=>setOutcomeDetail(e.target.value)}/>}
+          </div>
           <div className="space-y-1"><Label htmlFor="max-money">נדבה־מצב</Label>
             <select id="max-money" className="w-full h-11 rounded-lg border bg-background px-3" value={moneyKind} onChange={e=>setMoneyKind(e.target.value)}>
               <option value="none">קיין נדבה נישט אריינגעשריבן</option>
               <option value="received">באקומען — מיין מאנועלער באריכט</option>
               <option value="pledged">צוגעזאגט — נאכנישט באצאלט</option>
+              <option value="split">באצאלט א חלק און צוגעזאגט די איבעריגע</option>
             </select></div>
-          {moneyKind!=="none" && <div className="space-y-1"><Label htmlFor="max-amount">סכום ($)</Label>
+          {moneyKind!=="none"&&moneyKind!=="split" && <div className="space-y-1"><Label htmlFor="max-amount">סכום ($)</Label>
             <Input id="max-amount" type="number" inputMode="decimal" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} required/></div>}
+          {moneyKind==="split"&&<div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg bg-muted/20 border p-3">
+            <div className="space-y-1"><Label htmlFor="max-paid-amount">וויפיל האט ער יעצט באצאלט ($)</Label>
+              <Input id="max-paid-amount" type="number" inputMode="decimal" min="0.01" step="0.01"
+                value={paidAmount} onChange={e=>setPaidAmount(e.target.value)} required/></div>
+            <div className="space-y-1"><Label htmlFor="max-pledged-amount">וויפיל בלייבט נאך צוגעזאגט ($)</Label>
+              <Input id="max-pledged-amount" type="number" inputMode="decimal" min="0.01" step="0.01"
+                value={pledgedAmount} onChange={e=>setPledgedAmount(e.target.value)} required/></div>
+            <p className="sm:col-span-2 text-xs text-muted-foreground">די באצאלטע סכום ווערט באזונדער רעקארדירט אלס מאנועל־באריכטעט. די צוגעזאגטע רעשט איז נישט קיין באקומען געלט.</p>
+          </div>}
           <div className="space-y-1"><Label htmlFor="max-mood">וויאזוי איז דער שמועס געווען? (דיין באמערקונג)</Label>
             <select id="max-mood" className="w-full h-11 rounded-lg border bg-background px-3"
               value={mood} onChange={e=>setMood(e.target.value)}>
@@ -358,20 +379,20 @@ export function MaxCallDesk() {
               <option value="uninterested">נישט אינטערעסירט</option>
               <option value="other">אנדערש</option>
             </select>
+            {mood==="other"&&<Input aria-label="באשרייב דעם שמועס אנדערש (אפציאנעל)" maxLength={400} placeholder="וואס איז געווען אנדערש? (אפציאנעל)" value={moodDetail} onChange={e=>setMoodDetail(e.target.value)}/>}
           </div>
           <div className="space-y-1"><Label htmlFor="max-note">קורצע נאטיץ פונעם רוף</Label>
             <Textarea id="max-note" value={note} onChange={e=>setNote(e.target.value)} maxLength={1500}/></div>
           <div className="space-y-1"><Label htmlFor="max-callback">נאכפאלג צולייגן (אפציאנעל)</Label>
             <Textarea id="max-callback" placeholder="למשל: צוריק רופן איבער א טשעק" value={followupNote} onChange={e=>setFollowupNote(e.target.value)}/></div>
           {followupNote.trim() && <div className="space-y-1"><Label htmlFor="max-due">ווען דארף מען נאכפאלגן?</Label>
-            <Input id="max-due" type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)}/>
-            <Input aria-label="נאכפאלג־שעה" type="time" disabled={!dueDate} value={dueTime} onChange={e=>setDueTime(e.target.value)}/>
+            <JewishDateField label="אידישער אדער ענגלישער נאכפאלג־דאטום" value={dueDate} onChange={setDueDate} timeValue={dueTime} onTimeChange={setDueTime}/>
             <select aria-label="איבערחזרן רוף־נאכפאלג" disabled={!dueDate} value={repeatRule}
               onChange={e=>setRepeatRule(e.target.value)} className="w-full h-11 rounded-lg border bg-background px-2">
               <option value="none">איינמאליג</option><option value="daily">יעדן טאג</option>
               <option value="weekly">יעדע וואך</option><option value="monthly">יעדן חודש</option>
             </select></div>}
-          <Button className="w-full min-h-11" type="submit" disabled={busy||!caseId||!name.trim()||(moneyKind!=="none"&&!(Number(amount)>0))}>
+          <Button className="w-full min-h-11" type="submit" disabled={busy||!caseId||!name.trim()||(moneyKind==="split"?!(Number(paidAmount)>0&&Number(pledgedAmount)>0):moneyKind!=="none"&&!(Number(amount)>0))}>
             <Save className="h-4 w-4 ml-2"/> {busy?"היט אפ...":"אפהיטן — און דערהיינטיגן מיין עסקנות"}
           </Button>
           <p className="text-xs text-muted-foreground">א צוגעזאגטע נדבה ווערט נישט פאררעכנט אלס באקומען. דאס איז א מאנועלער באריכט, נישט קיין באצאלונג־באשטעטיגונג פון א פינאנציעלער סערוויס.</p>
@@ -384,8 +405,7 @@ export function MaxCallDesk() {
         <div className="space-y-1"><Label htmlFor="max-follow">א נייעם נאכפאלג</Label>
           <Input id="max-follow" value={quickNote} onChange={e=>setQuickNote(e.target.value)} placeholder="וואס דארף איך נאך ערלעדיגן?" required/></div>
         <div className="space-y-1"><Label htmlFor="max-follow-date">דאטום (אפציאנעל)</Label>
-          <Input id="max-follow-date" type="date" value={quickDate} onChange={e=>setQuickDate(e.target.value)}/>
-          <Input aria-label="נאכפאלג־שעה" type="time" disabled={!quickDate} value={quickTime} onChange={e=>setQuickTime(e.target.value)}/>
+          <JewishDateField value={quickDate} onChange={setQuickDate} timeValue={quickTime} onTimeChange={setQuickTime} label="נאכפאלג־דאטום"/>
           <select aria-label="איבערחזרן דעם נאכפאלג" disabled={!quickDate} value={quickRepeat}
             onChange={e=>setQuickRepeat(e.target.value)} className="w-full h-11 rounded-lg border bg-background px-2">
             <option value="none">איינמאליג</option><option value="daily">יעדן טאג</option>

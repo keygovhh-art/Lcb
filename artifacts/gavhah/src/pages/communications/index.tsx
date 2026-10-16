@@ -19,11 +19,14 @@ export default function Communications() {
   const { toast } = useToast();
   const [broadcastForm, setBroadcastForm] = useState({
     recipientGroup: "all",
+    channel:"website",
     subject: "",
     message: "",
   });
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
   const [broadcastSending, setBroadcastSending] = useState(false);
+  const [mailbox,setMailbox]=useState<Array<{id:number;subject:string;message:string;isRead:boolean;createdAt:string}>>([]);
+  const [mailboxLoading,setMailboxLoading]=useState(false);
 
   const loadBroadcasts = async () => {
     if (!isAdmin) return;
@@ -36,6 +39,21 @@ export default function Communications() {
   useEffect(() => {
     void loadBroadcasts();
   }, [isAdmin]);
+  const loadMailbox=async()=>{
+    setMailboxLoading(true);
+    try{
+      const response=await fetch("/api/hotline/mailbox",{credentials:"include",cache:"no-store"});
+      if(response.ok)setMailbox(await response.json());
+    }finally{setMailboxLoading(false);}
+  };
+  useEffect(()=>{void loadMailbox();},[]);
+  const markMailboxRead=async(id:number)=>{
+    const response=await fetch("/api/hotline/mailbox/"+id+"/read",{
+      method:"PATCH",credentials:"include",headers:{"Content-Type":"application/json"},body:"{}",
+    });
+    if(!response.ok){toast({title:"נישט געלונגען אפצוצייכענען",variant:"destructive"});return;}
+    setMailbox(rows=>rows.map(row=>row.id===id?{...row,isRead:true}:row));
+  };
 
   const sendWebsiteBroadcast = async () => {
     if (!broadcastForm.subject.trim() || !broadcastForm.message.trim()) {
@@ -50,7 +68,7 @@ export default function Communications() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipientGroup: broadcastForm.recipientGroup,
-          channel: "website",
+          channel: broadcastForm.channel,
           subject: broadcastForm.subject.trim(),
           message: broadcastForm.message.trim(),
         }),
@@ -62,8 +80,9 @@ export default function Communications() {
       }
       const sent = await res.json();
       setBroadcasts(current => [sent, ...current.filter((b: any) => b.id !== sent.id)]);
-      setBroadcastForm({ recipientGroup: "all", subject: "", message: "" });
-      toast({ title: "Broadcast sent", description: `Delivered to ${sent.recipientCount} website notification inboxes.` });
+      setBroadcastForm({ recipientGroup: "all",channel:"website", subject: "", message: "" });
+      await loadMailbox();
+      toast({ title: "מעסעדזשעס אפגעהיטן", description: `${sent.recipientCount} מיטגלידער באקומען די אינערליכע מעסעדזשעס; קיין קאל אדער SMS איז נישט געשיקט.` });
     } finally {
       setBroadcastSending(false);
     }
@@ -114,7 +133,10 @@ export default function Communications() {
           <TabsList className="bg-muted/50 h-auto p-1 flex flex-wrap gap-1">
             <TabsTrigger value="calls" className="gap-2"><Phone className="h-4 w-4" /> מיין MAX רופן־צענטער</TabsTrigger>
             <TabsTrigger value="broadcast" className="gap-2">
-              <Megaphone className="h-4 w-4" /> Website Broadcast
+              <Megaphone className="h-4 w-4" /> בראָדקאַסט
+            </TabsTrigger>
+            <TabsTrigger value="mailbox" className="gap-2">
+              <Voicemail className="h-4 w-4" /> מיין האטליין־אינבאקס
             </TabsTrigger>
           </TabsList>
 
@@ -140,10 +162,12 @@ export default function Communications() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="font-semibold">Channel</Label>
-                    <Select value="website">
+                    <Select value={broadcastForm.channel} onValueChange={v=>setBroadcastForm(f=>({...f,channel:v}))}>
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="website">Website Notification</SelectItem>
+                        <SelectItem value="website">וועבזייטל־אינבאקס</SelectItem>
+                        <SelectItem value="hotline_inbox">האטליין־אינבאקס (אן ארויסרופן)</SelectItem>
+                        <SelectItem value="both">ביידע אינבאקסן</SelectItem>
                         <SelectItem value="email" disabled>Email — not connected</SelectItem>
                         <SelectItem value="sms" disabled>SMS — not connected</SelectItem>
                       </SelectContent>
@@ -173,7 +197,7 @@ export default function Communications() {
                   onClick={() => void sendWebsiteBroadcast()}
                   disabled={!isAdmin || broadcastSending}
                 >
-                  <Send className="h-4 w-4" /> {broadcastSending ? "Sending..." : "Send Website Broadcast"}
+                  <Send className="h-4 w-4" /> {broadcastSending ? "אפהיטן..." : "שיקן צום אויסגעקליבענעם אינבאקס"}
                 </Button>
                 {!isAdmin && (
                   <p className="text-xs text-muted-foreground">Only administrators can send platform-wide broadcasts.</p>
@@ -187,7 +211,7 @@ export default function Communications() {
                   <div>
                     <p className="font-semibold text-foreground text-sm">{b.subject}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatGregorianDateTime(b.createdAt)} · {b.recipientCount} recipients · Website
+                      {formatGregorianDateTime(b.createdAt)} · {b.recipientCount} מיטגלידער · {b.channel==="both"?"ביידע":b.channel==="hotline_inbox"?"האטליין־אינבאקס":"וועבזייטל"}
                     </p>
                   </div>
                   <Badge variant="outline" className="shrink-0 text-xs gap-1">
@@ -204,6 +228,18 @@ export default function Communications() {
           </TabsContent>
 
 
+          <TabsContent value="mailbox" className="space-y-3">
+            <h2 className="font-semibold text-2xl">מיין פריוואטער האטליין־אינבאקס</h2>
+            <p className="text-sm text-muted-foreground">די מעסעדזשעס ווערן אינערליך אפגעהיטן, אן SMS און אן ארויסרופן. צום הערן דורכן טעלעפאן דארף מען נאך א זיכערע IVR־פארבינדונג מיט א באשטעטיגטער מיטגליד־אידענטיטעט.</p>
+            <Button variant="outline" onClick={()=>void loadMailbox()} disabled={mailboxLoading}>דערפרישן אינבאקס</Button>
+            {mailbox.length===0&&<p className="text-sm text-muted-foreground">דער אינבאקס איז נאך ליידיג.</p>}
+            {mailbox.map(m=><article key={m.id} className="border rounded-xl bg-card p-4 space-y-2">
+              <div className="flex justify-between gap-2"><h3 className="font-semibold">{m.subject}</h3>{!m.isRead&&<Badge>נייעס</Badge>}</div>
+              <p className="whitespace-pre-wrap text-sm">{m.message}</p>
+              <p className="text-xs text-muted-foreground">{formatGregorianDateTime(m.createdAt)}</p>
+              {!m.isRead&&<Button variant="outline" size="sm" onClick={()=>void markMailboxRead(m.id)}>אפצייכענען אלס געלייענט</Button>}
+            </article>)}
+          </TabsContent>
         </Tabs>
 
         <section className="mt-10 space-y-4">

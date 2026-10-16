@@ -1,3 +1,4 @@
+import { JewishDateField } from "@/components/communications/jewish-date-field";
 import { useState, useEffect } from "react";
 import {
   useListNotifications, useMarkAllNotificationsRead, getListNotificationsQueryKey,
@@ -157,7 +158,7 @@ function NewCaseDialog({ onAdded }: { onAdded: () => void }) {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5"><Label className="font-semibold">Deadline</Label><Input type="date" value={form.deadline} onChange={s("deadline")} className="h-11" /></div>
+            <div className="space-y-1.5"><Label className="font-semibold">Deadline</Label><JewishDateField value={form.deadline} onChange={v=>setForm(f=>({...f,deadline:v}))} label="אידישער אדער ענגלישער Deadline"/></div>
             <div className="space-y-1.5">
               <Label className="font-semibold">Fundraising Goal ($)</Label>
               <Input type="number" min="0" value={form.goalAmount} onChange={s("goalAmount")} placeholder="0" className="h-11" />
@@ -292,8 +293,7 @@ function UpdateProgressDialog({ c, onUpdated }: { c: AskanusCase; onUpdated: () 
                   <Textarea value={followup.note} onChange={e => setFollowup(f => ({ ...f, note: e.target.value }))} placeholder="What needs to be followed up on?" className="resize-none min-h-20" />
                 </div>
                 <div className="space-y-1.5"><Label className="font-semibold">Due Date <span className="font-normal text-muted-foreground">(optional)</span></Label>
-                  <Input type="date" value={followup.dueDate} onChange={e => setFollowup(f => ({ ...f, dueDate: e.target.value }))} className="h-11" />
-                   <Input type="time" aria-label="נאכפאלג־שעה" disabled={!followup.dueDate} value={followup.dueTime} onChange={e => setFollowup(f => ({ ...f, dueTime: e.target.value }))} className="h-11" />
+                  <JewishDateField value={followup.dueDate} onChange={v=>setFollowup(f=>({...f,dueDate:v}))} timeValue={followup.dueTime} onTimeChange={v=>setFollowup(f=>({...f,dueTime:v}))} label="נאכפאלג־דאטום און שעה"/>
                    <select aria-label="נאכפאלג איבערחזרן" value={followup.repeatRule}
                      disabled={!followup.dueDate} onChange={e=>setFollowup(f=>({...f,repeatRule:e.target.value}))}
                      className="w-full h-11 rounded-lg border bg-background px-3">
@@ -549,7 +549,7 @@ function NewTaskDialog({ onAdded, caseTitle = "" }: { onAdded: () => void; caseT
           <div className="space-y-1.5"><Label className="font-semibold">Task *</Label><Input value={form.title} onChange={s("title")} placeholder="What needs to be done?" className="h-11" required /></div>
           <div className="space-y-1.5"><Label className="font-semibold">Related Case <span className="text-muted-foreground font-normal">(optional)</span></Label><Input value={form.caseTitle} onChange={s("caseTitle")} placeholder="Case name" className="h-11" /></div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5"><Label className="font-semibold">Deadline</Label><Input type="date" value={form.deadline} onChange={s("deadline")} className="h-11" /></div>
+            <div className="space-y-1.5"><Label className="font-semibold">Deadline</Label><JewishDateField value={form.deadline} onChange={v=>setForm(f=>({...f,deadline:v}))} label="אידישער אדער ענגלישער Deadline"/></div>
             <div className="space-y-1.5"><Label className="font-semibold">Priority</Label>
               <Select value={form.priority} onValueChange={s("priority")}>
                 <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
