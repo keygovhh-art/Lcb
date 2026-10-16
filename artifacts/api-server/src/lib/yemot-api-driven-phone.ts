@@ -357,16 +357,35 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     else if(digit==="1"){page++;confirmId=null;}
     else if(digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(digit==="2"){page=0;confirmId=null;}
-    else if(digit==="5"&&path==="121"&&userId&&await memberAllowed(client,s)){
+    else if((digit==="5"||digit==="6")&&taskPaths.has(path)&&userId&&
+      await memberAllowed(client,{...s,member_id:userId})){
+     const qualifier=taskWhere[path];
      const current=await client.query<{id:number;completed:boolean}>(
-       "SELECT id,completed FROM public.askanus_tasks WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",[userId,page]);
+       "SELECT id,completed FROM public.askanus_tasks WHERE user_id=$1 "+
+       qualifier+" ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",[userId,page]);
      const item=current.rows[0];
-     if(item&&!item.completed){
-      if(confirmId===item.id){
-       await client.query("UPDATE public.askanus_tasks SET completed=true,completed_at=now() "+
-        "WHERE id=$1 AND user_id=$2 AND completed=false",[item.id,userId]);
-       confirmId=null;feedback="Task marked complete on your website account. ";
-      }else{confirmId=item.id;feedback="Please press 5 again to confirm. ";}
+     if(item){
+      const wantCompleted=digit==="5";
+      if(item.completed===wantCompleted){
+       confirmId=null;
+       feedback=wantCompleted?"Task is already completed. ":"Task is already unfinished. ";
+      }else{
+       const confirmation=wantCompleted?item.id:-item.id;
+       if(confirmId===confirmation){
+        const updated=await client.query(
+         "UPDATE public.askanus_tasks SET completed=$1,completed_at="+
+         (wantCompleted?"now()":"NULL")+
+         " WHERE id=$2 AND user_id=$3 AND completed=$4 RETURNING id",
+         [wantCompleted,item.id,userId,!wantCompleted]);
+        confirmId=null;
+        feedback=updated.rowCount?(wantCompleted?
+         "Task marked complete on the website. ":"Task reopened on the website. "):
+         "Task status was already changed. ";
+       }else{
+        confirmId=confirmation;
+        feedback="Press "+digit+" again to confirm your task status change. ";
+       }
+      }
      }
     }
    }else if(path==="126"){
