@@ -35,6 +35,7 @@ import { OperationsInbox } from "@/components/admin/operations-inbox";
 import { PrivateAssistanceManagement } from "@/components/admin/private-assistance-management";
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
+import { YemotCentralManagement } from "@/components/admin/yemot-central-management";
 
 function reportContentPath(type: string, id: number) {
   if (type === "news") return `/news/${id}`;
@@ -358,6 +359,9 @@ export default function FounderDashboard() {
             <TabsTrigger value="welcome-pages" className="gap-2">
               <Edit3 className="h-4 w-4" /> {yi ? "ברוכים־הבאים־בלעטער" : "Welcome Page Designer"}
             </TabsTrigger>
+            {user?.role === "super_admin" && (
+              <TabsTrigger value="yemot-global" className="gap-2"><Globe className="h-4 w-4" /> ימות API — צענטראל</TabsTrigger>
+            )}
             {(user?.role === "admin" || user?.role === "super_admin") && (
               <TabsTrigger value="member-management" className="gap-2">
                 <Users className="h-4 w-4" /> {yi ? "מעמבער־פארוואלטונג" : "Advanced Members"}
@@ -517,6 +521,9 @@ export default function FounderDashboard() {
             </div>
           </TabsContent>
 
+          {user?.role === "super_admin" && (
+            <TabsContent value="yemot-global" className="space-y-6"><YemotCentralManagement /></TabsContent>
+          )}
           <TabsContent value="welcome-pages" className="space-y-6">
             <MembershipGateManagement />
           </TabsContent>
