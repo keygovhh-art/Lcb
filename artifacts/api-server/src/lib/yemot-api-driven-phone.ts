@@ -21,7 +21,7 @@ const categories:Record<string,string>={
 };
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124"]);
-const root="Welcome to Gavhah and Campaign Center  Press 1 for Gavhah  Press 2 for Campaign Center";
+const root="Welcome to Gavhah and Campaign Center  Press 1 for Gavhah  Press 2 for Campaign Center  Press zero for hotline management";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -227,9 +227,15 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   const inputName=(replyMode?"rr":path==="125"?"ln":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
+  let goToProviderManagement=false;
   if(raw!==undefined&&raw!==null){
    const digit=String(raw).trim();
-   if(replyMode){
+   // Existing Yemot management is usually extension /0 (admin_login).
+   // Preserve it on root 0, and keep nested 0 returning to the API root.
+   // Moving to /0 DOES NOT bypass the provider admin password.
+   if(path==="" && digit==="0"){
+    goToProviderManagement=true;
+   }else if(replyMode){
     if(!await memberAllowed(client,{...s,member_id:userId})){
       replyMode=false;actionsOpen=true;feedback="Phone login expired. Please pair your account on the website. ";
     }else{
@@ -385,7 +391,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,updated_at=now() "+
    "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode]);
   await client.query("COMMIT");
-  sendRead(res,spoken,step,mode);
+  if(goToProviderManagement){
+   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/0");
+  }else{
+   sendRead(res,spoken,step,mode);
+  }
  }catch(err){await client.query("ROLLBACK").catch(()=>{});throw err;}
  finally{client.release();}
 }
