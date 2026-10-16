@@ -424,11 +424,53 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      const now=await newsPrompt(path,position,chunk);
      if(now.hasMore)chunk++;else{position++;chunk=0;}
     }
+   }else if(taskAction&&taskPaths.has(path)){
+    if(!await memberAllowed(client,{...s,member_id:userId})){
+     taskAction="";taskActionTarget=null;path="125";
+     feedback="This action requires a valid, active Gavhah website membership. ";
+    }else if(digit==="0"&&taskAction!=="deadline"){
+     taskAction="";taskActionTarget=null;path="";page=0;confirmId=null;
+    }else if(taskAction==="create"){
+     const result=await createCallTask(client,userId!,digit);
+     feedback=result.message+" ";
+     if(result.ok){taskAction="";taskActionTarget=null;path="121";page=0;confirmId=null;}
+    }else if(taskAction==="priority"){
+     const result=await changePhoneTaskPriority(client,userId!,taskActionTarget||0,digit);
+     feedback=result.message+" ";
+     if(result.ok){taskAction="";taskActionTarget=null;confirmId=null;}
+    }else if(taskAction==="deadline"){
+     const result=await changePhoneTaskDeadline(client,userId!,taskActionTarget||0,
+       digit==="00000000"?"0":digit);
+     feedback=result.message+" ";
+     if(result.ok){taskAction="";taskActionTarget=null;confirmId=null;}
+    }else if(taskAction==="delete"){
+     if(digit!=="9"){taskAction="";taskActionTarget=null;feedback="Delete cancelled. ";}
+     else{
+      const result=await deletePhoneTask(client,userId!,taskActionTarget||0);
+      feedback=result.message+" ";taskAction="";taskActionTarget=null;confirmId=null;
+      if(result.ok){page=0;path="121";}
+     }
+    }
    }else if(personalPaths.has(path)){
-    if(digit==="0"){path="";page=0;confirmId=null;}
+    if(digit==="0"){path="";page=0;confirmId=null;taskAction="";taskActionTarget=null;}
     else if(digit==="1"){page++;confirmId=null;}
     else if(digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(digit==="2"){page=0;confirmId=null;}
+    else if(taskPaths.has(path)&&digit==="3"&&userId&&
+      await memberAllowed(client,{...s,member_id:userId})){
+     taskAction="create";taskActionTarget=null;
+     feedback="Create a new callback task with a phone number. ";
+    }else if(taskPaths.has(path)&&["4","7","9"].includes(digit)&&userId&&
+      await memberAllowed(client,{...s,member_id:userId})){
+     const current=await client.query<{id:number}>(
+      "SELECT id FROM public.askanus_tasks WHERE user_id=$1 "+taskWhere[path]+
+      " ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",[userId,page]);
+     if(!current.rows[0])feedback="No task at this position. Press two to restart. ";
+     else{
+      taskAction=digit==="4"?"priority":digit==="7"?"deadline":"delete";
+      taskActionTarget=current.rows[0].id;
+     }
+    }
     else if((digit==="5"||digit==="6")&&taskPaths.has(path)&&userId&&
       await memberAllowed(client,{...s,member_id:userId})){
      const qualifier=taskWhere[path];
@@ -444,15 +486,9 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
       }else{
        const confirmation=wantCompleted?item.id:-item.id;
        if(confirmId===confirmation){
-        const updated=await client.query(
-         "UPDATE public.askanus_tasks SET completed=$1,completed_at="+
-         (wantCompleted?"now()":"NULL")+
-         " WHERE id=$2 AND user_id=$3 AND completed=$4 RETURNING id",
-         [wantCompleted,item.id,userId,!wantCompleted]);
+        const outcome=await setPhoneTaskCompleted(client,userId,item.id,wantCompleted);
         confirmId=null;
-        feedback=updated.rowCount?(wantCompleted?
-         "Task marked complete on the website. ":"Task reopened on the website. "):
-         "Task status was already changed. ";
+        feedback=outcome.message+" ";
        }else{
         confirmId=confirmation;
         feedback="Press "+digit+" again to confirm your task status change. ";
@@ -514,11 +550,26 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
       }
     }
     position=0;chunk=0;page=0;confirmId=null;
+    if(!taskPaths.has(path)){taskAction="";taskActionTarget=null;}
    }
    step++;
   }
   let mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"|"date"="menu",spoken=feedback;
-  if(path==="1252"||path==="2851"){
+  if(taskAction&&taskPaths.has(path)){
+   if(taskAction==="create"){
+    mode="phone";
+    spoken+="Enter a ten to fifteen digit callback phone number followed by pound. A new website task titled Call this number will be added to your own Gavhah tasks.";
+   }else if(taskAction==="priority"){
+    mode="menu";
+    spoken+="Change this task priority on your website. Press 1 low, 2 medium, 3 high. Press zero to cancel.";
+   }else if(taskAction==="deadline"){
+    mode="date";
+    spoken+="Enter an eight digit due date YYYYMMDD, such as 20261130 for November thirtieth. To remove the deadline enter eight zeros. Press pound when finished.";
+   }else if(taskAction==="delete"){
+    mode="menu";
+    spoken+="WARNING. Delete this task from your website. Press nine AGAIN to confirm permanent deletion. Press zero to cancel.";
+   }
+  }else if(path==="1252"||path==="2851"){
    mode="pin";
    spoken+=path==="1252"?
     "Enter your private twelve to sixteen digit Gavhah hotline PIN. Do not enter your website password.":
