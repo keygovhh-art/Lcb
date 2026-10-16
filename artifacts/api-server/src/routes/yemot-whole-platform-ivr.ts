@@ -136,6 +136,7 @@ router.all("/yemot/ivr",async(req:Request,res:Response)=>{
     return res.send("id_list_message=t-"+details.replace(/[&=,\r\n]/g," ").slice(0,350));
   }
   const depth=Math.min(path.length,4);
-  return res.send("read=t-"+phonePrompt(path)+"=nav"+depth+",,1,1,8,Digits,yes");
+  const readOptions=["nav"+depth,"","1","1","8","NO","yes","no","","","1","","","","no"].join(",");
+  return res.send("read=t-"+phonePrompt(path)+"="+readOptions);
 });
 export default router;
