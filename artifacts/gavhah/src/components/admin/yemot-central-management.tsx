@@ -138,17 +138,17 @@ export function YemotCentralManagement() {
         </ul>:<p>No file or folder names were listed by the provider.</p>}
       </div>}
       <div className="rounded-lg border p-4 space-y-3">
-        <h4 className="font-semibold">Add one unused extension — never change the root</h4>
+        <h4 className="font-semibold">Add a new unused extension regardless of existing hotline content</h4>
         <p className="text-sm text-muted-foreground">
           This will create ONE NEW, UNUSED numerical extension (for example /99) pointing at the Gavhah API.
-          The main/root menu, all existing 15 extensions and 104 recordings will NOT be changed, moved or deleted.
+          The main/root menu, every existing extension and every provider message will NOT be changed, moved or deleted. Occupied numbers will be skipped automatically.
           You may need a separate root menu shortcut to reach it by phone.
         </p>
         <p className="text-sm">Installation status: <strong>{install?.state || "not checked"}</strong></p>
         {install?.safe_message && <p role="status" className="text-sm">{install.safe_message}</p>}
         {(install?.target_path&&install.target_path!=="/")&&<p className="text-sm">Reserved API extension: <strong>{install.target_path}</strong> (root menu unchanged)</p>}
         <Button disabled={busy||!status.configured||!status.verified||status.lineNumber!=="6055621286"||install?.state==="live"||install?.state==="installing"}
-          onClick={()=>{if(!window.confirm("ADD ONLY ONE UNUSED extension to 605-562-1286? Keep ALL existing root files, 15 directories, and 104 recordings unchanged."))return;
+          onClick={()=>{if(!window.confirm("ADD ONLY ONE VERIFIED UNUSED extension to 605-562-1286? All existing root files, folders, recordings and messages will be preserved unchanged."))return;
             void work(async()=>{
               const result=await call("install-child",{method:"POST",body:JSON.stringify({confirm:"ADD_ONLY_6055621286"})});
               setMessage(result.message || "New child extension accepted; verify access from the root menu.");
@@ -160,7 +160,7 @@ export function YemotCentralManagement() {
         </p>
       </div>
       <p className="text-sm text-muted-foreground">
-        The installer only CREATES a previously unused child extension. It never modifies the root menu or any existing files, audio or child folders. You can test entering the new extension from the existing phone menu if it supports that key. The saved API token is never displayed.
+        Existing provider content never disqualifies the line: occupied extension numbers are skipped. The installer only CREATES a verified-unused child extension; it never modifies the root menu or existing files, audio or folders. To hear the new system, you must enter the new extension through the current menu or later approve a safe root shortcut. The saved API token is never displayed.
       </p>
     </div>
     {message && <p role="status" className="text-sm text-green-800">{message}</p>}
