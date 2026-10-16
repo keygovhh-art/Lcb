@@ -34,7 +34,7 @@ export function YemotCentralManagement() {
   const [error,setError] = useState("");
   const [loaded,setLoaded] = useState(false);
   const [directory,setDirectory] = useState<{path:string;entries:Array<{name:string;type:string}>;providerTotal:number;preflight?:{canInstall:boolean;counts:Record<string,number|null>;reason:string;settingKeys:string[];iniNames:string[]}}|null>(null);
-  const [install,setInstall] = useState<{state:string;safe_message?:string}|null>(null);
+  const [install,setInstall] = useState<{state:string;safe_message?:string;target_path?:string;provider_summary?:{reservedChild?:string}}|null>(null);
 
   const refresh = async () => {
     const s = await call("status") as Status;
@@ -138,29 +138,29 @@ export function YemotCentralManagement() {
         </ul>:<p>No file or folder names were listed by the provider.</p>}
       </div>}
       <div className="rounded-lg border p-4 space-y-3">
-        <h4 className="font-semibold">Install single API gateway for this new empty hotline</h4>
+        <h4 className="font-semibold">Add one unused extension — never change the root</h4>
         <p className="text-sm text-muted-foreground">
-          This does not build menus inside Yemot. It installs only one root API forwarding entry
-          to the Gavhah server; the server controls all menus, account linking, votes, replies and data.
-          A brand-new line may contain a default ext.ini file. The safe installer accepts only that default configuration, and refuses existing recordings, other files or child extensions.
+          This will create ONE NEW, UNUSED numerical extension (for example /99) pointing at the Gavhah API.
+          The main/root menu, all existing 15 extensions and 104 recordings will NOT be changed, moved or deleted.
+          You may need a separate root menu shortcut to reach it by phone.
         </p>
         <p className="text-sm">Installation status: <strong>{install?.state || "not checked"}</strong></p>
         {install?.safe_message && <p role="status" className="text-sm">{install.safe_message}</p>}
+        {(install?.target_path&&install.target_path!=="/")&&<p className="text-sm">Reserved API extension: <strong>{install.target_path}</strong> (root menu unchanged)</p>}
         <Button disabled={busy||!status.configured||!status.verified||status.lineNumber!=="6055621286"||install?.state==="live"||install?.state==="installing"}
-          onClick={()=>{if(!window.confirm("Install the single API gateway on the new EMPTY 605-562-1286 root? Existing content will NOT be replaced."))return;
+          onClick={()=>{if(!window.confirm("ADD ONLY ONE UNUSED extension to 605-562-1286? Keep ALL existing root files, 15 directories, and 104 recordings unchanged."))return;
             void work(async()=>{
-              const result=await call("install-root",{method:"POST",body:JSON.stringify({confirm:"INSTALL_EMPTY_6055621286"})});
-              setMessage(result.message || "Provider setup requested. Call the line to test the English greeting.");
+              const result=await call("install-child",{method:"POST",body:JSON.stringify({confirm:"ADD_ONLY_6055621286"})});
+              setMessage(result.message || "New child extension accepted; verify access from the root menu.");
             });}}>
-          {install?.state==="blocked"?"Recheck and connect hotline 605-562-1286":"Install and connect hotline 605-562-1286"}
+          {install?.state==="blocked"?"Check and add an unused extension":"Add only a new API extension"}
         </Button>
         <p className="text-xs text-muted-foreground">
           Provider acceptance is not the same as a physical call test. The existing saved API token stays encrypted and is never shown.
         </p>
       </div>
       <p className="text-sm text-muted-foreground">
-        The installer changes only the root API settings after inspecting the provider.
-        Existing audio and child extensions are never deleted. The stored API token is never displayed.
+        The installer only CREATES a previously unused child extension. It never modifies the root menu or any existing files, audio or child folders. You can test entering the new extension from the existing phone menu if it supports that key. The saved API token is never displayed.
       </p>
     </div>
     {message && <p role="status" className="text-sm text-green-800">{message}</p>}
