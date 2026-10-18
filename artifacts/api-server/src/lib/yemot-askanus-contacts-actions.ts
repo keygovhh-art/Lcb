@@ -86,11 +86,11 @@ export async function myContactDonor360(client:PoolClient,userId:number,contactI
     total_pledges:number;promised:string;remaining:string
    }>("SELECT count(*)::int AS total_pledges,"+
     "COALESCE(SUM(amount) FILTER(WHERE status!='cancelled'),0)::text AS promised,"+
-    "COALESCE(SUM(GREATEST(0,amount-paid_amount)) FILTER(WHERE status!='cancelled'),0)::text AS remaining "+
+    "COALESCE(SUM(GREATEST(0,amount-COALESCE(paid_amount,0))) FILTER(WHERE status!='cancelled'),0)::text AS remaining "+
     "FROM public.max_pledges WHERE user_id=$1 AND contact_id=$2",[userId,contactId]),
   client.query<{total_receipts:number;net_received:string}>(
     "SELECT count(*)::int AS total_receipts,"+
-    "COALESCE(SUM(GREATEST(0,amount-refunded_amount)),0)::text AS net_received "+
+    "COALESCE(SUM(GREATEST(0,amount-COALESCE(refunded_amount,0))),0)::text AS net_received "+
     "FROM public.max_receipts WHERE user_id=$1 AND contact_id=$2",[userId,contactId]),
   client.query<{total_calls:number}>(
     "SELECT count(*)::int AS total_calls FROM public.fundraising_call_reports "+
