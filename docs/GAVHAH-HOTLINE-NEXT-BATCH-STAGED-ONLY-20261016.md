@@ -110,3 +110,17 @@ All operations use Gavhah verified member_id, canonical askanus tables, transact
 - The state fields followup_action/followup_action_target exist only as additive SQL IN THIS DRAFT; do not apply this migration to the live database before release approval.
 - Live Render, phone provider API root, personal identity system, active TTS voice, and active calls MUST NOT be changed by this draft.
 - REQUIRED: TypeScript builds and phone route audit, simulation of replayed callbacks, cross-member isolation, recurring followup nonmutation, invalid dates (Feb 30, zeroes), and verifying source case activity both in website and API after a future owner-authorized release. Do NOT call this complete/physically tested yet.
+
+## NEXT DEPARTMENT — People and Contacts / Donor 360 (STAGED, NOT LIVE)
+All actions are under Gavhah option 1 > People and Contacts (option 3):
+- 1 — Donor 360 **read-only** financial/contact snapshot for the selected own contact. Same canonical `communication_contacts`, `max_pledges`, `max_receipts`, `fundraising_call_reports`, and `max_followup_contacts` website tables. Includes non-cancelled pledge amounts, remaining balances, net received after refunds, count of manual reports and linked followups. No charge, payment, outbound call, settlement or reimbursement.
+- 2 — Browse own contacts with 1 next / 8 previous / 2 restart; read owner-scoped contact name, phone, org, city, role, preferred hours and Do Not Call.
+- 3 — Create a new *callback contact* from a numerical telephone number. Website stores it as `Phone contact NUMBER` with explicit notation that number and permission to call are **unverified**; website `max_history_events` is audited. Never initiate a call. Duplicate phone search is owner-only.
+- 4 — Find an existing contact by number (normalized digits) inside own contact list.
+- 7 — Find by exact website contact ID, always filtered by current authenticated `user_id`.
+- 5 then 9 — Mark selected contact Do Not Call with explicit confirmation and normal website history. NEVER remove Do Not Call through the phone; website has its own audited permission workflow.
+- 0 — return to root / cancel.
+
+Technical staging files: `lib/yemot-askanus-contacts-actions.ts`, phone bridge `lib/yemot-api-driven-phone.ts`, `sql/20261016_gavhah_phone_members.sql` for additive `contact_action` + `contact_action_target` call-state columns. Every read checks active Gavhah website-linked member login, including on continuing submenus.
+
+Known remaining Donor 360 parity gaps: individual pledges/receipts drill-down; case-specific linking, export, pledge settlements and refunds, follow-up editing, legally valid donor consent/overrides, and actual provider calls/SMS. Do NOT claim this is a complete Donor 360 phone feature.
