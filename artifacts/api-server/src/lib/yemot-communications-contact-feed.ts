@@ -32,9 +32,9 @@ export async function readContactFeed(client:PoolClient,userId:number,path:Conta
    "c.preferred_timezone,c.preferred_hours,"+
    "COALESCE((SELECT SUM(p.amount) FROM public.max_pledges p WHERE p.user_id=$1 AND p.contact_id=c.id),0)::text AS pledged,"+
    "COALESCE((SELECT SUM(p.paid_amount) FROM public.max_pledges p WHERE p.user_id=$1 AND p.contact_id=c.id),0)::text AS paid,"+
-   "COALESCE((SELECT SUM(r.amount-r.refunded_amount) FROM public.max_receipts r WHERE r.user_id=$1 AND r.contact_id=c.id),0)::text AS receipts "+
+   "COALESCE((SELECT SUM(r.amount-COALESCE(r.refunded_amount,0)) FROM public.max_receipts r WHERE r.user_id=$1 AND r.contact_id=c.id),0)::text AS receipts "+
    "FROM public.communication_contacts c WHERE c.user_id=$1 "+
-   "ORDER BY c.created_at DESC,c.id DESC LIMIT 1 OFFSET $2",[userId,page]);
+   "ORDER BY c.updated_at DESC,c.id DESC LIMIT 1 OFFSET $2",[userId,page]);
   const x=rows.rows[0];
   if(!x)return "End of your personal contacts. Press 2 to restart, 9 to search by phone number, or zero for main menu.";
   const prefix=path==="131"?"My donor overview":"My contact";
@@ -94,9 +94,9 @@ export async function contactPageFromPhone(client:PoolClient,userId:number,raw:s
  const result=await client.query<{place:number}>(
   "SELECT (SELECT count(*)::int FROM public.communication_contacts newer "+
   "WHERE newer.user_id=c.user_id AND "+
-  "(newer.created_at,newer.id)>(c.created_at,c.id)) AS place "+
+  "(newer.updated_at,newer.id)>(c.updated_at,c.id)) AS place "+
   "FROM public.communication_contacts c WHERE c.user_id=$1 AND "+
   "regexp_replace(COALESCE(c.phone,''),'[^0-9]','','g')=$2 "+
-  "ORDER BY c.created_at DESC,c.id DESC LIMIT 1",[userId,raw]);
+  "ORDER BY c.updated_at DESC,c.id DESC LIMIT 1",[userId,raw]);
  return result.rows[0]?.place??null;
 }
