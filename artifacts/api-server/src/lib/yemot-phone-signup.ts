@@ -39,7 +39,7 @@ export async function pendingPhoneSignup(db:PoolClient,callHash:string){
  const r=await db.query(
   "SELECT 1 FROM public.gavhah_phone_signup_pending WHERE call_hash=$1 AND expires_at>now() AND attempts<3",
   [callHash]);
- return r.rowCount>0;
+ return (r.rowCount??0)>0;
 }
 export async function cancelPhoneSignup(db:PoolClient,callHash:string){
  await db.query("DELETE FROM public.gavhah_phone_signup_pending WHERE call_hash=$1",[callHash]);
