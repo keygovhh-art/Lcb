@@ -46,13 +46,13 @@ export default function Login() {
           <div className="bg-card border rounded-2xl p-8 shadow-sm">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="identifier" className="font-semibold">Email or Phone Number</Label>
+                <Label htmlFor="identifier" className="font-semibold">Email, Phone Number, or Member ID</Label>
                 <Input
                   id="identifier"
                   type="text"
                   value={identifier}
                   onChange={e => setIdentifier(e.target.value)}
-                  placeholder="your@email.com or +1 (718) 555-0100"
+                  placeholder="email, phone, or M followed by your 10 digits"
                   className="h-12"
                   autoComplete="username"
                   required

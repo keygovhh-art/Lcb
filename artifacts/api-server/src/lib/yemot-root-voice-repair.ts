@@ -37,7 +37,7 @@ export async function applyYemotVoiceRepair():Promise<void>{
  let attempted=false;
  try{
   const selected=await pool.query(
-   "UPDATE public.gavhah_yemot_voice_repair SET state='applying',reason='Configuring root English text to speech and disabling secret-containing API logs',updated_at=now() "+
+   "UPDATE public.gavhah_yemot_voice_repair SET state='applying',reason='Configuring root male English text to speech without altering existing audio or directories',updated_at=now() "+
    "WHERE id=1 AND state='queued' RETURNING id");
   if(!selected.rowCount)return;
   claimed=true;
@@ -55,13 +55,13 @@ export async function applyYemotVoiceRepair():Promise<void>{
   // Tested by Yemot users for English in API read=t- flow. Explicit
   // fallback voices may be mapped by the provider to ymSimcha.
   await request(token,"UpdateExtension",{
-   path:"ivr2:",language:"en",voice:"ymFemale",tts_voice:"ymFemale",
+   path:"ivr2:",language:"en",voice:"ymMale",tts_voice:"ymMale",
    api_log:"no",api_hangup_send:"no"
   });
   await pool.query(
    "UPDATE public.gavhah_yemot_voice_repair SET state='applied',"+
-   "provider_acknowledged=true,reason='Yemot accepted English TTS voice update and secret-safe API logging; actual audio requires a call test',updated_at=now() WHERE id=1");
-  logger.info({line:"***1286",kind:"english-tts",callerVerified:false},"Yemot accepted root voice repair");
+   "provider_acknowledged=true,reason='Yemot accepted male voice settings; actual male audio requires a physical call test',updated_at=now() WHERE id=1");
+  logger.info({line:"***1286",kind:"english-male-tts",callerVerified:false},"Yemot accepted root voice repair");
  }catch(e){
   const message=e instanceof Error?e.message:"Unknown provider error";
   if(claimed)await pool.query(

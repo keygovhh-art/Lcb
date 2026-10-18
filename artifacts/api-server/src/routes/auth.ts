@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { createHash } from "node:crypto";
-import { db, usersTable } from "@workspace/db";
+import { db, pool, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "../lib/crypto";
 import { requireAuth, getSessionUserId } from "../middlewares/auth";
@@ -40,11 +40,25 @@ async function verifyAccount(identifier: unknown,password: unknown) {
      !identifier.trim() || !password || identifier.length>320) {
     return {error:"An account identifier and password are required",status:400 as const};
   }
-  const isEmail=identifier.includes("@");
-  const [user]=await db.select().from(usersTable).where(
-    isEmail?eq(usersTable.email,identifier.toLowerCase().trim()):
-      eq(usersTable.phone,identifier.trim())
-  );
+  // Real phone-registered members can enter M + the 10-digit ID
+  // received after double-confirming their private keypad password.
+  // Caller ID is not a login identity; this is the same website users table.
+  const memberNumber=/^M([0-9]{10})$/i.exec(identifier.trim());
+  let user;
+  if(memberNumber){
+    const linked=await pool.query<{user_id:number}>(
+      "SELECT user_id FROM public.gavhah_phone_member_logins WHERE member_no=$1",
+      [memberNumber[1]]);
+    if(linked.rows[0]){
+      [user]=await db.select().from(usersTable).where(eq(usersTable.id,linked.rows[0].user_id));
+    }
+  }else{
+    const isEmail=identifier.includes("@");
+    [user]=await db.select().from(usersTable).where(
+      isEmail?eq(usersTable.email,identifier.toLowerCase().trim()):
+        eq(usersTable.phone,identifier.trim())
+    );
+  }
   // Same response for unknown identities and incorrect passwords.
   if(!user || !await verifyPassword(password,user.passwordHash))
     return {error:"Invalid credentials",status:401 as const};
