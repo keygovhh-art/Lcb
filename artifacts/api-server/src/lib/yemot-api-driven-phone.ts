@@ -481,30 +481,6 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      const now=await newsPrompt(path,position,chunk);
      if(now.hasMore)chunk++;else{position++;chunk=0;}
     }
-   }else if(contactAction&&contactPaths.has(path)){
-    if(!await memberAllowed(client,{...s,member_id:userId})){
-     contactAction="";contactActionTarget=null;path="125";
-     feedback="Your Gavhah website member session is not verified. No private contact information was accessed or changed. ";
-    }else if(digit==="0"){
-     contactAction="";contactActionTarget=null;feedback="Contact action cancelled. ";
-    }else if(contactAction==="create"){
-     const created=await createMyCallbackContact(client,userId!,digit);
-     feedback=created.message+" ";
-     if(created.ok){contactAction="";contactActionTarget=null;page=0;}
-    }else if(contactAction==="search"||contactAction==="lookup"){
-     const match=await findMyContactPage(client,userId!,digit,
-      contactAction==="search"?"phone":"id");
-     if(match){
-      page=match.page;contactAction="";contactActionTarget=null;
-      feedback="Found the contact on your own website. ";
-     }else feedback="No matching contact in your Gavhah account. Try another number, or zero to cancel. ";
-    }else if(contactAction==="donotcall"){
-     if(digit==="9"&&contactActionTarget){
-      const result=await markMyContactDoNotCall(client,userId!,contactActionTarget);
-      feedback=result.message+" ";
-     }else feedback="Do Not Call change cancelled. ";
-     contactAction="";contactActionTarget=null;
-    }
    }else if(taskAction&&taskPaths.has(path)){
     if(!await memberAllowed(client,{...s,member_id:userId})){
      taskAction="";taskActionTarget=null;path="125";
@@ -628,27 +604,6 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     }else{
      noteDeleteTarget=null;feedback="Delete cancelled. ";
     }
-   }else if(contactPaths.has(path)){
-    if(!await memberAllowed(client,{...s,member_id:userId})){
-     path="125";contactAction="";contactActionTarget=null;
-     feedback="Sign in as an active Gavhah member to read your own contacts. ";
-    }else if(digit==="0"){
-     path="";page=0;contactAction="";contactActionTarget=null;
-    }else if(digit==="1"){page++;contactAction="";contactActionTarget=null;}
-    else if(digit==="8"){page=Math.max(0,page-1);contactAction="";contactActionTarget=null;}
-    else if(digit==="2"){page=0;contactAction="";contactActionTarget=null;}
-    else if(digit==="3"){contactAction="create";contactActionTarget=null;}
-    else if(digit==="4"){contactAction="search";contactActionTarget=null;}
-    else if(digit==="7"){contactAction="lookup";contactActionTarget=null;}
-    else if(digit==="5"){
-     const current=await readMyContact(client,userId!,page);
-     if(!current)feedback="There is no contact at this list position. ";
-     else if(current.do_not_call)feedback="This contact is already marked Do Not Call. ";
-     else{
-      contactAction="donotcall";contactActionTarget=current.id;
-      feedback="This will stop outreach to the selected contact. ";
-     }
-    }
    }else if(contactAction&&(path==="131"||path==="132")){
     if(!await memberAllowed(client,{...s,member_id:userId})){
      contactAction="";contactActionTarget=null;path="125";page=0;
@@ -696,28 +651,6 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
        feedback="This restriction is saved on your Gavhah website account. ";
       }
     }
-   }else if(contactPaths.has(path)){
-   if(!await memberAllowed(client,{...s,member_id:userId})){
-    path="125";page=0;contactAction="";contactActionTarget=null;
-    spoken="This private section requires your own verified Gavhah membership. Please sign in with a website pairing code or your hotline PIN. ";
-   }else if(contactAction&&["131","132"].includes(path)){
-    if(contactAction==="create"||contactAction==="search"){
-     mode="phone";
-     spoken+=contactAction==="create"?
-      "Enter a ten to fifteen digit number followed by pound to create a callback contact on your own website. This will not make an outbound call or assume consent.":
-      "Enter an existing ten to fifteen digit contact phone number followed by pound. The search is restricted to your own website contacts.";
-    }else if(contactAction==="lookup"){
-     mode="article";
-     spoken+="Enter the exact contact ID from your own Gavhah website, up to eight digits, followed by pound.";
-    }else if(contactAction==="do_not_call"){
-     mode="menu";
-     spoken+="Press nine AGAIN to mark the selected contact Do Not Call. Press zero to cancel. This only ADDS a contact restriction.";
-    }
-   }else if(path==="132"){
-    spoken+=await myContactPrompt(client,userId!,page);
-   }else{
-    spoken+=await readContactFeed(client,userId!,path as "131"|"1331"|"1332",page);
-   }
   }else if(personalPaths.has(path)){
     if(digit==="0"){path="";page=0;confirmId=null;taskAction="";taskActionTarget=null;caseAction="";caseActionTarget=null;noteDeleteTarget=null;noteRecordMode=false;followupAction="";followupActionTarget=null;}
     else if(digit==="1"){page++;confirmId=null;}
@@ -893,42 +826,41 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    step++;
   }
   let mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"|"contactPhone"|"date"="menu",spoken=feedback;
-  if(contactAction&&contactPaths.has(path)){
-   if(contactAction==="create"||contactAction==="search"){
-    mode="contactPhone";
-    spoken+=contactAction==="create"?
-     "Enter ten to fifteen digits for the new contact telephone number followed by pound. No call will be placed. Press zero to cancel.":
-     "Enter the contact telephone number with ten to fifteen digits followed by pound. Only contacts in your own Gavhah account can be found. Press zero to cancel.";
-   }else if(contactAction==="lookup"){
-    mode="article";
-    spoken+="Enter the website contact ID, up to eight digits, followed by pound. Press zero to cancel. ";
-   }else if(contactAction==="donotcall"){
-    mode="menu";
-    spoken+="Mark the selected contact Do Not Call on the website? Press 9 to confirm. Press zero to cancel. Only the website permission workflow can later remove this restriction. ";
-   }
-  }else if(contactPaths.has(path)){
+  if(contactPaths.has(path)){
    if(!await memberAllowed(client,{...s,member_id:userId})){
-    spoken="This contact directory requires your own active Gavhah member login. Sign in through My Askanus on the hotline.";
-   }else{
+    spoken="This private Gavhah section requires your own verified website membership. Use account access to sign in.";
+   }else if(contactAction&&(path==="131"||path==="132")){
+    if(contactAction==="create"||contactAction==="search"){
+     mode="contactPhone";
+     spoken+=contactAction==="create"?
+      "Enter ten to fifteen digits to create your own callback contact, followed by pound. No call will be placed. Press zero to cancel.":
+      "Enter ten to fifteen digits to find your own existing contact, followed by pound. Press zero to cancel.";
+    }else if(contactAction==="lookup"){
+     mode="article";
+     spoken+="Enter a website contact ID, up to eight digits, followed by pound. Press zero to cancel.";
+    }else if(contactAction==="do_not_call"){
+     mode="menu";
+     spoken+="Press nine again to mark the selected contact Do Not Call. Press zero to cancel.";
+    }
+   }else if(path==="132"){
     spoken+=await myContactPrompt(client,userId!,page);
-    if(path==="1311"){
-     const current=await readMyContact(client,userId!,page);
-     if(current){
-      const snapshot=await myContactDonor360(client,userId!,current.id);
-      if(snapshot){
-       spoken+=" Donor 360 read only financial summary for this own contact. "+
-        "Non cancelled pledge records "+snapshot.pledges+
-        ". Pledge amounts "+snapshot.totalPromised.toFixed(2)+" dollars. "+
-        "Remaining uncollected pledges "+snapshot.outstanding.toFixed(2)+" dollars. "+
-        "Recorded receipts "+snapshot.receipts+
-        ". Net received after recorded refunds "+snapshot.netReceived.toFixed(2)+" dollars. "+
-        "Manual website call reports "+snapshot.manualCallReports+
-        ". Linked followup records "+snapshot.linkedFollowups+". "+
-        (snapshot.doNotCall?"Do Not Call is enabled. ":"Phone contact permission is NOT implied by this account. ")+
-        "This menu does NOT charge, collect, refund or place calls.";
-      }
+   }else if(path==="131"){
+    spoken+=await myContactPrompt(client,userId!,page);
+    const current=await readMyContact(client,userId!,page);
+    if(current){
+     const x=await myContactDonor360(client,userId!,current.id);
+     if(x){
+      spoken+=" Donor 360 read only. Non cancelled pledges "+x.pledges+
+       ". Total promised "+x.totalPromised.toFixed(2)+" dollars. "+
+       "Outstanding pledges "+x.outstanding.toFixed(2)+" dollars. "+
+       "Recorded receipts "+x.receipts+". Net received after refunds "+
+       x.netReceived.toFixed(2)+" dollars. Manual call reports "+x.manualCallReports+
+       ". Linked followups "+x.linkedFollowups+". "+
+       "This information is not a new transaction and does not authorize contacting a donor.";
      }
     }
+   }else if(path==="1331"||path==="1332"){
+    spoken+=await myFinancialPrompt(client,path,userId!,page);
    }
   }else if(followupAction&&path==="134"){
    if(followupAction==="new_case"){
