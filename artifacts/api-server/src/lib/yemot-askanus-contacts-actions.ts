@@ -73,3 +73,40 @@ export async function markMyContactDoNotCall(client:PoolClient,userId:number,id:
   [userId,id,row.name,JSON.stringify({source:"phone",from:false,to:true})]);
  return{ok:true,message:"Do Not Call flag saved on the website. To remove it, use the site permission and audit workflow."};
 }
+
+
+/** Read-only Donor 360 snapshot; never treat pledge as confirmed income. */
+export async function myContactDonor360(client:PoolClient,userId:number,contactId:number){
+ if(!Number.isSafeInteger(userId)||userId<=0||!Number.isSafeInteger(contactId)||contactId<=0)return null;
+ const person=await client.query(
+  "SELECT id,do_not_call FROM public.communication_contacts WHERE id=$1 AND user_id=$2",[contactId,userId]);
+ if(!person.rows[0])return null;
+ const [pledges,receipts,calls,followups]=await Promise.all([
+  client.query<{
+    total_pledges:number;promised:string;remaining:string
+   }>("SELECT count(*)::int AS total_pledges,"+
+    "COALESCE(SUM(amount) FILTER(WHERE status!='cancelled'),0)::text AS promised,"+
+    "COALESCE(SUM(GREATEST(0,amount-paid_amount)) FILTER(WHERE status!='cancelled'),0)::text AS remaining "+
+    "FROM public.max_pledges WHERE user_id=$1 AND contact_id=$2",[userId,contactId]),
+  client.query<{total_receipts:number;net_received:string}>(
+    "SELECT count(*)::int AS total_receipts,"+
+    "COALESCE(SUM(GREATEST(0,amount-refunded_amount)),0)::text AS net_received "+
+    "FROM public.max_receipts WHERE user_id=$1 AND contact_id=$2",[userId,contactId]),
+  client.query<{total_calls:number}>(
+    "SELECT count(*)::int AS total_calls FROM public.fundraising_call_reports "+
+    "WHERE user_id=$1 AND contact_id=$2",[userId,contactId]),
+  client.query<{total_followups:number}>(
+    "SELECT count(*)::int AS total_followups FROM public.max_followup_contacts "+
+    "WHERE user_id=$1 AND contact_id=$2",[userId,contactId])
+ ]);
+ return{
+  doNotCall:person.rows[0].do_not_call===true,
+  pledges:pledges.rows[0]?.total_pledges||0,
+  totalPromised:Number(pledges.rows[0]?.promised||0),
+  outstanding:Number(pledges.rows[0]?.remaining||0),
+  receipts:receipts.rows[0]?.total_receipts||0,
+  netReceived:Number(receipts.rows[0]?.net_received||0),
+  manualCallReports:calls.rows[0]?.total_calls||0,
+  linkedFollowups:followups.rows[0]?.total_followups||0
+ };
+}
