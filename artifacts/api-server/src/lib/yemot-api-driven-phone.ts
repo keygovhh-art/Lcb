@@ -683,8 +683,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     else if(digit==="1"){page=Math.min(5000,page+1);}
     else if(digit==="8"){page=Math.max(0,page-1);}
     else if(digit==="2"){page=0;}
-    else if((path==="132"||path==="131")&&(digit==="3"||digit==="4"||digit==="7")){
-      contactAction=digit==="3"?"create":digit==="4"?"search":"lookup";
+    else if((path==="132"||path==="131")&&["3","4","7","9"].includes(digit)){
+      contactAction=digit==="3"?"create":(digit==="4"||digit==="9")?"search":"lookup";
       feedback=contactAction==="create"?"Add a new contact to your own Gavhah address book. ":
         contactAction==="search"?"Search only your own contacts by telephone number. ":
         "Look up your own contact by its exact website number. ";
