@@ -60,3 +60,6 @@ ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS note_record
 -- Follow-up keypad editor state; no production SQL applied until owner approves release.
 ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS followup_action text NOT NULL DEFAULT '';
 ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS followup_action_target integer;
+
+-- Isolated phone keypad state for searching ONLY this member's own contacts.
+ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS contact_search_mode boolean NOT NULL DEFAULT false;
