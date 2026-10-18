@@ -10,6 +10,7 @@ import { updateMyCaseOnPhone, createCallbackCase, createCaseFollowupFromPad, log
 import { deleteMyPhoneNote,createMyRecordedPhoneNote } from "./yemot-askanus-note-actions";
 import { readMyFollowup, setMySimpleFollowupCompleted, changeMyFollowupDueDate, deleteMyFollowupFromPhone } from "./yemot-askanus-followup-actions";
 import { readMyContact,findMyContactPage,createMyCallbackContact,markMyContactDoNotCall } from "./yemot-askanus-contacts-actions";
+import { isContactFeed,readContactFeed } from "./yemot-communications-contact-feed";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -33,7 +34,7 @@ const categories:Record<string,string>={
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124","127","128","129","134"]);
 const taskPaths=new Set(["121","127","128","129"]);
-const contactPaths=new Set(["1311","1312"]);
+const contactPaths=new Set(["131","132","1331","1332"]);
 // Deadline values are ISO YYYY-MM-DD text. Compare New York local dates.
 const taskWhere:Record<string,string>={
  "121":"",
@@ -623,7 +624,76 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
       feedback="This will stop outreach to the selected contact. ";
      }
     }
-   }else if(personalPaths.has(path)){
+   }else if(contactAction&&(path==="131"||path==="132")){
+    if(!await memberAllowed(client,{...s,member_id:userId})){
+     contactAction="";contactActionTarget=null;path="125";page=0;
+     feedback="Verify your own Gavhah membership before accessing contacts. ";
+    }else if(digit==="0"){
+     contactAction="";contactActionTarget=null;path="";page=0;
+     feedback="Contact action cancelled. ";
+    }else if(contactAction==="create"){
+     const created=await createMyCallbackContact(client,userId!,digit);
+     feedback=created.message+" ";
+     if(created.ok){contactAction="";contactActionTarget=null;path="132";page=0;}
+    }else if(contactAction==="search"||contactAction==="lookup"){
+     const contact=await findMyContactPage(client,userId!,digit,contactAction==="search"?"phone":"id");
+     if(contact){
+      page=contact.page;path="132";contactAction="";contactActionTarget=null;
+      feedback="Found a contact in your own Gavhah website account. ";
+     }else feedback="No matching contact was found within your own member account. ";
+    }else if(contactAction==="do_not_call"){
+     if(digit!=="9"){
+      feedback="Do Not Call change cancelled. ";
+     }else{
+      const result=await markMyContactDoNotCall(client,userId!,contactActionTarget||0);
+      feedback=result.message+" ";
+     }
+     contactAction="";contactActionTarget=null;
+    }
+   }else if(contactPaths.has(path)){
+    if(!await memberAllowed(client,{...s,member_id:userId})){
+     path="125";page=0;contactAction="";contactActionTarget=null;
+     feedback="This private Gavhah CRM section requires an active verified account. ";
+    }else if(digit==="0"){path="";page=0;contactAction="";contactActionTarget=null;}
+    else if(digit==="1"){page=Math.min(5000,page+1);}
+    else if(digit==="8"){page=Math.max(0,page-1);}
+    else if(digit==="2"){page=0;}
+    else if((path==="132"||path==="131")&&(digit==="3"||digit==="4"||digit==="7")){
+      contactAction=digit==="3"?"create":digit==="4"?"search":"lookup";
+      feedback=contactAction==="create"?"Add a new contact to your own Gavhah address book. ":
+        contactAction==="search"?"Search only your own contacts by telephone number. ":
+        "Look up your own contact by its exact website number. ";
+    }else if(path==="132"&&digit==="5"){
+      const contact=await readMyContact(client,userId!,page);
+      if(!contact)feedback="There is no contact at this position. ";
+      else{
+       contactAction="do_not_call";contactActionTarget=contact.id;
+       feedback="This restriction is saved on your Gavhah website account. ";
+      }
+    }
+   }else if(contactPaths.has(path)){
+   if(!await memberAllowed(client,{...s,member_id:userId})){
+    path="125";page=0;contactAction="";contactActionTarget=null;
+    spoken="This private section requires your own verified Gavhah membership. Please sign in with a website pairing code or your hotline PIN. ";
+   }else if(contactAction&&["131","132"].includes(path)){
+    if(contactAction==="create"||contactAction==="search"){
+     mode="phone";
+     spoken+=contactAction==="create"?
+      "Enter a ten to fifteen digit number followed by pound to create a callback contact on your own website. This will not make an outbound call or assume consent.":
+      "Enter an existing ten to fifteen digit contact phone number followed by pound. The search is restricted to your own website contacts.";
+    }else if(contactAction==="lookup"){
+     mode="article";
+     spoken+="Enter the exact contact ID from your own Gavhah website, up to eight digits, followed by pound.";
+    }else if(contactAction==="do_not_call"){
+     mode="menu";
+     spoken+="Press nine AGAIN to mark the selected contact Do Not Call. Press zero to cancel. This only ADDS a contact restriction.";
+    }
+   }else if(path==="132"){
+    spoken+=await myContactPrompt(client,userId!,page);
+   }else{
+    spoken+=await readContactFeed(client,userId!,path as "131"|"1331"|"1332",page);
+   }
+  }else if(personalPaths.has(path)){
     if(digit==="0"){path="";page=0;confirmId=null;taskAction="";taskActionTarget=null;caseAction="";caseActionTarget=null;noteDeleteTarget=null;noteRecordMode=false;followupAction="";followupActionTarget=null;}
     else if(digit==="1"){page++;confirmId=null;}
     else if(digit==="8"){page=Math.max(0,page-1);confirmId=null;}
