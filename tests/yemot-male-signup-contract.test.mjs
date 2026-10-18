@@ -20,8 +20,10 @@ test('root explicitly requests male TTS and never replaces recordings or root di
 test('the published Gavhah phone menu has real registration, and a password input',()=>{
  assert.match(menu,/"5":leaf\("Create a Gavhah website member by phone"/);
  assert.match(gateway,/path==="185"\?"rg"/);
+ assert.match(gateway,/path==="" && digit==="8"/);
+ assert.match(gateway,/Press 8 to create a Gavhah website member account by phone/);
  assert.match(gateway,/mode==="registration"/);
- assert.match(gateway,/\["16","12","18","No","no"\]/);
+ assert.match(gateway,/\["16","1","18","No","no"\]/);
  assert.match(gateway,/enrollFromKeypad\(client,callHash,digit\)/);
  assert.match(gateway,/pendingPhoneSignup\(client,callHash\)/);
  assert.match(gateway,/cancelPhoneSignup\(client,callHash\)/);
