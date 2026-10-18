@@ -551,9 +551,14 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      followupAction="";followupActionTarget=null;path="125";
      feedback="Sign in to your Gavhah website account to change your followups. ";
     }else if(followupAction==="date"){
+     if(digit==="00000000"){
+      followupAction="";followupActionTarget=null;
+      feedback="Followup date edit cancelled without changing the website. ";
+     }else{
      const result=await changeMyFollowupDueDate(client,userId!,followupActionTarget||0,digit);
      feedback=result.message+" ";
      if(result.ok){followupAction="";followupActionTarget=null;confirmId=null;}
+     }
     }else if(followupAction==="delete"){
      if(digit==="9"){
       const result=await deleteMyFollowupFromPhone(client,userId!,followupActionTarget||0);
@@ -743,7 +748,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   if(followupAction&&path==="134"){
    if(followupAction==="date"){
     mode="date";
-    spoken+="Enter a new followup due date as eight digits year month day. For example 20261130. The website will preserve current reminder time and recurrence settings.";
+    spoken+="Enter a new followup due date as eight digits year month day. For example 20261130. To cancel enter eight zeros. The website will preserve current reminder time and recurrence settings.";
    }else{
     mode="menu";
     spoken+="WARNING. This deletes the selected followup from the Gavhah website. Press nine to CONFIRM deletion, or press zero to cancel.";
