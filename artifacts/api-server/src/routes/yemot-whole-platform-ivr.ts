@@ -52,8 +52,8 @@ export const phoneTree: Record<string,Item> = {
     }),
     "8":group("Messages and account",{
       "1":leaf("Notifications","/notifications"),"2":leaf("My profile","/profile"),
-      "3":leaf("Search","/search"),"4":leaf("Sign in or link my account","/login"),
-      "5":leaf("Create an account","/register"),"6":leaf("Privacy information","/privacy"),
+      "3":leaf("Search","/search"),"4":leaf("Sign in or link my account","/login","For an existing Gavhah website account choose My Askanus, then press 5 and enter your one-time website pairing code. To create a new member entirely on the phone press 5 in this account menu."),
+      "5":leaf("Create a Gavhah website member by phone","/register","Real keypad signup: choose and confirm your twelve to sixteen digit secret code to receive a member ID beginning with M. Website login accepts this member ID and your chosen code. Not a Campaign Center account."),"6":leaf("Privacy information","/privacy"),
       "7":leaf("Terms and conditions","/terms"),"8":leaf("Gavhah welcome homepage","/")
     }),
     "9":group("Management and reports",{
@@ -99,7 +99,7 @@ export const phoneTree: Record<string,Item> = {
     }),
     "9":group("Plans and connections",{
       "1":group("Six upgrade plans",{
-        "1":leaf("Personal Askan plan","/"),
+        "1":leaf("Askan Plus plan","/"),
         "2":leaf("Chesed Quick plan","/"),
         "3":leaf("Askan Pro plan","/"),
         "4":leaf("Gabbai Pro plan","/"),
