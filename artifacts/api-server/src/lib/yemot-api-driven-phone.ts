@@ -8,7 +8,7 @@ import { campaignPhoneBridge } from "./campaign-center-phone-bridge";
 import { createCallTask, changePhoneTaskPriority, changePhoneTaskDeadline, setPhoneTaskCompleted, deletePhoneTask } from "./yemot-askanus-task-actions";
 import { updateMyCaseOnPhone, createCallbackCase, createCaseFollowupFromPad, logMyCaseContactAttempt } from "./yemot-askanus-case-actions";
 import { deleteMyPhoneNote,createMyRecordedPhoneNote } from "./yemot-askanus-note-actions";
-import { readMyFollowup, setMySimpleFollowupCompleted } from "./yemot-askanus-followup-actions";
+import { readMyFollowup, setMySimpleFollowupCompleted, changeMyFollowupDueDate, deleteMyFollowupFromPhone } from "./yemot-askanus-followup-actions";
 import { readMyContact,findMyContactPage,createMyCallbackContact,markMyContactDoNotCall } from "./yemot-askanus-contacts-actions";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
@@ -21,6 +21,7 @@ type State={
  phone_page:number;selected_item_id:number|null;signup_phone:string|null;signup_stage:number;
  task_action:string;task_action_target:number|null;
  case_action:string;case_action_target:number|null;note_delete_target:number|null;note_record_mode:boolean;
+ followup_action:string;followup_action_target:number|null;
  contact_action:string;contact_action_target:number|null;
  news_actions_open:boolean;news_reply_mode:boolean;news_reply_target:number|null;news_report_mode:boolean;
 };
@@ -227,7 +228,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
     followup.completed?"Press 6 twice to reopen this followup. ":"Press 5 twice to mark this followup done. ")+
    (confirmId===followup.id?"Press 5 again to confirm. ":"")+
    (confirmId===-followup.id?"Press 6 again to confirm. ":"")+
-   "Press 1 for next, 2 to restart, 8 for previous or zero for main menu.";
+   "Press 1 next, 2 restart, 3 edit due date, 5 complete, 6 reopen, 8 previous, 9 delete with confirmation, or zero main menu.";
  }
  if(path==="124"){
   const r=await client.query(
@@ -308,17 +309,18 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
  try{
   await client.query("BEGIN");
   await client.query("INSERT INTO public.gavhah_yemot_call_states(call_hash) VALUES($1) ON CONFLICT(call_hash) DO NOTHING",[callHash]);
-  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,signup_phone,signup_stage,task_action,task_action_target,case_action,case_action_target,note_delete_target,note_record_mode,contact_action,contact_action_target,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
+  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,signup_phone,signup_stage,task_action,task_action_target,case_action,case_action_target,note_delete_target,note_record_mode,followup_action,followup_action_target,contact_action,contact_action_target,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
   let userId=s.member_id;
   let signupPhone=s.signup_phone,signupStage=s.signup_stage;
   let taskAction=s.task_action||"",taskActionTarget=s.task_action_target;
   let caseAction=s.case_action||"",caseActionTarget=s.case_action_target;
+  let followupAction=s.followup_action||"",followupActionTarget=s.followup_action_target;
   let noteDeleteTarget=s.note_delete_target,noteRecordMode=s.note_record_mode||false;
   let contactAction=s.contact_action||"",contactActionTarget=s.contact_action_target;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
-  const inputName=(contactAction==="create"||contactAction==="search"?"rg":contactAction==="lookup"?"ar":noteRecordMode?"rr":caseAction==="jump"?"ar":caseAction==="create"?"rg":caseAction==="followup"?"dt":taskAction==="create"?"rg":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(contactAction==="create"||contactAction==="search"?"rg":contactAction==="lookup"?"ar":noteRecordMode?"rr":caseAction==="jump"?"ar":caseAction==="create"?"rg":caseAction==="followup"?"dt":followupAction==="date"?"dt":taskAction==="create"?"rg":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   let goToProviderManagement=false;
@@ -544,6 +546,22 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      feedback=result.message+" ";
      if(result.ok){caseAction="";caseActionTarget=null;confirmId=null;}
     }
+   }else if(followupAction&&path==="134"){
+    if(!await memberAllowed(client,{...s,member_id:userId})){
+     followupAction="";followupActionTarget=null;path="125";
+     feedback="Sign in to your Gavhah website account to change your followups. ";
+    }else if(followupAction==="date"){
+     const result=await changeMyFollowupDueDate(client,userId!,followupActionTarget||0,digit);
+     feedback=result.message+" ";
+     if(result.ok){followupAction="";followupActionTarget=null;confirmId=null;}
+    }else if(followupAction==="delete"){
+     if(digit==="9"){
+      const result=await deleteMyFollowupFromPhone(client,userId!,followupActionTarget||0);
+      feedback=result.message+" ";
+      if(result.ok)page=0;
+     }else feedback="Followup deletion cancelled. ";
+     followupAction="";followupActionTarget=null;confirmId=null;
+    }else{followupAction="";followupActionTarget=null;}
    }else if(noteDeleteTarget&&path==="123"){
     if(digit==="0"){
      path="";page=0;noteDeleteTarget=null;feedback="Delete cancelled. ";
@@ -554,10 +572,20 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      noteDeleteTarget=null;feedback="Delete cancelled. ";
     }
    }else if(personalPaths.has(path)){
-    if(digit==="0"){path="";page=0;confirmId=null;taskAction="";taskActionTarget=null;caseAction="";caseActionTarget=null;noteDeleteTarget=null;noteRecordMode=false;}
+    if(digit==="0"){path="";page=0;confirmId=null;taskAction="";taskActionTarget=null;caseAction="";caseActionTarget=null;noteDeleteTarget=null;noteRecordMode=false;followupAction="";followupActionTarget=null;}
     else if(digit==="1"){page++;confirmId=null;}
     else if(digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(digit==="2"){page=0;confirmId=null;}
+    else if(path==="134"&&["3","9"].includes(digit)&&userId&&
+      await memberAllowed(client,{...s,member_id:userId})){
+     const selected=await readMyFollowup(client,userId,page);
+     if(!selected)feedback="No followup at this position. Press two to restart. ";
+     else{
+      followupAction=digit==="3"?"date":"delete";
+      followupActionTarget=selected.id;confirmId=null;
+      feedback=digit==="3"?"Change followup due date. ":"A followup must be explicitly confirmed before deleting. ";
+     }
+    }
     else if(path==="134"&&["5","6"].includes(digit)&&userId&&
       await memberAllowed(client,{...s,member_id:userId})){
      const item=await readMyFollowup(client,userId,page);
@@ -712,7 +740,15 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    step++;
   }
   let mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"|"date"="menu",spoken=feedback;
-  if(noteRecordMode&&path==="123"){
+  if(followupAction&&path==="134"){
+   if(followupAction==="date"){
+    mode="date";
+    spoken+="Enter a new followup due date as eight digits year month day. For example 20261130. The website will preserve current reminder time and recurrence settings.";
+   }else{
+    mode="menu";
+    spoken+="WARNING. This deletes the selected followup from the Gavhah website. Press nine to CONFIRM deletion, or press zero to cancel.";
+   }
+  }else if(noteRecordMode&&path==="123"){
    mode="record";
    spoken+="Record your PRIVATE Gavhah note after the beep. Press pound when finished. It will be accessible only in your own Gavhah website Notes, never in public news or Campaign Center.";
   }else if(noteDeleteTarget&&path==="123"){
@@ -804,8 +840,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
   }else spoken+=menuPrompt(path,tree);
   await client.query("UPDATE public.gavhah_yemot_call_states "+
-   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,signup_phone=$15,signup_stage=$16,task_action=$17,task_action_target=$18,case_action=$19,case_action_target=$20,note_delete_target=$21,note_record_mode=$22,contact_action=$23,contact_action_target=$24,updated_at=now() "+
-   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,signupPhone,signupStage,taskAction,taskActionTarget,caseAction,caseActionTarget,noteDeleteTarget,noteRecordMode,contactAction,contactActionTarget]);
+   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,signup_phone=$15,signup_stage=$16,task_action=$17,task_action_target=$18,case_action=$19,case_action_target=$20,note_delete_target=$21,note_record_mode=$22,contact_action=$23,contact_action_target=$24,followup_action=$25,followup_action_target=$26,updated_at=now() "+
+   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,signupPhone,signupStage,taskAction,taskActionTarget,caseAction,caseActionTarget,noteDeleteTarget,noteRecordMode,contactAction,contactActionTarget,followupAction,followupActionTarget]);
   await client.query("COMMIT");
   if(goToProviderManagement){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/0");
