@@ -100,3 +100,13 @@ All operations use Gavhah verified member_id, canonical askanus tables, transact
 - In Gavhah My Askanus > Cases, key 9 asks for an existing site case number (up to eight digits), then jumps to its actual place in the user-owned list. Ownership is checked using the same user_id as on the website. Neither presence nor content of another member's case is exposed.
 - This key does not grant any account login, mutate data, or call anyone; it just sets the listening cursor within the current verified member's own cases.
 - Physical keypad and voice playback still require testing after approved release. No current Render or provider changes.
+
+## Follow-ups — latest staged parity milestone (October 18, 2026)
+- The existing personal followup listing at phone tree path 1 > 3 > 4 continues to read ONLY the signed-in member's followups by joining case_followups to their own askanus_cases; unlinked callers are denied.
+- Existing: 5 twice to complete nonrecurring; 6 twice to reopen nonrecurring, with historical events; recurring followup completion remains WEBSITE-ONLY because it generates the next series occurrence.
+- NEW: 3 sets due date using eight-digit YYYYMMDD, with full calendar validation. Enter 00000000 to cancel without editing. Preserves repeat cadence and existing reminder time/timezone and writes MAX history event.
+- NEW: 4 starts phone create-followup wizard, enter an OWNED Gavhah case ID up to eight digits and a date YYYYMMDD. It reuses createCaseFollowupFromPad (nonrecurring, date only, rate-limited) and writes case_followups and max_history_events within the same Neon DB transaction. Enter 0 to cancel case selection or 00000000 to cancel date entry.
+- NEW: 9 selects current followup for deletion. The second 9 confirms. No update occurs if the member does not own the parent case; records a permanent followup_explicitly_deleted history event.
+- The state fields followup_action/followup_action_target exist only as additive SQL IN THIS DRAFT; do not apply this migration to the live database before release approval.
+- Live Render, phone provider API root, personal identity system, active TTS voice, and active calls MUST NOT be changed by this draft.
+- REQUIRED: TypeScript builds and phone route audit, simulation of replayed callbacks, cross-member isolation, recurring followup nonmutation, invalid dates (Feb 30, zeroes), and verifying source case activity both in website and API after a future owner-authorized release. Do NOT call this complete/physically tested yet.
