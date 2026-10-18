@@ -141,3 +141,13 @@ Read-only data source: `artifacts/api-server/src/lib/yemot-communications-contac
 - The older duplicate contact menu handlers were consolidated to one authenticated action path and one prompt path, to prevent conflicting keypad behavior.
 - Release-gate QA must test: multiple contact pages; unknown contact ID; another member's ID; formatted phone numbers; same number duplicated; contact Do Not Call cannot be undone on phone; pledge cancelled vs active; partial payments and refunded receipts; zero / previous / restart; English and Yiddish titles; confidential account expiry mid-menu; physical audio playback.
 - Current CI after these last draft pushes has not yet returned a successful build result; do not mark this batch release-ready or deploy.
+
+### Next: Calling Center / historical manual call reports (staged)
+- Gavhah 1 > Calling Center 4 > Call history 2 (`142`) reads the website's `fundraising_call_reports` belonging to the current signed-in member, newest first.
+- Spoken details: report ID and case, manually-entered contact name, outcome, mood, money kind and recorded amount, English-safe note, and explicit warning that the report is **not** a carrier-verified call or confirmed payment.
+- DTMF 1 next, 8 previous, 2 restart, 0 main. No outbound calls, SMS messages, live provider CDR, or payment writes are attempted.
+- Safe staging module: `lib/yemot-max-manual-call-history.ts`; no new database schema needed.
+- The Calling Center's actual provider integrations, queue assignment, consent controls and outbound features remain incomplete; do not label it 100 percent finished.
+
+### QA status of latest edits
+These staged contact, pledge/receipt and call-history changes have not yet returned a green GitHub build for their **latest** commits. Keep PR as a draft and do not merge into main or deploy Render/Yemot until tested.
