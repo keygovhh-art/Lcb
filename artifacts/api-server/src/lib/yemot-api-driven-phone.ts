@@ -10,6 +10,7 @@ import { updateMyCaseOnPhone, createCallbackCase, createCaseFollowupFromPad, log
 import { deleteMyPhoneNote,createMyRecordedPhoneNote } from "./yemot-askanus-note-actions";
 import { readMyFollowup, setMySimpleFollowupCompleted, changeMyFollowupDueDate, deleteMyFollowupFromPhone } from "./yemot-askanus-followup-actions";
 import { readMyContact,findMyContactPage,createMyCallbackContact,markMyContactDoNotCall,myContactDonor360 } from "./yemot-askanus-contacts-actions";
+import {readMyPledge,readMyReceipt,safeMoney} from "./yemot-askanus-financial-readback";
 import { readContactFeed } from "./yemot-communications-contact-feed";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
@@ -198,6 +199,32 @@ async function memberAllowed(client:import("pg").PoolClient,state:State){
  const r=await client.query(
   "SELECT id FROM public.users WHERE id=$1 AND status NOT IN ('banned','suspended')",[state.member_id]);
  return r.rowCount===1;
+}
+async function myFinancialPrompt(client:import("pg").PoolClient,path:string,userId:number,page:number){
+ if(path==="1331"){
+  const p=await readMyPledge(client,userId,page);
+  if(!p)return "End of your own website pledges. Press 2 to restart, or zero for main menu.";
+  const balance=Math.max(0,Number(p.amount||0)-Number(p.paid_amount||0));
+  return "Your website pledge number "+(page+1)+" ID "+p.id+". "+
+   "Recorded amount "+safeMoney(p.amount)+". "+
+   "Already applied "+safeMoney(p.paid_amount)+". "+
+   (p.status==="cancelled"?"This pledge is cancelled. ":"Outstanding balance "+safeMoney(balance)+". ")+
+   "Status "+(safeVoice(p.status,35)||"not available")+". "+
+   (p.due_date?"Due "+safeVoice(p.due_date,28)+". ":"")+
+   (p.note?"Note "+(safeVoice(p.note,140)||"Needs an English voice version")+". ":"")+
+   "No payment is processed here. Press 1 for next, 8 for previous, 2 to restart, zero for main menu.";
+ }
+ const r=await readMyReceipt(client,userId,page);
+ if(!r)return "End of your own website receipts. Press 2 to restart, or zero for main menu.";
+ const net=Math.max(0,Number(r.amount||0)-Number(r.refunded_amount||0));
+ return "Your website receipt number "+(page+1)+" ID "+r.id+". "+
+  "Recorded amount "+safeMoney(r.amount)+". "+
+  "Recorded refund "+safeMoney(r.refunded_amount)+". "+
+  "Net amount "+safeMoney(net)+". "+
+  (r.method?"Method "+(safeVoice(r.method,38)||"not available")+". ":"")+
+  (r.verification?"Verification "+(safeVoice(r.verification,35)||"not available")+". ":"")+
+  "This is a saved record, not bank settlement confirmation. "+
+  "Press 1 for next, 8 for previous, 2 to restart, zero for main menu.";
 }
 async function myContactPrompt(client:import("pg").PoolClient,userId:number,page:number){
  const person=await readMyContact(client,userId,page);
