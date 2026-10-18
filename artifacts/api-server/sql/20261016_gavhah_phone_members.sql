@@ -56,3 +56,7 @@ CREATE TABLE IF NOT EXISTS public.gavhah_phone_private_note_audio (
 );
 CREATE INDEX IF NOT EXISTS gavhah_phone_private_note_audio_owner ON public.gavhah_phone_private_note_audio(user_id,created_at);
 ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS note_record_mode boolean NOT NULL DEFAULT false;
+
+-- Follow-up keypad editor state; no production SQL applied until owner approves release.
+ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS followup_action text NOT NULL DEFAULT '';
+ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS followup_action_target integer;
