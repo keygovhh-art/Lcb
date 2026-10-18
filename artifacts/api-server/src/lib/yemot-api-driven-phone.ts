@@ -9,6 +9,7 @@ import { createCallTask, changePhoneTaskPriority, changePhoneTaskDeadline, setPh
 import { updateMyCaseOnPhone, createCallbackCase, createCaseFollowupFromPad, logMyCaseContactAttempt } from "./yemot-askanus-case-actions";
 import { deleteMyPhoneNote,createMyRecordedPhoneNote } from "./yemot-askanus-note-actions";
 import { readMyFollowup, setMySimpleFollowupCompleted } from "./yemot-askanus-followup-actions";
+import { readMyContact,findMyContactPage,createMyCallbackContact,markMyContactDoNotCall } from "./yemot-askanus-contacts-actions";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -20,6 +21,7 @@ type State={
  phone_page:number;selected_item_id:number|null;signup_phone:string|null;signup_stage:number;
  task_action:string;task_action_target:number|null;
  case_action:string;case_action_target:number|null;note_delete_target:number|null;note_record_mode:boolean;
+ contact_action:string;contact_action_target:number|null;
  news_actions_open:boolean;news_reply_mode:boolean;news_reply_target:number|null;news_report_mode:boolean;
 };
 const categories:Record<string,string>={
@@ -30,6 +32,7 @@ const categories:Record<string,string>={
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124","127","128","129","134"]);
 const taskPaths=new Set(["121","127","128","129"]);
+const contactPaths=new Set(["1311","1312"]);
 // Deadline values are ISO YYYY-MM-DD text. Compare New York local dates.
 const taskWhere:Record<string,string>={
  "121":"",
@@ -192,6 +195,23 @@ async function memberAllowed(client:import("pg").PoolClient,state:State){
   "SELECT id FROM public.users WHERE id=$1 AND status NOT IN ('banned','suspended')",[state.member_id]);
  return r.rowCount===1;
 }
+async function myContactPrompt(client:import("pg").PoolClient,userId:number,page:number){
+ const person=await readMyContact(client,userId,page);
+ if(!person)return "End of your own contacts. Press 2 to restart, 3 to add a contact by telephone number, 4 to look up a telephone number, 7 to find a contact by its website ID, or zero for main menu.";
+ const spoken=(s:unknown,length=90)=>safeVoice(s,length)||"available on your private website";
+ return "Your personal contact number "+(page+1)+"  website contact ID "+person.id+". "+
+  "Name "+spoken(person.name,90)+". "+
+  (person.organization?"Organization "+spoken(person.organization,75)+". ":"")+
+  (person.city?"City "+spoken(person.city,45)+". ":"")+
+  (person.phone?"Contact telephone "+spoken(person.phone,28)+". ":"")+
+  "Role "+spoken(person.contact_role,35)+". "+
+  (person.preferred_hours?"Preferred contact hours "+spoken(person.preferred_hours,55)+". ":"")+
+  (person.do_not_call?"Marked Do Not Call. No automated contact is allowed. ":
+    "Not marked Do Not Call. This is NOT proof of permission to contact. ")+
+  "Press 1 for next, 8 for previous, 2 to restart, 3 to add a new contact, "+
+  "4 to find by telephone number, 7 to find by website ID, 5 then 9 to mark Do Not Call, "+
+  "or zero for main menu.";
+}
 async function myPrompt(client:import("pg").PoolClient,path:string,userId:number,page:number,confirmId:number|null){
  if(path==="134"){
   const followup=await readMyFollowup(client,userId,page);
@@ -288,16 +308,17 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
  try{
   await client.query("BEGIN");
   await client.query("INSERT INTO public.gavhah_yemot_call_states(call_hash) VALUES($1) ON CONFLICT(call_hash) DO NOTHING",[callHash]);
-  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,signup_phone,signup_stage,task_action,task_action_target,case_action,case_action_target,note_delete_target,note_record_mode,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
+  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,signup_phone,signup_stage,task_action,task_action_target,case_action,case_action_target,note_delete_target,note_record_mode,contact_action,contact_action_target,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
   let userId=s.member_id;
   let signupPhone=s.signup_phone,signupStage=s.signup_stage;
   let taskAction=s.task_action||"",taskActionTarget=s.task_action_target;
   let caseAction=s.case_action||"",caseActionTarget=s.case_action_target;
   let noteDeleteTarget=s.note_delete_target,noteRecordMode=s.note_record_mode||false;
+  let contactAction=s.contact_action||"",contactActionTarget=s.contact_action_target;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
-  const inputName=(noteRecordMode?"rr":caseAction==="jump"?"ar":caseAction==="create"?"rg":caseAction==="followup"?"dt":taskAction==="create"?"rg":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(contactAction==="create"||contactAction==="search"?"rg":contactAction==="lookup"?"ar":noteRecordMode?"rr":caseAction==="jump"?"ar":caseAction==="create"?"rg":caseAction==="followup"?"dt":taskAction==="create"?"rg":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   let goToProviderManagement=false;
@@ -783,8 +804,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
   }else spoken+=menuPrompt(path,tree);
   await client.query("UPDATE public.gavhah_yemot_call_states "+
-   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,signup_phone=$15,signup_stage=$16,task_action=$17,task_action_target=$18,case_action=$19,case_action_target=$20,note_delete_target=$21,note_record_mode=$22,updated_at=now() "+
-   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,signupPhone,signupStage,taskAction,taskActionTarget,caseAction,caseActionTarget,noteDeleteTarget,noteRecordMode]);
+   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,signup_phone=$15,signup_stage=$16,task_action=$17,task_action_target=$18,case_action=$19,case_action_target=$20,note_delete_target=$21,note_record_mode=$22,contact_action=$23,contact_action_target=$24,updated_at=now() "+
+   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,signupPhone,signupStage,taskAction,taskActionTarget,caseAction,caseActionTarget,noteDeleteTarget,noteRecordMode,contactAction,contactActionTarget]);
   await client.query("COMMIT");
   if(goToProviderManagement){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/0");
