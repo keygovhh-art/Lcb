@@ -63,3 +63,7 @@ ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS followup_ac
 
 -- Isolated phone keypad state for searching ONLY this member's own contacts.
 ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS contact_search_mode boolean NOT NULL DEFAULT false;
+
+-- Contacts directory is fully member-scoped; these track only IVR cursor/input state.
+ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS contact_action text NOT NULL DEFAULT '';
+ALTER TABLE public.gavhah_yemot_call_states ADD COLUMN IF NOT EXISTS contact_action_target integer;
