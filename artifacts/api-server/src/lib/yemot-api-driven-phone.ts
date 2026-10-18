@@ -3,6 +3,7 @@ import { pool } from "@workspace/db";
 import { logger } from "./logger";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
+import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -30,12 +31,12 @@ export function safeVoice(input:unknown,max=430){
   .replace(/\s+/g," ").trim().slice(0,max);
 }
 function voice(s:string){return "t-"+safeVoice(s,430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"|"record"="menu"){
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"|"record"|"registration"="menu"){
  if(mode==="record"){
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
    .send("read="+voice(prompt)+"=rr"+step+",,record");return;
  }
- const name=(mode==="code"?"ln":mode==="article"?"ar":"iv")+step;
+ const name=(mode==="code"?"ln":mode==="article"?"ar":mode==="registration"?"rg":"iv")+step;
  // Yehmot's documented read order is:
  // name, reuse, maxDigits, minDigits, timeout, playback, blockStar,
  // blockZero, replacement, allowedDigits, retries, emptyIsOk, emptyValue.
@@ -43,6 +44,8 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"cod
  // valid six/seven fields so a telephone speech issue can be isolated.
  const opts=mode==="code"
  ? [name,"no","8","8","12","No","no"]
+ : mode==="registration"
+ ? [name,"no","16","12","18","No","no"]
  : mode==="article"
  ? [name,"no","8","1","8","No","no"]
  : mode==="news"
@@ -224,7 +227,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let userId=s.member_id;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
-  const inputName=(replyMode?"rr":path==="125"?"ln":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(replyMode?"rr":path==="125"?"ln":path==="185"?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   let goToProviderManagement=false;
@@ -286,6 +289,22 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
       const r=await client.query("SELECT like_count FROM public.news WHERE id=$1",[articleId]);
       feedback="Current upvote count is "+Number(r.rows[0]?.like_count||0)+". ";
      }
+    }
+   }else if(path==="185"){
+    // Public Gavhah registration, not Neon Auth Campaign Center membership.
+    // Caller ID is not accepted as identity. PIN is hashed and confirmed twice.
+    if(digit==="0"){
+      await cancelPhoneSignup(client,callHash);path="";feedback="";
+    }else if(userId && await memberAllowed(client,{...s,member_id:userId})){
+      path="18";feedback="You already have a signed in website account on this call. ";
+    }else{
+      const result=await enrollFromKeypad(client,callHash,digit);
+      feedback=result.message;
+      if(result.completed && result.userId){
+        userId=result.userId;s.member_id=userId;
+        s.linked_until=new Date(Date.now()+30*60*1000).toISOString();
+        path="18";
+      }
     }
    }else if(path==="125"){
     if(digit==="0"){path="";}
@@ -360,7 +379,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
    step++;
   }
-  let mode:"menu"|"news"|"code"|"article"|"record"="menu",spoken=feedback;
+  let mode:"menu"|"news"|"code"|"article"|"record"|"registration"="menu",spoken=feedback;
   if(reportMode){
    spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
   }else if(replyMode){
@@ -368,6 +387,16 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(actionsOpen){
    const articleId=await currentNewsId(path,position,confirmId);
    spoken+=await actionsMenu(client,articleId,userId,await memberAllowed(client,{...s,member_id:userId}));
+  }else if(path==="185"){
+   mode="registration";
+   const pending=await pendingPhoneSignup(client,callHash);
+   spoken+=pending
+    ? "Reenter your twelve to sixteen digit private password, then press pound. Press zero to cancel and return to the main menu. "
+    : "Create a new Gavhah website member account by phone. Choose a PRIVATE twelve to sixteen digit numeric password. "+
+      "Enter it now and press pound. You will need to enter it twice. After registration you will hear your ten digit member number. "+
+      "On the website you can log in with M followed by that number, and the password you chose. "+
+      "Phone account creation does not automatically create a separate Campaign Center Neon Auth account. "+
+      "Press zero to cancel. ";
   }else if(path==="125"){
    mode="code";spoken+="Enter the eight digit code shown in My Askanus on your website. "+
     "Codes expire after five minutes. Never share it with others.";
