@@ -23,7 +23,7 @@ test('the published Gavhah phone menu has real registration, and a password inpu
  assert.match(gateway,/path==="" && digit==="8"/);
  assert.match(gateway,/Press 8 to create a Gavhah website member account by phone/);
  assert.match(gateway,/mode==="registration"/);
- assert.match(gateway,/\["16","1","18","No","no"\]/);
+ assert.match(gateway,/\[name,"no","16","1","18","No","no"\]/);
  assert.match(gateway,/enrollFromKeypad\(client,callHash,digit\)/);
  assert.match(gateway,/pendingPhoneSignup\(client,callHash\)/);
  assert.match(gateway,/cancelPhoneSignup\(client,callHash\)/);
@@ -35,7 +35,7 @@ test('account is canonical Gavhah website member, not caller-ID identity or Camp
  assert.match(signup,/verifyPassword\(entered,pending\.password_hash\)/);
  assert.match(signup,/pg_advisory_xact_lock/);
  assert.match(signup,/pending\.attempts\+1/);
- assert.match(signup,/new Date\(/);
+ assert.match(gateway,/Date\.now\(\)\+30\*60\*1000/);
  assert.match(auth,/memberNumber=\/\^M\(/);
  assert.match(auth,/SELECT user_id FROM public\.gavhah_phone_member_logins/);
  assert.match(auth,/verifyPassword\(password,user\.passwordHash\)/);
