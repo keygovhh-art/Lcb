@@ -124,3 +124,13 @@ All actions are under Gavhah option 1 > People and Contacts (option 3):
 Technical staging files: `lib/yemot-askanus-contacts-actions.ts`, phone bridge `lib/yemot-api-driven-phone.ts`, `sql/20261016_gavhah_phone_members.sql` for additive `contact_action` + `contact_action_target` call-state columns. Every read checks active Gavhah website-linked member login, including on continuing submenus.
 
 Known remaining Donor 360 parity gaps: individual pledges/receipts drill-down; case-specific linking, export, pledge settlements and refunds, follow-up editing, legally valid donor consent/overrides, and actual provider calls/SMS. Do NOT claim this is a complete Donor 360 phone feature.
+
+## NEXT DEPARTMENT — Private pledges and receipts (staged code, Oct 18)
+
+The actual telephone menu `1 > 3 > 3` branches into `1` for the logged-in member's recorded pledges and `2` for their recorded receipts. These are read-only, and do not place an outbound call, collect a payment, verify receipt evidence, refund, or alter a donor's balance. The owner-scoped SQL reads directly from `max_pledges`, `max_receipts` and the matching member-owned contact names. All phone reads are guarded by a current website-linked Gavhah member session.
+
+Donor 360 `1 > 3 > 1` now has a staged member-owned contact read with aggregated pledge amounts, applied amounts and net recorded receipts; contact browsing `1 > 3 > 2` uses the site's contact list and its already staged create/search/ID lookup and explicit Do Not Call restriction workflow.
+
+Read-only data source: `artifacts/api-server/src/lib/yemot-communications-contact-feed.ts`. The contact order is by `updated_at DESC,id DESC`, consistent with the existing contact lookup code. The phone option 9 also starts private contact lookup rather than falling through to an inert key.
+
+**Critical release gate:** simulate 2 Gavhah users with different contacts and pledge/receipt rows, verify every listed row and aggregate is tenant-scoped; verify DNC restriction, no claim of consent, no spoken credit-card or financial secrets, and no money mutations. Validate against website totals and do not claim full donor-accounting parity. Keep this in the Draft PR; do not release or run any production DB migration until explicit owner permission.
