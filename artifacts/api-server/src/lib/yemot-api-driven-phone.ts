@@ -22,7 +22,7 @@ const categories:Record<string,string>={
 };
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124"]);
-const root="Welcome to Gavhah and Campaign Center  Press 1 for Gavhah  Press 2 for Campaign Center  Press zero for hotline management";
+const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -45,7 +45,7 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"cod
  const opts=mode==="code"
  ? [name,"no","8","8","12","No","no"]
  : mode==="registration"
- ? [name,"no","16","12","18","No","no"]
+ ? [name,"no","16","1","18","No","no"]
  : mode==="article"
  ? [name,"no","8","1","8","No","no"]
  : mode==="news"
@@ -238,6 +238,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    // Moving to /0 DOES NOT bypass the provider admin password.
    if(path==="" && digit==="0"){
     goToProviderManagement=true;
+   }else if(path==="" && digit==="8"){
+    path="185";feedback="You chose Gavhah website member signup. ";
    }else if(replyMode){
     if(!await memberAllowed(client,{...s,member_id:userId})){
       replyMode=false;actionsOpen=true;feedback="Phone login expired. Please pair your account on the website. ";
@@ -411,7 +413,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    mode="news";spoken+=(await newsPrompt(path,position,chunk)).text;
   }else if(personalPaths.has(path)){
    if(!await memberAllowed(client,{...s,member_id:userId})){
-    spoken="Your private account is not linked for this call. Open My Askanus on the website and generate an eight-digit code, then press 5 in this phone menu to sign in. Press zero for the main menu.";
+    spoken="Your private account is not linked for this call. Open My Askanus on the website and generate an eight-digit code, then press 5 in this phone menu to sign in. If you do not have a website account, press zero to return, then press 8 at the welcome menu to register by phone.";
    }else{
     spoken+=await myPrompt(client,path,userId!,page,confirmId);
    }
