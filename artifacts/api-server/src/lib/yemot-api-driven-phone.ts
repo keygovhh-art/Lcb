@@ -219,7 +219,7 @@ async function myContactPrompt(client:import("pg").PoolClient,userId:number,page
 async function myPrompt(client:import("pg").PoolClient,path:string,userId:number,page:number,confirmId:number|null){
  if(path==="134"){
   const followup=await readMyFollowup(client,userId,page);
-  if(!followup)return "No more personal followups. Press 2 to restart, 8 for previous or zero for main menu.";
+  if(!followup)return "No more personal followups. Press 4 to create a followup for one of your cases, or 2 to restart, 8 for previous or zero for main menu.";
   const note=safeVoice(followup.note,170)||"This followup needs an English audio version";
   const recurrence=followup.repeat_rule&&followup.repeat_rule!=="none";
   return "Personal followup number "+(page+1)+". "+note+". "+
@@ -231,7 +231,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
     followup.completed?"Press 6 twice to reopen this followup. ":"Press 5 twice to mark this followup done. ")+
    (confirmId===followup.id?"Press 5 again to confirm. ":"")+
    (confirmId===-followup.id?"Press 6 again to confirm. ":"")+
-   "Press 1 next, 2 restart, 3 edit due date, 5 complete, 6 reopen, 8 previous, 9 delete with confirmation, or zero main menu.";
+   "Press 1 next, 2 restart, 3 edit due date, 4 create new followup for a case, 5 complete, 6 reopen, 8 previous, 9 delete with confirmation, or zero main menu.";
  }
  if(path==="124"){
   const r=await client.query(
@@ -323,7 +323,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let contactAction=s.contact_action||"",contactActionTarget=s.contact_action_target;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
-  const inputName=(contactAction==="create"||contactAction==="search"?"rg":contactAction==="lookup"?"ar":noteRecordMode?"rr":caseAction==="jump"?"ar":caseAction==="create"?"rg":caseAction==="followup"?"dt":followupAction==="date"?"dt":taskAction==="create"?"rg":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(contactAction==="create"||contactAction==="search"?"rg":contactAction==="lookup"?"ar":noteRecordMode?"rr":caseAction==="jump"?"ar":caseAction==="create"?"rg":caseAction==="followup"?"dt":(followupAction==="date"||followupAction==="new_date")?"dt":followupAction==="new_case"?"ar":taskAction==="create"?"rg":taskAction==="deadline"?"dt":replyMode?"rr":path==="1251"?"ln":(path==="1252"||path==="2851"||(path==="1254"&&signupStage===1))?"pn":((path==="1254"&&signupStage===0)||path==="2854")?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   let goToProviderManagement=false;
@@ -577,6 +577,31 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     if(!await memberAllowed(client,{...s,member_id:userId})){
      followupAction="";followupActionTarget=null;path="125";
      feedback="Sign in to your Gavhah website account to change your followups. ";
+    }else if(followupAction==="new_case"){
+     if(digit==="0"){
+      followupAction="";followupActionTarget=null;
+      feedback="New followup cancelled. ";
+     }else if(/^[1-9][0-9]{0,7}$/.test(digit)){
+      const exists=await client.query(
+       "SELECT id FROM public.askanus_cases WHERE id=$1 AND user_id=$2",
+       [Number(digit),userId]);
+      if(!exists.rows[0]){
+       feedback="No case with this number in your account. Enter the case number shown on your website. ";
+      }else{
+       followupActionTarget=Number(digit);
+       followupAction="new_date";
+       feedback="Case verified. Now choose a due date for the new followup. ";
+      }
+     }else feedback="Enter a valid case number up to eight digits, or zero to cancel. ";
+    }else if(followupAction==="new_date"){
+     if(digit==="00000000"){
+      followupAction="";followupActionTarget=null;
+      feedback="New followup cancelled. ";
+     }else{
+      const result=await createCaseFollowupFromPad(client,userId!,followupActionTarget||0,digit);
+      feedback=result.message+" ";
+      if(result.ok){followupAction="";followupActionTarget=null;page=0;}
+     }
     }else if(followupAction==="date"){
      if(digit==="00000000"){
       followupAction="";followupActionTarget=null;
@@ -698,6 +723,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     else if(digit==="1"){page++;confirmId=null;}
     else if(digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(digit==="2"){page=0;confirmId=null;}
+    else if(path==="134"&&digit==="4"&&userId&&
+      await memberAllowed(client,{...s,member_id:userId})){
+     followupAction="new_case";followupActionTarget=null;confirmId=null;
+     feedback="Create a followup for your own case. ";
+    }
     else if(path==="134"&&["3","9"].includes(digit)&&userId&&
       await memberAllowed(client,{...s,member_id:userId})){
      const selected=await readMyFollowup(client,userId,page);
@@ -881,7 +911,13 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     spoken="This contact directory requires your own active Gavhah member login. Sign in through My Askanus on the hotline.";
    }else spoken+=await myContactPrompt(client,userId!,page);
   }else if(followupAction&&path==="134"){
-   if(followupAction==="date"){
+   if(followupAction==="new_case"){
+    mode="article";
+    spoken+="Enter your own Gavhah case number, up to eight digits, followed by pound. Enter zero to cancel.";
+   }else if(followupAction==="new_date"){
+    mode="date";
+    spoken+="Enter eight digits for the followup due date, year month day, for example 20261130. Enter eight zeros to cancel.";
+   }else if(followupAction==="date"){
     mode="date";
     spoken+="Enter a new followup due date as eight digits year month day. For example 20261130. To cancel enter eight zeros. The website will preserve current reminder time and recurrence settings.";
    }else{
