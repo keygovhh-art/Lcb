@@ -50,12 +50,12 @@ export function safeVoice(input:unknown,max=430){
   .replace(/\s+/g," ").trim().slice(0,max);
 }
 function voice(s:string){return "t-"+safeVoice(s,430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"|"date"="menu"){
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"|"contactPhone"|"date"="menu"){
  if(mode==="record"){
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
    .send("read="+voice(prompt)+"=rr"+step+",,record");return;
  }
- const name=(mode==="code"?"ln":mode==="pin"?"pn":mode==="phone"?"rg":mode==="date"?"dt":mode==="article"?"ar":"iv")+step;
+ const name=(mode==="code"?"ln":mode==="pin"?"pn":mode==="phone"||mode==="contactPhone"?"rg":mode==="date"?"dt":mode==="article"?"ar":"iv")+step;
  // Yehmot's documented read order is:
  // name, reuse, maxDigits, minDigits, timeout, playback, blockStar,
  // blockZero, replacement, allowedDigits, retries, emptyIsOk, emptyValue.
@@ -67,6 +67,8 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"cod
  ? [name,"no","16","12","15","No","no"]
  : mode==="phone"
  ? [name,"no","15","10","15","No","no"]
+ : mode==="contactPhone"
+ ? [name,"no","15","1","15","No","no"]
  : mode==="date"
  ? [name,"no","8","8","15","No","no"]
  : mode==="article"
@@ -478,6 +480,30 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      const now=await newsPrompt(path,position,chunk);
      if(now.hasMore)chunk++;else{position++;chunk=0;}
     }
+   }else if(contactAction&&contactPaths.has(path)){
+    if(!await memberAllowed(client,{...s,member_id:userId})){
+     contactAction="";contactActionTarget=null;path="125";
+     feedback="Your Gavhah website member session is not verified. No private contact information was accessed or changed. ";
+    }else if(digit==="0"){
+     contactAction="";contactActionTarget=null;feedback="Contact action cancelled. ";
+    }else if(contactAction==="create"){
+     const created=await createMyCallbackContact(client,userId!,digit);
+     feedback=created.message+" ";
+     if(created.ok){contactAction="";contactActionTarget=null;page=0;}
+    }else if(contactAction==="search"||contactAction==="lookup"){
+     const match=await findMyContactPage(client,userId!,digit,
+      contactAction==="search"?"phone":"id");
+     if(match){
+      page=match.page;contactAction="";contactActionTarget=null;
+      feedback="Found the contact on your own website. ";
+     }else feedback="No matching contact in your Gavhah account. Try another number, or zero to cancel. ";
+    }else if(contactAction==="donotcall"){
+     if(digit==="9"&&contactActionTarget){
+      const result=await markMyContactDoNotCall(client,userId!,contactActionTarget);
+      feedback=result.message+" ";
+     }else feedback="Do Not Call change cancelled. ";
+     contactAction="";contactActionTarget=null;
+    }
    }else if(taskAction&&taskPaths.has(path)){
     if(!await memberAllowed(client,{...s,member_id:userId})){
      taskAction="";taskActionTarget=null;path="125";
@@ -575,6 +601,27 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      noteDeleteTarget=null;page=0;
     }else{
      noteDeleteTarget=null;feedback="Delete cancelled. ";
+    }
+   }else if(contactPaths.has(path)){
+    if(!await memberAllowed(client,{...s,member_id:userId})){
+     path="125";contactAction="";contactActionTarget=null;
+     feedback="Sign in as an active Gavhah member to read your own contacts. ";
+    }else if(digit==="0"){
+     path="";page=0;contactAction="";contactActionTarget=null;
+    }else if(digit==="1"){page++;contactAction="";contactActionTarget=null;}
+    else if(digit==="8"){page=Math.max(0,page-1);contactAction="";contactActionTarget=null;}
+    else if(digit==="2"){page=0;contactAction="";contactActionTarget=null;}
+    else if(digit==="3"){contactAction="create";contactActionTarget=null;}
+    else if(digit==="4"){contactAction="search";contactActionTarget=null;}
+    else if(digit==="7"){contactAction="lookup";contactActionTarget=null;}
+    else if(digit==="5"){
+     const current=await readMyContact(client,userId!,page);
+     if(!current)feedback="There is no contact at this list position. ";
+     else if(current.do_not_call)feedback="This contact is already marked Do Not Call. ";
+     else{
+      contactAction="donotcall";contactActionTarget=current.id;
+      feedback="This will stop outreach to the selected contact. ";
+     }
     }
    }else if(personalPaths.has(path)){
     if(digit==="0"){path="";page=0;confirmId=null;taskAction="";taskActionTarget=null;caseAction="";caseActionTarget=null;noteDeleteTarget=null;noteRecordMode=false;followupAction="";followupActionTarget=null;}
@@ -739,13 +786,31 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     }
     position=0;chunk=0;page=0;confirmId=null;
     if(!taskPaths.has(path)){taskAction="";taskActionTarget=null;}
+    if(!contactPaths.has(path)){contactAction="";contactActionTarget=null;}
     if(path!=="122"){caseAction="";caseActionTarget=null;}
     if(path!=="123")noteDeleteTarget=null;
    }
    step++;
   }
-  let mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"|"date"="menu",spoken=feedback;
-  if(followupAction&&path==="134"){
+  let mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"|"contactPhone"|"date"="menu",spoken=feedback;
+  if(contactAction&&contactPaths.has(path)){
+   if(contactAction==="create"||contactAction==="search"){
+    mode="contactPhone";
+    spoken+=contactAction==="create"?
+     "Enter ten to fifteen digits for the new contact telephone number followed by pound. No call will be placed. Press zero to cancel.":
+     "Enter the contact telephone number with ten to fifteen digits followed by pound. Only contacts in your own Gavhah account can be found. Press zero to cancel.";
+   }else if(contactAction==="lookup"){
+    mode="article";
+    spoken+="Enter the website contact ID, up to eight digits, followed by pound. Press zero to cancel. ";
+   }else if(contactAction==="donotcall"){
+    mode="menu";
+    spoken+="Mark the selected contact Do Not Call on the website? Press 9 to confirm. Press zero to cancel. Only the website permission workflow can later remove this restriction. ";
+   }
+  }else if(contactPaths.has(path)){
+   if(!await memberAllowed(client,{...s,member_id:userId})){
+    spoken="This contact directory requires your own active Gavhah member login. Sign in through My Askanus on the hotline.";
+   }else spoken+=await myContactPrompt(client,userId!,page);
+  }else if(followupAction&&path==="134"){
    if(followupAction==="date"){
     mode="date";
     spoken+="Enter a new followup due date as eight digits year month day. For example 20261130. To cancel enter eight zeros. The website will preserve current reminder time and recurrence settings.";
