@@ -10,7 +10,7 @@ import { updateMyCaseOnPhone, createCallbackCase, createCaseFollowupFromPad, log
 import { deleteMyPhoneNote,createMyRecordedPhoneNote } from "./yemot-askanus-note-actions";
 import { readMyFollowup, setMySimpleFollowupCompleted, changeMyFollowupDueDate, deleteMyFollowupFromPhone } from "./yemot-askanus-followup-actions";
 import { readMyContact,findMyContactPage,createMyCallbackContact,markMyContactDoNotCall,myContactDonor360 } from "./yemot-askanus-contacts-actions";
-import { isContactFeed,readContactFeed } from "./yemot-communications-contact-feed";
+import { readContactFeed } from "./yemot-communications-contact-feed";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
