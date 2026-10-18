@@ -9,7 +9,7 @@ import { createCallTask, changePhoneTaskPriority, changePhoneTaskDeadline, setPh
 import { updateMyCaseOnPhone, createCallbackCase, createCaseFollowupFromPad, logMyCaseContactAttempt } from "./yemot-askanus-case-actions";
 import { deleteMyPhoneNote,createMyRecordedPhoneNote } from "./yemot-askanus-note-actions";
 import { readMyFollowup, setMySimpleFollowupCompleted, changeMyFollowupDueDate, deleteMyFollowupFromPhone } from "./yemot-askanus-followup-actions";
-import { readMyContact,findMyContactPage,createMyCallbackContact,markMyContactDoNotCall } from "./yemot-askanus-contacts-actions";
+import { readMyContact,findMyContactPage,createMyCallbackContact,markMyContactDoNotCall,myContactDonor360 } from "./yemot-askanus-contacts-actions";
 import { isContactFeed,readContactFeed } from "./yemot-communications-contact-feed";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
@@ -909,7 +909,27 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(contactPaths.has(path)){
    if(!await memberAllowed(client,{...s,member_id:userId})){
     spoken="This contact directory requires your own active Gavhah member login. Sign in through My Askanus on the hotline.";
-   }else spoken+=await myContactPrompt(client,userId!,page);
+   }else{
+    spoken+=await myContactPrompt(client,userId!,page);
+    if(path==="1311"){
+     const current=await readMyContact(client,userId!,page);
+     if(current){
+      const snapshot=await myContactDonor360(client,userId!,current.id);
+      if(snapshot){
+       spoken+=" Donor 360 read only financial summary for this own contact. "+
+        "Non cancelled pledge records "+snapshot.pledges+
+        ". Pledge amounts "+snapshot.totalPromised.toFixed(2)+" dollars. "+
+        "Remaining uncollected pledges "+snapshot.outstanding.toFixed(2)+" dollars. "+
+        "Recorded receipts "+snapshot.receipts+
+        ". Net received after recorded refunds "+snapshot.netReceived.toFixed(2)+" dollars. "+
+        "Manual website call reports "+snapshot.manualCallReports+
+        ". Linked followup records "+snapshot.linkedFollowups+". "+
+        (snapshot.doNotCall?"Do Not Call is enabled. ":"Phone contact permission is NOT implied by this account. ")+
+        "This menu does NOT charge, collect, refund or place calls.";
+      }
+     }
+    }
+   }
   }else if(followupAction&&path==="134"){
    if(followupAction==="new_case"){
     mode="article";
