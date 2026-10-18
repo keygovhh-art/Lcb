@@ -11,6 +11,7 @@ import { deleteMyPhoneNote,createMyRecordedPhoneNote } from "./yemot-askanus-not
 import { readMyFollowup, setMySimpleFollowupCompleted, changeMyFollowupDueDate, deleteMyFollowupFromPhone } from "./yemot-askanus-followup-actions";
 import { readMyContact,findMyContactPage,createMyCallbackContact,markMyContactDoNotCall,myContactDonor360 } from "./yemot-askanus-contacts-actions";
 import {readMyPledge,readMyReceipt,safeMoney} from "./yemot-askanus-financial-readback";
+import {readMyManualCallReport} from "./yemot-max-manual-call-history";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -35,6 +36,7 @@ const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124","127","128","129","134"]);
 const taskPaths=new Set(["121","127","128","129"]);
 const contactPaths=new Set(["131","132","1331","1332"]);
+const manualCallPaths=new Set(["142"]);
 // Deadline values are ISO YYYY-MM-DD text. Compare New York local dates.
 const taskWhere:Record<string,string>={
  "121":"",
@@ -198,6 +200,21 @@ async function memberAllowed(client:import("pg").PoolClient,state:State){
  const r=await client.query(
   "SELECT id FROM public.users WHERE id=$1 AND status NOT IN ('banned','suspended')",[state.member_id]);
  return r.rowCount===1;
+}
+async function myManualCallPrompt(client:import("pg").PoolClient,userId:number,page:number){
+ const c=await readMyManualCallReport(client,userId,page);
+ if(!c)return "End of your own website manual call reports. Press 2 to restart or zero for main menu.";
+ const amount=Number(c.amount||0);
+ return "Your own manually entered MAX call report number "+(page+1)+". "+
+  "Report ID "+c.id+". Website case ID "+c.case_id+". "+
+  (c.contact_name?"Recorded contact "+(safeVoice(c.contact_name,85)||"available in website")+". ":"")+
+  "Reported outcome "+(safeVoice(c.outcome,40)||"not available")+". "+
+  "Reported mood "+(safeVoice(c.observed_mood,40)||"not available")+". "+
+  "Money type "+(safeVoice(c.money_kind,30)||"none")+". "+
+  "Recorded amount "+(Number.isFinite(amount)&&amount>=0?amount.toFixed(2)+" dollars":"unavailable")+". "+
+  (c.note?"Recorded note "+(safeVoice(c.note,130)||"needs English voice playback")+". ":"")+
+  "This is a member entered website report, NOT a carrier verified call or a verified donation. "+
+  "Press 1 for next, 8 for previous, 2 to restart, zero for main menu.";
 }
 async function myFinancialPrompt(client:import("pg").PoolClient,path:string,userId:number,page:number){
  if(path==="1331"){
@@ -656,6 +673,14 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      }
      contactAction="";contactActionTarget=null;
     }
+   }else if(manualCallPaths.has(path)){
+    if(!await memberAllowed(client,{...s,member_id:userId})){
+     path="125";page=0;
+     feedback="Only your own active Gavhah website member account can access manual call reports. ";
+    }else if(digit==="0"){path="";page=0;}
+    else if(digit==="1")page++;
+    else if(digit==="8")page=Math.max(0,page-1);
+    else if(digit==="2")page=0;
    }else if(contactPaths.has(path)){
     if(!await memberAllowed(client,{...s,member_id:userId})){
      path="125";page=0;contactAction="";contactActionTarget=null;
@@ -852,7 +877,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    step++;
   }
   let mode:"menu"|"news"|"code"|"article"|"record"|"pin"|"phone"|"contactPhone"|"date"="menu",spoken=feedback;
-  if(contactPaths.has(path)){
+  if(manualCallPaths.has(path)){
+   if(!await memberAllowed(client,{...s,member_id:userId}))
+    spoken="Private MAX call reports require active Gavhah member login. ";
+   else spoken+=await myManualCallPrompt(client,userId!,page);
+  }else if(contactPaths.has(path)){
    if(!await memberAllowed(client,{...s,member_id:userId})){
     spoken="This private Gavhah section requires your own verified website membership. Use account access to sign in.";
    }else if(contactAction&&(path==="131"||path==="132")){
