@@ -39,7 +39,7 @@ export const phoneTree: Record<string,Item> = {
     }),
     "3":group("People and contacts",{
       "1":leaf("Donor 360","/communications"),"2":leaf("Contacts","/communications"),
-      "3":leaf("Pledges and receipts","/communications"),"4":leaf("Follow ups","/communications")
+      "3":group("My pledges and receipts",{"1":leaf("My pledge records","/communications"),"2":leaf("My receipt records","/communications")}),"4":leaf("Follow ups","/communications")
     }),
     "4":group("Calling center",{
       "1":leaf("My call queue","/communications"),"2":leaf("Call history","/communications"),
