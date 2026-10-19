@@ -149,7 +149,7 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
     diagnostics.configured?
      "דער פארבינדונגס־סערווער איז נאך נישט באשטעטיגט. מען דארף איבערקוקן דעם שליסל און די פארבינדונג צווישן ביידע Render־סערווערס.":
      "גבהה קאנעקט איז נאך נישט קאנפיגורירט אויפן סערווער."}
-  </p>
+  </p>}
   {status&&!status.configured&&<p className="text-sm">דער קאמפיין־פארבינדונגס־סערווער איז נאך נישט צוגעגרייט. דיינע פערזענליכע MAX־פונקציעס ארבעטן ווייטער אומאפהענגיג.</p>}
   {status?.configured&&!status.linked&&<form onSubmit={connect} className="space-y-2">
     <Label htmlFor="max-team-code">איינמאליגער קאנעקט־קאוד פונעם קאמפיין סענטער</Label>
