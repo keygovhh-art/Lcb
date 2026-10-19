@@ -142,6 +142,7 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
    <p className="text-sm text-muted-foreground">MAX בלייבט א פריוואטער אפפ. דער קאמפיין־מנהל זעט נאר די געשעענישן וואס דו גיבסט בפירוש רשות צו מיטטיילן. קיין פריוואטע נדבן־פרטים אדער נאטיצן גייען נישט מיט.</p></div>
   {error&&<p role="alert" className="rounded-lg border border-destructive p-3 text-sm">{error}</p>}
   {message&&<p role="status" className="rounded-lg border p-3 text-sm">{message}</p>}
+  <p className="text-sm"><a className="underline" href="https://gavhah-campaign-center.onrender.com/" target="_blank" rel="noopener noreferrer">עפענען קאמפיין סענטער — ארויסנעמען דיין אייגענעם איינמאליגן קאוד</a> (א באזונדערע איינלאגירונג איז נויטיג).</p>
   {!status&&<p className="text-sm">קוקט נאך די פארבינדונג…</p>}
   {diagnostics&&<p className="text-sm" role="status">
    {diagnostics.protocolCompatible?
