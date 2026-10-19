@@ -11,6 +11,7 @@ type Finance={id:number;amount:number;paidAmount?:number;refundedAmount?:number;
 type Overview={pledges:Finance[];receipts:Finance[]};
 type Reversal={id:number;receiptId:number;amount:number;createdAt:string};
 type LinkStatus={configured:boolean;linked:boolean;campaigns:Campaign[]};
+type Diagnostics={configured:boolean;remoteReachable:boolean;protocolCompatible:boolean};
 
 async function api<T>(url:string,init?:RequestInit):Promise<T>{
  const response=await fetch(url,{credentials:"include",cache:"no-store",...init});
@@ -24,6 +25,7 @@ const cash=(number:number)=>new Intl.NumberFormat("en-US",{style:"currency",curr
 /** Optional team layer: personal MAX always works without Campaign Connect. */
 export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;followups?:Array<{id:number;note:string;completed:boolean}>}){
  const [status,setStatus]=useState<LinkStatus|null>(null);
+ const [diagnostics,setDiagnostics]=useState<Diagnostics|null>(null);
  const [token,setToken]=useState("");
  const [campaignId,setCampaignId]=useState("");
  const [events,setEvents]=useState<Overview|null>(null);
@@ -46,6 +48,13 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
   setCampaignId(p=>result.campaigns.some(c=>c.id===p)?p:result.campaigns[0].id);
  },[]);
  useEffect(()=>{void reload().catch(e=>setError(e instanceof Error?e.message:"פארבינדונגס־טעות"));},[reload]);
+ useEffect(()=>{
+  let cancelled=false;
+  void api<Diagnostics>("/api/askanus/connect/diagnostics").then(x=>{
+   if(!cancelled)setDiagnostics(x);
+  }).catch(()=>{if(!cancelled)setDiagnostics({configured:false,remoteReachable:false,protocolCompatible:false});});
+  return ()=>{cancelled=true;};
+ },[]);
  useEffect(()=>{
   if(!status?.linked)return;
   let cancelled=false;
@@ -133,7 +142,15 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
    <p className="text-sm text-muted-foreground">MAX בלייבט א פריוואטער אפפ. דער קאמפיין־מנהל זעט נאר די געשעענישן וואס דו גיבסט בפירוש רשות צו מיטטיילן. קיין פריוואטע נדבן־פרטים אדער נאטיצן גייען נישט מיט.</p></div>
   {error&&<p role="alert" className="rounded-lg border border-destructive p-3 text-sm">{error}</p>}
   {message&&<p role="status" className="rounded-lg border p-3 text-sm">{message}</p>}
+  <p className="text-sm"><a className="underline" href="https://gavhah-campaign-center.onrender.com/" target="_blank" rel="noopener noreferrer">עפענען קאמפיין סענטער — ארויסנעמען דיין אייגענעם איינמאליגן קאוד</a> (א באזונדערע איינלאגירונג איז נויטיג).</p>
   {!status&&<p className="text-sm">קוקט נאך די פארבינדונג…</p>}
+  {diagnostics&&<p className="text-sm" role="status">
+   {diagnostics.protocolCompatible?
+    "ביידע פארבינדונגס־סערווערס זענען דערגרייכבאר, און דער API־פראטאקאל שטימט. אקאונט־לינקינג דארף נאך א באזונדערע באשטעטיגונג.":
+    diagnostics.configured?
+     "דער פארבינדונגס־סערווער איז נאך נישט באשטעטיגט. מען דארף איבערקוקן דעם שליסל און די פארבינדונג צווישן ביידע Render־סערווערס.":
+     "גבהה קאנעקט איז נאך נישט קאנפיגורירט אויפן סערווער."}
+  </p>}
   {status&&!status.configured&&<p className="text-sm">דער קאמפיין־פארבינדונגס־סערווער איז נאך נישט צוגעגרייט. דיינע פערזענליכע MAX־פונקציעס ארבעטן ווייטער אומאפהענגיג.</p>}
   {status?.configured&&!status.linked&&<form onSubmit={connect} className="space-y-2">
     <Label htmlFor="max-team-code">איינמאליגער קאנעקט־קאוד פונעם קאמפיין סענטער</Label>
