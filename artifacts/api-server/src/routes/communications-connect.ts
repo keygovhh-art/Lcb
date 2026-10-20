@@ -17,24 +17,32 @@ function setup(){
   return {url,secret};
  }catch{return null;}
 }
-async function remote(path:string,method:"GET"|"POST",body?:object){
+async function remote<T=Record<string,unknown>>(
+ path:string,method:"GET"|"POST",body?:object,expect:"object"|"array"="object"
+):Promise<T>{
  const conf=setup();
  if(!conf)throw Object.assign(new Error("Campaign Connect is not configured"),{status:503});
  const url=new URL("/api/connect/service"+path,conf.url);
  const response=await fetch(url,{
   method,
   signal:AbortSignal.timeout(9000),
+  redirect:"error",
   headers:{"x-gavhah-connect-secret":conf.secret,...(body?{"content-type":"application/json"}:{})},
   ...(body?{body:JSON.stringify(body)}:{}),
  });
- const parsed:unknown=await response.json().catch(()=>({}));
- const result:Record<string,unknown>=parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed as Record<string,unknown>:{};
+ const parsed:unknown=await response.json().catch(()=>null);
  if(!response.ok){
-  // Never return a remote backend's stack trace or secrets to browsers.
+  const message=parsed!==null&&typeof parsed==="object"&&!Array.isArray(parsed)
+   ?(parsed as Record<string,unknown>).error:null;
+  // Never forward raw upstream HTML, private records, traces or the service secret.
   const known=[400,403,404,409,429,503].includes(response.status)?response.status:502;
-  throw Object.assign(new Error(typeof result?.error==="string"?result.error:"Campaign Connect service unavailable"),{status:known});
+  throw Object.assign(new Error(typeof message==="string"&&message.length<=200
+   ?message:"Campaign Connect service unavailable"),{status:known});
  }
- return result;
+ if(parsed===null||typeof parsed!=="object"||
+    (expect==="array"?!Array.isArray(parsed):Array.isArray(parsed)))
+  throw Object.assign(new Error("Campaign Connect returned an unexpected response"),{status:502});
+ return parsed as T;
 }
 const asNumber=(value:unknown)=>Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):null;
 const endpoint=(fn:(req:any,res:any)=>Promise<void>)=>{
@@ -56,6 +64,27 @@ router.get("/askanus/connect/status",requireAuth,endpoint(async(req,res)=>{
   if((e as any)?.status===403){res.json({configured:true,linked:false,campaigns:[]});return;}
   throw e;
  }
+}));
+// Real authenticated server-to-server handshake. Account linking and remote
+// health are different signals, and this does not enable calls or finance.
+router.get("/askanus/connect/diagnostics",requireAuth,endpoint(async(_req,res)=>{
+ if(!setup()){
+  res.setHeader("Cache-Control","private, no-store");
+  res.json({configured:false,serverConnectionVerified:false,
+   note:"No paid services or remote synchronization are enabled"});
+  return;
+ }
+ const found=await remote("/capabilities","GET");
+ if(found.service!=="campaign_center"||found.protocol!=="gavhah-connect-v1"||
+    found.connectedBackend!==true)
+  throw Object.assign(new Error("Campaign Connect protocol mismatch"),{status:502});
+ res.setHeader("Cache-Control","private, no-store");
+ res.json({configured:true,serverConnectionVerified:true,
+  protocol:"gavhah-connect-v1",
+  accountLinking:found.accountLinking===true,
+  ownAssignments:found.ownAssignments===true,
+  manualFinanceShare:found.manualFinanceShare===true,
+  personalDonorSync:false,automaticPhoneCalls:false,verifiedPaymentProcessor:false});
 }));
 router.post("/askanus/connect/redeem",requireAuth,endpoint(async(req,res)=>{
  const uid=getSessionUserId(req)!;
@@ -89,9 +118,26 @@ router.get("/askanus/connect/assignments",requireAuth,endpoint(async(req,res)=>{
  const uid=getSessionUserId(req)!;
  const campaignId=String(req.query.campaignId||"");
  if(!/^[a-f0-9-]{36}$/i.test(campaignId)){res.status(400).json({error:"Invalid campaign"});return;}
- const result=await remote("/assignments?gavhahUserId="+uid+"&campaignId="+encodeURIComponent(campaignId),"GET");
+ const result=await remote<unknown[]>(
+  "/assignments?gavhahUserId="+uid+"&campaignId="+encodeURIComponent(campaignId),
+  "GET",undefined,"array");
+ // Preserve authorized member-scoped task ARRAYS (not empty objects) and
+ // whitelist fields rather than forwarding arbitrary upstream personal data.
+ if(result.length>200||!result.every(row=>{
+  if(!row||typeof row!=="object"||Array.isArray(row))return false;
+  const x=row as Record<string,unknown>;
+  return typeof x.id==="string"&&/^[a-f0-9-]{36}$/i.test(x.id)&&
+   typeof x.title==="string"&&x.title.length<=500&&
+   typeof x.kind==="string"&&typeof x.status==="string"&&
+   ["open","in_progress","done","cancelled"].includes(x.status);
+ }))throw Object.assign(new Error("Invalid campaign assignment response"),{status:502});
  res.setHeader("Cache-Control","private, no-store");
- res.json(result);
+ res.json(result.map(row=>{
+  const task=row as Record<string,unknown>;
+  return {id:task.id,title:task.title,kind:task.kind,
+   priority:typeof task.priority==="string"?task.priority:"normal",
+   status:task.status,due_at:typeof task.due_at==="string"?task.due_at:null};
+ }));
 }));
 // Update exactly ONE assigned Campaign Center task, without cloning the task into
 // MAX or allowing access to another person's campaign work.
