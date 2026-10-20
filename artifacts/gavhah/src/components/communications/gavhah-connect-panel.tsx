@@ -11,6 +11,7 @@ type Finance={id:number;amount:number;paidAmount?:number;refundedAmount?:number;
 type Overview={pledges:Finance[];receipts:Finance[]};
 type Reversal={id:number;receiptId:number;amount:number;createdAt:string};
 type LinkStatus={configured:boolean;linked:boolean;campaigns:Campaign[]};
+type ConnectHealth={configured:boolean;serverConnectionVerified:boolean;protocol?:string;ownAssignments?:boolean};
 
 async function api<T>(url:string,init?:RequestInit):Promise<T>{
  const response=await fetch(url,{credentials:"include",cache:"no-store",...init});
@@ -24,6 +25,8 @@ const cash=(number:number)=>new Intl.NumberFormat("en-US",{style:"currency",curr
 /** Optional team layer: personal MAX always works without Campaign Connect. */
 export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;followups?:Array<{id:number;note:string;completed:boolean}>}){
  const [status,setStatus]=useState<LinkStatus|null>(null);
+ const [health,setHealth]=useState<ConnectHealth|null>(null);
+ const [healthChecked,setHealthChecked]=useState(false);
  const [token,setToken]=useState("");
  const [campaignId,setCampaignId]=useState("");
  const [events,setEvents]=useState<Overview|null>(null);
@@ -46,6 +49,13 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
   setCampaignId(p=>result.campaigns.some(c=>c.id===p)?p:result.campaigns[0].id);
  },[]);
  useEffect(()=>{void reload().catch(e=>setError(e instanceof Error?e.message:"פארבינדונגס־טעות"));},[reload]);
+ useEffect(()=>{
+  let active=true;
+  void api<ConnectHealth>("/api/askanus/connect/diagnostics")
+   .then(value=>{if(active){setHealth(value);setHealthChecked(true);}})
+   .catch(()=>{if(active){setHealth({configured:false,serverConnectionVerified:false});setHealthChecked(true);}});
+  return ()=>{active=false;};
+ },[]);
  useEffect(()=>{
   if(!status?.linked)return;
   let cancelled=false;
@@ -133,6 +143,13 @@ export function GavhahConnectPanel({caseId,followups}:{caseId?:number|null;follo
    <p className="text-sm text-muted-foreground">MAX בלייבט א פריוואטער אפפ. דער קאמפיין־מנהל זעט נאר די געשעענישן וואס דו גיבסט בפירוש רשות צו מיטטיילן. קיין פריוואטע נדבן־פרטים אדער נאטיצן גייען נישט מיט.</p></div>
   {error&&<p role="alert" className="rounded-lg border border-destructive p-3 text-sm">{error}</p>}
   {message&&<p role="status" className="rounded-lg border p-3 text-sm">{message}</p>}
+  <div className="rounded-lg border p-3 text-sm space-y-1" role="status">
+    <strong>צווישן די צוויי סערווערס:</strong>
+    {!healthChecked?<p>מען פרואווט יעצט באשטעטיגן די פארבינדונג…</p>:
+      health?.serverConnectionVerified&&health.protocol==="gavhah-connect-v1"?
+       <p>די גבהה־API האט באשטעטיגט א פארבינדונג צום קאמפיין־סערווער. אקאונט־רשות דארף באזונדער ווערן באשטעטיגט.</p>:
+       <p>קיין באשטעטיגטע סערווער־פארבינדונג דערווייל. די פערזענליכע גבהה־פונקציעס ארבעטן ווייטער.</p>}
+   </div>
   {!status&&<p className="text-sm">קוקט נאך די פארבינדונג…</p>}
   {status&&!status.configured&&<p className="text-sm">דער קאמפיין־פארבינדונגס־סערווער איז נאך נישט צוגעגרייט. דיינע פערזענליכע MAX־פונקציעס ארבעטן ווייטער אומאפהענגיג.</p>}
   {status?.configured&&!status.linked&&<form onSubmit={connect} className="space-y-2">
