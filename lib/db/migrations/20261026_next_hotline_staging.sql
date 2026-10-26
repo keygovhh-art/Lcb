@@ -3,7 +3,7 @@
 -- This is an isolated TEST connector, not authorization to switch live traffic.
 CREATE TABLE IF NOT EXISTS public.gavhah_hotline_migration (
  id smallint PRIMARY KEY DEFAULT 1 CHECK(id=1),
- provider_kind text NOT NULL CHECK(provider_kind IN ('yemot','other')),
+ provider_kind text NOT NULL CHECK(provider_kind IN ('signalwire','yemot','other')),
  provider_label text NOT NULL,
  candidate_number text NOT NULL DEFAULT '',
  stage text NOT NULL DEFAULT 'draft' CHECK(stage IN ('draft','testing')),
