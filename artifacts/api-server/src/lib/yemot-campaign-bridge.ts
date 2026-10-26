@@ -52,7 +52,7 @@ export async function forwardCampaign4444(req:Request,res:Response):Promise<void
   });
   if(!response.ok)throw Error("Campaign Center rejected bridge request");
   const reply=await response.text();
-  if(reply.length>1400||!/^read=t-[ -~]+=[a-z]{2}\d{1,5},no,[0-9,]+$/.test(reply))
+  if(reply.length>1400||!/^read=t-[\x20-\x7e]{1,1200}=(?:iv|ln)\d{1,5},no,\d{1,2},\d{1,2},\d{1,2},No,no$/.test(reply))
    throw Error("Invalid Campaign Center IVR response");
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(reply);
  }catch{
