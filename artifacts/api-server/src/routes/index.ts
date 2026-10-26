@@ -31,6 +31,8 @@ import socialRouter from "./social";
 import adminRouter from "./admin";
 import yemotCentralRouter from "./yemot-central";
 import yemotWholePlatformIvr from "./yemot-whole-platform-ivr";
+import hotlineMigrationRouter from "./hotline-migration";
+import {signalWireNextHotline} from "../lib/signalwire-next-hotline";
 import newsVoiceRepliesRouter from "./news-voice-replies";
 import phoneAccountLinkRouter from "./phone-account-link";
 import reservationsRouter from "./reservations";
@@ -100,6 +102,12 @@ router.use(socialRouter);
 router.use(adminRouter);
 router.use(yemotCentralRouter);
 router.use(yemotWholePlatformIvr);
+router.use("/admin/hotline-migration",hotlineMigrationRouter);
+// Future SignalWire number: TEST ONLY, signed Compatibility cXML POST.
+// Existing Yemot root and Campaign Center 4444 remain on their old routes.
+router.post("/signalwire/next-ivr",(req,res,next)=>{
+  void signalWireNextHotline(req,res).catch(next);
+});
 router.use(newsVoiceRepliesRouter);
 router.use(phoneAccountLinkRouter);
 router.use(reservationsRouter);
