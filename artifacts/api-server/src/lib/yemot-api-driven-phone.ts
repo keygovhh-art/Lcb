@@ -22,7 +22,7 @@ const categories:Record<string,string>={
 };
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124"]);
-const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
+const root="Welcome to Gavhah. Press 1 for Gavhah. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
