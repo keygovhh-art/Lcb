@@ -51,6 +51,8 @@ jobs:
         run: node --experimental-strip-types --test tests/signalwire-protected-number-inventory.test.mjs
       - name: Audit shared SignalWire number without any provider mutation
         run: node --test tests/signalwire-shared-number-audit.test.mjs
+      - name: Inspect original 8080 route privately from owner dashboard
+        run: node --test tests/signalwire-old-route-admin.test.mjs
       - name: Verify actual private and public IVR features with authorization and controlled writes
         run: node --experimental-strip-types --test tests/yemot-section-batch1.test.mjs
       - name: Check male root voice and real same-website phone registration
