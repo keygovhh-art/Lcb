@@ -9,6 +9,7 @@ const router=file('artifacts/api-server/src/routes/index.ts');
 const admin=file('artifacts/gavhah/src/components/admin/next-hotline-migration.tsx');
 const menu=file('artifacts/gavhah/src/components/admin/yemot-central-management.tsx');
 const schema=file('lib/db/migrations/20261026_next_hotline_staging.sql');
+const signalwire=file('artifacts/api-server/src/lib/signalwire-next-hotline.ts');
 
 test('Staged replacement is separate from existing live global provider and cannot auto-cutover',()=>{
  assert.match(api,/gavhah_hotline_migration/);
@@ -62,4 +63,40 @@ test('Migration keeps same website accounts and call logic, does not claim recor
  assert.match(admin,/cutoverEnabled|איבערשאלטונג/u);
  assert.match(admin,/candidateNumber/);
  assert.match(admin,/setOneTime\(null\)/);
+});
+
+test('SignalWire replacement uses cXML Gather, not Yemot-only IVR syntax',()=>{
+ assert.match(schema,/provider_kind IN \('signalwire','yemot','other'\)/);
+ assert.match(api,/SIGNALWIRE_CALLBACK/);
+ assert.match(api,/SIGNALWIRE_SIGNING_KEY/);
+ assert.match(api,/createHmac\("sha256",signalwireSigningKey\(\)\)/);
+ assert.match(api,/provider_kind=\$5/);
+ assert.match(handler,/signalwireDigits/);
+ assert.match(signalwire,/<Gather input="dtmf"/);
+ assert.match(signalwire,/voice="man"/);
+ assert.match(signalwire,/method="POST"/);
+ assert.match(signalwire,/CallSid/);
+ assert.match(signalwire,/form\.To/);
+ assert.match(signalwire,/convertGavhahReplyToCxml/);
+ assert.match(router,/router.post\("\/signalwire\/next-ivr"/);
+});
+test('SignalWire compatibility webhook is verified against its signing key before database access',()=>{
+ assert.match(signalwire,/checkSignalWireSignature\(signingKey,signature,SIGNALWIRE_URL,form\)/);
+ assert.match(signalwire,/x-signalwire-signature/);
+ assert.match(signalwire,/x-twilio-signature/);
+ assert.match(signalwire,/createHmac\("sha1",signingKey\)/);
+ assert.match(signalwire,/Object.keys\(params\).sort\(\)/);
+ assert.match(signalwire,/timingSafeEqual/);
+ assert.match(signalwire,/provider_kind!=="signalwire"/);
+ assert.match(signalwire,/config.stage!=="testing"/);
+ assert.match(signalwire,/normalizedPhone\(String\(config.candidate_number/);
+ assert.match(signalwire,/req.originalUrl!==/);
+});
+test('SignalWire adapter uses the SAME Gavhah phone actions, not duplicated member tables',()=>{
+ assert.match(signalwire,/handleYemotApp\(proxyRequest,capture,phoneTree\)/);
+ assert.match(signalwire,/req\.method!=="POST"/);
+ assert.match(signalwire,/entryKey=createHmac\("sha256",signingKey\)/);
+ assert.match(signalwire,/No selection received/);
+ assert.doesNotMatch(signalwire,/UpdateExtension|DeleteFile|UploadFile|cc_phone_bridge_states/);
+ assert.match(signalwire,/audio recording option needs/);
 });
