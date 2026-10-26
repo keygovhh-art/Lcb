@@ -3,15 +3,15 @@ import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 
 type Plan={
- configured:boolean;providerKind:"yemot"|"other"|null;
+ configured:boolean;providerKind:"signalwire"|"yemot"|"other"|null;
  providerLabel:string|null;candidateNumber:string|null;
- stage:string;endpoint:string|null;testingEnabled:boolean;
+ stage:string;endpoint:string|null;testingEnabled:boolean;signalwireSigningKeyReady:boolean;
  testedCalls:number;lastTestAt:string|null;productionLineUntouched:boolean;
  cutoverEnabled:boolean;stillToCheck:string[];whatRemainsOnGavhah:string[];
 };
-type Prepare=Plan&{entryKey:string;callbackUrl:string;providerParameter:string};
+type Prepare=Plan&{entryKey?:string;callbackUrl:string;providerParameter?:string;instruction?:string};
 const blank:Plan={configured:false,providerKind:null,providerLabel:null,
- candidateNumber:null,stage:"not_configured",endpoint:null,testingEnabled:false,
+ candidateNumber:null,stage:"not_configured",endpoint:null,testingEnabled:false,signalwireSigningKeyReady:false,
  testedCalls:0,lastTestAt:null,productionLineUntouched:true,cutoverEnabled:false,
  stillToCheck:[],whatRemainsOnGavhah:[]};
 async function api(action:string,options?:RequestInit){
@@ -25,8 +25,8 @@ async function api(action:string,options?:RequestInit){
 }
 export function NextHotlineMigration(){
  const [plan,setPlan]=useState<Plan>(blank);
- const [providerKind,setProviderKind]=useState<"yemot"|"other">("yemot");
- const [providerLabel,setProviderLabel]=useState("ימות המשיח");
+ const [providerKind,setProviderKind]=useState<"signalwire"|"yemot"|"other">("signalwire");
+ const [providerLabel,setProviderLabel]=useState("SignalWire");
  const [candidateNumber,setCandidateNumber]=useState("");
  const [oneTime,setOneTime]=useState<Prepare|null>(null);
  const [loading,setLoading]=useState(true);
@@ -36,8 +36,8 @@ export function NextHotlineMigration(){
  async function refresh(){
   const p=await api("status") as Plan;
   setPlan(p);
-  setProviderKind(p.providerKind||"yemot");
-  setProviderLabel(p.providerLabel||"ימות המשיח");
+  setProviderKind(p.providerKind||"signalwire");
+  setProviderLabel(p.providerLabel||"SignalWire");
   setCandidateNumber(p.candidateNumber||"");
   setLoading(false);
  }
@@ -85,7 +85,8 @@ export function NextHotlineMigration(){
   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
    <label className="text-sm space-y-2">נייער פראוויידער
     <select className="flex h-10 w-full rounded-md border bg-background px-3" value={providerKind}
-     onChange={e=>{const k=e.target.value as "yemot"|"other";setProviderKind(k);setProviderLabel(k==="yemot"?"ימות המשיח":"");}}>
+     onChange={e=>{const k=e.target.value as "signalwire"|"yemot"|"other";setProviderKind(k);setProviderLabel(k==="signalwire"?"SignalWire":k==="yemot"?"ימות המשיח":"");}}>
+     <option value="signalwire">SignalWire — נייע פירמע</option>
      <option value="yemot">ימות המשיח — גלייכער API־טיפ</option>
      <option value="other">אנדערע האטליין־פירמע</option>
     </select>
@@ -107,14 +108,19 @@ export function NextHotlineMigration(){
     איבערקוקן פראבע־סטאטוס
    </Button>
   </div>
-  {plan.providerKind==="yemot"&&plan.candidateNumber&&
+  {(plan.providerKind==="yemot"||plan.providerKind==="signalwire")&&plan.candidateNumber&&
    <div className="rounded-lg border p-3 space-y-3">
-    <h3 className="font-semibold">באזונדערער ימות־פראבע־וועג</h3>
+    <h3 className="font-semibold">באזונדערער {plan.providerKind==="signalwire"?"SignalWire":"ימות"}־פראבע־וועג</h3>
     <p className="text-sm text-muted-foreground">
      דער פראבע־וועג פארבינדט דעם נייעם נומער צום זעלבן גבהה־מעניו און Neon־דאטע.
-     דער קנעפל שטעלט גארנישט אן ביי ימות. מען דארף עס אריינלייגן ביים נייעם נומער זעלבסט.
+     דער קנעפל שטעלט גארנישט אן ביים פראוויידער. מען דארף עס אריינלייגן ביים נייעם נומער זעלבסט.
     </p>
-    <Button disabled={busy} variant="outline" onClick={prepare}>
+    {plan.providerKind==="signalwire"&&<p className="text-sm">
+      SignalWire Signing Key אין Render: <strong>{plan.signalwireSigningKeyReady?"גרייט":"נאך פעלט"}</strong>.
+      לייג אים בלויז אין גבהה'ס Render Environment אונטער <code>SIGNALWIRE_SIGNING_KEY</code>, נישט אינעם וועבסייט.
+      דער פראבע־וועבּהוק ניצט cXML מיט <code>POST</code> און פארזיכערטע DTMF־קנעפלעך.
+    </p>}
+        <Button disabled={busy} variant="outline" onClick={prepare}>
      {plan.stage==="testing"?"באנייען פראבע־שליסל":"שאפן נייעם פראבע־שליסל"}
     </Button>
    </div>}
@@ -123,17 +129,18 @@ export function NextHotlineMigration(){
    ביז דאן קען מען נישט טענה'ן אז טעלעפאן־פראבעס זענען שוין פארבונדן.
   </p>}
   {oneTime&&<div className="rounded-lg border p-3 space-y-3">
-    <p className="font-semibold">דער שליסל ווערט געוויזן נאר יעצט. היט אים פריוואט.</p>
+    <p className="font-semibold">{oneTime.entryKey?"דער פראבע־שליסל ווערט געוויזן נאר יעצט. היט אים פריוואט.":"נייער SignalWire Callback — בלויז פארן נייעם נומער"}</p>
     <label className="block text-xs font-semibold">API Callback פארן נייעם נומער
      <textarea readOnly value={oneTime.callbackUrl} dir="ltr" rows={2}
       className="w-full mt-1 rounded-md border p-2 text-xs bg-background"/>
     </label>
-    <label className="block text-xs font-semibold">ימות־פאראמעטער: api_add_0
+    {oneTime.providerParameter&&<label className="block text-xs font-semibold">ימות־פאראמעטער: api_add_0
      <textarea readOnly value={oneTime.providerParameter} dir="ltr" rows={3}
       className="w-full mt-1 rounded-md border p-2 text-xs bg-background"/>
-    </label>
-    <p className="text-sm">צום נייעם נומער בלבד: type=api, api_url_post=yes און די צוויי ווערטן פון אויבן.
-     נישט איבערשרייבן דעם אלטן נומער אדער /0.</p>
+    </label>}
+    <p className="text-sm">{plan.providerKind==="signalwire"
+      ?"אויף דעם נייעם SignalWire־נומער שטעל א cXML־וועבּהוק מיט POST צום Callback. דער פארזיכערטער שליסל בלייבט אין Render. נישט אנרירן דעם אלטן ימות־נומער."
+      :"צום נייעם ימות־נומער בלבד: type=api, api_url_post=yes. נישט איבערשרייבן דעם אלטן נומער אדער /0."}</p>
     <Button variant="outline" onClick={()=>setOneTime(null)}>באהאלטן דעם פראבע־שליסל</Button>
   </div>}
   <div className="space-y-2">
