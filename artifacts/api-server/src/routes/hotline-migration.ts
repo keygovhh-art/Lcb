@@ -10,7 +10,7 @@ const err=(res:Response,status:number,message:string)=>res.status(status).json({
 function sameOrigin(req:Request){
  const origin=req.get("origin"),host=req.get("x-forwarded-host")||req.get("host");
  if(req.get("sec-fetch-site")==="cross-site"||req.get("sec-fetch-site")==="same-site")return false;
- if(!origin)return true; // non-browser superadmin API clients still require a signed-in session
+ if(!origin)return false; // mutating API calls require same-origin browser evidence
  try{
   const u=new URL(origin);
   return u.protocol==="https:"&&u.host===host;
@@ -56,19 +56,19 @@ const summary=(r:Migration|null)=>({
  productionLineUntouched:true,
  cutoverEnabled:false,
  stillToCheck:[
- "Provider confirms the new inbound number and its account rights",
- "Set up only the new number's IVR callback and keep the old hotline unchanged",
- "Listen to real welcome speech and test DTMF choices 1 to 9",
- "Verify account pairing, news, MAX and Do Not Call with a test user",
- "Verify the new provider's audio recordings and voice/TTS support",
- "Verify conferences and any caller-ID/outbound features separately",
- "Decide if a /0 provider administrator folder is supported on the new line",
- "Coordinate redirects/old-number announcements and explicit production cutover"
+ "איבערקוקן דעם נייעם נומער און די רעכטן ביים פראוויידער",
+ "פארבינדן בלויז דעם נייעם IVR־וועג — נישט טוישן דעם אלטן האטליין",
+ "אויסהערן דעם נייעם מעניו מיט א אמת'ן רוף; פראבירן קנעפלעך 1 ביז 9",
+ "פראבירן איינלאגיר־קאוד, נייעס, MAX און נישט־רופן־צייכן",
+ "איבערקוקן און באזונדער אריבערפירן פראוויידער־ריקארדירונגען אויב נויטיג",
+ "באזונדער באשטעטיגן קאנפרענצן, ארויסרופן און Caller ID",
+ "אויסקלארן צי /0־פארוואלטונג איז דא ביים נייעם פראוויידער",
+ "שפעטער באשטעטיגן א באזונדערע לייוו־איבערשאלטונג און אנווייזן פאר אלטע רופער"
  ],
  whatRemainsOnGavhah:[
- "members and login","MAX contacts and donor records","tasks and followups",
- "news and articles","website and privacy permissions","call tracking database",
- "business rules and backend phone menu"
+ "מעמבערס און אריינלאגירן","MAX־קאנטאקטן און נדבנים","אויפגאבן און נאכפאלגן",
+ "נייעס און אפדעיטס","וועבסייט און פריוואטקייט־רעכטן","טעלעפאן־רופן־היסטאריע אין Neon",
+ "סיסטעם־פונקציעס און הויפט־מעניו־קאוד"
  ],
  note:"This dashboard prepares and tests a replacement; it does not activate the new line or migrate provider-hosted recordings."
 });
