@@ -33,6 +33,11 @@ test('Campaign 4444 callback is isolated, verified, and cannot impersonate Gavha
  assert.match(installer,/CheckIfFileExists/);
  assert.match(installer,/dir\.dirs\.some/);
  assert.match(installer,/session\.username/);
+ assert.match(installer,/GetTextFile/);
+ assert.match(installer,/createHash\("sha256"\)/);
+ assert.match(installer,/callback_hash/);
+ assert.match(installer,/setting\("api_link"\)/);
+ assert.match(installer,/timingSafeEqual/);
  assert.match(installer,/UpdateExtension/);
  assert.match(installer,/api_link:WEBHOOK/);
  assert.match(server,/installCampaign4444Once/);
