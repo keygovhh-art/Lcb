@@ -41,6 +41,8 @@ jobs:
           pnpm --filter @workspace/api-server run build
       - name: Verify 4444 direct routing, existing hotline safety, and add-only provider installer
         run: node --test tests/yemot-campaign-4444-contract.test.mjs
+      - name: Verify signed Campaign Center 4444 forwarding with fail-closed permissions
+        run: node --test tests/yemot-campaign-bridge.test.mjs
       - name: Verify actual private and public IVR features with authorization and controlled writes
         run: node --experimental-strip-types --test tests/yemot-section-batch1.test.mjs
       - name: Check male root voice and real same-website phone registration

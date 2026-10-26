@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { handleYemotApp } from "../lib/yemot-api-driven-phone";
+import {forwardCampaign4444} from "../lib/yemot-campaign-bridge";
 
 // Complete PHONE NAVIGATION MAP, not a claim of completed phone features.
 // The menu currently ONLY names modules. Caller phone numbers are NOT identity.
@@ -135,6 +136,9 @@ router.all("/yemot/ivr",(req:Request,res:Response,next)=>{
 });
 // Campaign Center on the old line is a separate, authenticated /4444 callback.
 router.all("/yemot/ivr/4444",(req:Request,res:Response,next)=>{
-  void handleYemotApp(req,res,phoneTree).catch(next);
+  // Roll out safely: old read-only Campaign menu until BOTH services have
+  // the deliberately configured shared secret; then use CC's separate DB.
+  const connected=(process.env.CC_GAVHAH_BRIDGE_SECRET||"").length>=40;
+  void (connected?forwardCampaign4444(req,res):handleYemotApp(req,res,phoneTree)).catch(next);
 });
 export default router;
