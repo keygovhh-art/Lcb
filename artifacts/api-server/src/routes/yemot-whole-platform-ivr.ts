@@ -60,7 +60,8 @@ export const phoneTree: Record<string,Item> = {
     "9":group("Management and reports",{
       "1":leaf("Personal overview","/dashboard"),"2":leaf("System center","/system"),
       "3":leaf("Super administrator","/founder"),
-      "4":leaf("Group and staff settings","/group-team")
+      "4":leaf("Group and staff settings","/group-team"),
+      "5":leaf("SignalWire provider connection, WEBSITE ONLY","/founder/signalwire","API tokens and provider credentials must NEVER be spoken over the phone. This protected administration setting requires secure website authentication.")
     })
   }),
   "2":group("Campaign Center",{
