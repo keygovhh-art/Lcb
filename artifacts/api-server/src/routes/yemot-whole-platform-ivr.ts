@@ -141,4 +141,9 @@ router.all("/yemot/ivr/4444",(req:Request,res:Response,next)=>{
   const connected=(process.env.CC_GAVHAH_BRIDGE_SECRET||"").length>=40;
   void (connected?forwardCampaign4444(req,res):handleYemotApp(req,res,phoneTree)).catch(next);
 });
+// Isolated replacement-line sandbox: same Gavhah logic and Neon data,
+// DIFFERENT callback digest; does not invoke Yemot provider settings.
+router.all("/yemot/next-ivr",(req:Request,res:Response,next)=>{
+  void handleYemotApp(req,res,phoneTree).catch(next);
+});
 export default router;
