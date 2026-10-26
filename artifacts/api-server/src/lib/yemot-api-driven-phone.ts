@@ -4,6 +4,7 @@ import { logger } from "./logger";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
+import {sectionPaths,sectionRequiresLogin,pagedSections,readPhoneSection} from "./yemot-section-batch1";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -375,6 +376,13 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      const now=await newsPrompt(path,position,chunk);
      if(now.hasMore)chunk++;else{position++;chunk=0;}
     }
+   }else if(sectionPaths.has(path)){
+    // These are genuine read-only data views, never calls or payment actions.
+    // Paging is bounded inside readPhoneSection and is scoped to this call.
+    if(digit==="0"){path="";page=0;}
+    else if(pagedSections.has(path)&&digit==="1")page=Math.min(40,page+1);
+    else if(pagedSections.has(path)&&digit==="8")page=Math.max(0,page-1);
+    else if(pagedSections.has(path)&&digit==="2")page=0;
    }else if(personalPaths.has(path)){
     if(digit==="0"){path="";page=0;confirmId=null;}
     else if(digit==="1"){page++;confirmId=null;}
@@ -434,6 +442,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
   }else if(newsPath(path)){
    mode="news";spoken+=(await newsPrompt(path,position,chunk)).text;
+  }else if(sectionPaths.has(path)){
+   const permitted=!sectionRequiresLogin.has(path)||
+      await memberAllowed(client,{...s,member_id:userId});
+   spoken+=await readPhoneSection(client,path,permitted?userId:null,page);
   }else if(personalPaths.has(path)){
    if(!await memberAllowed(client,{...s,member_id:userId})){
     spoken="Your private account is not linked for this call. Open My Askanus on the website and generate an eight-digit code, then press 5 in this phone menu to sign in. If you do not have a website account, press zero to return, then press 8 at the welcome menu to register by phone.";
