@@ -133,4 +133,8 @@ const router=Router();
 router.all("/yemot/ivr",(req:Request,res:Response,next)=>{
   void handleYemotApp(req,res,phoneTree).catch(next);
 });
+// Campaign Center on the old line is a separate, authenticated /4444 callback.
+router.all("/yemot/ivr/4444",(req:Request,res:Response,next)=>{
+  void handleYemotApp(req,res,phoneTree).catch(next);
+});
 export default router;
