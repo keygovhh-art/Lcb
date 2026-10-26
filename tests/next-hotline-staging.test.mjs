@@ -89,7 +89,7 @@ test('SignalWire compatibility webhook is verified against its signing key befor
  assert.match(signalwire,/timingSafeEqual/);
  assert.match(signalwire,/provider_kind!=="signalwire"/);
  assert.match(signalwire,/config.stage!=="testing"/);
- assert.match(signalwire,/normalizedPhone\(String\(config.candidate_number/);
+ assert.match(signalwire,/normalizedSignalWireNumber\(String\(config.candidate_number/);
  assert.match(signalwire,/req.originalUrl!==/);
 });
 test('SignalWire adapter uses the SAME Gavhah phone actions, not duplicated member tables',()=>{
