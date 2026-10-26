@@ -15,6 +15,44 @@ export const sectionRequiresLogin=new Set([
 ]);
 export const pagedSections=new Set(["132","141","142","151","154","161","171","172","181"]);
 
+/** For a double-press confirmation, fetch just the CURRENT user's row. */
+export async function currentPhoneActionId(
+ client:PoolClient,path:"132"|"181",memberId:number,page:number
+):Promise<number|null>{
+ const p=Math.max(0,Math.min(40,Math.trunc(page)||0));
+ const query=path==="132"
+  ?"SELECT id FROM public.communication_contacts WHERE user_id=$1 ORDER BY updated_at DESC,id DESC LIMIT 1 OFFSET $2"
+  :"SELECT id FROM public.notifications WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2";
+ const r=await client.query<{id:number}>(query,[memberId,p]);
+ return r.rows[0]?.id??null;
+}
+
+/** Writes are limited to private member-owned rows in the caller transaction. */
+export async function confirmPhoneAction(
+ client:PoolClient,path:"132"|"181",memberId:number,recordId:number
+):Promise<string>{
+ if(path==="181"){
+  const r=await client.query(
+   "UPDATE public.notifications SET is_read=true WHERE id=$1 AND user_id=$2 AND is_read=false RETURNING id",
+   [recordId,memberId]);
+  return r.rowCount?"Your notification is now marked as read on your website account."
+   :"This notification is already read or no longer available.";
+ }
+ const row=await client.query<{id:number;name:string}>(
+  "UPDATE public.communication_contacts "+
+  "SET do_not_call=true,opt_out_reason='Marked Do Not Call by account owner using verified telephone session',updated_at=now() "+
+  "WHERE id=$1 AND user_id=$2 AND COALESCE(do_not_call,false)=false RETURNING id,name",
+  [recordId,memberId]);
+ if(!row.rowCount)return "Contact is already marked Do Not Call or unavailable.";
+ await client.query(
+  "INSERT INTO public.max_history_events (user_id,case_id,entity_type,entity_id,action,title,details,happened_at) "+
+  "VALUES($1,NULL,'contact',$2,'contact_do_not_call',$3,$4,now())",
+  [memberId,recordId,row.rows[0].name,
+   JSON.stringify({source:"verified_phone",note:"Owner set Do Not Call; no consent override or outbound call"})]);
+ return "Do Not Call is enabled for this contact. No outgoing call was placed.";
+}
+
+
 // The test line's TTS is currently English; never mispronounce Yiddish/other
 // languages or falsely claim to have translated original source material.
 function speak(raw:unknown,max=90):string{
@@ -64,7 +102,7 @@ export async function readPhoneSection(
   return detail(p,(queue?"Contact queue. ":"Private contact. ")+
    (speak(x.name)||"Name requires recorded Yiddish audio")+
    (x.city?". City "+(speak(x.city,35)||"not available in English"):"")+
-   (x.do_not_call?" Do not call is enabled.":"")+
+   (x.do_not_call?" Do not call is enabled.": queue?"":" Press 5 twice to enable Do Not Call for this contact.")+
    ". No outgoing telephone call is started from this menu");
  }
  if(path==="133"){
@@ -156,7 +194,8 @@ export async function readPhoneSection(
    "WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",[userId,p]);
   if(!x.message)return missing("your notifications");
   return detail(p,(x.is_read?"Previous notification. ":"Unread notification. ")+
-   (speak(x.message,170)||"This notification requires Yiddish recorded audio"));
+   (speak(x.message,170)||"This notification requires Yiddish recorded audio")+
+   (x.is_read?"":" Press 5 twice to mark this notification read"));
  }
  if(path==="182"){
   const x=await scalar(client,"SELECT name,nickname,role,preferred_language FROM public.users WHERE id=$1",[userId]);
