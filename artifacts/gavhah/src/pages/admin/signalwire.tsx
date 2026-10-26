@@ -5,6 +5,12 @@ import {Layout} from "@/components/layout/layout";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 
+type OldRouteAudit={
+ number:string;oldSystemExtension:string;state:string;
+ oldProviderRouteVerified:boolean;existingVoiceUrlPresent:boolean;
+ providerApplicationPresent:boolean;checkedAt:string|null;reason:string|null;
+ cutoverEnabled:boolean;providerRouteUnchanged:boolean;nextStep:string
+};
 type PhoneInventory={
  numbers:Array<{number:string;label:string;reserved:boolean;voiceAssigned:boolean;voiceCapable:boolean;canConsider:boolean;reason:string}>;
  complete:boolean;hasMore:boolean;readOnly:boolean;protectedNumber:string;
@@ -33,6 +39,7 @@ export function SignalWireCredentials(){
  const [apiToken,setApiToken]=useState("");
  const [showToken,setShowToken]=useState(false);
  const [inventory,setInventory]=useState<PhoneInventory|null>(null);
+ const [oldRoute,setOldRoute]=useState<OldRouteAudit|null>(null);
  const [inventoryLoading,setInventoryLoading]=useState(false);
  const [loaded,setLoaded]=useState(false);
  const [busy,setBusy]=useState(false);
@@ -41,6 +48,7 @@ export function SignalWireCredentials(){
  async function refresh(){
   const s=await request("status") as SignalWireStatus;
   setStatus(s);
+  try{setOldRoute(await request("shared-route") as OldRouteAudit);}catch{}
   setSpaceUrl(v=>v||s.spaceUrl||"");
   setProjectId(v=>v||s.projectId||"");
   setLoaded(true);
@@ -114,10 +122,39 @@ export function SignalWireCredentials(){
     לעצטע סוקסעספולע API־פראבע: <span dir="ltr">{new Date(status.lastVerifiedAt).toLocaleString("en-US")}</span>
    </p>}
   </div>
-  <section className="space-y-3 rounded-xl border p-3 sm:p-4" aria-label="SignalWire phone number safety">
+  <section className="space-y-3 rounded-xl border p-3 sm:p-4" aria-label="8080 migration to Gavhah">
+   <h3 className="font-semibold">8080655605 — עולם החסד אויפן הויפט־מעניו</h3>
+   <p className="text-sm">דער פלאן: עולם החסד זאל ווערן דער הויפט־מעניו, און די פריערדיגע סיסטעם
+    זאל ארבעטן אונטער <strong>55555</strong>. דער אלטער סיסטעם־וועג ווערט נישט איבערגעשריבן
+    ביז מיר האבן אים געפונען און אפגעהיטן.</p>
+   {oldRoute&&<div className="text-sm rounded-lg bg-muted/30 p-3 space-y-1">
+    <p>סטאטוס: <strong>{oldRoute.state==="not_found"?"דער נומער איז נישט אין דעם פארבונדענעם SignalWire־פראיעקט":
+     oldRoute.state==="verified_compatibility_voice_url"?"דער עקזיסטירנדער וועבהוק איז אפגעהיטן":
+     oldRoute.state==="unresolved"?"דער אלטער רופן־וועג איז נאכנישט קלאר":
+     oldRoute.state==="failed"?"די פראוויידער־פראבע האט נישט מצליח געווען":
+     "איבערקוקן דעם עקזיסטירנדן רופן־וועג"}</strong></p>
+    <p>עקזיסטירנדער וועבהוק: <strong>{oldRoute.existingVoiceUrlPresent?"געפונען":"נאכנישט באשטעטיגט"}</strong></p>
+    <p>שוין איבערגעשטעלט: <strong>ניין — קיין רופן נישט געטוישט</strong></p>
+    {oldRoute.state==="not_found"&&
+      <p role="alert">דעם נומער קען מען נישט איבערשטעלן דורך דעם איצטיגן Project ID. עס קען ליגן
+       אונטער א צווייטן SignalWire Space/Project. נוץ דערווייל נישט דעם באשטעטיגן־קנעפל פאר א לייוו־איבערשאלטונג.</p>}
+    {oldRoute.checkedAt&&<p className="text-xs text-muted-foreground">לעצטע פראבע: <span dir="ltr">{new Date(oldRoute.checkedAt).toLocaleString("en-US")}</span></p>}
+   </div>}
+   <Button variant="outline" disabled={busy||!status.verified}
+    onClick={()=>void work(async()=>{
+      const v=await request("shared-route/recheck",{method:"POST",body:"{}"}) as OldRouteAudit;
+      setOldRoute(v);
+      setMessage(v.oldProviderRouteVerified?
+       "דער עקזיסטירנדער רופן־וועג איז אפגעהיטן. קיין SignalWire־רוטינג איז נישט געטוישט.":
+       "די פראבע האט נישט געקענט באשטעטיגן דעם אלטן רוטינג. די סיסטעם בלייבט אומגעענדערט.");
+    })}>
+    נאכקוקן און אפהיטן דעם אלטן 8080־רופן־וועג (נאר לייענען)
+   </Button>
+  </section>
+    <section className="space-y-3 rounded-xl border p-3 sm:p-4" aria-label="SignalWire phone number safety">
    <h3 className="font-semibold">SignalWire־נומערן — נישט טוישן אנדערע סיסטעמען</h3>
    <p className="text-sm text-muted-foreground">
-    דער נומער <strong dir="ltr">8080655605</strong> איז באזונדער פארשפארט פאר דיין אנדערע סיסטעם.
+    דער נומער <strong dir="ltr">8080655605</strong> איז אפגעהיטן ביז מען קען פארבינדן די אלטע סיסטעם אויף 55555.
     די ליסטע לייענט נאר די נומערן; זי טוישט קיין Voice־וועבהוק און קויפט גארנישט.
    </p>
    <Button variant="outline" disabled={busy||inventoryLoading||!status.verified}
@@ -136,7 +173,7 @@ export function SignalWireCredentials(){
      <strong dir="ltr" className="block">{n.number}</strong>
      <p>{n.label}</p>
      <p className={n.reserved||n.voiceAssigned?"text-red-700":"text-amber-700"}>
-      {n.reserved?"פארשפארט — פארבונדן מיט דיין אנדערע סיסטעם":
+      {n.reserved?"אפגעהיטן — דארף א באזונדערע 55555־איבערפירונג":
        n.voiceAssigned?"פארנומען — עס איז שוין דא אן אנדער IVR/Voice־וועג":
        !n.voiceCapable?"קען נישט אננעמען Voice־רופן":
        "קוקט אויס נישט פארבונדן — מען מוז נאך איבערקוקן SignalWire Fabric"}
