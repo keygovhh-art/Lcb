@@ -1,10 +1,12 @@
 import { Router, type Request, type Response } from "express";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAuth, getCurrentSessionUser } from "../middlewares/auth";
 
 const router=Router();
 const CALLBACK="https://gavhah.onrender.com/api/yemot/next-ivr";
+const SIGNALWIRE_CALLBACK="https://gavhah.onrender.com/api/signalwire/next-ivr";
+const signalwireSigningKey=()=>String(process.env.SIGNALWIRE_SIGNING_KEY||"");
 const digits=/^[0-9]{7,15}$/;
 const err=(res:Response,status:number,message:string)=>res.status(status).json({error:message});
 function sameOrigin(req:Request){
@@ -30,7 +32,7 @@ router.use(async(req,res,next)=>{
  }catch(error){next(error);}
 });
 type Migration={
- provider_kind:"yemot"|"other";provider_label:string;candidate_number:string;
+ provider_kind:"signalwire"|"yemot"|"other";provider_label:string;candidate_number:string;
  stage:"draft"|"testing";callback_hash:string|null;generation:string;
  tested_calls:number;last_test_at:string|null;test_started_at:string|null;
  updated_at:string;
@@ -47,7 +49,8 @@ const summary=(r:Migration|null)=>({
  providerLabel:r?.provider_label||null,
  candidateNumber:r?.candidate_number||null,
  stage:r?.stage||"not_configured",
- endpoint:r?.provider_kind==="yemot"?CALLBACK:null,
+ endpoint:r?.provider_kind==="signalwire"?SIGNALWIRE_CALLBACK:r?.provider_kind==="yemot"?CALLBACK:null,
+ signalwireSigningKeyReady:signalwireSigningKey().length>=24,
  testingEnabled:r?.stage==="testing"&&!!r.callback_hash,
  testedCalls:Number(r?.tested_calls||0),
  lastTestAt:r?.last_test_at||null,
@@ -80,7 +83,7 @@ router.post("/draft",wrap(async(req,res)=>{
  const providerKind=req.body?.providerKind;
  const providerLabel=typeof req.body?.providerLabel==="string"?req.body.providerLabel.trim().slice(0,60):"";
  const candidateNumber=typeof req.body?.candidateNumber==="string"?req.body.candidateNumber.replace(/[^\d]/g,""):"";
- if(!["yemot","other"].includes(providerKind)||!providerLabel||
+ if(!["signalwire","yemot","other"].includes(providerKind)||!providerLabel||
     (candidateNumber&&!digits.test(candidateNumber))){
   err(res,400,"Choose a provider and optionally a new valid telephone number");return;
  }
@@ -112,8 +115,11 @@ router.post("/draft",wrap(async(req,res)=>{
 router.post("/prepare-test",wrap(async(req,res)=>{
  const existing=await state();
  if(!existing){err(res,409,"Choose and save the new provider first");return;}
- if(existing.provider_kind!=="yemot"){
+ if(existing.provider_kind==="other"){
   err(res,409,"This provider needs its own webhook adapter before an incoming call test. No old settings have been changed.");return;
+ }
+ if(existing.provider_kind==="signalwire"&&signalwireSigningKey().length<24){
+  err(res,503,"Set SIGNALWIRE_SIGNING_KEY in Gavhah Render Environment first. Never put the signing key in the website form.");return;
  }
  if(!digits.test(existing.candidate_number)){
   err(res,409,"Enter the new number before preparing a test callback");return;
@@ -124,23 +130,26 @@ router.post("/prepare-test",wrap(async(req,res)=>{
  const actor=(await getCurrentSessionUser(req))!.id;
  // Only the secret's digest persists. The operator gets the secret ONCE
  // to enter on the new line's settings; no provider API write occurs here.
- const entryKey=randomBytes(32).toString("hex");
- const digest=createHash("sha256").update(entryKey).digest("hex");
  const generation=randomBytes(16).toString("hex");
+ const entryKey=existing.provider_kind==="signalwire"
+  ?createHmac("sha256",signalwireSigningKey()).update("gavhah-signalwire-next-ivr-v1:"+generation).digest("hex")
+  :randomBytes(32).toString("hex");
+ const digest=createHash("sha256").update(entryKey).digest("hex");
  const updated=await pool.query(
   "UPDATE public.gavhah_hotline_migration SET callback_hash=$1,generation=$2,"+
   "stage='testing',test_started_at=now(),tested_calls=0,last_test_at=NULL,"+
-  "updated_by=$3,updated_at=now() WHERE id=1 AND provider_kind='yemot' AND candidate_number=$4 RETURNING id",
-  [digest,generation,actor,existing.candidate_number]
+  "updated_by=$3,updated_at=now() WHERE id=1 AND provider_kind=$5 AND candidate_number=$4 RETURNING id",
+  [digest,generation,actor,existing.candidate_number,existing.provider_kind]
  );
  if(!updated.rowCount){err(res,409,"Candidate changed. Refresh status.");return;}
  res.set("Cache-Control","private,no-store").json({
   ...summary(await state()),
-  callbackUrl:CALLBACK,
-  entryKey, // once on this response; never returned by GET or written to DB
+  callbackUrl:existing.provider_kind==="signalwire"?SIGNALWIRE_CALLBACK:CALLBACK,
+  ...(existing.provider_kind==="yemot"?{entryKey,providerParameter:"entryKey="+entryKey}:{}),
   newLineOnly:true,
-  instruction:"Only on your NEW Yemot number: configure type=api, api_link to callbackUrl, api_url_post=yes and api_add_0=entryKey:<value> (see field below). Do not change the existing Gavhah line or /0.",
-  providerParameter:"entryKey="+entryKey,
+  instruction:existing.provider_kind==="signalwire"
+   ?"On the NEW SignalWire number only: use a cXML/LaML voice webhook with HTTP POST to callbackUrl. Set the SignalWire project Signing Key securely as SIGNALWIRE_SIGNING_KEY in Gavhah Render. Do NOT modify the existing Yemot line or its recordings."
+   :"On the NEW Yemot number only: use type=api, api_link=callbackUrl, api_url_post=yes and api_add_0=providerParameter. Do not change the old Gavhah line or /0.",
   phoneTestingRequired:true,
   cutoverEnabled:false
  });
