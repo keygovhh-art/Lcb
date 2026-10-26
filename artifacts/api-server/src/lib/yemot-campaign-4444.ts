@@ -1,4 +1,4 @@
-import { createDecipheriv, createHmac } from "node:crypto";
+import { createDecipheriv, createHmac, createHash, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import { logger } from "./logger";
 
@@ -68,11 +68,31 @@ export async function installCampaign4444Once():Promise<void>{
    throw Error("Existing approved Gavhah provider connection is not enabled and verified");
   const key=encryptionKey();
   token=tokenFromRow(credentials,key);
-  // Check account ownership and avoid confusing Campaign Center's independent
-  // second number with the old Gavhah number.
+  // Provider username can be a PRIMARY account while this line is an alias.
+  // Match the provider root's live callback secret to Gavhah's stored digest.
+  // Never expose the secret or root ext.ini contents in logs.
   const session=await request(token,"GetSession",{});
-  if(String(session.username||"").replace(/\D/g,"")!==LINE)
-   throw Error("Yemot account ownership does not match existing Gavhah number");
+  if(!String(session.username||"").trim())
+   throw Error("Yemot did not authenticate an account");
+  const rootConfig=await request(token,"GetTextFile",{what:"ivr2:ext.ini"});
+  if(typeof rootConfig.contents!=="string"||rootConfig.contents.length>50000)
+   throw Error("Cannot inspect existing provider root securely");
+  const lines=rootConfig.contents.split(/\r?\n/).map((line:string)=>line.trim());
+  const setting=(name:string):string=>{
+   const match=lines.find((line:string)=>line.startsWith(name+"="));
+   return match?match.slice(name.length+1).trim():"";
+  };
+  const registered=(await pool.query("SELECT state,callback_hash FROM public.gavhah_yemot_ivr_install WHERE id=1")).rows[0];
+  const discovered=/^entryKey=([a-f0-9]{64})$/.exec(setting("api_add_0"));
+  const remoteHash=discovered?createHash("sha256").update(discovered[1]).digest("hex"):"";
+  const storedHash=String(registered?.callback_hash||"");
+  const rootVerified=registered?.state==="live"&&
+   setting("type")==="api"&&
+   setting("api_link")==="https://gavhah.onrender.com/api/yemot/ivr"&&
+   /^[a-f0-9]{64}$/.test(remoteHash)&&/^[a-f0-9]{64}$/.test(storedHash)&&
+   timingSafeEqual(Buffer.from(remoteHash,"hex"),Buffer.from(storedHash,"hex"));
+  if(!rootVerified)
+   throw Error("Provider root does not match registered Gavhah callback; refusing all changes");
   const dir=await request(token,"GetIVR2Dir",{path:"/"});
   if(!Array.isArray(dir.dirs)||!Array.isArray(dir.files))
    throw Error("Provider returned an incomplete root inventory");
