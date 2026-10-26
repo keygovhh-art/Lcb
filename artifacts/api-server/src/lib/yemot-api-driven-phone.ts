@@ -208,7 +208,7 @@ async function exactSecret(req:Request){
  if(req.path.endsWith("/next-ivr")){
   const selected=await pool.query("SELECT callback_hash,stage,provider_kind FROM public.gavhah_hotline_migration WHERE id=1");
   const record=selected.rows[0];
-  if(record?.stage!=="testing"||record?.provider_kind!=="yemot"||
+  if(record?.stage!=="testing"||!["yemot","signalwire"].includes(String(record?.provider_kind))||
      !/^[a-f0-9]{64}$/.test(String(record.callback_hash||"")))return null;
   const suppliedHash=createHash("sha256").update(supplied).digest("hex");
   return timingSafeEqual(Buffer.from(record.callback_hash,"hex"),Buffer.from(suppliedHash,"hex"))?supplied:null;
@@ -270,7 +270,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
   const inputName=(replyMode?"rr":path==="125"?"ln":path==="185"?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
-  const raw=req.body?.[inputName]??req.query[inputName];
+  const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
   let goToProviderManagement=false;
   let goToCampaignExtension=false;
