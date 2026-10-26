@@ -3,6 +3,7 @@ import { ensureReservedSuperAdmin } from "./lib/super-admin";
 import { activateOwnerApprovedYemotRoot } from "./lib/yemot-owner-approved-root";
 import { applyYemotVoiceRepair } from "./lib/yemot-root-voice-repair";
 import { installCampaign4444Once } from "./lib/yemot-campaign-4444";
+import { inspectExisting8080RouteOnce } from "./lib/signalwire-old-route-snapshot";
 
 const rawPort = process.env["PORT"];
 
@@ -32,6 +33,8 @@ const server = app.listen(port, "0.0.0.0", () => {
   void applyYemotVoiceRepair();
   // Runs only after explicit database queue approval; never touches root or recordings.
   void installCampaign4444Once();
+  // Read-only SignalWire inventory audit queued by owner; NEVER changes provider settings.
+  void inspectExisting8080RouteOnce();
 });
 
 server.on("error", (err) => {
