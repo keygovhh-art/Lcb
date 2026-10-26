@@ -62,53 +62,10 @@ export const phoneTree: Record<string,Item> = {
       "4":leaf("Group and staff settings","/group-team")
     })
   }),
-  "2":group("Campaign Center",{
-    "1":group("Campaigns",{
-      "1":leaf("My campaigns","/"),"2":leaf("Campaign dashboard","/"),
-      "3":leaf("Campaign goals and status","/"),"4":leaf("Campaign settings","/")
-    }),
-    "2":group("Tasks and follow ups",{
-      "1":leaf("My work today","/"),"2":leaf("Assigned tasks","/"),
-      "3":leaf("Callbacks and follow ups","/"),"4":leaf("Activity history","/")
-    }),
-    "3":group("Contacts and calls",{
-      "1":leaf("Donor contacts","/"),"2":leaf("Call lists","/"),
-      "3":leaf("Claim or release a lead","/"),"4":leaf("Manual call results","/"),
-      "5":leaf("Do Not Call protection","/")
-    }),
-    "4":group("Donations and finance",{
-      "1":leaf("Pledges","/"),"2":leaf("Manual receipts","/"),
-      "3":leaf("Net campaign reporting","/"),"4":leaf("Corrections and audit","/")
-    }),
-    "5":group("Teams and members",{
-      "1":leaf("Team dashboard","/"),"2":leaf("Squads and departments","/"),
-      "3":leaf("Invitations and permissions","/"),"4":leaf("Member progress","/")
-    }),
-    "6":group("Virtual fundraising hall",{
-      "1":leaf("Open fundraising hall","/"),"2":leaf("Live room check in","/"),
-      "3":leaf("Program schedule","/"),"4":leaf("Help desk","/"),
-      "5":leaf("Audio or video stream","/")
-    }),
-    "7":group("Hitkabtzu conferences",{
-      "1":leaf("Conference directory","/"),"2":leaf("Join an assembly","/"),
-      "3":leaf("Speaker controls","/"),"4":leaf("Access and moderation","/")
-    }),
-    "8":group("Reports and management",{
-      "1":leaf("Manager overview","/"),"2":leaf("Activity log","/"),
-      "3":leaf("Export or import","/"),"4":leaf("Campaign accounting","/")
-    }),
-    "9":group("Plans and connections",{
-      "1":group("Six upgrade plans",{
-        "1":leaf("Askan Plus plan","/"),
-        "2":leaf("Chesed Quick plan","/"),
-        "3":leaf("Askan Pro plan","/"),
-        "4":leaf("Gabbai Pro plan","/"),
-        "5":leaf("Organization plan","/"),
-        "6":leaf("Custom plan","/")
-      }),"2":leaf("Gavhah MAX Connect","/"),
-      "3":leaf("Central Yemot phone status","/"),"4":leaf("Special integrations","/")
-    })
-  })
+  // A legacy digit 2 is informational ONLY. All Campaign Center menus and
+  // credentials belong on its future independent phone number.
+  "2":leaf("Campaign Center uses a separate phone number","/",
+    "Campaign Center is no longer on this Gavhah line. Please call the separate Campaign Center number. Press zero to return to Gavhah.")
 };
 export function phoneNode(path:string):Item|undefined {
   let current:Item|undefined;
@@ -123,7 +80,7 @@ export function phoneNode(path:string):Item|undefined {
 export function phonePrompt(path:string):string {
   const children=path ? phoneNode(path)?.children : phoneTree;
   if(!children)return "This option is not available.";
-  const pre=path==="1" ? "Gavhah." : path==="2" ? "Campaign Center." : path==="" ? "Welcome to Gavhah and Campaign Center." : "";
+  const pre=path==="1" ? "Gavhah." : path==="2" ? "Campaign Center moved." : path==="" ? "Welcome to Gavhah." : "";
   const choices=Object.entries(children).map(([digit,item])=>"Press "+digit+" for "+item.label+".").join(" ");
   return [pre,choices,path?"Press zero to go back.":""].filter(Boolean).join(" ").replace(/[&=,\r\n]/g," ").slice(0,1200);
 }
