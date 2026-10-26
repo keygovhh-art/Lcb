@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAuth, getCurrentSessionUser } from "../middlewares/auth";
+import signalwireCredentialsRouter from "./signalwire-credentials";
 
 const router=Router();
 const CALLBACK="https://gavhah.onrender.com/api/yemot/next-ivr";
@@ -31,6 +32,8 @@ router.use(async(req,res,next)=>{
   next();
  }catch(error){next(error);}
 });
+// Attached only AFTER administrator identity and same-origin checks.
+router.use("/signalwire",signalwireCredentialsRouter);
 type Migration={
  provider_kind:"signalwire"|"yemot"|"other";provider_label:string;candidate_number:string;
  stage:"draft"|"testing";callback_hash:string|null;generation:string;
