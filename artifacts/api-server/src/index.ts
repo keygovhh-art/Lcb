@@ -2,6 +2,7 @@ import { logger } from "./lib/logger";
 import { ensureReservedSuperAdmin } from "./lib/super-admin";
 import { activateOwnerApprovedYemotRoot } from "./lib/yemot-owner-approved-root";
 import { applyYemotVoiceRepair } from "./lib/yemot-root-voice-repair";
+import { installCampaign4444Once } from "./lib/yemot-campaign-4444";
 
 const rawPort = process.env["PORT"];
 
@@ -29,6 +30,8 @@ const server = app.listen(port, "0.0.0.0", () => {
   // One-time root setup only when explicitly queued by the hotline owner.
   void activateOwnerApprovedYemotRoot();
   void applyYemotVoiceRepair();
+  // Runs only after explicit database queue approval; never touches root or recordings.
+  void installCampaign4444Once();
 });
 
 server.on("error", (err) => {

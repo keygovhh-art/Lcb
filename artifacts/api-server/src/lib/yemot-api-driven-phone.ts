@@ -23,6 +23,7 @@ const categories:Record<string,string>={
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124"]);
 const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
+const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -31,7 +32,7 @@ export function safeVoice(input:unknown,max=430){
   .replace(/\s+/g," ").trim().slice(0,max);
 }
 function voice(s:string){return "t-"+safeVoice(s,430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"code"|"article"|"record"|"registration"="menu"){
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu"){
  if(mode==="record"){
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
    .send("read="+voice(prompt)+"=rr"+step+",,record");return;
@@ -50,15 +51,17 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"news"|"cod
  ? [name,"no","8","1","8","No","no"]
  : mode==="news"
  ? [name,"no","1","0","7","No","no","no","","0123456789","1","Ok","None"]
+ : mode==="root"
+ ? [name,"no","4","1","8","No","no"]
  : [name,"no","1","1","8","No","no"];
  const providerBody="read="+voice(prompt)+"="+opts.join(",");
  if(step===0)logger.info({ivrResponse:"read",mode,step,promptCharacters:prompt.length,patternVersion:"basic-read-v2"},"Yemot welcome reply delivered");
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
 }
-function menuPrompt(path:string,tree:Record<string,TreeNode>){
+function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false){
  let nodes=tree,current:TreeNode|undefined;
  for(const d of path){current=nodes[d];if(!current)return root;nodes=current.children||{};}
- if(!path)return root;
+ if(!path)return ready4444?gavhahRoot:root;
  if(!current?.children)return current?.details||"This option is not ready on the phone. Press zero to return to the main menu.";
  return current.label+". "+Object.entries(nodes)
   .map(([n,item])=>"Press "+n+" for "+item.label+".").join(" ")+
@@ -200,6 +203,15 @@ function sourceCallId(req:Request){
 async function exactSecret(req:Request){
  const supplied=String(req.body?.entryKey??req.query.entryKey??"");
  if(!/^[a-f0-9]{64}$/.test(supplied))return null;
+ if(req.path.endsWith("/4444")){
+  const value=process.env.YEMOT_ENCRYPTION_KEY||"";
+  const key=Buffer.from(value,"base64");
+  if(key.length!==32||key.toString("base64")!==value)return null;
+  const expected=createHmac("sha256",key).update("gavhah-campaign-4444-callback-v1").digest("hex");
+  if(!timingSafeEqual(Buffer.from(expected,"hex"),Buffer.from(supplied,"hex")))return null;
+  const installed=await pool.query("SELECT provider_summary #>> '{campaign4444,state}' AS state FROM public.gavhah_yemot_ivr_install WHERE id=1");
+  return installed.rows[0]?.state==="live"?supplied:null;
+ }
  const result=await pool.query<{callback_hash:string;state:string}>(
   "SELECT callback_hash,state FROM public.gavhah_yemot_ivr_install WHERE id=1");
  const expected=result.rows[0]?.callback_hash;
@@ -209,12 +221,15 @@ async function exactSecret(req:Request){
   timingSafeEqual(Buffer.from(expected),Buffer.from(provided))?supplied:null;
 }
 export async function handleYemotApp(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<void>{
+ const from4444=req.path.endsWith("/4444");
  const secret=await exactSecret(req);
  if(!secret){res.status(403).type("text/plain").send("Access denied");return;}
  const active=await pool.query("SELECT enabled,last_verified_at FROM public.gavhah_yemot_global WHERE id=1");
  if(!active.rows[0]?.enabled||!active.rows[0]?.last_verified_at){
   res.status(503).type("text/plain").send("Hotline integration not enabled");return;
  }
+ const installStatus=await pool.query("SELECT provider_summary #>> '{campaign4444,state}' AS state FROM public.gavhah_yemot_ivr_install WHERE id=1");
+ const ready4444=installStatus.rows[0]?.state==="live";
  const call=sourceCallId(req);
  if(!call){res.type("text/plain").send("id_list_message="+voice("Call identifier missing. Please try again."));return;}
  const callHash=createHmac("sha256",secret).update(call).digest("hex");
@@ -224,6 +239,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   await client.query("INSERT INTO public.gavhah_yemot_call_states(call_hash) VALUES($1) ON CONFLICT(call_hash) DO NOTHING",[callHash]);
   const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
+  if(from4444 && step===0 && !path)path="2";
   let userId=s.member_id;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
@@ -231,6 +247,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   const raw=req.body?.[inputName]??req.query[inputName];
   let feedback="";
   let goToProviderManagement=false;
+  let goToCampaignExtension=false;
   if(raw!==undefined&&raw!==null){
    const digit=String(raw).trim();
    // Existing Yemot management is usually extension /0 (admin_login).
@@ -238,7 +255,13 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    // Moving to /0 DOES NOT bypass the provider admin password.
    if(path==="" && digit==="0"){
     goToProviderManagement=true;
-   }else if(path==="" && digit==="8"){
+   }else if(from4444 && digit==="0"){
+    path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
+   }else if(!from4444 && ready4444 && path==="" && digit==="4444"){
+    goToCampaignExtension=true;
+   }else if(!from4444 && ready4444 && path==="" && /^[1-9]$/.test(digit) && tree["1"]?.children?.[digit]){
+    path="1"+digit;
+   }else if(path==="" && digit==="8" && !ready4444){
     path="185";feedback="You chose Gavhah website member signup. ";
    }else if(replyMode){
     if(!await memberAllowed(client,{...s,member_id:userId})){
@@ -381,7 +404,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
    step++;
   }
-  let mode:"menu"|"news"|"code"|"article"|"record"|"registration"="menu",spoken=feedback;
+  let mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",spoken=feedback;
   if(reportMode){
    spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
   }else if(replyMode){
@@ -417,13 +440,18 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }else{
     spoken+=await myPrompt(client,path,userId!,page,confirmId);
    }
-  }else spoken+=menuPrompt(path,tree);
+  }else {
+   if(!path && ready4444 && !from4444)mode="root";
+   spoken+=menuPrompt(path,tree,ready4444);
+  }
   await client.query("UPDATE public.gavhah_yemot_call_states "+
    "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,updated_at=now() "+
    "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode]);
   await client.query("COMMIT");
   if(goToProviderManagement){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/0");
+  }else if(goToCampaignExtension){
+   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/4444");
   }else{
    sendRead(res,spoken,step,mode);
   }

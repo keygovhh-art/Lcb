@@ -39,6 +39,8 @@ jobs:
         run: |
           pnpm --filter @workspace/gavhah run build
           pnpm --filter @workspace/api-server run build
+      - name: Verify 4444 direct routing, existing hotline safety, and add-only provider installer
+        run: node --test tests/yemot-campaign-4444-contract.test.mjs
       - name: Check male root voice and real same-website phone registration
         run: node --test tests/yemot-male-signup-contract.test.mjs
       - name: Verify staged charity scheduling, private queue and donation buttons
