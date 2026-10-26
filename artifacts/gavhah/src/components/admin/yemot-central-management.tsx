@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NextHotlineMigration } from "./next-hotline-migration";
 
 type Status = {
   configured: boolean;
@@ -55,8 +56,8 @@ export function YemotCentralManagement() {
     <div className="rounded-xl border bg-card p-5 space-y-2">
       <h2 className="text-xl font-bold">ימות המשיח — איין צענטראלער API</h2>
       <p className="text-sm text-muted-foreground">
-        בלויז דער גבהה־סופער־עדמין קען שטעלן דעם איינציגן ימות־שליסל. ביידע סיסטעמען נוצן דעם זעלבן האטליין.
-        קיין מוסד אדער מאנשאפט קען נישט שטעלן אן אייגענעם API־שליסל.
+        דאס איז דער יעצטיגער גבהה־שליסל. נישט איבערשרייבן אים בשעת דער צוגרייטונג צו א נייעם האטליין.
+        די צוגרייטונג אונטן איז באזונדער און טוישט נישט דעם אלטן נומער אדער קאמפיין־סענטער.
       </p>
       <div className="grid gap-2 text-sm sm:grid-cols-2">
         <p>שליסל: <strong>{status.configured ? "פארשפארט אפגעהיטן" : "נאכנישט אריינגעלייגט"}</strong></p>
@@ -68,6 +69,7 @@ export function YemotCentralManagement() {
         איידער מען קען אפהיטן א שליסל דארף מען שטעלן YEMOT_ENCRYPTION_KEY אין די פריוואטע Render־איינשטעלונגען פון גבהה.
       </p>}
     </div>
+    <NextHotlineMigration />
     <form className="rounded-xl border bg-card p-5 space-y-3" onSubmit={e => {
       e.preventDefault();
       void work(async()=>{
@@ -104,7 +106,7 @@ export function YemotCentralManagement() {
       </div>
     </div>
     <div className="rounded-xl border bg-card p-5 space-y-3">
-      <h3 className="font-bold">איין האטליין — צוויי אפטיילונגען</h3>
+      <h3 className="font-bold">דער עקזיסטירנדער ימות־מעניו</h3>
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="rounded-lg border p-3"><strong>דרוק 1 — גבהה</strong><div className="text-sm text-muted-foreground" dir="ltr">Gavhah API</div></div>
         <div className="rounded-lg border p-3"><strong>דרוק 2 — קאמפיין סענטער</strong><div className="text-sm text-muted-foreground" dir="ltr">Campaign Center API</div></div>
