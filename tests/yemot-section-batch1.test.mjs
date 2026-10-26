@@ -11,8 +11,8 @@ const mk=(row,seen=[])=>({
   }
 });
 test('16 actual phone sections have explicit security and require account pairing for personal data', async()=>{
- assert.equal(sectionPaths.size,16);
- assert.equal(sectionRequiresLogin.size,12);
+ assert.equal(sectionPaths.size,24);
+ assert.equal(sectionRequiresLogin.size,18);
  const requests=[];
  const out=await readPhoneSection(mk({name:'should never be read'},requests),'132',null,0);
  assert.match(out,/private/i);
@@ -85,4 +85,49 @@ test('No private phone route can use a caller number as identity',()=>{
  assert.doesNotMatch(source,/ApiCallerId|ApiPhone|callerId/);
  assert.match(source,/No outgoing telephone call is started/);
  assert.match(source,/These are not verified processor payments/);
+});
+
+test('Assistance requests and volunteer status are strictly account-scoped',async()=>{
+ const seen=[];
+ const client=mk({status:'pending',need_type:'food',urgency:'high'},seen);
+ const out=await readPhoneSection(client,'152',17,0);
+ assert.match(out,/previously submitted assistance request/);
+ assert.match(seen[0].sql,/WHERE user_id=\$1/);
+ assert.deepEqual(seen[0].params,[17,0]);
+ const v=[];
+ await readPhoneSection(mk({availability:'weekends',skills:['driving']},v),'153',17,0);
+ assert.match(v[0].sql,/WHERE user_id=\$1/);
+ assert.deepEqual(v[0].params,[17]);
+});
+test('Forum and featured directory are public but private follows stay paired',async()=>{
+ const forum=[],directory=[],follows=[];
+ const f=await readPhoneSection(mk({title:'Forum',is_locked:false,comment_count:3},forum),'162',null,0);
+ assert.match(f,/Public forum topic/);
+ assert.match(forum[0].sql,/public.discussions/);
+ const d=await readPhoneSection(mk({user_name:'Featured volunteer',location:'Monroe'},directory),'163',null,0);
+ assert.match(d,/Featured volunteer/);
+ assert.match(directory[0].sql,/is_featured=true/);
+ const unauth=await readPhoneSection(mk({entity_title:'secret'},follows),'164',null,0);
+ assert.match(unauth,/private/i);
+ assert.equal(follows.length,0);
+ await readPhoneSection(mk({entity_title:'Volunteer',entity_type:'project'},follows),'164',17,0);
+ assert.match(follows[0].sql,/WHERE user_id=\$1/);
+});
+test('Superadmin telephone view denies all ordinary members before statistics query',async()=>{
+ const calls=[];
+ const normal=mk((sql)=>sql.includes('FROM public.users')?{role:'member',status:'active'}:{assistance:9,causes:9},calls);
+ const denied=await readPhoneSection(normal,'193',22,0);
+ assert.match(denied,/separate authorized administrator/);
+ assert.equal(calls.length,1,'Private admin queue must not be queried for nonadmin');
+ const supercalls=[];
+ const admin=mk(sql=>sql.includes('FROM public.users')?{role:'super_admin',status:'active'}:{assistance:3,causes:2},supercalls);
+ const approved=await readPhoneSection(admin,'193',7,0);
+ assert.match(approved,/3 pending assistance/);
+ assert.equal(supercalls.length,2);
+});
+test('Personal group staff access must be scoped to linked member',async()=>{
+ const calls=[];
+ await readPhoneSection(mk({name:'My Group',can_moderate:true,can_view_private:false},calls),'194',32,0);
+ assert.match(calls[0].sql,/a.user_id=\$1/);
+ assert.deepEqual(calls[0].params,[32,0]);
 });
