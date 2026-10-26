@@ -19,7 +19,7 @@ test('Verify Yemot callback first, then sign only DTMF with a separate service s
  assert.match(bridge,/CC_GAVHAH_BRIDGE_SECRET/);
  assert.match(bridge,/X-CC-Bridge-Signature/);
  assert.match(bridge,/ApiCallId/);
- assert.match(bridge,/^\s*const entries=.*\\(\\{\\.\\.\\.req\\.query,\\.\\.\\.req\\.body\\}\\)/m);
+ assert.match(bridge,/Object\.entries\(\{\.\.\.req\.query,\.\.\.req\.body\}\)/);
  assert.doesNotMatch(bridge,/req\.body\.phone|req\.body\.callerId/);
 });
 test('Do not leak secrets, private account data or use a Gavhah fallback on downstream failure',()=>{
