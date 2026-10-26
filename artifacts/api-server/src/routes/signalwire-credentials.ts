@@ -2,7 +2,8 @@ import {Router,type Request,type Response} from "express";
 import {createCipheriv,createDecipheriv,randomBytes} from "node:crypto";
 import {pool} from "@workspace/db";
 import {getCurrentSessionUser} from "../middlewares/auth";
-import {classifySignalWireNumber,isProtectedSignalWireNumber} from "../lib/signalwire-number-safety";
+import {classifySignalWireNumber} from "../lib/signalwire-number-safety";
+import {inspectExisting8080RouteOnce} from "../lib/signalwire-old-route-snapshot";
 
 /**
  * The router is mounted AFTER existing super-admin + same-origin middleware
@@ -81,6 +82,15 @@ router.put("/connection",async(req,res,next)=>{
    "token_nonce=EXCLUDED.token_nonce,token_ciphertext=EXCLUDED.token_ciphertext,token_tag=EXCLUDED.token_tag,"+
    "updated_by=EXCLUDED.updated_by,verified_at=NULL,last_test_at=NULL,updated_at=now()",
    [space,project,sealed.nonce,sealed.ciphertext,sealed.tag,actor]);
+  // Previous original routing belongs to a potentially DIFFERENT project.
+  // Never carry over its audit result when owner replaces credentials.
+  await pool.query(
+   "UPDATE public.gavhah_signalwire_shared_route SET audit_state='queued',"+
+   "provider_number_sid=NULL,original_voice_url=NULL,original_voice_method=NULL,"+
+   "original_voice_application_sid=NULL,original_voice_fallback_url=NULL,"+
+   "original_voice_fallback_method=NULL,original_trunk_sid=NULL,original_sms_url=NULL,"+
+   "route_fingerprint=NULL,checked_at=NULL,last_error=NULL,updated_at=now() "+
+   "WHERE id=1 AND cutover_enabled=false");
   res.set("Cache-Control","private,no-store").json({
    ...status(await current()),
    message:"SignalWire token saved encrypted. Run read-only connection test next. Existing Yemot hotline unchanged."
@@ -163,6 +173,49 @@ router.get("/numbers",async(_req,res,next)=>{
  try{
   const inventory=await readSignalWireInventory();
   res.set("Cache-Control","private,no-store").json(inventory);
+ }catch(e){next(e);}
+});
+
+type SharedAudit={audit_state:string;provider_number_sid:string|null;original_voice_url:string|null;original_voice_application_sid:string|null;checked_at:Date|null;last_error:string|null};
+async function sharedAudit(){
+ const result=await pool.query<SharedAudit>(
+  "SELECT audit_state,provider_number_sid,original_voice_url,original_voice_application_sid,checked_at,last_error "+
+  "FROM public.gavhah_signalwire_shared_route WHERE id=1");
+ const r=result.rows[0];
+ return {number:"8080655605",oldSystemExtension:"55555",state:r?.audit_state||"not_configured",
+  oldProviderRouteVerified:r?.audit_state==="verified_compatibility_voice_url",
+  existingVoiceUrlPresent:!!r?.original_voice_url,
+  providerApplicationPresent:!!r?.original_voice_application_sid,
+  checkedAt:r?.checked_at||null,reason:r?.last_error||null,
+  mainMenuWillBeGavhah:true,oldSystemWillUseExtension:"55555",
+  cutoverEnabled:false,providerRouteUnchanged:true,
+  nextStep:r?.audit_state==="not_found"?
+   "This connected SignalWire Project does not contain 8080655605. Find the Space/Project that currently owns that number before making changes.":
+   r?.audit_state==="unresolved"?
+   "Old routing uses Fabric, application or unknown provider route. Preserve original destination before switching main menu.":
+   r?.audit_state==="verified_compatibility_voice_url"?
+   "Original route saved; five digit menu and reversal still need phone-call testing before production switch.":
+   "Inspect the old provider connection without changing its settings."
+ };
+}
+router.get("/shared-route",async(_req,res,next)=>{
+ try{res.set("Cache-Control","private,no-store").json(await sharedAudit());}
+ catch(e){next(e);}
+});
+router.post("/shared-route/recheck",async(_req,res,next)=>{
+ try{
+  const c=await current();
+  if(!c?.verified_at)return void fail(res,409,"Verify the SignalWire project credentials first.");
+  await pool.query(
+   "UPDATE public.gavhah_signalwire_shared_route SET audit_state='queued',"+
+   "provider_number_sid=NULL,original_voice_url=NULL,original_voice_method=NULL,"+
+   "original_voice_application_sid=NULL,original_voice_fallback_url=NULL,"+
+   "original_voice_fallback_method=NULL,original_trunk_sid=NULL,original_sms_url=NULL,"+
+   "route_fingerprint=NULL,checked_at=NULL,last_error=NULL,updated_at=now() "+
+   "WHERE id=1 AND cutover_enabled=false");
+  // Provider reads only (GET). No provider-number updates.
+  await inspectExisting8080RouteOnce();
+  res.set("Cache-Control","private,no-store").json(await sharedAudit());
  }catch(e){next(e);}
 });
 router.delete("/connection",async(req,res,next)=>{
