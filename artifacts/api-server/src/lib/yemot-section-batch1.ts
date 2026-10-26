@@ -8,12 +8,12 @@ import type { PoolClient } from "pg";
  */
 export const sectionPaths=new Set([
  "131","132","133","134","141","142","143","144",
- "151","154","161","171","172","181","182","191"
+ "151","152","153","154","161","162","163","164","171","172","181","182","191","192","193","194"
 ]);
 export const sectionRequiresLogin=new Set([
- "131","132","133","134","141","142","143","144","172","181","182","191"
+ "131","132","133","134","141","142","143","144","152","153","164","172","181","182","191","192","193","194"
 ]);
-export const pagedSections=new Set(["132","141","142","151","154","161","171","172","181"]);
+export const pagedSections=new Set(["132","141","142","151","152","154","161","162","163","164","171","172","181","194"]);
 
 /** For a double-press confirmation, fetch just the CURRENT user's row. */
 export async function currentPhoneActionId(
@@ -156,6 +156,23 @@ export async function readPhoneSection(
    ". Target "+amount(x.goal_amount)+" dollars. Website reported raised "+
    amount(x.raised_amount)+" dollars. No phone payments are collected");
  }
+ if(path==="152"){
+  const x=await scalar(client,"SELECT need_type,status,urgency FROM public.help_requests "+
+   "WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",[userId,p]);
+  if(!x.status)return missing("your assistance requests");
+  return detail(p,"Your previously submitted assistance request. Type "+
+   (speak(x.need_type,40)||"Not available in English")+
+   ". Status "+(speak(x.status,32)||"Recorded")+
+   ". Urgency "+(speak(x.urgency,30)||"recorded")+
+   ". To submit a NEW request use the website until the secure phone recording workflow is built");
+ }
+ if(path==="153"){
+  const x=await scalar(client,"SELECT availability,skills FROM public.volunteer_profiles WHERE user_id=$1 LIMIT 1",[userId]);
+  if(!x.availability)return "No volunteer profile is currently registered to your linked account. You can create one on the website. Press zero for the main menu.";
+  return "Your volunteering profile is registered. Availability "+
+   (speak(x.availability,100)||"available on the website")+
+   ". "+(Array.isArray(x.skills)?x.skills.length:0)+" skills recorded. Press zero for the main menu.";
+ }
  if(path==="154"){
   const x=await scalar(client,"SELECT title,location FROM public.community_projects "+
    "WHERE status='active' ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $1",[p]);
@@ -168,6 +185,32 @@ export async function readPhoneSection(
    "WHERE privacy='public' ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $1",[p]);
   if(!x.name)return missing("public groups");
   return detail(p,"Public community group "+(speak(x.name)||"Name needs an approved recording"));
+ }
+ if(path==="162"){
+  const x=await scalar(client,"SELECT title,is_locked,comment_count FROM public.discussions "+
+   "ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $1",[p]);
+  if(!x.title)return missing("public discussion topics");
+  return detail(p,"Public forum topic "+
+   (speak(x.title)||"Title requires Yiddish audio")+
+   ". "+(x.is_locked?"Replies closed":"Replies open")+
+   ". "+Number(x.comment_count||0)+" recorded comments");
+ }
+ if(path==="163"){
+  // Only profiles deliberately marked as public featured volunteers.
+  const x=await scalar(client,"SELECT user_name,location FROM public.volunteer_profiles "+
+   "WHERE is_featured=true ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $1",[p]);
+  if(!x.user_name)return missing("public featured volunteer listings");
+  return detail(p,"Featured volunteer "+
+   (speak(x.user_name)||"Name requires approved Yiddish audio")+
+   (x.location?". Area "+(speak(x.location,45)||"available online"):""));
+ }
+ if(path==="164"){
+  const x=await scalar(client,"SELECT entity_title,entity_type FROM public.follows "+
+   "WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",[userId,p]);
+  if(!x.entity_title)return missing("your followed updates or organizations");
+  return detail(p,"Your followed item "+
+   (speak(x.entity_title)||"Title requires Yiddish audio")+
+   ". Type "+(speak(x.entity_type,35)||"saved"));
  }
  if(path==="171"){
   const x=await scalar(client,"SELECT synagogue_name,city,shacharis,mincha,maariv FROM public.minyans "+
@@ -210,6 +253,36 @@ export async function readPhoneSection(
    "(SELECT count(*) FROM public.notifications WHERE user_id=$1 AND is_read=false)::int AS unread",[userId]);
   return "Your personal overview. "+x.tasks+" pending tasks, "+x.contacts+
    " private contacts, "+x.unread+" unread notifications. Press zero for the main menu.";
+ }
+ if(path==="192"){
+  const x=await scalar(client,
+   "SELECT (SELECT count(*) FROM public.askanus_cases WHERE user_id=$1 AND status!='closed')::int AS cases,"+
+   "(SELECT count(*) FROM public.groups WHERE owner_id=$1)::int AS groups,"+
+   "(SELECT count(*) FROM public.notifications WHERE user_id=$1 AND is_read=false)::int AS unread",[userId]);
+  return "Your system center. "+x.cases+" open cases, "+x.groups+
+   " groups owned, and "+x.unread+" unread notifications. Press zero for the main menu.";
+ }
+ if(path==="193"){
+  const admin=await scalar(client,"SELECT role,status FROM public.users WHERE id=$1",[userId]);
+  if(admin.role!=="super_admin"||admin.status==="banned"||admin.status==="suspended")
+   return "Super administrator statistics require a separate authorized administrator account. Press zero for the main menu.";
+  const x=await scalar(client,
+   "SELECT (SELECT count(*) FROM public.help_requests WHERE status='pending')::int AS assistance,"+
+   "(SELECT count(*) FROM public.cause_submissions WHERE status='pending')::int AS causes",[]);
+  return "Super administrator read-only overview. "+x.assistance+
+   " pending assistance requests and "+x.causes+
+   " pending causes. Sensitive moderation changes require the secure website dashboard. Press zero for the main menu.";
+ }
+ if(path==="194"){
+  const x=await scalar(client,
+   "SELECT g.name, a.can_moderate, a.can_view_private FROM public.group_staff_access a "+
+   "JOIN public.groups g ON g.id=a.group_id WHERE a.user_id=$1 "+
+   "ORDER BY a.updated_at DESC,a.id DESC LIMIT 1 OFFSET $2",[userId,p]);
+  if(!x.name)return missing("your group staff permissions");
+  return detail(p,"Group "+(speak(x.name,85)||"Name requires approved Yiddish audio")+
+   ". Moderation "+(x.can_moderate?"allowed":"not allowed")+
+   ". Private access "+(x.can_view_private?"allowed":"not allowed")+
+   ". Group administration changes still require verified website controls");
  }
  return "This module is not ready on the phone.";
 }
