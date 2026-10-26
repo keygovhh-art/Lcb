@@ -41,6 +41,8 @@ jobs:
           pnpm --filter @workspace/api-server run build
       - name: Check male root voice and real same-website phone registration
         run: node --test tests/yemot-male-signup-contract.test.mjs
+      - name: Guard Gavhah-only hotline menu after second-line migration
+        run: node --test tests/gavhah-dedicated-line.test.mjs
       - name: Verify staged charity scheduling, private queue and donation buttons
         run: node --experimental-strip-types --test tests/charity-publishing.test.mjs
       - name: Verify optional own donation safety gates, amounts and admin controls
