@@ -31,7 +31,7 @@ test('Super administrator must be signed in; write operations demand same-origin
 test('New callback requires independent hashed ephemeral test secret and new provider type',()=>{
  assert.match(handler,/req.path.endsWith\("\/next-ivr"\)/);
  assert.match(handler,/record\?\.stage!=="testing"/);
- assert.match(handler,/record\?\.provider_kind!=="yemot"/);
+ assert.match(handler,/\["yemot","signalwire"\]\.includes\(String\(record\?\.provider_kind\)\)/);
  assert.match(handler,/createHash\("sha256"\).update\(supplied\)/);
  assert.match(handler,/timingSafeEqual\(Buffer.from\(record.callback_hash,"hex"\),Buffer.from\(suppliedHash,"hex"\)\)/);
  assert.match(api,/randomBytes\(32\).toString\("hex"\)/);
