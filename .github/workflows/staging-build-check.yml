@@ -45,6 +45,8 @@ jobs:
         run: node --test tests/yemot-campaign-bridge.test.mjs
       - name: Ensure next hotline sandbox preserves live line, users, recordings and 4444
         run: node --test tests/next-hotline-staging.test.mjs
+      - name: Verify encrypted SignalWire admin credentials and safe read-only account test
+        run: node --test tests/signalwire-secure-credentials.test.mjs
       - name: Verify actual private and public IVR features with authorization and controlled writes
         run: node --experimental-strip-types --test tests/yemot-section-batch1.test.mjs
       - name: Check male root voice and real same-website phone registration
