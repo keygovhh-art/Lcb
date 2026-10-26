@@ -5,6 +5,10 @@ import {Layout} from "@/components/layout/layout";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 
+type PhoneInventory={
+ numbers:Array<{number:string;label:string;reserved:boolean;voiceAssigned:boolean;voiceCapable:boolean;canConsider:boolean;reason:string}>;
+ complete:boolean;hasMore:boolean;readOnly:boolean;protectedNumber:string;
+};
 type SignalWireStatus={
  configured:boolean;spaceUrl:string|null;projectId:string|null;verified:boolean;
  lastVerifiedAt:string|null;lastTestAt:string|null;encryptionReady:boolean;
@@ -28,6 +32,8 @@ export function SignalWireCredentials(){
  const [projectId,setProjectId]=useState("");
  const [apiToken,setApiToken]=useState("");
  const [showToken,setShowToken]=useState(false);
+ const [inventory,setInventory]=useState<PhoneInventory|null>(null);
+ const [inventoryLoading,setInventoryLoading]=useState(false);
  const [loaded,setLoaded]=useState(false);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
@@ -108,6 +114,50 @@ export function SignalWireCredentials(){
     לעצטע סוקסעספולע API־פראבע: <span dir="ltr">{new Date(status.lastVerifiedAt).toLocaleString("en-US")}</span>
    </p>}
   </div>
+  <section className="space-y-3 rounded-xl border p-3 sm:p-4" aria-label="SignalWire phone number safety">
+   <h3 className="font-semibold">SignalWire־נומערן — נישט טוישן אנדערע סיסטעמען</h3>
+   <p className="text-sm text-muted-foreground">
+    דער נומער <strong dir="ltr">8080655605</strong> איז באזונדער פארשפארט פאר דיין אנדערע סיסטעם.
+    די ליסטע לייענט נאר די נומערן; זי טוישט קיין Voice־וועבהוק און קויפט גארנישט.
+   </p>
+   <Button variant="outline" disabled={busy||inventoryLoading||!status.verified}
+    onClick={()=>{setInventoryLoading(true);setError("");setInventory(null);
+     void request("numbers").then(v=>setInventory(v as PhoneInventory))
+      .catch(e=>setError(e instanceof Error?e.message:"נומערן־איבערבליק נישט באקומען"))
+      .finally(()=>setInventoryLoading(false));}}>
+    {inventoryLoading?"נומערן ווערן איבערגעקוקט...":"זען מיינע SignalWire־נומערן (נאר לייענען)"}
+   </Button>
+   {inventory&&<div className="space-y-2">
+    <p className="text-xs text-muted-foreground">
+     {inventory.numbers.length} נומערן איבערגעקוקט.
+     {inventory.hasMore?" עס זענען פארהאן נאך נומערן; די ליסטע איז נישט פולשטענדיג.":""}
+    </p>
+    {inventory.numbers.map((n,i)=><div key={n.number+i} className="rounded-lg border p-3 space-y-1 text-sm">
+     <strong dir="ltr" className="block">{n.number}</strong>
+     <p>{n.label}</p>
+     <p className={n.reserved||n.voiceAssigned?"text-red-700":"text-amber-700"}>
+      {n.reserved?"פארשפארט — פארבונדן מיט דיין אנדערע סיסטעם":
+       n.voiceAssigned?"פארנומען — עס איז שוין דא אן אנדער IVR/Voice־וועג":
+       !n.voiceCapable?"קען נישט אננעמען Voice־רופן":
+       "קוקט אויס נישט פארבונדן — מען מוז נאך איבערקוקן SignalWire Fabric"}
+     </p>
+     {n.canConsider&&<Button variant="outline" size="sm" disabled={busy||inventory.hasMore}
+      onClick={()=>{
+       if(!window.confirm("דער נומער קוקט אויס פריי אינעם Compatibility API, אבער אן אנדער SignalWire־וועג קען נאך זיין פארבונדן. באשטעטיגסטו אז דער נומער געהערט נישט צו אן אנדערער סיסטעם, און מיר זאלן אים נאר אויסקלייבן פאר פראבעס? עס וועט גארנישט טוישן ביים פראוויידער."))return;
+       void work(async()=>{await fetch("/api/admin/hotline-migration/draft",{
+        method:"POST",credentials:"include",cache:"no-store",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({providerKind:"signalwire",providerLabel:"SignalWire",candidateNumber:n.number})}
+       ).then(async res=>{const value=await res.json().catch(()=>({}));
+        if(!res.ok)throw new Error(value.error||"נישט געלונגען");
+       });setMessage("דער נומער איז בלויז אויסגעקליבן פאר דער עולם־החסד־פראבע. קיין רופן זענען נישט אריבערגעפירט.");});
+      }}>
+      אויסקלייבן נאר פאר עולם־החסד־פראבעס
+     </Button>}
+    </div>)}
+    {!inventory.numbers.length&&<p>קיין אייגענע SignalWire־נומערן זענען נישט געפונען אין דעם איבערגעקוקטן טייל.</p>}
+   </div>}
+  </section>
   <p className="text-sm text-muted-foreground">
    הערה: די API־פרטים קענען טעסטן דעם SignalWire־חשבון. פארן נייעם טעלעפאן־וועבהוק
    דארף מען אויך דעם באזונדערן SignalWire Signing Key. דער טאקען אליין

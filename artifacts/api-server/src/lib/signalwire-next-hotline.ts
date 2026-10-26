@@ -3,6 +3,7 @@ import type {Request,Response} from "express";
 import {pool} from "@workspace/db";
 import {handleYemotApp} from "./yemot-api-driven-phone";
 import {phoneTree} from "../routes/yemot-whole-platform-ivr";
+import {isProtectedSignalWireNumber,normalizedSignalWireNumber} from "./signalwire-number-safety";
 
 /**
  * SignalWire Compatibility API cXML sandbox for the FUTURE Olam Hachesed line.
@@ -56,10 +57,7 @@ export function convertGavhahReplyToCxml(reply:string):string{
   return responseXml(speak(reply.slice("id_list_message=t-".length))+"<Hangup/>");
  return responseXml(speak("This telephone action is not available through the new provider yet.")+"<Hangup/>");
 }
-function normalizedPhone(raw:string){
- const digits=raw.replace(/\D/g,"");
- return digits.startsWith("1")&&digits.length===11?digits.slice(1):digits;
-}
+// Normalization and protected number list are shared with admin preflight.
 export async function signalWireNextHotline(req:Request,res:Response){
  const signingKey=String(process.env.SIGNALWIRE_SIGNING_KEY||"");
  const signature=String(req.get("x-signalwire-signature")||
@@ -73,6 +71,12 @@ export async function signalWireNextHotline(req:Request,res:Response){
  const callId=String(form.CallSid||"");
  const called=String(form.To||"");
  const digit=typeof form.Digits==="string"?form.Digits:undefined;
+ if(isProtectedSignalWireNumber(called)){
+  // Defense in depth: even a stale or corrupted staging row must not answer
+  // calls belonging to the owner's separate SignalWire application.
+  res.status(403).type("text/plain").send("This number is reserved for another system");
+  return;
+ }
  if(!/^[A-Za-z0-9_.:-]{8,160}$/.test(callId)||
     !/^\+?[0-9]{7,15}$/.test(called)||
     (digit!==undefined&&!/^[0-9]{0,16}$/.test(digit))){
@@ -84,7 +88,7 @@ export async function signalWireNextHotline(req:Request,res:Response){
   "FROM public.gavhah_hotline_migration WHERE id=1");
  const config=r.rows[0];
  if(config?.provider_kind!=="signalwire"||config.stage!=="testing"||
-    normalizedPhone(String(config.candidate_number||""))!==normalizedPhone(called)||
+    normalizedSignalWireNumber(String(config.candidate_number||""))!==normalizedSignalWireNumber(called)||
     !/^[a-f0-9]{32}$/.test(String(config.generation||""))||
     !/^[a-f0-9]{64}$/.test(String(config.callback_hash||""))){
   res.status(503).type("text/plain").send("New hotline is not prepared for this number");

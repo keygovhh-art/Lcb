@@ -2,6 +2,7 @@ import {Router,type Request,type Response} from "express";
 import {createCipheriv,createDecipheriv,randomBytes} from "node:crypto";
 import {pool} from "@workspace/db";
 import {getCurrentSessionUser} from "../middlewares/auth";
+import {classifySignalWireNumber,isProtectedSignalWireNumber} from "../lib/signalwire-number-safety";
 
 /**
  * The router is mounted AFTER existing super-admin + same-origin middleware
@@ -123,6 +124,45 @@ router.post("/test",async(_req,res,next)=>{
     note:"Token authenticated for read-only Numbers API. Phone webhook signing and actual IVR call still require separate checks."
    });
   }
+ }catch(e){next(e);}
+});
+
+/**
+ * Read-only SignalWire inventory; the credentials never leave this server.
+ * Even "unassigned" means only *appears* unassigned from the Compatibility
+ * API; a Fabric route may exist and must be checked before any provider write.
+ */
+export async function readSignalWireInventory(){
+ const row=await current();
+ if(!row||!row.verified_at)throw Error("Verify your SignalWire connection before inventory");
+ const token=decrypt(row);
+ const url="https://"+row.space_hostname+"/api/laml/2010-04-01/Accounts/"+
+  row.project_id+"/IncomingPhoneNumbers?PageSize=1000";
+ const auth="Basic "+Buffer.from(row.project_id+":"+token,"utf8").toString("base64");
+ const response=await fetch(url,{method:"GET",headers:{Authorization:auth,Accept:"application/json"},
+  redirect:"error",cache:"no-store",signal:AbortSignal.timeout(15000)});
+ if(!response.ok)throw Error("SignalWire numbers inventory unavailable; no provider settings changed");
+ const data:unknown=await response.json();
+ if(!data||typeof data!=="object"||!Array.isArray((data as any).incoming_phone_numbers))
+  throw Error("Unexpected SignalWire numbers response");
+ const raw=(data as any).incoming_phone_numbers as Array<any>;
+ const mapped=raw.map(classifySignalWireNumber);
+ if(mapped.some(x=>!/^\+?[0-9]{7,15}$/.test(x.number)))
+  throw Error("Unexpected provider phone numbers; inventory ignored");
+ return {
+  numbers:mapped,
+  complete:!(data as any).next_page_uri,
+  hasMore:!!(data as any).next_page_uri,
+  protectedNumber:"8080655605",
+  readOnly:true,
+  providerSettingsChanged:false,
+  caution:"An empty Compatibility voice route is not proof that a Fabric or another system route is empty. Do not replace other systems."
+ };
+}
+router.get("/numbers",async(_req,res,next)=>{
+ try{
+  const inventory=await readSignalWireInventory();
+  res.set("Cache-Control","private,no-store").json(inventory);
  }catch(e){next(e);}
 });
 router.delete("/connection",async(req,res,next)=>{
