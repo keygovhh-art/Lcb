@@ -33,6 +33,7 @@ import Dashboard from "@/pages/dashboard/index";
 import Login from "@/pages/auth/login";
 import Register from "@/pages/auth/register";
 import FounderDashboard from "@/pages/admin/index";
+import SignalWireCredentialsPage from "@/pages/admin/signalwire";
 import GroupTeamWorkspace from "@/pages/admin/group-team";
 import NotificationsPage from "@/pages/notifications/index";
 import ProfilePage from "@/pages/profile/index";
@@ -182,6 +183,7 @@ function Router() {
       <Route path="/my" component={MyAskanus} />
       <Route path="/reservations" component={Reservations} />
       <Route path="/system" component={SystemCenter} />
+      <Route path="/founder/signalwire" component={SignalWireCredentialsPage} />
       <Route path="/founder" component={FounderDashboard} />
       <Route path="/group-team" component={GroupTeamWorkspace} />
       <Route path="/dashboard" component={Dashboard} />
