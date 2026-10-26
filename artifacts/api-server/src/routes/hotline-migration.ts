@@ -2,13 +2,27 @@ import { Router, type Request, type Response } from "express";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAuth, getCurrentSessionUser } from "../middlewares/auth";
-import signalwireCredentialsRouter from "./signalwire-credentials";
+import signalwireCredentialsRouter,{readSignalWireInventory} from "./signalwire-credentials";
+import {normalizedSignalWireNumber,isProtectedSignalWireNumber} from "../lib/signalwire-number-safety";
 
 const router=Router();
 const CALLBACK="https://gavhah.onrender.com/api/yemot/next-ivr";
 const SIGNALWIRE_CALLBACK="https://gavhah.onrender.com/api/signalwire/next-ivr";
 const signalwireSigningKey=()=>String(process.env.SIGNALWIRE_SIGNING_KEY||"");
 const digits=/^[0-9]{7,15}$/;
+async function assertSafeSignalWireCandidate(candidateNumber:string){
+ if(isProtectedSignalWireNumber(candidateNumber))
+  throw new Error("This telephone number belongs to another system and is permanently reserved.");
+ const listing=await readSignalWireInventory();
+ const requested=normalizedSignalWireNumber(candidateNumber);
+ const selected=listing.numbers.find(x=>normalizedSignalWireNumber(x.number)===requested);
+ if(!selected)throw new Error(listing.hasMore
+  ?"The provider list contains more numbers; this candidate has not been checked safely."
+  :"This number is not owned by the connected SignalWire project.");
+ if(!selected.canConsider)
+  throw new Error("This SignalWire number is already routed, voice is unavailable, or it belongs to another system. No changes permitted.");
+ return true;
+}
 const err=(res:Response,status:number,message:string)=>res.status(status).json({error:message});
 function sameOrigin(req:Request){
  const origin=req.get("origin"),host=req.get("x-forwarded-host")||req.get("host");
@@ -95,6 +109,13 @@ router.post("/draft",wrap(async(req,res)=>{
  if(candidateNumber&&currentLine===candidateNumber){
   err(res,409,"The replacement must not overwrite the existing Gavhah number");return;
  }
+ if(candidateNumber&&isProtectedSignalWireNumber(candidateNumber)){
+  err(res,409,"8080655605 is reserved for your other system. Gavhah cannot use it.");return;
+ }
+ if(providerKind==="signalwire"&&candidateNumber){
+  try{await assertSafeSignalWireCandidate(candidateNumber);}
+  catch(e){err(res,409,e instanceof Error?e.message:"Candidate phone number is not safe");return;}
+ }
  const installed=await state();
  if(installed?.stage==="testing"&&req.body?.confirmReset!==true){
   err(res,409,"An isolated test is already configured. Confirm resetting that test before changing the candidate; the old live line is not affected.");return;
@@ -126,6 +147,10 @@ router.post("/prepare-test",wrap(async(req,res)=>{
  }
  if(!digits.test(existing.candidate_number)){
   err(res,409,"Enter the new number before preparing a test callback");return;
+ }
+ if(existing.provider_kind==="signalwire"){
+  try{await assertSafeSignalWireCandidate(existing.candidate_number);}
+  catch(e){err(res,409,e instanceof Error?e.message:"Cannot use this SignalWire number");return;}
  }
  if(existing.stage==="testing"&&req.body?.confirmRotate!==true){
   err(res,409,"A test callback already exists. Explicitly confirm rotation to invalidate the previous TEST secret.");return;
