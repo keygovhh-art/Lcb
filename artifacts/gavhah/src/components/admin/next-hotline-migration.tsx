@@ -76,6 +76,12 @@ export function NextHotlineMigration(){
     דער אלטער האטליין בלייבט אנגעצונדן. דאס איז א צוגרייטונג און פראבע — נישט קיין לייוו־איבערשאלטונג.
    </p>
   </div>
+  <div className="rounded-lg border p-4 bg-muted/20 space-y-2">
+   <h3 className="font-semibold">SignalWire API־טאקען — אריינלייגן אין עולם החסד</h3>
+   <a className="inline-flex min-h-11 items-center rounded-lg bg-primary text-primary-foreground px-4 py-2"
+     href="/founder/signalwire">אריינלייגן מיין SignalWire API־טאקען</a>
+   <p className="text-xs text-muted-foreground">SignalWire Space URL, Project ID און API Token ווערן געהיטן אין דער גבהה־דאטעבאזע, נישט אויפן טעלעפאן.</p>
+  </div>
   <div className="rounded-lg border p-3 text-sm space-y-1">
    <div>אלטער האטליין: <strong>אומגעענדערט</strong></div>
    <div>נייער האטליין: <strong>{plan.stage==="testing"?"פראבע־מאדוס":plan.stage==="draft"?"צוגעגרייט":"נאך נישט איינגעשטעלט"}</strong></div>
