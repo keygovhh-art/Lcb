@@ -38,14 +38,16 @@ jobs:
         env:
           DATABASE_URL: postgresql://dummy:dummy@127.0.0.1:5432/dummy
           SESSION_SECRET: local-only-smoke-session-secret-that-cannot-be-production
-          SESSION_STORE: memory
+          SESSION_STORE: postgres
+          SESSION_COOKIE_SECURE: 'true'
           YEMOT_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
         run: |
           set -u
           pnpm dlx wrangler dev --config cloudflare/gavhah/wrangler.jsonc --local --port 8812 \
             --var DATABASE_URL:"$DATABASE_URL" \
             --var SESSION_SECRET:"$SESSION_SECRET" \
-            --var SESSION_STORE:memory \
+            --var SESSION_STORE:postgres \
+            --var SESSION_COOKIE_SECURE:true \
             --var YEMOT_ENCRYPTION_KEY:"$YEMOT_ENCRYPTION_KEY" > /tmp/gavhah-worker-smoke.log 2>&1 &
           child=$!
           trap 'kill "$child" 2>/dev/null || true' EXIT
