@@ -34,6 +34,8 @@ jobs:
         run: node --test tests/gavhah-cloudflare-full-web.test.mjs
       - name: Existing Gavhah Vite app builds unchanged
         run: pnpm --filter @workspace/gavhah run build
+      - name: Inline the exact production React SPA into native Worker
+        run: node cloudflare/gavhah/build-inline-assets.mjs
       - name: Existing API typecheck
         run: pnpm --filter @workspace/api-server run typecheck
       - name: Workers Node compatibility / static assets bundle without deploy
@@ -44,5 +46,6 @@ jobs:
           find .cloudflare-dry-run -type f -name '*.js' -exec sh -c 'echo "script $1 bytes: $(wc -c < "$1")"; echo "gzip bytes: $(gzip -c "$1" | wc -c)"' sh {} \;
       - name: Confirm no Render proxy or Neon mutation added
         run: |
-          grep -q '"run_worker_first": \["/api/\*"\]' cloudflare/gavhah/wrangler.jsonc
+          grep -q '"main": "./worker.ts"' cloudflare/gavhah/wrangler.jsonc
+          grep -q 'generated-static-assets' cloudflare/gavhah/worker.ts
           ! grep -ER 'onrender\.com|CREATE TABLE|DROP TABLE|TRUNCATE' cloudflare/gavhah/worker.ts cloudflare/gavhah/wrangler.jsonc
