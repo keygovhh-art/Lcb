@@ -71,6 +71,7 @@ jobs:
           name: gavhah-native-worker-bundle
           path: .native-cloudflare/
           retention-days: 3
+          include-hidden-files: true
       - name: Report only native Worker bundle size (no secrets)
         run: |
           find .native-cloudflare -type f -name '*.js' -exec sh -c 'printf "JS_BUNDLE_BYTES="; wc -c < "$1"; printf "GZIP_BUNDLE_BYTES="; gzip -c "$1" | wc -c' sh {} \;
