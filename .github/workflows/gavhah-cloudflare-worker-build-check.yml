@@ -1,0 +1,40 @@
+name: Gavhah Cloudflare hosting-only staging build
+
+on:
+  pull_request:
+    paths:
+      - 'cloudflare/gavhah/**'
+      - 'artifacts/api-server/src/**'
+      - 'artifacts/gavhah/**'
+      - 'lib/db/**'
+      - '.github/workflows/gavhah-cloudflare-worker-build-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    name: Bundle original Gavhah + Neon API for Cloudflare (no deploy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Existing Gavhah Vite app builds unchanged
+        run: pnpm --filter @workspace/gavhah run build
+      - name: Existing API typecheck
+        run: pnpm --filter @workspace/api-server run typecheck
+      - name: Workers Node compatibility / static assets bundle without deploy
+        run: pnpm dlx wrangler deploy --config cloudflare/gavhah/wrangler.jsonc --dry-run --outdir .cloudflare-dry-run
+      - name: Confirm no Render proxy or Neon mutation added
+        run: |
+          grep -q '"run_worker_first": \["/api/\*"\]' cloudflare/gavhah/wrangler.jsonc
+          ! grep -ER 'onrender\.com|CREATE TABLE|DROP TABLE|TRUNCATE' cloudflare/gavhah/worker.ts cloudflare/gavhah/wrangler.jsonc
