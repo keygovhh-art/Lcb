@@ -72,6 +72,12 @@ jobs:
           path: .native-cloudflare/
           retention-days: 3
           include-hidden-files: true
+      - name: Export secret-free compiled native Worker gzip chunks for locked staging deploy
+        run: |
+          test -s .native-cloudflare/worker.js
+          echo "GAVHAH_WORKER_SHA256:$(sha256sum .native-cloudflare/worker.js | cut -d' ' -f1)"
+          gzip -c .native-cloudflare/worker.js | base64 -w0 | fold -w 32000 |
+            awk '{printf "GAVHAH_B64_PART_%03d:%s\\n", NR-1, $0;} END {printf "GAVHAH_TOTAL_PARTS:%d\\n",NR}'
       - name: Report only native Worker bundle size (no secrets)
         run: |
           find .native-cloudflare -type f -name '*.js' -exec sh -c 'printf "JS_BUNDLE_BYTES="; wc -c < "$1"; printf "GZIP_BUNDLE_BYTES="; gzip -c "$1" | wc -c' sh {} \;
