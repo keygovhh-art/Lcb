@@ -25,3 +25,11 @@ test('Phone-first admin sees number not found and must not lose old system',()=>
  assert.match(ui,/shared-route\/recheck/);
  assert.match(ui,/דער סיסטעם בלייבט אומגעענדערט|די סיסטעם בלייבט אומגעענדערט/u);
 });
+
+test('Route review stores Native API handler type privately without exposing credentials',()=>{
+ assert.match(creds,/original_provider_api,original_call_handler/);
+ assert.match(creds,/oldCallHandler:r\?\.original_call_handler/);
+ assert.match(creds,/original_route_details=NULL/);
+ assert.match(ui,/oldRoute\.oldCallHandler/);
+ assert.doesNotMatch(creds,/res\.json\(\{.*token_ciphertext/s);
+});
