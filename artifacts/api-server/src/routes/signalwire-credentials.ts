@@ -4,6 +4,7 @@ import {pool} from "@workspace/db";
 import {getCurrentSessionUser} from "../middlewares/auth";
 import {classifySignalWireNumber} from "../lib/signalwire-number-safety";
 import {inspectExisting8080RouteOnce} from "../lib/signalwire-old-route-snapshot";
+import {signalWireSigningKeyStatus,storeSignalWireSigningKey,clearSignalWireSigningKey,encryptionForSignalWireSigningReady} from "../lib/signalwire-signing-secret";
 
 /**
  * The router is mounted AFTER existing super-admin + same-origin middleware
@@ -61,6 +62,55 @@ function status(row:Credential|null){
 router.get("/status",async(_req,res,next)=>{
  try{res.set("Cache-Control","private,no-store").json(status(await current()));}
  catch(e){next(e);}
+});
+// The Signing Key comes from SignalWire Dashboard -> API Credentials.
+// Distinct from API token. All these routes are already behind super-admin
+// authentication + same-origin mutation protection (parent router).
+router.get("/signing-key",async(_req,res,next)=>{
+ try{
+  const state=await signalWireSigningKeyStatus();
+  res.set("Cache-Control","private,no-store").json({
+   configured:state.configured,source:state.source,
+   encryptionReady:encryptionForSignalWireSigningReady(),
+   savedKey:"NEVER_RETURNED",providerUnchanged:true,physicalCallTestPassed:false
+  });
+ }catch(e){next(e);}
+});
+router.put("/signing-key",async(req,res,next)=>{
+ try{
+  const signingKey=typeof req.body?.signingKey==="string"?req.body.signingKey.trim():"";
+  if(signingKey.length<24||signingKey.length>1024||/\s/.test(signingKey)){
+   fail(res,400,"Enter the project Signing Key from SignalWire API Credentials, not an API Token");return;
+  }
+  const connection=await current();
+  if(!connection?.verified_at){
+   fail(res,409,"Verify your SignalWire API connection before saving a Signing Key");return;
+  }
+  if(!encryptionForSignalWireSigningReady()){
+   fail(res,503,"Server encryption is unavailable");return;
+  }
+  const actor=(await getCurrentSessionUser(req))!.id;
+  await storeSignalWireSigningKey(connection.project_id,signingKey,actor);
+  const ready=await signalWireSigningKeyStatus();
+  res.set("Cache-Control","private,no-store").json({
+   configured:ready.configured,source:ready.source,savedKey:"NEVER_RETURNED",
+   phoneRoutingUnchanged:true,physicalCallTestPassed:false,
+   message:"Signing Key encrypted and saved for this verified SignalWire Project. Real webhook signature and physical calls still need testing."
+  });
+ }catch(e){next(e);}
+});
+router.delete("/signing-key",async(req,res,next)=>{
+ try{
+  if(req.body?.confirm!=="REMOVE_SIGNING_KEY_ONLY"){
+   fail(res,400,"Explicit confirmation required");return;
+  }
+  await clearSignalWireSigningKey();
+  const state=await signalWireSigningKeyStatus();
+  res.set("Cache-Control","private,no-store").json({
+   configured:state.configured,source:state.source,
+   note:"Encrypted dashboard key cleared. Server environment key, if present, is unchanged. Existing phone provider not modified."
+  });
+ }catch(e){next(e);}
 });
 router.put("/connection",async(req,res,next)=>{
  try{
@@ -192,7 +242,7 @@ async function sharedAudit(){
   mainMenuWillBeGavhah:true,oldSystemWillUseExtension:"55555",
   stagedSharedIvrUrl:"https://gavhah.onrender.com/api/signalwire/shared-ivr",
   sharedIvrCodeReady:r?.audit_state==="verified_compatibility_voice_url",
-  sharedIvrSigningKeyReady:String(process.env.SIGNALWIRE_SIGNING_KEY||"").length>=24,
+  sharedIvrSigningKeyReady:(await signalWireSigningKeyStatus()).configured,
   livePhoneTestPassed:false,
   cutoverEnabled:false,providerRouteUnchanged:true,
   nextStep:r?.audit_state==="not_found"?
