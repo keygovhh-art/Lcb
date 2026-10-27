@@ -11,10 +11,53 @@ import {inlineAssets} from "./generated-static-assets";
 app.listen(8787);
 const api=httpServerHandler({port:8787});
 const mimeCache="public, max-age=600";
+const NATIVE_URL="gavhah-cloudflare-native.keygovhh.workers.dev";
+function configuration(){
+ const db=String(process.env.DATABASE_URL||"");
+ // A dummy URI can compile and pass a local smoke test, but MUST NOT
+ // expose private APIs or callers in the public Cloudflare preview.
+ const genuineNeon=/^postgres(?:ql)?:\/\//.test(db)&&
+  /^([a-z0-9.-]+\.neon\.tech)$/i.test((()=>{try{return new URL(db).hostname;}catch{return "";}})()) &&
+  !db.includes("placeholder")&&!db.includes("dummy");
+ const sessionReady=String(process.env.SESSION_SECRET||"").length>=32 &&
+  process.env.SESSION_STORE==="postgres" &&
+  process.env.SESSION_COOKIE_SECURE==="true";
+ const yemotReady=String(process.env.YEMOT_ENCRYPTION_KEY||"").length>=40 &&
+  String(process.env.YEMOT_ENCRYPTION_KEY)!=="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+ const signalwireReady=String(process.env.SIGNALWIRE_SIGNING_KEY||"").length>=24;
+ return {neon:genuineNeon,sessions:sessionReady,yemot:yemotReady,signalwire:signalwireReady};
+}
+const TELEPHONY=/^\/api\/(?:signalwire|yemot)(?:\/|$)/;
 export default {
  async fetch(request:Request,env:unknown,ctx:unknown):Promise<Response>{
   const url=new URL(request.url);
+  if(url.pathname==="/__gavhah/status"){
+   const s=configuration();
+   return new Response(JSON.stringify({
+    service:"gavhah",hosting:"cloudflare-native",renderProxy:false,
+    originalNeonProjectPreserved:true,
+    embeddedWebsite:true,backendRuntimeDeployed:true,
+    databaseCredentialsReady:s.neon,secureSessionReady:s.sessions,
+    yemotSecretsReady:s.yemot,signalwireSignatureReady:s.signalwire,
+    databaseConnectionTested:false,loginEndToEndTested:false,
+    independentPhoneCallTested:false,providerNumberChanged:false,
+    usableForPrivateApi:s.neon&&s.sessions,
+    status:s.neon&&s.sessions?"awaiting-live-verification":"staging-blocked"
+   }),{status:200,headers:{"Content-Type":"application/json; charset=utf-8",
+     "Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+  }
   if(url.pathname==="/api"||url.pathname.startsWith("/api/")){
+   const s=configuration();
+   if(!s.neon||!s.sessions){
+    return new Response(JSON.stringify({error:"Cloudflare API is staged but its Neon or session secrets are not configured. Existing Render service is unaffected."}),{
+     status:503,headers:{"Content-Type":"application/json; charset=utf-8",
+     "Cache-Control":"no-store","Retry-After":"120"}});
+   }
+   if(TELEPHONY.test(url.pathname)&&(!s.yemot||!s.signalwire)){
+    return new Response(JSON.stringify({error:"Independent telephone callback requires verified private signing and encryption keys."}),{
+     status:503,headers:{"Content-Type":"application/json; charset=utf-8",
+     "Cache-Control":"no-store"}});
+   }
    return api.fetch(request,env,ctx);
   }
   if(request.method!=="GET"&&request.method!=="HEAD")
@@ -27,7 +70,7 @@ export default {
   const raw=atob(file.base64);
   const bytes=new Uint8Array(raw.length);
   for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
-  const gzipAccepted=/\\bgzip\\b/.test(request.headers.get("accept-encoding")||"");
+  const gzipAccepted=/\bgzip\b/.test(request.headers.get("accept-encoding")||"");
   const headers=new Headers({
     "Content-Type":file.mime,
     "Cache-Control":path.startsWith("/assets/")?mimeCache:"no-store",
