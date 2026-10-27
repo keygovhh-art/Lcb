@@ -11,7 +11,6 @@ import {inlineAssets} from "./generated-static-assets";
 app.listen(8787);
 const api=httpServerHandler({port:8787});
 const mimeCache="public, max-age=600";
-const NATIVE_URL="gavhah-cloudflare-native.keygovhh.workers.dev";
 function configuration(){
  const db=String(process.env.DATABASE_URL||"");
  // A dummy URI can compile and pass a local smoke test, but MUST NOT
@@ -27,11 +26,15 @@ function configuration(){
  const signalwireReady=String(process.env.SIGNALWIRE_SIGNING_KEY||"").length>=24;
  return {neon:genuineNeon,sessions:sessionReady,yemot:yemotReady,signalwire:signalwireReady};
 }
-const TELEPHONY=/^\/api\/(?:signalwire|yemot)(?:\/|$)/;
+const SIGNALWIRE_CALLBACK=/^\/api\/signalwire(?:\/|$)/;
+const YEMOT_CALLBACK=/^\/api\/yemot(?:\/|$)/;
+const PROVIDER_ADMIN=/^\/api\/admin\/hotline-migration(?:\/|$)/;
 export default {
  async fetch(request:Request,env:unknown,ctx:unknown):Promise<Response>{
   const url=new URL(request.url);
   if(url.pathname==="/__gavhah/status"){
+   if(request.method!=="GET"&&request.method!=="HEAD")
+    return new Response("Method not allowed",{status:405,headers:{Allow:"GET, HEAD"}});
    const s=configuration();
    return new Response(JSON.stringify({
     service:"gavhah",hosting:"cloudflare-native",renderProxy:false,
@@ -42,6 +45,7 @@ export default {
     databaseConnectionTested:false,loginEndToEndTested:false,
     independentPhoneCallTested:false,providerNumberChanged:false,
     usableForPrivateApi:s.neon&&s.sessions,
+    telephoneCallbacksEnabled:process.env.CF_PHONE_CALLBACKS_ENABLED==="true",
     status:s.neon&&s.sessions?"awaiting-live-verification":"staging-blocked"
    }),{status:200,headers:{"Content-Type":"application/json; charset=utf-8",
      "Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
@@ -53,8 +57,17 @@ export default {
      status:503,headers:{"Content-Type":"application/json; charset=utf-8",
      "Cache-Control":"no-store","Retry-After":"120"}});
    }
-   if(TELEPHONY.test(url.pathname)&&(!s.yemot||!s.signalwire)){
-    return new Response(JSON.stringify({error:"Independent telephone callback requires verified private signing and encryption keys."}),{
+   // Original Render telephony ownership is protected. Even the standalone
+   // copy must not mutate existing provider number routes.
+   if(PROVIDER_ADMIN.test(url.pathname)&&!["GET","HEAD","OPTIONS"].includes(request.method)){
+    return new Response(JSON.stringify({error:"Cloudflare staging cannot change the original live phone provider routing."}),{
+     status:403,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
+   }
+   if((SIGNALWIRE_CALLBACK.test(url.pathname)&&!s.signalwire)||
+      (YEMOT_CALLBACK.test(url.pathname)&&!s.yemot)||
+      ((SIGNALWIRE_CALLBACK.test(url.pathname)||YEMOT_CALLBACK.test(url.pathname))&&
+       process.env.CF_PHONE_CALLBACKS_ENABLED!=="true")){
+    return new Response(JSON.stringify({error:"Separate Cloudflare hotline callback is staged; signing keys and separate phone routing require verified live-call testing."}),{
      status:503,headers:{"Content-Type":"application/json; charset=utf-8",
      "Cache-Control":"no-store"}});
    }
