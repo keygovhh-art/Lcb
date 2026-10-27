@@ -72,7 +72,7 @@ export default {
   const raw=atob(file.base64);
   const bytes=new Uint8Array(raw.length);
   for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
-  const gzipAccepted=/\bgzip\b/.test(request.headers.get("accept-encoding")||"");
+  // Decode the embedded asset before sending. Cloudflare handles HTTP compression.
   const headers=new Headers({
     "Content-Type":file.mime,
     "Cache-Control":path.startsWith("/assets/")?mimeCache:"no-store",
@@ -80,8 +80,7 @@ export default {
     "Referrer-Policy":"strict-origin-when-cross-origin",
     "Vary":"Accept-Encoding"
   });
-  const body=gzipAccepted?bytes:new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-  if(gzipAccepted)headers.set("Content-Encoding","gzip");
+  const body=new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
   return new Response(request.method==="HEAD"?null:body,{status:200,headers});
  }
 };
