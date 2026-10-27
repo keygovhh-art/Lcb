@@ -5,6 +5,7 @@ import {handleYemotApp} from "./yemot-api-driven-phone";
 import {phoneTree} from "../routes/yemot-whole-platform-ivr";
 import {checkSignalWireSignature,convertGavhahReplyToCxml} from "./signalwire-next-hotline";
 import {normalizedSignalWireNumber} from "./signalwire-number-safety";
+import {getSignalWireSigningKey} from "./signalwire-signing-secret";
 
 /**
  * STAGED ONLY: the provider-owned +1 (605) 655-8080 webhook is NOT changed
@@ -53,7 +54,7 @@ export function sharedRouteReady(r:SharedRoute|null):boolean{
  }catch{return false;}
 }
 export async function signalWireSharedHotline(req:Request,res:Response):Promise<void>{
- const signingKey=String(process.env.SIGNALWIRE_SIGNING_KEY||"");
+ const signingKey=await getSignalWireSigningKey();
  const signature=String(req.get("x-signalwire-signature")||
    req.get("x-twilio-signature")||"");
  const form=req.body as Record<string,string>;
