@@ -14,11 +14,16 @@ const callback=read('artifacts/api-server/src/lib/signalwire-next-hotline.ts');
 const ui=read('artifacts/gavhah/src/pages/admin/signalwire.tsx');
 test('8080655605 belongs to another system and is protected in any normalized presentation',()=>{
  assert.ok(RESERVED_OTHER_SYSTEM_NUMBERS.has('8080655605'));
+ assert.ok(RESERVED_OTHER_SYSTEM_NUMBERS.has('6056558080'));
  for(const p of ['8080655605','(808) 065-5605','+18080655605','1-808-065-5605']){
   assert.equal(normalizedSignalWireNumber(p),'8080655605');
   assert.equal(isProtectedSignalWireNumber(p),true);
  }
  assert.equal(isProtectedSignalWireNumber('+18085551234'),false);
+ for(const p of ['+16056558080','(605) 655-8080','6056558080','1 605-655-8080']){
+  assert.equal(normalizedSignalWireNumber(p),'6056558080');
+  assert.equal(isProtectedSignalWireNumber(p),true);
+ }
 });
 test('Even apparently unused reserved number cannot be selected',()=>{
  const r=classifySignalWireNumber({phone_number:'+18080655605',
@@ -64,7 +69,7 @@ test('Selection and callback refuse the reserved number regardless of DB state',
  assert.match(callback,/This number is reserved for another system/);
 });
 test('Mobile admin shows inventory and confirms testing does not alter other routes',()=>{
- assert.match(ui,/8080655605/);
+ assert.match(ui,/605\) 655-8080/);
  assert.match(ui,/request\("numbers"\)/);
  assert.match(ui,/n.reserved/);
  assert.match(ui,/n.voiceAssigned/);

@@ -8,6 +8,7 @@ import {Input} from "@/components/ui/input";
 type OldRouteAudit={
  number:string;oldSystemExtension:string;state:string;
  oldProviderRouteVerified:boolean;existingVoiceUrlPresent:boolean;
+ providerApi:string|null;oldCallHandler:string|null;
  providerApplicationPresent:boolean;checkedAt:string|null;reason:string|null;
  cutoverEnabled:boolean;providerRouteUnchanged:boolean;nextStep:string
 };
@@ -123,7 +124,7 @@ export function SignalWireCredentials(){
    </p>}
   </div>
   <section className="space-y-3 rounded-xl border p-3 sm:p-4" aria-label="8080 migration to Gavhah">
-   <h3 className="font-semibold">8080655605 — עולם החסד אויפן הויפט־מעניו</h3>
+   <h3 className="font-semibold">+1 (605) 655-8080 — עולם החסד אויפן הויפט־מעניו</h3>
    <p className="text-sm">דער פלאן: עולם החסד זאל ווערן דער הויפט־מעניו, און די פריערדיגע סיסטעם
     זאל ארבעטן אונטער <strong>55555</strong>. דער אלטער סיסטעם־וועג ווערט נישט איבערגעשריבן
     ביז מיר האבן אים געפונען און אפגעהיטן.</p>
@@ -134,9 +135,12 @@ export function SignalWireCredentials(){
      oldRoute.state==="failed"?"די פראוויידער־פראבע האט נישט מצליח געווען":
      "איבערקוקן דעם עקזיסטירנדן רופן־וועג"}</strong></p>
     <p>עקזיסטירנדער וועבהוק: <strong>{oldRoute.existingVoiceUrlPresent?"געפונען":"נאכנישט באשטעטיגט"}</strong></p>
+    {oldRoute.providerApi&&<p>SignalWire API: <strong dir="ltr">{oldRoute.providerApi}</strong></p>}
+    {oldRoute.oldCallHandler&&<p>אלטער Voice־וועג: <strong dir="ltr">{oldRoute.oldCallHandler}</strong></p>}
+
     <p>שוין איבערגעשטעלט: <strong>ניין — קיין רופן נישט געטוישט</strong></p>
     {oldRoute.state==="not_found"&&
-      <p role="alert">דעם נומער קען מען נישט איבערשטעלן דורך דעם איצטיגן Project ID. עס קען ליגן
+      <p role="alert">דער פארבונדענער Compatibility־דורכקוק האט דעם נומער נישט געפונען. מען דארף אויך איבערקוקן דעם SignalWire Native־רוטינג. עס קען ליגן
        אונטער א צווייטן SignalWire Space/Project. נוץ דערווייל נישט דעם באשטעטיגן־קנעפל פאר א לייוו־איבערשאלטונג.</p>}
     {oldRoute.checkedAt&&<p className="text-xs text-muted-foreground">לעצטע פראבע: <span dir="ltr">{new Date(oldRoute.checkedAt).toLocaleString("en-US")}</span></p>}
    </div>}
@@ -154,7 +158,7 @@ export function SignalWireCredentials(){
     <section className="space-y-3 rounded-xl border p-3 sm:p-4" aria-label="SignalWire phone number safety">
    <h3 className="font-semibold">SignalWire־נומערן — נישט טוישן אנדערע סיסטעמען</h3>
    <p className="text-sm text-muted-foreground">
-    דער נומער <strong dir="ltr">8080655605</strong> איז אפגעהיטן ביז מען קען פארבינדן די אלטע סיסטעם אויף 55555.
+    דער נומער <strong dir="ltr">+1 (605) 655-8080</strong> איז אפגעהיטן ביז מען קען פארבינדן די אלטע סיסטעם אויף 55555.
     די ליסטע לייענט נאר די נומערן; זי טוישט קיין Voice־וועבהוק און קויפט גארנישט.
    </p>
    <Button variant="outline" disabled={busy||inventoryLoading||!status.verified}

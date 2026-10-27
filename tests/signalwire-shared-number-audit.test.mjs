@@ -9,13 +9,16 @@ test('Read-only audit never changes provider number or breaks unrelated system',
  assert.match(audit,/method:"GET"/);
  assert.match(audit,/audit_state='queued'/);
  assert.match(audit,/normalizedSignalWireNumber\(detail\.phone_number\)!==NUMBER/);
- assert.match(audit,/numberSuffix:"5605"/);
+ assert.match(audit,/phoneSuffix:"8080"/);
  assert.doesNotMatch(audit,/method:"POST"|method:"DELETE"|UpdateIncomingPhoneNumber/);
  assert.doesNotMatch(audit,/console\.log\(token|logger\.info\(\{token/);
  assert.match(boot,/inspectExisting8080RouteOnce/);
 });
 test('Old route must be preserved; unknown Fabric and app handlers block any cutover',()=>{
- assert.match(audit,/!!detail\.voice_application_sid\|\|!!detail\.trunk_sid/);
+ assert.match(audit,/detail\.voice_application_sid/);
+ assert.match(audit,/route\.callHandler==="laml_webhooks"/);
+ assert.match(audit,/findNative\(credentials\.space_hostname,auth\)/);
+ assert.match(audit,/\/api\/relay\/rest\/phone_numbers/);
  assert.match(audit,/verified_compatibility_voice_url/);
  assert.match(audit,/unresolved/);
  assert.match(audit,/https:/);
