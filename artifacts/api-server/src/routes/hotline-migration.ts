@@ -110,7 +110,7 @@ router.post("/draft",wrap(async(req,res)=>{
   err(res,409,"The replacement must not overwrite the existing Gavhah number");return;
  }
  if(candidateNumber&&isProtectedSignalWireNumber(candidateNumber)){
-  err(res,409,"8080655605 is reserved for your other system. Gavhah cannot use it.");return;
+  err(res,409,"The existing +16056558080 is reserved pending safe 55555 sharing; cannot be selected as a free number.");return;
  }
  if(providerKind==="signalwire"&&candidateNumber){
   try{await assertSafeSignalWireCandidate(candidateNumber);}
