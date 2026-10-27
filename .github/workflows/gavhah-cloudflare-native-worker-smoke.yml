@@ -1,0 +1,77 @@
+name: Gavhah independent Cloudflare Worker runtime smoke test
+
+on:
+  pull_request:
+    paths:
+      - 'cloudflare/gavhah/**'
+      - 'artifacts/api-server/src/**'
+      - 'lib/db/**'
+      - '.github/workflows/gavhah-cloudflare-native-worker-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-worker-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build frontend static assets
+        run: pnpm --filter @workspace/gavhah run build
+      - name: Compile native Express + Neon Cloudflare Worker without any deploy
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.native-cloudflare"
+          pnpm dlx wrangler deploy --config cloudflare/gavhah/wrangler.jsonc --dry-run --outdir "$GITHUB_WORKSPACE/.native-cloudflare"
+          find "$GITHUB_WORKSPACE/.native-cloudflare" -maxdepth 2 -type f -printf 'Compiled asset: %p %s bytes\n' | head -n 30
+          test -n "$(find "$GITHUB_WORKSPACE/.native-cloudflare" -maxdepth 2 -name '*.js' -type f -print -quit)"
+      - name: Start worker in local workerd and smoke /api route without touching Neon
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@127.0.0.1:5432/dummy
+          SESSION_SECRET: local-only-smoke-session-secret-that-cannot-be-production
+          SESSION_STORE: postgres
+          SESSION_COOKIE_SECURE: 'true'
+          YEMOT_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+        run: |
+          set -u
+          pnpm dlx wrangler dev --config cloudflare/gavhah/wrangler.jsonc --local --port 8812 \
+            --var DATABASE_URL:"$DATABASE_URL" \
+            --var SESSION_SECRET:"$SESSION_SECRET" \
+            --var SESSION_STORE:postgres \
+            --var SESSION_COOKIE_SECURE:true \
+            --var YEMOT_ENCRYPTION_KEY:"$YEMOT_ENCRYPTION_KEY" > /tmp/gavhah-worker-smoke.log 2>&1 &
+          child=$!
+          trap 'kill "$child" 2>/dev/null || true' EXIT
+          for n in $(seq 1 30); do
+            status=$(curl --max-time 2 -s -o /tmp/gavhah-worker-smoke-body -w '%{http_code}' http://127.0.0.1:8812/api/nonexistent || true)
+            if [ "$status" = "404" ]; then
+              echo "Native Cloudflare Express API route successfully served 404 (expected)."
+              exit 0
+            fi
+            if ! kill -0 "$child" 2>/dev/null; then
+              echo "Native Worker process failed to start"; tail -n 120 /tmp/gavhah-worker-smoke.log; exit 1
+            fi
+            sleep 2
+          done
+          echo "Native Worker did not serve expected API response"
+          tail -n 120 /tmp/gavhah-worker-smoke.log
+          exit 1
+      - name: Save compiled native Worker bundle for secure preview deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: gavhah-native-worker-bundle
+          path: .native-cloudflare/
+          retention-days: 3
+          include-hidden-files: true
+      - name: Report only native Worker bundle size (no secrets)
+        run: |
+          find .native-cloudflare -type f -name '*.js' -exec sh -c 'printf "JS_BUNDLE_BYTES="; wc -c < "$1"; printf "GZIP_BUNDLE_BYTES="; gzip -c "$1" | wc -c' sh {} \;
