@@ -28,6 +28,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Cloudflare read-only preview does not leak visitor credentials or allow writes
+        run: node --test tests/gavhah-cloudflare-mirror.test.mjs
       - name: Existing Gavhah Vite app builds unchanged
         run: pnpm --filter @workspace/gavhah run build
       - name: Existing API typecheck
