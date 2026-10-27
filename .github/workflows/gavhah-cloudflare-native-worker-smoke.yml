@@ -58,6 +58,9 @@ jobs:
             if [ "$status" = "503" ]; then
               home_status=$(curl --max-time 4 -s -o /tmp/gavhah-worker-home -w '%{http_code}' http://127.0.0.1:8812/ || true)
               readiness_status=$(curl --max-time 4 -s -o /tmp/gavhah-worker-status -w '%{http_code}' http://127.0.0.1:8812/__gavhah/status || true)
+              echo "API HTTP status: $status, homepage HTTP status: $home_status, readiness HTTP status: $readiness_status"
+              echo "API JSON body: $(head -c 320 /tmp/gavhah-worker-smoke-body)"
+              echo "Readiness JSON body: $(head -c 320 /tmp/gavhah-worker-status)"
               if [ "$home_status" = "200" ] && grep -q '<html' /tmp/gavhah-worker-home &&
                  [ "$readiness_status" = "200" ] && grep -q '"databaseCredentialsConfigured":false' /tmp/gavhah-worker-status &&
                  grep -q 'awaiting its Neon' /tmp/gavhah-worker-smoke-body; then
