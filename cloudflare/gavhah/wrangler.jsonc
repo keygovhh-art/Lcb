@@ -1,16 +1,10 @@
 {
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
-  "name": "gavhah-cloudflare-staging",
+  "name": "gavhah-cloudflare-native",
   "main": "./worker.ts",
   "compatibility_date": "2026-10-26",
   "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
-  "assets": {
-    "directory": "../../artifacts/gavhah/dist/public",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
-  },
+  "workers_dev": false,
   "vars": {
     "NODE_ENV": "production",
     "CF_WORKER_RUNTIME": "1"

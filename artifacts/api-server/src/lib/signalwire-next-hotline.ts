@@ -11,7 +11,9 @@ import {isProtectedSignalWireNumber,normalizedSignalWireNumber} from "./signalwi
  * number are admitted. Caller ID is NEVER membership authentication.
  * Provider credentials, old Yemot config, and existing /4444 are untouched.
  */
-export const SIGNALWIRE_URL="https://gavhah.onrender.com/api/signalwire/next-ivr";
+export const SIGNALWIRE_URL=process.env.CF_WORKER_RUNTIME==="1"
+ ? "https://gavhah-cloudflare-native.keygovhh.workers.dev/api/signalwire/next-ivr"
+ : "https://gavhah.onrender.com/api/signalwire/next-ivr";
 
 type SimpleForm=Record<string,string>;
 export function checkSignalWireSignature(signingKey:string,signature:string,url:string,body:unknown):boolean{

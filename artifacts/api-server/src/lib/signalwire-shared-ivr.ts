@@ -15,7 +15,9 @@ import {normalizedSignalWireNumber} from "./signalwire-number-safety";
  * The old system's original URL is NEVER sent to the dashboard, logged,
  * replaced, fetched server-side, or altered by this code.
  */
-export const SHARED_SIGNALWIRE_URL="https://gavhah.onrender.com/api/signalwire/shared-ivr";
+export const SHARED_SIGNALWIRE_URL=process.env.CF_WORKER_RUNTIME==="1"
+ ? "https://gavhah-cloudflare-native.keygovhh.workers.dev/api/signalwire/shared-ivr"
+ : "https://gavhah.onrender.com/api/signalwire/shared-ivr";
 export const SHARED_E164="+16056558080";
 export const LEGACY_EXTENSION="55555";
 
