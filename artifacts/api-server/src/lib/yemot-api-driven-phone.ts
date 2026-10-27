@@ -26,6 +26,7 @@ const personalPaths=new Set(["121","122","123","124"]);
 const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
 const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
+const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -60,10 +61,10 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  if(step===0)logger.info({ivrResponse:"read",mode,step,promptCharacters:prompt.length,patternVersion:"basic-read-v2"},"Yemot welcome reply delivered");
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
 }
-function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fromNext=false){
+function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fromNext=false,fromShared=false){
  let nodes=tree,current:TreeNode|undefined;
  for(const d of path){current=nodes[d];if(!current)return root;nodes=current.children||{};}
- if(!path)return fromNext?nextHotlineRoot:ready4444?gavhahRoot:root;
+ if(!path)return fromShared?sharedSignalwireRoot:fromNext?nextHotlineRoot:ready4444?gavhahRoot:root;
  if(!current?.children)return current?.details||"This option is not ready on the phone. Press zero to return to the main menu.";
  return current.label+". "+Object.entries(nodes)
   .map(([n,item])=>"Press "+n+" for "+item.label+".").join(" ")+
@@ -205,6 +206,18 @@ function sourceCallId(req:Request){
 async function exactSecret(req:Request){
  const supplied=String(req.body?.entryKey??req.query.entryKey??"");
  if(!/^[a-f0-9]{64}$/.test(supplied))return null;
+ if(req.path.endsWith("/shared-ivr")){
+  // Only an already provider-signed webhook can receive this derived secret.
+  // Keep it separate from the original Yemot and next-line callbacks.
+  const key=String(process.env.SIGNALWIRE_SIGNING_KEY||"");
+  if(key.length<24)return null;
+  const row=(await pool.query("SELECT route_fingerprint,audit_state FROM public.gavhah_signalwire_shared_route "+
+   "WHERE id=1 AND requested_number='6056558080' AND old_extension='55555' AND cutover_enabled=false")).rows[0];
+  if(row?.audit_state!=="verified_compatibility_voice_url"||
+     !/^[a-f0-9]{64}$/.test(String(row?.route_fingerprint||"")))return null;
+  const expected=createHmac("sha256",key).update("gavhah-shared-55555-v1:"+row.route_fingerprint).digest("hex");
+  return timingSafeEqual(Buffer.from(expected,"hex"),Buffer.from(supplied,"hex"))?supplied:null;
+ }
  if(req.path.endsWith("/next-ivr")){
   const selected=await pool.query("SELECT callback_hash,stage,provider_kind FROM public.gavhah_hotline_migration WHERE id=1");
   const record=selected.rows[0];
@@ -232,7 +245,8 @@ async function exactSecret(req:Request){
 }
 export async function handleYemotApp(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<void>{
  const from4444=req.path.endsWith("/4444");
- const fromNext=req.path.endsWith("/next-ivr");
+ const fromShared=req.path.endsWith("/shared-ivr");
+ const fromNext=req.path.endsWith("/next-ivr")||fromShared;
  const secret=await exactSecret(req);
  if(!secret){res.status(403).type("text/plain").send("Access denied");return;}
  if(!fromNext){
@@ -247,7 +261,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
  const call=sourceCallId(req);
  if(!call){res.type("text/plain").send("id_list_message="+voice("Call identifier missing. Please try again."));return;}
  const callHash=createHmac("sha256",secret).update(call).digest("hex");
- if(fromNext){
+ if(fromNext&&!fromShared){
   // One hashed, unique provider call per isolated TEST generation.
   const config=await pool.query("SELECT generation,stage FROM public.gavhah_hotline_migration WHERE id=1");
   const record=config.rows[0];
@@ -498,7 +512,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
   }else {
    if(!path && directGavhah && !from4444)mode="root";
-   spoken+=menuPrompt(path,tree,ready4444,fromNext);
+   spoken+=menuPrompt(path,tree,ready4444,fromNext,fromShared);
   }
   await client.query("UPDATE public.gavhah_yemot_call_states "+
    "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,updated_at=now() "+
