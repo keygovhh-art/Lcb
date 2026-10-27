@@ -89,7 +89,8 @@ router.put("/connection",async(req,res,next)=>{
    "provider_number_sid=NULL,original_voice_url=NULL,original_voice_method=NULL,"+
    "original_voice_application_sid=NULL,original_voice_fallback_url=NULL,"+
    "original_voice_fallback_method=NULL,original_trunk_sid=NULL,original_sms_url=NULL,"+
-   "route_fingerprint=NULL,checked_at=NULL,last_error=NULL,updated_at=now() "+
+   "route_fingerprint=NULL,original_provider_api=NULL,original_call_handler=NULL,original_route_details=NULL,"+
+   "checked_at=NULL,last_error=NULL,updated_at=now() "+
    "WHERE id=1 AND cutover_enabled=false");
   res.set("Cache-Control","private,no-store").json({
    ...status(await current()),
@@ -176,21 +177,22 @@ router.get("/numbers",async(_req,res,next)=>{
  }catch(e){next(e);}
 });
 
-type SharedAudit={audit_state:string;provider_number_sid:string|null;original_voice_url:string|null;original_voice_application_sid:string|null;checked_at:Date|null;last_error:string|null};
+type SharedAudit={audit_state:string;provider_number_sid:string|null;original_voice_url:string|null;original_voice_application_sid:string|null;original_provider_api:string|null;original_call_handler:string|null;checked_at:Date|null;last_error:string|null};
 async function sharedAudit(){
  const result=await pool.query<SharedAudit>(
-  "SELECT audit_state,provider_number_sid,original_voice_url,original_voice_application_sid,checked_at,last_error "+
+  "SELECT audit_state,provider_number_sid,original_voice_url,original_voice_application_sid,original_provider_api,original_call_handler,checked_at,last_error "+
   "FROM public.gavhah_signalwire_shared_route WHERE id=1");
  const r=result.rows[0];
  return {number:"6056558080",oldSystemExtension:"55555",state:r?.audit_state||"not_configured",
   oldProviderRouteVerified:r?.audit_state==="verified_compatibility_voice_url",
   existingVoiceUrlPresent:!!r?.original_voice_url,
+  providerApi:r?.original_provider_api||null,oldCallHandler:r?.original_call_handler||null,
   providerApplicationPresent:!!r?.original_voice_application_sid,
   checkedAt:r?.checked_at||null,reason:r?.last_error||null,
   mainMenuWillBeGavhah:true,oldSystemWillUseExtension:"55555",
   cutoverEnabled:false,providerRouteUnchanged:true,
   nextStep:r?.audit_state==="not_found"?
-   "This connected SignalWire Project does not contain +16056558080. Find the Space/Project that currently owns that number before making changes.":
+   "The verified number +16056558080 was not found by either API. Check the native SignalWire project and permissions before switching any routing.":
    r?.audit_state==="unresolved"?
    "Old routing uses Fabric, application or unknown provider route. Preserve original destination before switching main menu.":
    r?.audit_state==="verified_compatibility_voice_url"?
@@ -211,7 +213,8 @@ router.post("/shared-route/recheck",async(_req,res,next)=>{
    "provider_number_sid=NULL,original_voice_url=NULL,original_voice_method=NULL,"+
    "original_voice_application_sid=NULL,original_voice_fallback_url=NULL,"+
    "original_voice_fallback_method=NULL,original_trunk_sid=NULL,original_sms_url=NULL,"+
-   "route_fingerprint=NULL,checked_at=NULL,last_error=NULL,updated_at=now() "+
+   "route_fingerprint=NULL,original_provider_api=NULL,original_call_handler=NULL,original_route_details=NULL,"+
+   "checked_at=NULL,last_error=NULL,updated_at=now() "+
    "WHERE id=1 AND cutover_enabled=false");
   // Provider reads only (GET). No provider-number updates.
   await inspectExisting8080RouteOnce();
