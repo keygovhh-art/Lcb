@@ -18,7 +18,7 @@ test('Replacing SignalWire credentials invalidates any old provider route snapsh
  assert.match(creds,/WHERE id=1 AND cutover_enabled=false/);
 });
 test('Phone-first admin sees number not found and must not lose old system',()=>{
- assert.match(ui,/8080655605/);
+ assert.match(ui,/605\) 655-8080/);
  assert.match(ui,/55555/);
  assert.match(ui,/oldRoute\.state==="not_found"/);
  assert.match(ui,/status\.verified/);
