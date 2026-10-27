@@ -22,13 +22,16 @@ export const phoneTree: Record<string,Item> = {
       "4":leaf("Featured updates","/news"),
       "5":leaf("Read an update by its article number","/news/:id")
     }),
-    "2":group("My Askanus and MAX",{
-      "1":leaf("My tasks, including marking complete","/my"),
-      "2":leaf("My personal cases and goals","/my"),
+    "2":group("Olam Hachesed cases, tasks and MAX",{
+      "1":{label:"My tasks, including marking complete",web:"/my",phone:"menu"},
+      "2":{label:"My personal cases, status changes and follow ups",web:"/my",phone:"menu"},
       "3":leaf("My private notes","/my"),
-      "4":leaf("My personal dashboard","/my"),
-      "5":leaf("Securely link my website account by eight-digit code","/my"),
-      "6":leaf("Log out of this phone session","/my")
+      "4":{label:"My personal dashboard",web:"/my",phone:"menu"},
+      "5":{label:"Securely link my website account with an eight-digit code",web:"/my",phone:"menu"},
+      "6":{label:"Log out of this phone session",web:"/my",phone:"menu"},
+      "7":{label:"Create a private new telephone case draft",web:"/my",phone:"menu"},
+      "8":{label:"My case follow up reminders",web:"/my",phone:"menu"},
+      "9":{label:"My case status summary",web:"/my",phone:"menu"}
     }),
     "3":group("People and contacts",{
       "1":leaf("Donor 360","/communications"),"2":leaf("Contacts","/communications"),
