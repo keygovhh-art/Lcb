@@ -57,7 +57,9 @@ app.use("/api", (_req, res) => {
   res.status(404).json({ error: "API route not found" });
 });
 
-if (process.env.NODE_ENV === "production") {
+// On Cloudflare, Workers Static Assets serves the SPA from the deployed asset manifest.
+// Never attempt Node filesystem reads for static files in the Worker runtime.
+if (process.env.NODE_ENV === "production" && process.env.CF_WORKER_RUNTIME !== "1") {
   const staticDir = resolve(process.cwd(), "artifacts/gavhah/dist/public");
 
   app.use(express.static(staticDir));
