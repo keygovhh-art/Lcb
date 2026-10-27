@@ -55,14 +55,17 @@ jobs:
           trap 'kill "$child" 2>/dev/null || true' EXIT
           for n in $(seq 1 30); do
             status=$(curl --max-time 2 -s -o /tmp/gavhah-worker-smoke-body -w '%{http_code}' http://127.0.0.1:8812/api/nonexistent || true)
-            if [ "$status" = "404" ]; then
+            if [ "$status" = "503" ]; then
               home_status=$(curl --max-time 4 -s -o /tmp/gavhah-worker-home -w '%{http_code}' http://127.0.0.1:8812/ || true)
-              if [ "$home_status" = "200" ] && grep -q '<html' /tmp/gavhah-worker-home; then
-                echo "Native Cloudflare Express API and exact React homepage both served successfully."
+              readiness_status=$(curl --max-time 4 -s -o /tmp/gavhah-worker-status -w '%{http_code}' http://127.0.0.1:8812/__gavhah/status || true)
+              if [ "$home_status" = "200" ] && grep -q '<html' /tmp/gavhah-worker-home &&
+                 [ "$readiness_status" = "200" ] && grep -q '"databaseCredentialsConfigured":false' /tmp/gavhah-worker-status &&
+                 grep -q 'awaiting its Neon' /tmp/gavhah-worker-smoke-body; then
+                echo "Independent Cloudflare React app serves successfully; API and hotline correctly locked until genuine Neon/provider secrets are supplied."
                 exit 0
               fi
-              echo "Native Worker API worked, but React frontend returned $home_status."
-              tail -c 300 /tmp/gavhah-worker-home || true
+              echo "Native Worker failed frontend, readiness or secure API gate checks."
+              tail -c 300 /tmp/gavhah-worker-status || true
               exit 1
             fi
             if ! kill -0 "$child" 2>/dev/null; then
