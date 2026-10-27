@@ -2,7 +2,7 @@
 -- DO NOT alter the live number or its voice routing, SMS, Fabric or provider call flows.
 CREATE TABLE IF NOT EXISTS public.gavhah_signalwire_shared_route (
   id smallint PRIMARY KEY DEFAULT 1 CHECK(id=1),
-  requested_number text NOT NULL DEFAULT '8080655605',
+  requested_number text NOT NULL DEFAULT '6056558080',
   old_extension text NOT NULL DEFAULT '55555',
   audit_state text NOT NULL DEFAULT 'queued' CHECK(audit_state IN
     ('queued','inspecting','verified_compatibility_voice_url','unresolved','not_found','failed')),
