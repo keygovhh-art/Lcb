@@ -190,13 +190,17 @@ async function sharedAudit(){
   providerApplicationPresent:!!r?.original_voice_application_sid,
   checkedAt:r?.checked_at||null,reason:r?.last_error||null,
   mainMenuWillBeGavhah:true,oldSystemWillUseExtension:"55555",
+  stagedSharedIvrUrl:"https://gavhah.onrender.com/api/signalwire/shared-ivr",
+  sharedIvrCodeReady:r?.audit_state==="verified_compatibility_voice_url",
+  sharedIvrSigningKeyReady:String(process.env.SIGNALWIRE_SIGNING_KEY||"").length>=24,
+  livePhoneTestPassed:false,
   cutoverEnabled:false,providerRouteUnchanged:true,
   nextStep:r?.audit_state==="not_found"?
    "The verified number +16056558080 was not found by either API. Check the native SignalWire project and permissions before switching any routing.":
    r?.audit_state==="unresolved"?
    "Old routing uses Fabric, application or unknown provider route. Preserve original destination before switching main menu.":
    r?.audit_state==="verified_compatibility_voice_url"?
-   "Original route saved; five digit menu and reversal still need phone-call testing before production switch.":
+   "55555 redirect is staged using saved original cXML webhook. A real SignalWire signature key and physical test call are still required; live number unchanged.":
    "Inspect the old provider connection without changing its settings."
  };
 }

@@ -34,16 +34,16 @@ function responseXml(body:string){
 }
 const speak=(text:string)=>'<Say voice="man" language="en-US">'+
  xml(text.replace(/[\u0590-\u05ff\u0600-\u06ff]/g," ").slice(0,3200))+'</Say>';
-export function convertGavhahReplyToCxml(reply:string):string{
+export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,sharedRootMode=false):string{
  const found=/^read=t-([\s\S]*)=(iv|ln|ar|rg)(\d+),no,(\d+),(\d+),(\d+),No,no(?:,.*)?$/.exec(reply);
  if(found){
   const [,prompt,mode,,maxDigits,,timeout]=found;
   // Gavhah menu is one choice per press. The existing Yemot root has a
   // four-digit 4444 shortcut, but that Campaign Center shortcut belongs to
   // the OLD phone number, not the new SignalWire GV-only number.
-  const digits=mode==="iv"?1:Math.min(16,Math.max(1,Number(maxDigits)||1));
+  const digits=sharedRootMode?5:mode==="iv"?1:Math.min(16,Math.max(1,Number(maxDigits)||1));
   const seconds=Math.min(18,Math.max(5,Number(timeout)||8));
-  const gather='<Gather input="dtmf" action="'+SIGNALWIRE_URL+'" method="POST" '+
+  const gather='<Gather input="dtmf" action="'+xml(actionUrl)+'" method="POST" '+
    'numDigits="'+digits+'" finishOnKey="#" timeout="'+seconds+'">'+
    speak(prompt)+'</Gather>';
   return responseXml(gather+speak("No selection received. Please call again.")+"<Hangup/>");
