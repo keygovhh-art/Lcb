@@ -124,8 +124,9 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
   res.status(status).type("text/plain").send("Gavhah phone engine unavailable");
   return;
  }
- const root=reply.startsWith("read=t-Welcome to Olam Hachesed and Gavhah.") ||
-  reply.startsWith("read=t-Gavhah SignalWire main menu.");
+ // safeVoice strips punctuation before sendRead, so match words rather than periods.
+ const root=reply.startsWith("read=t-Welcome to Olam Hachesed and Gavhah ") ||
+  reply.startsWith("read=t-Gavhah SignalWire main menu ");
  res.status(200).type("application/xml; charset=utf-8")
   .set("Cache-Control","no-store")
   .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root));
