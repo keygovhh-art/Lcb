@@ -68,8 +68,10 @@ jobs:
                 echo "Independent Cloudflare React app serves successfully; API and hotline correctly locked until genuine Neon/provider secrets are supplied."
                 exit 0
               fi
-              echo "Native Worker failed frontend, readiness or secure API gate checks."
-              tail -c 300 /tmp/gavhah-worker-status || true
+              echo "Native Worker check failed: home=$home_status status=$readiness_status api=$status"
+              echo "Homepage first bytes:"; head -c 400 /tmp/gavhah-worker-home || true; echo
+              echo "Readiness response:"; head -c 400 /tmp/gavhah-worker-status || true; echo
+              echo "API response:"; head -c 400 /tmp/gavhah-worker-smoke-body || true; echo
               exit 1
             fi
             if ! kill -0 "$child" 2>/dev/null; then
