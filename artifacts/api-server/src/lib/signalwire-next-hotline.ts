@@ -4,6 +4,7 @@ import {pool} from "@workspace/db";
 import {handleYemotApp} from "./yemot-api-driven-phone";
 import {phoneTree} from "../routes/yemot-whole-platform-ivr";
 import {isProtectedSignalWireNumber,normalizedSignalWireNumber} from "./signalwire-number-safety";
+import {getSignalWireSigningKey} from "./signalwire-signing-secret";
 
 /**
  * SignalWire Compatibility API cXML sandbox for the FUTURE Olam Hachesed line.
@@ -59,7 +60,7 @@ export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,s
 }
 // Normalization and protected number list are shared with admin preflight.
 export async function signalWireNextHotline(req:Request,res:Response){
- const signingKey=String(process.env.SIGNALWIRE_SIGNING_KEY||"");
+ const signingKey=await getSignalWireSigningKey();
  const signature=String(req.get("x-signalwire-signature")||
    req.get("x-twilio-signature")||"");
  const form=req.body as SimpleForm;
