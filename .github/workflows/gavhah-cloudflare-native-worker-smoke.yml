@@ -28,6 +28,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Build frontend static assets
         run: pnpm --filter @workspace/gavhah run build
+      - name: Embed original Vite website assets in the independent Worker
+        run: node cloudflare/gavhah/build-inline-assets.mjs
       - name: Compile native Express + Neon Cloudflare Worker without any deploy
         run: |
           mkdir -p "$GITHUB_WORKSPACE/.native-cloudflare"
@@ -54,8 +56,14 @@ jobs:
           for n in $(seq 1 30); do
             status=$(curl --max-time 2 -s -o /tmp/gavhah-worker-smoke-body -w '%{http_code}' http://127.0.0.1:8812/api/nonexistent || true)
             if [ "$status" = "404" ]; then
-              echo "Native Cloudflare Express API route successfully served 404 (expected)."
-              exit 0
+              home_status=$(curl --max-time 4 -s -o /tmp/gavhah-worker-home -w '%{http_code}' http://127.0.0.1:8812/ || true)
+              if [ "$home_status" = "200" ] && grep -q '<html' /tmp/gavhah-worker-home; then
+                echo "Native Cloudflare Express API and exact React homepage both served successfully."
+                exit 0
+              fi
+              echo "Native Worker API worked, but React frontend returned $home_status."
+              tail -c 300 /tmp/gavhah-worker-home || true
+              exit 1
             fi
             if ! kill -0 "$child" 2>/dev/null; then
               echo "Native Worker process failed to start"; tail -n 120 /tmp/gavhah-worker-smoke.log; exit 1
