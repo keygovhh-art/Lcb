@@ -22,7 +22,7 @@ app.set("trust proxy",1);
 // A Cloudflare-native, non-pino request logger avoids CJS pino-http startup
 // defects while keeping req.log.error usable in our current error middleware.
 app.use((req,_res,next)=>{
- (req as typeof req & {log:{error:(info:unknown,message:string)=>void}}).log={
+ (req as unknown as {log:{error:(info:unknown,message:string)=>void}}).log={
   error(info:unknown,message:string){
    const error=info&&typeof info==="object"&&"err" in info?
     (info as {err?:{message?:string}}).err?.message:"";
