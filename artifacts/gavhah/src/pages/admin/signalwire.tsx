@@ -10,7 +10,8 @@ type OldRouteAudit={
  oldProviderRouteVerified:boolean;existingVoiceUrlPresent:boolean;
  providerApi:string|null;oldCallHandler:string|null;
  providerApplicationPresent:boolean;checkedAt:string|null;reason:string|null;
- cutoverEnabled:boolean;providerRouteUnchanged:boolean;nextStep:string
+ cutoverEnabled:boolean;providerRouteUnchanged:boolean;nextStep:string;
+ stagedSharedIvrUrl:string;sharedIvrCodeReady:boolean;sharedIvrSigningKeyReady:boolean;livePhoneTestPassed:boolean
 };
 type PhoneInventory={
  numbers:Array<{number:string;label:string;reserved:boolean;voiceAssigned:boolean;voiceCapable:boolean;canConsider:boolean;reason:string}>;
@@ -139,6 +140,13 @@ export function SignalWireCredentials(){
     {oldRoute.oldCallHandler&&<p>אלטער Voice־וועג: <strong dir="ltr">{oldRoute.oldCallHandler}</strong></p>}
 
     <p>שוין איבערגעשטעלט: <strong>ניין — קיין רופן נישט געטוישט</strong></p>
+    <p>55555־פארבינדונג־קאוד: <strong>{oldRoute.sharedIvrCodeReady?"צוגעגרייט אויף סערווער":"נאך נישט גרייט"}</strong></p>
+    <p>SignalWire וועבהוק־Signing Key: <strong>{oldRoute.sharedIvrSigningKeyReady?"איינגעשטעלט":"פעלט נאך אויס"}</strong></p>
+    <p>עכטער רופן־טעסט: <strong>{oldRoute.livePhoneTestPassed?"באשטעטיגט":"נאכנישט באשטעטיגט"}</strong></p>
+    {oldRoute.sharedIvrCodeReady&&<p className="text-xs text-muted-foreground">
+      דער נייער IVR־וועג איז בלויז צוגעגרייט; ער איז נישט אנגעשטעלט ביים SignalWire־נומער.
+      דער אלטער וועבהוק און ריקארדירונגען בלייבן אומגערירט.
+    </p>}
     {oldRoute.state==="not_found"&&
       <p role="alert">דער פארבונדענער Compatibility־דורכקוק האט דעם נומער נישט געפונען. מען דארף אויך איבערקוקן דעם SignalWire Native־רוטינג. עס קען ליגן
        אונטער א צווייטן SignalWire Space/Project. נוץ דערווייל נישט דעם באשטעטיגן־קנעפל פאר א לייוו־איבערשאלטונג.</p>}
