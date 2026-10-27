@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
+import {getSignalWireSigningKey} from "./signalwire-signing-secret";
 import { logger } from "./logger";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
@@ -209,7 +210,7 @@ async function exactSecret(req:Request){
  if(req.path.endsWith("/shared-ivr")){
   // Only an already provider-signed webhook can receive this derived secret.
   // Keep it separate from the original Yemot and next-line callbacks.
-  const key=String(process.env.SIGNALWIRE_SIGNING_KEY||"");
+  const key=await getSignalWireSigningKey();
   if(key.length<24)return null;
   const row=(await pool.query("SELECT route_fingerprint,audit_state FROM public.gavhah_signalwire_shared_route "+
    "WHERE id=1 AND requested_number='6056558080' AND old_extension='55555' AND cutover_enabled=false")).rows[0];
