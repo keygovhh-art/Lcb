@@ -46,6 +46,6 @@ async function walk(dir){
 await walk(root);
 if(!entries["/index.html"])throw Error("Vite index.html not built");
 await mkdir(resolve("cloudflare/gavhah"),{recursive:true});
-await writeFile(target,"// AUTOMATIC GENERATED BUILD FILE. Do not commit secrets.\\n"+
- "export const inlineAssets:Record<string,{base64:string;mime:string}>="+JSON.stringify(entries)+";\\n");
+await writeFile(target,"// AUTOMATIC GENERATED BUILD FILE. Do not commit secrets.\n"+
+ "export const inlineAssets:Record<string,{base64:string;mime:string}>="+JSON.stringify(entries)+";\n");
 console.log("Cloudflare embedded static assets:",Object.keys(entries).length,"uncompressed:",originalSize,"gzip:",compressedSize);
