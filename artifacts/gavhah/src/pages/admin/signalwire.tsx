@@ -8,6 +8,7 @@ import {Input} from "@/components/ui/input";
 type OldRouteAudit={
  number:string;oldSystemExtension:string;state:string;
  oldProviderRouteVerified:boolean;existingVoiceUrlPresent:boolean;
+ providerApi:string|null;oldCallHandler:string|null;
  providerApplicationPresent:boolean;checkedAt:string|null;reason:string|null;
  cutoverEnabled:boolean;providerRouteUnchanged:boolean;nextStep:string
 };
@@ -134,6 +135,9 @@ export function SignalWireCredentials(){
      oldRoute.state==="failed"?"די פראוויידער־פראבע האט נישט מצליח געווען":
      "איבערקוקן דעם עקזיסטירנדן רופן־וועג"}</strong></p>
     <p>עקזיסטירנדער וועבהוק: <strong>{oldRoute.existingVoiceUrlPresent?"געפונען":"נאכנישט באשטעטיגט"}</strong></p>
+    {oldRoute.providerApi&&<p>SignalWire API: <strong dir="ltr">{oldRoute.providerApi}</strong></p>}
+    {oldRoute.oldCallHandler&&<p>אלטער Voice־וועג: <strong dir="ltr">{oldRoute.oldCallHandler}</strong></p>}
+
     <p>שוין איבערגעשטעלט: <strong>ניין — קיין רופן נישט געטוישט</strong></p>
     {oldRoute.state==="not_found"&&
       <p role="alert">דער פארבונדענער Compatibility־דורכקוק האט דעם נומער נישט געפונען. מען דארף אויך איבערקוקן דעם SignalWire Native־רוטינג. עס קען ליגן
