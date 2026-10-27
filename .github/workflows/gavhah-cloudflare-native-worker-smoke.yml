@@ -55,13 +55,22 @@ jobs:
           trap 'kill "$child" 2>/dev/null || true' EXIT
           for n in $(seq 1 30); do
             status=$(curl --max-time 2 -s -o /tmp/gavhah-worker-smoke-body -w '%{http_code}' http://127.0.0.1:8812/api/nonexistent || true)
-            if [ "$status" = "404" ]; then
+            if [ "$status" = "503" ]; then
+              if ! grep -q 'staged but its Neon or session secrets are not configured' /tmp/gavhah-worker-smoke-body; then
+                echo "Native private API did not fail closed"; exit 1
+              fi
+              readiness_status=$(curl --max-time 4 -s -o /tmp/gavhah-worker-ready -w '%{http_code}' http://127.0.0.1:8812/__gavhah/status || true)
+              if [ "$readiness_status" != "200" ] ||
+                 ! grep -q '"renderProxy":false' /tmp/gavhah-worker-ready ||
+                 ! grep -q '"status":"staging-blocked"' /tmp/gavhah-worker-ready; then
+                echo "Native readiness endpoint must report independent hosting and blocked dummy Neon"; exit 1
+              fi
               home_status=$(curl --max-time 4 -s -o /tmp/gavhah-worker-home -w '%{http_code}' http://127.0.0.1:8812/ || true)
               if [ "$home_status" = "200" ] && grep -q '<html' /tmp/gavhah-worker-home; then
-                echo "Native Cloudflare Express API and exact React homepage both served successfully."
+                echo "Standalone Cloudflare frontend works; private API fails closed without real Neon and phone secrets."
                 exit 0
               fi
-              echo "Native Worker API worked, but React frontend returned $home_status."
+              echo "Independent Worker static frontend returned $home_status."
               tail -c 300 /tmp/gavhah-worker-home || true
               exit 1
             fi
