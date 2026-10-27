@@ -1,6 +1,7 @@
 /**
  * Reserved SignalWire numbers MUST never be assigned to the new Gavhah IVR.
- * The owner's screenshot identifies +1 (605) 655-8080 as the existing number.\n * Older messages reversed the digits as 8080655605; protect BOTH labels.
+ * The owner's screenshot identifies +1 (605) 655-8080 as the existing number.
+ * Older messages reversed the digits as 8080655605; protect BOTH labels.
  * A number with any active voice handler is treated as IN USE, not free.
  */
 export const RESERVED_OTHER_SYSTEM_NUMBERS=new Set(["6056558080","8080655605"]);
