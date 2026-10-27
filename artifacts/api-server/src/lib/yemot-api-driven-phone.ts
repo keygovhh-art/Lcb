@@ -5,6 +5,7 @@ import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
 import {sectionPaths,sectionRequiresLogin,pagedSections,readPhoneSection,currentPhoneActionId,confirmPhoneAction} from "./yemot-section-batch1";
+import {currentOwnedCase,caseConfirmationToken,applyPhoneCaseAction,createTelephoneCaseDraft,telephoneCaseFollowup,telephoneCaseSummary} from "./olam-hachesed-phone-cases";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -26,7 +27,7 @@ const personalPaths=new Set(["121","122","123","124"]);
 const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
 const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
-const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
+const sharedSignalwireRoot="Welcome to Olam Hachesed and Gavhah. Press 2 for cases, tasks, follow ups and MAX. Press 1 for news, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for account and messages, or 9 for management. For the previous system press five five five five five. After a single digit press pound, or wait for the keypad timeout.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -195,6 +196,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
  if(path==="122")return heading+"Status "+x.status+". Priority "+x.urgency+". "+
   (x.deadline?"Deadline "+safeVoice(x.deadline,22)+". ":"")+
   "Recorded goal "+Number(x.goal_amount)+" dollars. "+
+  "Press 5 twice to mark this case in progress. Press 6 twice to close. Press 7 twice to reopen a closed case. Press 9 twice to add an unscheduled follow up. "+
   "Press 1 for next, 8 for previous, 2 to restart, or zero for the main menu.";
  return heading+(safeVoice(x.content,170)||"This note needs an English audio version.")+
   ". Press 1 for next, 8 for previous, 2 to restart, or zero for the main menu.";
@@ -441,11 +443,41 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     else if(pagedSections.has(path)&&digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(pagedSections.has(path)&&digit==="2"){page=0;confirmId=null;}
     else confirmId=null;
+   }else if(path==="127"){
+    if(digit==="0"){path="";confirmId=null;}
+    else if(digit==="5"){
+     if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+      confirmId=null;feedback="Link your website account with the eight digit pairing code before opening a private case. ";
+     }else if(confirmId===127){
+      feedback=await createTelephoneCaseDraft(client,userId);
+      confirmId=null;path="122";page=0;
+     }else{confirmId=127;feedback="Press 5 again to confirm creating a new private draft case. ";}
+    }else{confirmId=null;feedback="Press 5 twice to create a draft case, or zero to return. ";}
+   }else if(path==="128"){
+    if(digit==="0"){path="";page=0;}
+    else if(digit==="1"){page=Math.min(40,page+1);}
+    else if(digit==="8"){page=Math.max(0,page-1);}
+    else if(digit==="2"){page=0;}
+   }else if(path==="129"){
+    if(digit==="0"){path="";}
    }else if(personalPaths.has(path)){
     if(digit==="0"){path="";page=0;confirmId=null;}
     else if(digit==="1"){page++;confirmId=null;}
     else if(digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(digit==="2"){page=0;confirmId=null;}
+    else if(path==="122"&&["5","6","7","9"].includes(digit)){
+     if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+      feedback="Link your website account before changing a case. ";confirmId=null;
+     }else{
+      const item=await currentOwnedCase(client,userId,page);
+      const token=item&&caseConfirmationToken(item.id,digit);
+      if(!item||token===null){feedback="Case is not available for telephone editing. ";confirmId=null;}
+      else if(confirmId===token){
+       feedback=await applyPhoneCaseAction(client,userId,item.id,digit);
+       confirmId=null;
+      }else{confirmId=token;feedback="Press "+digit+" again to confirm this change to case "+item.id+". ";}
+     }
+    }
     else if(digit==="5"&&path==="121"&&userId&&await memberAllowed(client,s)){
      const current=await client.query<{id:number;completed:boolean}>(
        "SELECT id,completed FROM public.askanus_tasks WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",[userId,page]);
@@ -504,6 +536,14 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    const permitted=!sectionRequiresLogin.has(path)||
       await memberAllowed(client,{...s,member_id:userId});
    spoken+=await readPhoneSection(client,path,permitted?userId:null,page);
+  }else if(path==="127"){
+   spoken+="New Olam Hachesed case draft. Press 5 twice to create a private draft in your account. It will have no personal details until you edit it on the website. Press zero to return.";
+  }else if(path==="128"||path==="129"){
+   if(!await memberAllowed(client,{...s,member_id:userId})){
+    spoken="This is a private Olam Hachesed section. Link your website account through My Askanus option 5 first. Press zero for the main menu.";
+   }else{
+    spoken+=path==="128"?await telephoneCaseFollowup(client,userId!,page):await telephoneCaseSummary(client,userId!);
+   }
   }else if(personalPaths.has(path)){
    if(!await memberAllowed(client,{...s,member_id:userId})){
     spoken="Your private account is not linked for this call. Open My Askanus on the website and generate an eight-digit code, then press 5 in this phone menu to sign in. If you do not have a website account, press zero to return, then press 8 at the welcome menu to register by phone.";
