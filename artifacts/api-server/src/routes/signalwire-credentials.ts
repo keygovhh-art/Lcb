@@ -163,7 +163,7 @@ export async function readSignalWireInventory(){
   numbers:mapped,
   complete:!(data as any).next_page_uri,
   hasMore:!!(data as any).next_page_uri,
-  protectedNumber:"8080655605",
+  protectedNumber:"6056558080",
   readOnly:true,
   providerSettingsChanged:false,
   caution:"An empty Compatibility voice route is not proof that a Fabric or another system route is empty. Do not replace other systems."
@@ -182,7 +182,7 @@ async function sharedAudit(){
   "SELECT audit_state,provider_number_sid,original_voice_url,original_voice_application_sid,checked_at,last_error "+
   "FROM public.gavhah_signalwire_shared_route WHERE id=1");
  const r=result.rows[0];
- return {number:"8080655605",oldSystemExtension:"55555",state:r?.audit_state||"not_configured",
+ return {number:"6056558080",oldSystemExtension:"55555",state:r?.audit_state||"not_configured",
   oldProviderRouteVerified:r?.audit_state==="verified_compatibility_voice_url",
   existingVoiceUrlPresent:!!r?.original_voice_url,
   providerApplicationPresent:!!r?.original_voice_application_sid,
@@ -190,7 +190,7 @@ async function sharedAudit(){
   mainMenuWillBeGavhah:true,oldSystemWillUseExtension:"55555",
   cutoverEnabled:false,providerRouteUnchanged:true,
   nextStep:r?.audit_state==="not_found"?
-   "This connected SignalWire Project does not contain 8080655605. Find the Space/Project that currently owns that number before making changes.":
+   "This connected SignalWire Project does not contain +16056558080. Find the Space/Project that currently owns that number before making changes.":
    r?.audit_state==="unresolved"?
    "Old routing uses Fabric, application or unknown provider route. Preserve original destination before switching main menu.":
    r?.audit_state==="verified_compatibility_voice_url"?
