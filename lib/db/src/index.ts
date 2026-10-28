@@ -21,11 +21,11 @@ const cloudflareOptions = {
 };
 
 // Render/Vercel retain their original shared pg Pool behavior.
-export const pool = new Pool({
+export const pool = new Pool(cloudflareRuntime ? cloudflareOptions : {
   connectionString: databaseUrl,
   ...(process.env.VERCEL === "1"
     ? { max: 3, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 5_000, allowExitOnIdle: true }
-    : cloudflareRuntime ? cloudflareOptions : {}),
+    : {}),
 });
 
 // All real connections in Cloudflare are created only inside Express request
