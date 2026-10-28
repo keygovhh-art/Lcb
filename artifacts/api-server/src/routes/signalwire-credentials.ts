@@ -4,6 +4,7 @@ import {pool} from "@workspace/db";
 import {getCurrentSessionUser} from "../middlewares/auth";
 import {classifySignalWireNumber} from "../lib/signalwire-number-safety";
 import {inspectExisting8080RouteOnce} from "../lib/signalwire-old-route-snapshot";
+import signalwireVoiceSwitchRouter from "./signalwire-voice-switch";
 
 /**
  * The router is mounted AFTER existing super-admin + same-origin middleware
@@ -236,4 +237,6 @@ router.delete("/connection",async(req,res,next)=>{
   });
  }catch(e){next(e);}
 });
+// This route inherits super_admin, session and same-origin mutation checks.
+router.use(signalwireVoiceSwitchRouter);
 export default router;
