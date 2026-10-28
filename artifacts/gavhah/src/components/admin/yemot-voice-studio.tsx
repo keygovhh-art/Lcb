@@ -5,7 +5,7 @@ import {Textarea} from "@/components/ui/textarea";
 
 type Menu={path:string;label:string;kind:string;parent:string;depth:number;capability:"navigation"|"api_implemented_not_phone_verified"|"roadmap_only";suggestedEnglish:string};
 type Saved={path:string;tts_text:string;audio_size:number|null;published_path:string|null;published_at:string|null;updated_at:string};
-type StudioResponse={catalogue:Menu[];prompts:Saved[];provider:{state:string;approvedFolder:string|null};note:string};
+type StudioResponse={catalogue:Menu[];prompts:Saved[];provider:{state:string;approvedFolder:string|null;recordedCallback:string|null;cloudflareCallback:string;providerRouteVerifiedLive:boolean};note:string};
 type Effects={pitch:number;speed:number;warmth:number;clarity:number;echo:number;robot:boolean};
 const original:Effects={pitch:0,speed:1,warmth:0,clarity:0,echo:0,robot:false};
 const presets:Record<string,Effects>={
@@ -197,6 +197,12 @@ export function YemotVoiceStudio(){
     קיין ElevenLabs, Fish אדער SignalWire ווערט נישט גענוצט.
    </p>
    <p className="text-xs">ימות־מצב: <strong>{data?.provider.state||"ליידט"}</strong> · באשטעטיגטער אודיא־פאלדער: <span dir="ltr">{data?.provider.approvedFolder&&/^\/[0-9]{1,3}$/.test(data.provider.approvedFolder)?data.provider.approvedFolder:"נאכנישט צוגעגרייט"}</span></p>
+   {data?.provider.recordedCallback&&<div className="rounded-lg border p-3 text-sm space-y-2">
+    <p><strong>דער לעצט־געהיטענער ימות־קאולבעק:</strong> <span dir="ltr" className="break-all">{data.provider.recordedCallback}</span></p>
+    {data.provider.recordedCallback!==data.provider.cloudflareCallback
+     ?<p role="alert">דער ימות־קאולבעק איז נאך נישט באשטעטיגט אויף Cloudflare. די נייע MAX־טעלעפאן־ענדערונגען זענען אין Cloudflare, אבער מען דארף נאך א באזונדערן, פארזיכערטען Provider־טעסט און Callback־איבערשטעלונג.</p>
+     :<p>דער געהיטענער קאולבעק ציל איז Cloudflare, אבער א אמתער רוף־טעסט דארף נאך באשטעטיגן דעם Provider.</p>}
+   </div>}
    {data?.provider.state==="live"&&!data.provider.approvedFolder&&<div className="rounded-lg border p-3 space-y-2">
     <p className="text-sm">כדי רעקארדירונגען זאלן שפילן אויף ימות דארף מען איין מאל צוגרייטן א באזונדערן ליידיגן אודיא־פאלדער. דער עקזיסטירנדער הויפט־מעניו ווערט נישט געטוישט.</p>
     <Button disabled={busy} variant="outline" onClick={()=>void work(async()=>{
