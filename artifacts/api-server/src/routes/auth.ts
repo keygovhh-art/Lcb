@@ -101,11 +101,13 @@ router.post("/auth/login", loginLimiter, async (req, res): Promise<void> => {
   }
 
   if(!originMatches(req)){res.status(403).json({error:"Invalid origin"});return;}
+  if(process.env.CF_WORKER_RUNTIME==="1")res.locals.gavhahStage="auth.account_lookup_or_password_verify";
   const result=await verifyAccount(identifier,password);
   if(!result.user){res.status(result.status||401).json({error:result.error});return;}
   const user=result.user;
   const linked=linkedUsers(req.session.linkedUserIds,req.session.userId);
   const linkedVersions={...req.session.linkedPasswordVersions};
+  if(process.env.CF_WORKER_RUNTIME==="1")res.locals.gavhahStage="auth.session_regenerate";
   await new Promise<void>((resolve, reject) => {
     req.session.regenerate(err => err ? reject(err) : resolve());
   });
@@ -113,6 +115,7 @@ router.post("/auth/login", loginLimiter, async (req, res): Promise<void> => {
   req.session.userRole = user.role;
   req.session.linkedUserIds=linkedUsers([...linked,user.id]);
   req.session.linkedPasswordVersions={...linkedVersions,[user.id]:passwordVersion(user.passwordHash)};
+  if(process.env.CF_WORKER_RUNTIME==="1")res.locals.gavhahStage="auth.session_save";
   res.setHeader("Cache-Control","private, no-store");
   res.json({ user: safeUser(user) });
 });
