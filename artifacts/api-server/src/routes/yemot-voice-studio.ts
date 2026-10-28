@@ -68,13 +68,16 @@ function checkAudio(bytes:Buffer,mime:string){
 router.get("/admin/yemot/voice-studio",requireAuth,admin,wrap(async(_req,res)=>{
  const [prompts,installation,voiceFolder]=await Promise.all([
   pool.query("SELECT path,tts_text,mime_type,octet_length(audio_data) AS audio_size,published_path,published_at,updated_at FROM "+dbTable+" ORDER BY path"),
-  pool.query("SELECT state,target_path FROM public.gavhah_yemot_ivr_install WHERE id=1"),
+  pool.query("SELECT state,target_path,provider_summary->>'apiEndpoint' AS recorded_endpoint FROM public.gavhah_yemot_ivr_install WHERE id=1"),
   pool.query("SELECT media_folder FROM public.gavhah_yemot_voice_storage WHERE id=1")
  ]);
  res.setHeader("Cache-Control","private, no-store");
  res.json({catalogue:catalogue(),prompts:prompts.rows,
   provider: {state:installation.rows[0]?.state||"not_configured",
-    approvedFolder:voiceFolder.rows[0]?.media_folder||null},
+    approvedFolder:voiceFolder.rows[0]?.media_folder||null,
+    recordedCallback:installation.rows[0]?.recorded_endpoint||null,
+    cloudflareCallback:"https://gavhah-cloudflare-native.keygovhh.workers.dev/api/yemot/ivr",
+    providerRouteVerifiedLive:false},
   note:"Draft audio is private. Only a manually published and verified file is offered to the existing Yemot IVR. No phone number, root menu, or SignalWire configuration is changed."});
 }));
 router.put("/admin/yemot/voice-studio/:path",requireAuth,admin,wrap(async(req,res)=>{
