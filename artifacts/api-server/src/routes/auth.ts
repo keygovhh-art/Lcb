@@ -115,7 +115,12 @@ router.post("/auth/login", loginLimiter, async (req, res): Promise<void> => {
   req.session.userRole = user.role;
   req.session.linkedUserIds=linkedUsers([...linked,user.id]);
   req.session.linkedPasswordVersions={...linkedVersions,[user.id]:passwordVersion(user.passwordHash)};
-  if(process.env.CF_WORKER_RUNTIME==="1")res.locals.gavhahStage="auth.session_save";
+  if(process.env.CF_WORKER_RUNTIME==="1"){
+    res.locals.gavhahStage="auth.session_save";
+    // Confirm persistence before declaring login successful on Cloudflare.
+    await new Promise<void>((resolve,reject)=>
+      req.session.save(err=>err?reject(err):resolve()));
+  }
   res.setHeader("Cache-Control","private, no-store");
   res.json({ user: safeUser(user) });
 });
