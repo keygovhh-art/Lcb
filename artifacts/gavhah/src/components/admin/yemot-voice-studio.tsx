@@ -3,7 +3,7 @@ import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Textarea} from "@/components/ui/textarea";
 
-type Menu={path:string;label:string;kind:string;parent:string;depth:number;capability:"navigation"|"api_implemented_not_phone_verified"|"roadmap_only"};
+type Menu={path:string;label:string;kind:string;parent:string;depth:number;capability:"navigation"|"api_implemented_not_phone_verified"|"roadmap_only";suggestedEnglish:string};
 type Saved={path:string;tts_text:string;audio_size:number|null;published_path:string|null;published_at:string|null;updated_at:string};
 type StudioResponse={catalogue:Menu[];prompts:Saved[];provider:{state:string;approvedFolder:string|null};note:string};
 type Effects={pitch:number;speed:number;warmth:number;clarity:number;echo:number;robot:boolean};
@@ -225,11 +225,12 @@ export function YemotVoiceStudio(){
   </div>
   <div className="rounded-xl border p-4 space-y-3 bg-card">
    <h4 className="font-bold">ענגלישער TTS פאר דעם מעניו</h4>
+   <div className="rounded-lg bg-muted/40 p-3 text-sm space-y-1"><strong>וואס זאל איך זאגן פאר דעם מעניו?</strong><p>לייען אריין דעם ענגלישן נוסח אונטן. קענסט אים רעדאגירן, פארריכטן און דערנאך רעקארדירן מיטן מייקראפאן.</p><p dir="ltr" lang="en">{current?.suggestedEnglish||"Welcome to Gavhah."}</p></div>
    <Textarea dir="ltr" lang="en" rows={4} maxLength={950} placeholder="Welcome. Press 1 for..." value={tts} onChange={e=>setTts(e.target.value)} />
    <div className="flex flex-wrap gap-2">
     <Button disabled={busy} onClick={saveText}>היטן TTS</Button>
     <Button disabled={busy} variant="outline" onClick={speak}><span lang="en">Preview English</span></Button>
-    <Button variant="outline" onClick={()=>setTts("You selected "+(current?.label||"the main menu")+". Press zero to go back.")}>צוגרייטן א ענגלישן נוסח</Button>
+    <Button variant="outline" onClick={()=>setTts(current?.suggestedEnglish||"Welcome to Gavhah.")}>צוגרייטן דעם מעניו־נוסח</Button>
    </div>
    <p className="text-xs text-muted-foreground">די בראוזער־הער־טעסט נוצט דעם לאקאלן Android TTS. אויפן טעלעפאן רעדט ימות'ס TTS.</p>
   </div>
