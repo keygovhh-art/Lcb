@@ -41,7 +41,7 @@ app.use((_req,res,next)=>{
   res.setHeader("Strict-Transport-Security","max-age=15552000");
  next();
 });
-app.use(express.json({limit:"3mb"}));
+app.use(express.json({limit:"8mb"}));
 app.use(express.urlencoded({extended:true,limit:"100kb"}));
 
 const env=process.env;
