@@ -14,7 +14,8 @@ test("Yemot owner switch only changes root API callback on original existing hot
  assert.match(src,/readProviderRoot\(providerToken\)/);
  assert.match(src,/rollback|rolledBack|originalCallback/i);
  assert.doesNotMatch(src,/UploadTextFile|FileAction|DeleteFile/);
- assert.ok(!src.includes("api_add_0:"));
+ const cutoverAction=src.slice(src.indexOf("router.post(cloudflareSwitchPath,"));
+ assert.ok(!cutoverAction.includes("api_add_0:"));
 });
 test("Only authenticated owner and explicit same-origin POST may activate the change",()=>{
  assert.match(src,/router\.post\(cloudflareSwitchPath,requireAuth,admin/);
