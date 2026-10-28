@@ -42,6 +42,15 @@ function errorCategory(error:unknown):string{
  if(code.startsWith("08"))return "db_connection";
  return "unclassified";
 }
+function safeRouteLabel(path:string):string{
+ if(path==="/api/auth/login")return "auth.login";
+ if(path.startsWith("/api/admin/hotline-migration/signalwire/voice-switch/"))return "signalwire.voice_switch";
+ if(path.startsWith("/api/admin/hotline-migration/signalwire/"))return "signalwire.admin";
+ if(path.startsWith("/api/signalwire/"))return "signalwire.callback";
+ if(path.startsWith("/api/yemot/"))return "yemot.callback";
+ if(path.startsWith("/api/"))return "api.other";
+ return "other";
+}
 function safeErrorCode(error:unknown):string|undefined{
  const code=error&&typeof error==="object"&&(error as {code?:unknown}).code;
  return typeof code==="string"&&/^[A-Za-z0-9_]{2,16}$/.test(code)?code:undefined;
@@ -59,7 +68,7 @@ app.use((req,res,next)=>{
    console.error(JSON.stringify({
     event:"gavhah.api.error",requestId,at:new Date().toISOString(),
     stage:String(res.locals.gavhahStage||"unknown").slice(0,72),
-    method:req.method,route:req.path,status:res.statusCode,
+    method:req.method,route:safeRouteLabel(req.path),status:res.statusCode,
     category:errorCategory(error),code:safeErrorCode(error),
     durationMs:Date.now()-started
    }));
@@ -70,7 +79,7 @@ app.use((req,res,next)=>{
    console.error(JSON.stringify({
     event:"gavhah.api.http_5xx",requestId,at:new Date().toISOString(),
     stage:String(res.locals.gavhahStage||"unknown").slice(0,72),
-    method:req.method,route:req.path,status:res.statusCode,
+    method:req.method,route:safeRouteLabel(req.path),status:res.statusCode,
     durationMs:Date.now()-started
    }));
   }
