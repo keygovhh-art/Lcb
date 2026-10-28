@@ -103,7 +103,9 @@ export async function readPhoneSection(
    (speak(x.name)||"Name requires recorded Yiddish audio")+
    (x.city?". City "+(speak(x.city,35)||"not available in English"):"")+
    (x.do_not_call?" Do not call is enabled.": queue?"":" Press 5 twice to enable Do Not Call for this contact.")+
-   ". No outgoing telephone call is started from this menu");
+   (queue
+    ?". Press nine to enter a manual call result for a call you already made. You must have exactly one open MAX case. No outgoing telephone call is started from this menu"
+    :". No outgoing telephone call is started from this menu"));
  }
  if(path==="133"){
   const x=await scalar(client,

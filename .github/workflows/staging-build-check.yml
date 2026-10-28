@@ -39,6 +39,8 @@ jobs:
         run: |
           pnpm --filter @workspace/gavhah run build
           pnpm --filter @workspace/api-server run build
+      - name: Verify secure Yemot MAX call results cannot bypass double confirmation or DNC
+        run: node --test tests/yemot-max-manual-outcome.test.mjs
       - name: Verify 4444 direct routing, existing hotline safety, and add-only provider installer
         run: node --test tests/yemot-campaign-4444-contract.test.mjs
       - name: Verify signed Campaign Center 4444 forwarding with fail-closed permissions
