@@ -57,16 +57,15 @@ export async function telephoneMAXContact360(client:PoolClient,userId:number,pag
    "Do not initiate an outgoing call. "
   :"Not opted out in MAX. This is NOT authorization to call. Check local time, consent and restrictions on the website. ";
  let response="Private MAX contact "+(page+1)+". "+safeName+". "+policy+
+  (caseId
+   ?"For case "+caseId+": press 3 no answer, 4 callback, 5 not interested, 6 do not call, 7 spoke. Press twice to confirm. Press 9 for a manual pledge. "
+   :"Choose your own case under My Cases then press 3 before logging a result. ")+
+  "Press 1 next, 8 previous, 2 restart, zero main menu. "+
   "Pledged "+dollars(pledges.rows[0]?.sum)+" dollars. "+
   "Reported net receipts "+dollars(receipts.rows[0]?.sum)+" dollars. "+
   "Verified net receipts "+dollars(receipts.rows[0]?.verified)+" dollars. "+
-  (last?"Latest manually entered outcome "+last.outcome+
-    ", observed mood "+last.observed_mood+". ":"No manual calls reported. ")+
-  "Open follow ups "+(followups.rows[0]?.count||0)+". "+
-  (caseId?"For selected case "+caseId+", ":"")+
-  "Press 1 next, 8 previous, 2 restart, 0 return. ";
- if(caseId)response+="Manual result for case "+caseId+": 3 no answer, 4 callback, 5 not interested, 6 do not call, 7 spoke. Press twice to confirm. Press 9 to enter a pledge amount.";
- else response+="To record a result, choose a case under My Cases, then press 3.";
+  (last?"Latest manual outcome "+last.outcome+" and observed mood "+last.observed_mood+". ":"No manual calls yet. ")+
+  "Open follow ups "+(followups.rows[0]?.count||0)+". ";
  return response;
 }
 
