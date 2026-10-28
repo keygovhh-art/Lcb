@@ -370,4 +370,189 @@ router.get("/yemot/service/status", wrap(async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json({ connectedToGlobalProvider: !!row?.enabled && !!row?.last_verified_at, configured: !!row, routes: ["gavhah", "campaign-center"], lineNumber: row?.line_number ?? null });
 }));
+/**
+ * Owner-only Cloudflare cutover of the EXISTING root API callback.
+ * Never change the hotline's number, child extensions, audio, recordings,
+ * provider token, any settings other than root api_link, or SignalWire.
+ * Fail closed if provider state differs from the saved Render baseline.
+ */
+const cloudflareIvrCallback="https://gavhah-cloudflare-native.keygovhh.workers.dev/api/yemot/ivr";
+const previousIvrCallback="https://gavhah.onrender.com/api/yemot/ivr";
+const cloudflareSwitchPath="/admin/yemot/cloudflare-switch";
+type ProviderText={responseStatus?:string;contents?:string;message?:string};
+async function yemotProviderCall(token:string,action:"GetTextFile"|"UpdateExtension",params:Record<string,string>){
+ const response=await fetch("https://www.call2all.co.il/ym/api/"+action,{
+  method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},
+  body:new URLSearchParams({token,...params}),cache:"no-store",redirect:"error",
+  signal:AbortSignal.timeout(18000)
+ });
+ if(!response.ok)throw Error("ימות provider request failed");
+ const json=await response.json() as ProviderText;
+ if(json?.responseStatus!=="OK")throw Error("ימות provider did not accept "+action);
+ return json;
+}
+async function readProviderRoot(token:string){
+ const result=await yemotProviderCall(token,"GetTextFile",{what:"ivr2:/ext.ini"});
+ const raw=result.contents;
+ if(typeof raw!=="string"||raw.length<10||raw.length>150000)throw Error("Unrecognised provider root configuration");
+ const props:Record<string,string>={};
+ for(const record of raw.split(/\r?\n/)){
+  const trimmed=record.trim();
+  if(!trimmed||trimmed.startsWith("#")||trimmed.startsWith(";"))continue;
+  const equal=trimmed.indexOf("=");
+  if(equal<1)continue;
+  const key=trimmed.slice(0,equal).trim();
+  if(!["type","api_link","api_add_0","api_url_post"].includes(key))continue;
+  if(Object.prototype.hasOwnProperty.call(props,key))throw Error("Duplicate protected Yemot root setting");
+  props[key]=trimmed.slice(equal+1).trim();
+ }
+ return props;
+}
+function verifiedProviderRoot(props:Record<string,string>,savedDigest:string){
+ const credential=String(props.api_add_0||"");
+ const supplied=credential.startsWith("entryKey=")?credential.slice("entryKey=".length):"";
+ if(!/^[0-9a-f]{64}$/i.test(supplied))return false;
+ const hashed=createHash("sha256").update(supplied).digest("hex");
+ const a=Buffer.from(hashed,"hex"),b=Buffer.from(String(savedDigest||""),"hex");
+ return a.length===32&&b.length===32&&timingSafeEqual(a,b)&&
+   props.type==="api"&&["yes","true","1"].includes(String(props.api_url_post||"").toLowerCase());
+}
+async function getLiveCloudflareSwitchStatus(){
+ const [installed,provider]=await Promise.all([
+  pool.query("SELECT state,target_path,callback_hash,provider_summary->>'apiEndpoint' AS saved_callback FROM public.gavhah_yemot_ivr_install WHERE id=1"),
+  pool.query("SELECT line_number,enabled,last_verified_at FROM public.gavhah_yemot_global WHERE id=1")
+ ]);
+ const i=installed.rows[0],g=provider.rows[0];
+ return {
+  ready:!!i&&!!g&&g.line_number==="6055621286"&&!!g.enabled&&!!g.last_verified_at&&
+    i.state==="live"&&i.target_path==="/"&&/^[0-9a-f]{64}$/i.test(String(i.callback_hash||"")),
+  configuredCallback:i?.saved_callback||null,cloudflareCallback:cloudflareIvrCallback,
+  note:"Saved provider callback is not independently verified until the read-only inspection succeeds."
+ };
+}
+router.get(cloudflareSwitchPath,requireAuth,admin,wrap(async(_req,res)=>{
+ const status=await getLiveCloudflareSwitchStatus();
+ const html=String.raw`<!doctype html>
+<html lang="yi" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="referrer" content="no-referrer"><title>גבהה — ימות צו Cloudflare</title>
+<style>body{background:#f3f6fa;color:#16243a;font:16px/1.6 system-ui,Arial,sans-serif;margin:0;padding:24px}main{max-width:650px;margin:auto;background:white;padding:24px;border:1px solid #dbe3ee;border-radius:18px}h1{font-size:23px}button{border:0;background:#164f8a;color:white;border-radius:9px;padding:12px 17px;margin:8px 0 8px 8px;font-size:16px;cursor:pointer}button:disabled{background:#91a4b8}.ghost{background:#e6eef8;color:#173c67}.status{background:#edf2f7;border-radius:8px;padding:12px;margin:14px 0;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#43536a}code{direction:ltr;display:block;text-align:left;overflow-wrap:anywhere}a{color:#164f8a}</style></head>
+<body><main><h1>גבהה — ימות־המשיח אויף Cloudflare</h1>
+<p>די עקזיסטירנדע טעלעפאן נומער, מעניוס, ריקארדירונגען און עקסטענשאנס בלייבן. נאר דער API־Callback ווערט געטוישט פון Render צו Cloudflare, נאכן דורכקוקן דעם עכטן ימות־חשבון.</p>
+<small>דער פראוויידער־ענדערונג איז אומקערבאר דורך דער אלטער באשטעטיגטער לינק. קיין פארוואלטונג־פעסווארד ווערט נישט געוויזן.</small>
+<div class="status" id="state">איצטיקער אפגעהיטענער Callback: <code id="callback">Loading</code></div>
+<button class="ghost" id="check">1. זיכערהייט־דורכקוק</button>
+<button id="activate" disabled>2. באשטעטיגן — ימות צו Cloudflare</button>
+<p><a href="/founder">צוריק צום אדמיניסטראציע־דעשבאורד</a></p>
+<script>
+const check=document.getElementById('check'),go=document.getElementById('activate'),box=document.getElementById('state');
+const route='/api/admin/yemot/cloudflare-switch';
+const csrf={'Content-Type':'application/json'};
+document.getElementById('callback').textContent=${JSON.stringify(status.configuredCallback)};
+check.onclick=async()=>{check.disabled=true;go.disabled=true;box.textContent='איך פרוף דעם עכטן ימות־Callback...';
+try{const r=await fetch(route+'/verify',{credentials:'same-origin',cache:'no-store'});const j=await r.json();box.textContent=(j.error||j.message||JSON.stringify(j));if(r.ok&&j.safeToSwitch)go.disabled=false;}
+catch{box.textContent='דורכקוק נישט געלונגען; קיין ענדערונג נישט געמאכט.'}finally{check.disabled=false;}};
+go.onclick=async()=>{if(!window.confirm('ביסטו זיכער? נאר דער עקזיסטירנדע ימות API־Callback ווערט געטוישט צו Cloudflare.'))return;
+go.disabled=true;box.textContent='שיק די פארלאנג צום ימות־פראוויידער...';
+try{const r=await fetch(route,{method:'POST',credentials:'same-origin',headers:csrf,body:JSON.stringify({confirm:'SWITCH_ONLY_YEMOT_TO_CLOUDFLARE'})});const j=await r.json();box.textContent=(j.error||j.message||JSON.stringify(j));}catch{box.textContent='נישט באשטעטיגט; קוק נאך דעם פראוויידער איידער איבערפרובירן.';}};
+</script></main></body></html>`;
+ res.set("Cache-Control","private, no-store").set("Content-Security-Policy","default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'");
+ res.type("html").send(html);
+}));
+router.get(cloudflareSwitchPath+"/verify",requireAuth,admin,wrap(async(_req,res)=>{
+ const status=await getLiveCloudflareSwitchStatus();
+ if(!status.ready){err(res,409,"Stored Yemot connection is not ready for an isolated cutover");return;}
+ const row=await getRow();
+ if(!row){err(res,409,"Provider token unavailable");return;}
+ const token=decode(row);
+ const root=await readProviderRoot(token);
+ const c=await pool.query("SELECT callback_hash FROM public.gavhah_yemot_ivr_install WHERE id=1");
+ const keyOk=verifiedProviderRoot(root,c.rows[0]?.callback_hash||"");
+ const providerEndpoint=root.api_link||null;
+ const safeToSwitch=keyOk&&providerEndpoint===previousIvrCallback&&
+    status.configuredCallback===previousIvrCallback;
+ res.set("Cache-Control","private, no-store");
+ res.json({safeToSwitch,providerCallback:providerEndpoint,cloudflareCallback:cloudflareIvrCallback,
+  savedCallback:status.configuredCallback,credentialsMatch:keyOk,
+  message:safeToSwitch?"The current Yemot root and pairing key match; changing only api_link is permitted.":
+   "Provider settings have changed or are not verified. No modification is permitted."});
+}));
+router.post(cloudflareSwitchPath,requireAuth,admin,wrap(async(req,res)=>{
+ // This is an authenticated, explicit single-purpose owner action, not
+ // a public callback. Cross-site and missing-Origin requests are rejected.
+ if(!req.get("origin")||!isSameOrigin(req)||req.body?.confirm!=="SWITCH_ONLY_YEMOT_TO_CLOUDFLARE"){
+  err(res,403,"Same-origin owner confirmation required");return;
+ }
+ const lock=await pool.connect();
+ let providerModified=false;
+ let originalCallback=previousIvrCallback;
+ let providerToken="";
+ try{
+  await lock.query("BEGIN");
+  const installation=await lock.query(
+   "SELECT state,target_path,callback_hash,provider_summary->>'apiEndpoint' AS saved_callback "+
+   "FROM public.gavhah_yemot_ivr_install WHERE id=1 FOR UPDATE");
+  const item=installation.rows[0];
+  const globals=await lock.query(
+   "SELECT line_number,enabled,last_verified_at,token_nonce,token_ciphertext,token_tag "+
+   "FROM public.gavhah_yemot_global WHERE id=1");
+  const conn=globals.rows[0] as ProviderRow|undefined;
+  if(!item||item.state!=="live"||item.target_path!=="/"||
+    !conn||conn.line_number!=="6055621286"||!conn.enabled||!conn.last_verified_at){
+   throw Error("Existing Yemot root is not in the expected verified state");
+  }
+  if(item.saved_callback===cloudflareIvrCallback){
+   await lock.query("COMMIT");
+   res.json({ok:true,alreadyConfigured:true,message:"Cloudflare is already recorded; verify the real phone with a physical call."});return;
+  }
+  if(item.saved_callback!==previousIvrCallback)throw Error("Saved callback differs; no write permitted");
+  // Confirm the line's original API pairing secret is intact.
+  providerToken=decode(conn);
+  const before=await readProviderRoot(providerToken);
+  if(!verifiedProviderRoot(before,item.callback_hash)||
+     before.api_link!==previousIvrCallback){
+   throw Error("Provider root callback or secure pairing key differs. Stop without changes.");
+  }
+  const changed=await yemotProviderCall(providerToken,"UpdateExtension",{
+   path:"ivr2:/",type:"api",api_link:cloudflareIvrCallback
+  });
+  if(changed.responseStatus!=="OK")throw Error("Yemot declined root callback update");
+  providerModified=true;
+  const after=await readProviderRoot(providerToken);
+  if(after.api_link!==cloudflareIvrCallback||
+     !verifiedProviderRoot(after,item.callback_hash)){
+   throw Error("New provider callback or pairing secret not verified after update");
+  }
+  await lock.query(
+   "UPDATE public.gavhah_yemot_ivr_install SET "+
+   "provider_summary=provider_summary||jsonb_build_object('apiEndpoint',$1,'cloudflareCutoverVerifiedAt',now(),'previousCallback',$2),"+
+   "safe_message='Provider callback switched to Cloudflare and read back. Physical telephone test still required.',updated_at=now() WHERE id=1",
+   [cloudflareIvrCallback,previousIvrCallback]);
+  await lock.query("COMMIT");
+  res.set("Cache-Control","no-store");
+  res.json({ok:true,providerVerified:true,message:"Yemot now points at Cloudflare. The API key, root content and recordings were preserved. Complete a real telephone test.",callback:cloudflareIvrCallback,physicalCallTest:false});
+ }catch(e){
+  await lock.query("ROLLBACK").catch(()=>{});
+  // The only provider field we changed is api_link. Restore that field if
+  // the provider accepted but the read-back or database update failed.
+  let rolledBack=!providerModified;
+  if(providerModified&&providerToken){
+   try{
+    await yemotProviderCall(providerToken,"UpdateExtension",{
+     path:"ivr2:/",type:"api",api_link:originalCallback
+    });
+    const check=await readProviderRoot(providerToken);
+    rolledBack=check.api_link===originalCallback;
+   }catch{rolledBack=false;}
+  }
+  if(!rolledBack){
+   await pool.query("UPDATE public.gavhah_yemot_ivr_install SET "+
+     "provider_summary=provider_summary||jsonb_build_object('cloudflareCutoverUncertain',true),"+
+     "safe_message='Cloudflare callback modification uncertain; manually inspect Yemot root ext.ini before retry.',updated_at=now() WHERE id=1").catch(()=>{});
+  }
+  res.status(409).json({ok:false,rolledBack,error:rolledBack?
+   "The provider settings did not match or cutover verification failed; previous callback was preserved.":
+   "Provider result uncertain. Manual inspection required; do NOT retry blindly."});
+ }finally{providerToken="";lock.release();}
+}));
+
 export default router;
