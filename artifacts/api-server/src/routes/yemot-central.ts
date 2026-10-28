@@ -447,7 +447,7 @@ router.get(cloudflareSwitchPath,requireAuth,admin,wrap(async(_req,res)=>{
 const check=document.getElementById('check'),go=document.getElementById('activate'),box=document.getElementById('state');
 const route='/api/admin/yemot/cloudflare-switch';
 const csrf={'Content-Type':'application/json'};
-document.getElementById('callback').textContent=${JSON.stringify(status.configuredCallback)};
+document.getElementById('callback').textContent=${JSON.stringify(status.configuredCallback).replace(/</g,'\\u003c')};
 check.onclick=async()=>{check.disabled=true;go.disabled=true;box.textContent='איך פרוף דעם עכטן ימות־Callback...';
 try{const r=await fetch(route+'/verify',{credentials:'same-origin',cache:'no-store'});const j=await r.json();box.textContent=(j.error||j.message||JSON.stringify(j));if(r.ok&&j.safeToSwitch)go.disabled=false;}
 catch{box.textContent='דורכקוק נישט געלונגען; קיין ענדערונג נישט געמאכט.'}finally{check.disabled=false;}};
