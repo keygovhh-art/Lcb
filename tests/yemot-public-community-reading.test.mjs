@@ -13,7 +13,7 @@ function mock(row,queries=[]){
  }};
 }
 test("Public by-number paths exist in the same Gavhah tree; no SignalWire administration",()=>{
- assert.deepEqual([...publicIdSections],["155","166","167","173"]);
+ assert.deepEqual([...publicIdSections],["155","166","167","173","1831","1832","1833","1834"]);
  for(const label of ["public charity campaign by its website number","selected forum topic","selected group","approved minyan by its website number"]){
   assert.ok(tree.includes(label),label);
  }
@@ -21,6 +21,27 @@ test("Public by-number paths exist in the same Gavhah tree; no SignalWire admini
  assert.match(ivr,/readPhonePublicById\(client,path,confirmId,page\)/);
  assert.match(ivr,/mode="article"/);
  assert.match(ivr,/Enter the public website item number/);
+});
+test("Single quick-search menu routes to the same published public records",async()=>{
+ const alias=[["1831","155"],["1832","166"],["1833","167"],["1834","173"]];
+ const rows={
+  "155":{name:"Public fund",description:"Available help",goal_amount:200,raised_amount:30},
+  "166":{title:"Community discussion",content:"Public text",comment_count:1,is_locked:false},
+  "167":{name:"Public group",description:"Published description",member_count:5},
+  "173":{synagogue_name:"Main minyan",city:"Brooklyn",country:"USA",shacharis:"7 AM"}
+ };
+ for(const [aliasPath,original] of alias){
+  const calls=[];
+  const client=mock(rows[original],calls);
+  const short=await readPhonePublicById(client,aliasPath,5,0);
+  const normal=await readPhonePublicById(client,original,5,0);
+  assert.equal(short.text,normal.text,aliasPath);
+  assert.equal(calls.length,2);
+  assert.equal(calls[0].sql,calls[1].sql);
+  assert.deepEqual(calls[0].args,[5]);
+ }
+ assert.match(tree,/Search public records by website number/);
+ assert.match(tree,/Find an approved minyan by number/);
 });
 test("Charity page is strictly published, approved, without payments",async()=>{
  const queries=[];

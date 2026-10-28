@@ -55,7 +55,13 @@ export const phoneTree: Record<string,Item> = {
     }),
     "8":group("Messages and account",{
       "1":leaf("Notifications","/notifications"),"2":leaf("My profile","/profile"),
-      "3":leaf("Search","/search"),"4":leaf("Sign in or link my account","/login","For an existing Gavhah website account choose My Askanus, then press 5 and enter your one-time website pairing code. To create a new member entirely on the phone press 5 in this account menu."),
+      "3":group("Search public records by website number",{
+      "1":leaf("Find a published charity campaign by number","/charity/:id"),
+      "2":leaf("Find a public forum topic by number","/forum/:id"),
+      "3":leaf("Find a public group by number","/groups/:id"),
+      "4":leaf("Find an approved minyan by number","/minyans/:id"),
+      "5":leaf("Website search for more topics and names","/search","For text searches and other topics, use the website search page. Press zero to return to the main menu.")
+    }),"4":leaf("Sign in or link my account","/login","For an existing Gavhah website account choose My Askanus, then press 5 and enter your one-time website pairing code. To create a new member entirely on the phone press 5 in this account menu."),
       "5":leaf("Create a Gavhah website member by phone","/register","Real keypad signup: choose and confirm your twelve to sixteen digit secret code to receive a member ID beginning with M. Website login accepts this member ID and your chosen code. Not a Campaign Center account."),"6":leaf("Privacy information","/privacy"),
       "7":leaf("Terms and conditions","/terms"),"8":leaf("Gavhah welcome homepage","/")
     }),

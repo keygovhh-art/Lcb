@@ -76,13 +76,19 @@ const scalar=async(client:PoolClient,query:string,args:unknown[])=> (await clien
  * scheduled/unpublished charity or non-public member data can be exposed.
  * IDs never bypass moderation, and no payment or membership is created.
  */
-export const publicIdSections=new Set(["155","166","167","173"]);
+export const publicIdSections=new Set(["155","166","167","173","1831","1832","1833","1834"]);
+// The search menu is an alias to the same approved public queries, not a
+// separate database view. One consistent privacy rule applies everywhere.
+const canonicalPublicIdPath=(path:string)=>({
+ "1831":"155","1832":"166","1833":"167","1834":"173"
+} as Record<string,string>)[path]||path;
 export async function readPhonePublicById(
  client:PoolClient,path:string,id:number,part:number
 ):Promise<{text:string;hasMore:boolean}>{
  const returnMenu="Press nine to enter another item number, or zero for the main menu.";
  if(!publicIdSections.has(path)||!Number.isSafeInteger(id)||id<1||id>99999999)
   return {text:"Invalid public item number. "+returnMenu,hasMore:false};
+ path=canonicalPublicIdPath(path);
  let heading="",body="";
  if(path==="155"){
   const q=await scalar(client,
