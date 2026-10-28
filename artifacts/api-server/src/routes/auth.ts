@@ -135,7 +135,7 @@ router.post("/auth/login", loginLimiter, async (req, res): Promise<void> => {
       });
     }
   }
-}
+});
 
 // The chooser contains only identities already authenticated within this
 // server-side session, and never returns another account's private profile.
