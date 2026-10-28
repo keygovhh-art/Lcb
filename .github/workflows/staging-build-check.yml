@@ -57,6 +57,8 @@ jobs:
         run: node --test tests/signalwire-old-route-admin.test.mjs
       - name: Verify shared SignalWire 8080 root and reversible 55555 staging safely
         run: node --test tests/signalwire-shared-55555-staging.test.mjs
+      - name: Verify real public by-ID phone reading and privacy filters
+        run: node --experimental-strip-types --test tests/yemot-public-community-reading.test.mjs
       - name: Verify actual private and public IVR features with authorization and controlled writes
         run: node --experimental-strip-types --test tests/yemot-section-batch1.test.mjs
       - name: Check male root voice and real same-website phone registration
