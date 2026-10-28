@@ -46,7 +46,7 @@ function catalogue(){
  };
  visit(phoneTree as Record<string,TreeItem>,"");
  // Implementation != verified phone functionality: label honestly.
- const known=new Set([...sectionPaths,"111","1121","1122","1123","1124","1125","1126","1127","1128","1129","113","114","115","121","122","123","124","125","126","185"]);
+ const known=new Set([...sectionPaths,"155","166","167","173","111","1121","1122","1123","1124","1125","1126","1127","1128","1129","113","114","115","121","122","123","124","125","126","185"]);
  return items.map(item=>({...item,
   suggestedEnglish:item.kind==="menu"?phonePrompt(item.path==="root"?"":item.path):
    "You selected "+item.label+". Press zero to go back.",
