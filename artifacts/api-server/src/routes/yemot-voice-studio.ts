@@ -157,8 +157,9 @@ router.post("/admin/yemot/voice-studio/:path/publish",requireAuth,admin,wrap(asy
  if(!Array.isArray(before.files))throw Error("Cannot verify approved Yemot media folder");
  const file="gavhah_"+randomUUID().replace(/-/g,"")+".wav";
  const basename=file.slice(0,-4);
+ const fileName=(x:unknown)=>typeof x==="string"?x:typeof x==="object"&&x!==null?String((x as {name?:string;fileName?:string;path?:string}).name||(x as {fileName?:string}).fileName||(x as {path?:string}).path||""):"";
  // Provider may return file objects in several name formats. Do not reuse a filename.
- if(before.files.some(x=>String(typeof x==="object"&&x!==null?(x as {name?:string}).name:x).includes(file)))
+ if( before.files.some(x=>fileName(x).endsWith("/"+file)||fileName(x)===file))
   throw Error("Yemot media name collision");
  const form=new FormData();
  form.set("token",token);form.set("path",directory+"/"+file);
@@ -172,7 +173,7 @@ router.post("/admin/yemot/voice-studio/:path/publish",requireAuth,admin,wrap(asy
  if(result.responseStatus!=="OK")throw Error("Yemot did not accept media");
  const after=await providerRequest(token,"GetIVR2Dir",{path:directory});
  if(!Array.isArray(after.files)||!after.files.some(x=>
-  String(typeof x==="object"&&x!==null?(x as {name?:string}).name:x).includes(basename))){
+  fileName(x).includes(basename))){
   problem(res,502,"Yemot did not confirm the uploaded file; old recording left unchanged");return;
  }
  const published=directory+"/"+file;
