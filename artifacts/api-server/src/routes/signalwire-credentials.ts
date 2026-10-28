@@ -198,10 +198,10 @@ router.get("/numbers",async(_req,res,next)=>{
  }
 });
 
-type SharedAudit={audit_state:string;provider_number_sid:string|null;original_voice_url:string|null;original_voice_application_sid:string|null;original_provider_api:string|null;original_call_handler:string|null;checked_at:Date|null;last_error:string|null};
+type SharedAudit={cutover_enabled:boolean;audit_state:string;provider_number_sid:string|null;original_voice_url:string|null;original_voice_application_sid:string|null;original_provider_api:string|null;original_call_handler:string|null;checked_at:Date|null;last_error:string|null};
 async function sharedAudit(){
  const result=await pool.query<SharedAudit>(
-  "SELECT audit_state,provider_number_sid,original_voice_url,original_voice_application_sid,original_provider_api,original_call_handler,checked_at,last_error "+
+  "SELECT cutover_enabled,audit_state,provider_number_sid,original_voice_url,original_voice_application_sid,original_provider_api,original_call_handler,checked_at,last_error "+
   "FROM public.gavhah_signalwire_shared_route WHERE id=1");
  const r=result.rows[0];
  return {number:"6056558080",oldSystemExtension:"55555",state:r?.audit_state||"not_configured",
@@ -215,7 +215,7 @@ async function sharedAudit(){
   sharedIvrCodeReady:r?.audit_state==="verified_compatibility_voice_url",
   sharedIvrSigningKeyReady:String(process.env.SIGNALWIRE_SIGNING_KEY||"").length>=24,
   livePhoneTestPassed:false,
-  cutoverEnabled:false,providerRouteUnchanged:true,
+  cutoverEnabled:!!r?.cutover_enabled,providerRouteUnchanged:!r?.cutover_enabled,
   nextStep:r?.audit_state==="not_found"?
    "The verified number +16056558080 was not found by either API. Check the native SignalWire project and permissions before switching any routing.":
    r?.audit_state==="unresolved"?
