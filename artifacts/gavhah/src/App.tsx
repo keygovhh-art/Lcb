@@ -31,6 +31,7 @@ import Reservations from "@/pages/reservations/index";
 import SystemCenter from "@/pages/system/index";
 import Dashboard from "@/pages/dashboard/index";
 import Login from "@/pages/auth/login";
+import AdminResetPage from "@/pages/auth/admin-reset";
 import Register from "@/pages/auth/register";
 import FounderDashboard from "@/pages/admin/index";
 import SignalWireCredentialsPage from "@/pages/admin/signalwire";
@@ -194,6 +195,7 @@ function Router() {
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/terms" component={TermsPage} />
       <Route path="/login" component={Login} />
+      <Route path="/admin-reset" component={AdminResetPage} />
       <Route path="/register" component={Register} />
       <Route component={NotFound} />
       </Switch>
