@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NextHotlineMigration } from "./next-hotline-migration";
+import { YemotVoiceStudio } from "./yemot-voice-studio";
 
 type Status = {
   configured: boolean;
@@ -69,6 +70,7 @@ export function YemotCentralManagement() {
         איידער מען קען אפהיטן א שליסל דארף מען שטעלן YEMOT_ENCRYPTION_KEY אין די פריוואטע Render־איינשטעלונגען פון גבהה.
       </p>}
     </div>
+    <YemotVoiceStudio />
     <NextHotlineMigration />
     <form className="rounded-xl border bg-card p-5 space-y-3" onSubmit={e => {
       e.preventDefault();
