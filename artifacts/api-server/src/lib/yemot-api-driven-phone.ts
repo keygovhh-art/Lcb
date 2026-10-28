@@ -28,7 +28,7 @@ const personalPaths=new Set(["121","122","123","124"]);
 const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
 const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
-const sharedSignalwireRoot="Welcome to Olam Hachesed Communications. Press 1 for tasks, 2 for cases and MAX, 3 for donors and contacts, 4 for calling center, 5 for pledges and receipts, 6 for follow ups, 7 for case summary, 8 for secure member login, or 9 for a new case draft. Press 4444 for Campaign Center. Press 55555 for the previous system. End selections with pound.";
+const sharedSignalwireRoot="Welcome to Olam Hachesed Communications and MAX. Press 1 my tasks, 2 private cases, 3 donor 360, 4 calling center, 5 pledge and receipt totals, 6 follow ups, 7 case statistics, 8 secure website account login, or 9 a new case draft. The Gavhah main menu and Campaign Center are on the separate Yemot hotline.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -197,7 +197,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
  if(path==="122")return heading+"Status "+x.status+". Priority "+x.urgency+". "+
   (x.deadline?"Deadline "+safeVoice(x.deadline,22)+". ":"")+
   "Recorded goal "+Number(x.goal_amount)+" dollars. "+
-  "Press 5 twice to mark this case in progress. Press 6 twice to close. Press 7 twice to reopen a closed case. Press 9 twice to add an unscheduled follow up. "+
+  "Press 3 to choose a donor and record a manual call result. Press 5 twice for in progress, 6 twice to close, 7 twice to reopen, or 9 twice for an unscheduled follow up. "+
   "Press 1 for next, 8 for previous, 2 to restart, or zero for the main menu.";
  return heading+(safeVoice(x.content,170)||"This note needs an English audio version.")+
   ". Press 1 for next, 8 for previous, 2 to restart, or zero for the main menu.";
@@ -302,8 +302,6 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
    }else if(!from4444 && !fromNext && ready4444 && path==="" && digit==="4444"){
     goToCampaignExtension=true;
-   }else if(fromShared && path==="" && digit==="4444"){
-    feedback="Campaign Center is reserved on extension 4444. Its secure provider bridge must be connected and tested separately. ";
    }else if(fromShared && path==="" && /^[1-9]$/.test(digit)){
     const links:Record<string,string>={"1":"121","2":"12","3":"137","4":"14","5":"139","6":"128","7":"129","8":"125","9":"127"};
     path=links[digit]||"";
@@ -489,7 +487,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     else if(digit==="1"){page=Math.min(40,page+1);}
     else if(digit==="8"){page=Math.max(0,page-1);}
     else if(digit==="2"){page=0;}
-   }else if(path==="129"){
+   }else if(path==="129"||path==="139"){
     if(digit==="0"){path="";}
    }else if(personalPaths.has(path)){
     if(path==="122"&&digit==="3"){
