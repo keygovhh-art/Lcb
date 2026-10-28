@@ -6,7 +6,7 @@ import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } fro
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
 import {sectionPaths,sectionRequiresLogin,pagedSections,readPhoneSection,currentPhoneActionId,confirmPhoneAction} from "./yemot-section-batch1";
 import {currentOwnedCase,caseConfirmationToken,applyPhoneCaseAction,createTelephoneCaseDraft,telephoneCaseFollowup,telephoneCaseSummary} from "./olam-hachesed-phone-cases";
-import {currentMAXContact,telephoneMAXContact360,maxOutcomeToken,logMAXPhoneOutcome,telephoneMAXFinanceSummary} from "./olam-hachesed-phone-max";
+import {currentMAXContact,telephoneMAXContact360,maxOutcomeToken,logMAXPhoneOutcome,telephoneMAXFinanceSummary,logMAXPhonePledge} from "./olam-hachesed-phone-max";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -447,11 +447,33 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     else if(pagedSections.has(path)&&digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(pagedSections.has(path)&&digit==="2"){page=0;confirmId=null;}
     else confirmId=null;
+   }else if(path==="138"){
+    if(digit==="0"){path="137";page=0;chunk=0;}
+    else if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+     feedback="Link your website account to record a private pledge. ";chunk=0;
+    }else if(!confirmId||page<1){feedback="Choose an owned case and contact first. ";path="137";page=0;chunk=0;}
+    else if(chunk===0){
+     if(/^[1-9]\\d{0,5}$/.test(digit)){
+      chunk=Number(digit);feedback="You entered "+chunk+" dollars. This is a PLEDGE only, not a received payment. ";
+     }else feedback="Enter a pledge amount of 1 to 999999 whole dollars, then press pound. ";
+    }else if(digit==="5"){
+     feedback=await logMAXPhonePledge(client,userId,confirmId,page,chunk,callHash);
+     path="137";page=0;chunk=0;
+    }else feedback="Press 5 and pound to confirm or zero to cancel. ";
    }else if(path==="137"){
     if(digit==="0"){path="";page=0;confirmId=null;chunk=0;}
     else if(digit==="1"){page=Math.min(40,page+1);chunk=0;}
     else if(digit==="8"){page=Math.max(0,page-1);chunk=0;}
     else if(digit==="2"){page=0;chunk=0;}
+    else if(digit==="9"){
+     if(!userId||!await memberAllowed(client,{...s,member_id:userId})||!confirmId){
+      feedback="Choose a private case and link your website account before logging a pledge. ";chunk=0;
+     }else{
+      const contact=await currentMAXContact(client,userId,page);
+      if(contact){page=contact.id;chunk=0;path="138";feedback="Enter a whole dollar pledge amount. ";}
+      else feedback="Contact not found. ";
+     }
+    }
     else if(["3","4","5","6","7"].includes(digit)){
      if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
       feedback="First link the correct website account with the eight digit code. ";chunk=0;
@@ -575,6 +597,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    const permitted=!sectionRequiresLogin.has(path)||
       await memberAllowed(client,{...s,member_id:userId});
    spoken+=await readPhoneSection(client,path,permitted?userId:null,page);
+  }else if(path==="138"){
+   mode="article";
+   spoken+=chunk>0
+    ?"Pledge amount "+chunk+" dollars. Press 5 then pound to confirm this MANUAL pledge, or zero to cancel. No payment is recorded."
+    :"Enter the whole dollar pledge amount from 1 through 999999 and press pound. Press zero to cancel.";
   }else if(path==="137"){
    if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
     spoken="Private MAX contacts require a linked website member. Press zero to return and use option 8 to link your account.";
