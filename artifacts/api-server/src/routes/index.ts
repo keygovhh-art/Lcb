@@ -34,7 +34,6 @@ import yemotWholePlatformIvr from "./yemot-whole-platform-ivr";
 import hotlineMigrationRouter from "./hotline-migration";
 import {signalWireNextHotline} from "../lib/signalwire-next-hotline";
 import {signalWireSharedHotline} from "../lib/signalwire-shared-ivr";
-import {signalWireOlam4444} from "../lib/signalwire-olam-4444";
 import newsVoiceRepliesRouter from "./news-voice-replies";
 import phoneAccountLinkRouter from "./phone-account-link";
 import reservationsRouter from "./reservations";
@@ -109,10 +108,6 @@ router.use("/admin/hotline-migration",hotlineMigrationRouter);
 // Existing Yemot root and Campaign Center 4444 remain on their old routes.
 router.post("/signalwire/next-ivr",(req,res,next)=>{
   void signalWireNextHotline(req,res).catch(next);
-});
-// SignalWire 4444 extension-only destination; does NOT take over the number root.
-router.post("/signalwire/olam-4444",(req,res,next)=>{
-  void signalWireOlam4444(req,res).catch(next);
 });
 // PREVIEW/STAGED: this URL is not assigned to +16056558080 at SignalWire.
 // Original provider voice/SMS settings remain unchanged.
