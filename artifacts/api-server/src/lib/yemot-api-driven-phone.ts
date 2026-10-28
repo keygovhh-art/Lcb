@@ -6,6 +6,7 @@ import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } fro
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
 import {sectionPaths,sectionRequiresLogin,pagedSections,readPhoneSection,currentPhoneActionId,confirmPhoneAction} from "./yemot-section-batch1";
 import {currentOwnedCase,caseConfirmationToken,applyPhoneCaseAction,createTelephoneCaseDraft,telephoneCaseFollowup,telephoneCaseSummary} from "./olam-hachesed-phone-cases";
+import {currentMAXContact,telephoneMAXContact360,maxOutcomeToken,logMAXPhoneOutcome,telephoneMAXFinanceSummary} from "./olam-hachesed-phone-max";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -304,7 +305,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }else if(fromShared && path==="" && digit==="4444"){
     feedback="Campaign Center is reserved on extension 4444. Its secure provider bridge must be connected and tested separately. ";
    }else if(fromShared && path==="" && /^[1-9]$/.test(digit)){
-    const links:Record<string,string>={"1":"121","2":"12","3":"13","4":"14","5":"133","6":"128","7":"129","8":"125","9":"127"};
+    const links:Record<string,string>={"1":"121","2":"12","3":"137","4":"14","5":"139","6":"128","7":"129","8":"125","9":"127"};
     path=links[digit]||"";
    }else if(!from4444 && directGavhah && path==="" && /^[1-9]$/.test(digit) && tree["1"]?.children?.[digit]){
     path="1"+digit;
@@ -448,6 +449,31 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     else if(pagedSections.has(path)&&digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(pagedSections.has(path)&&digit==="2"){page=0;confirmId=null;}
     else confirmId=null;
+   }else if(path==="137"){
+    if(digit==="0"){path="";page=0;confirmId=null;chunk=0;}
+    else if(digit==="1"){page=Math.min(40,page+1);chunk=0;}
+    else if(digit==="8"){page=Math.max(0,page-1);chunk=0;}
+    else if(digit==="2"){page=0;chunk=0;}
+    else if(["3","4","5","6","7"].includes(digit)){
+     if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+      feedback="First link the correct website account with the eight digit code. ";chunk=0;
+     }else if(!confirmId){
+      feedback="To write a manual call outcome choose an owned case under My Cases, then press 3. ";chunk=0;
+     }else{
+      const chosen=await currentMAXContact(client,userId,page);
+      const token=chosen&&maxOutcomeToken(chosen.id,digit);
+      if(!chosen||token===null){feedback="Contact not available. ";chunk=0;}
+      else if(chunk===token){
+       feedback=await logMAXPhoneOutcome(client,userId,confirmId,chosen.id,digit,callHash);
+       chunk=0;
+      }else{
+       chunk=token;
+       feedback="Press "+digit+" again to confirm a MANUAL "+
+        ({"3":"no answer","4":"callback","5":"not interested","6":"do not call","7":"spoke"} as Record<string,string>)[digit]+
+        " report for this contact and the selected case. "; 
+      }
+     }
+    }else{feedback="Choose 1 next, 8 previous, 2 first, or zero to return. ";chunk=0;}
    }else if(path==="127"){
     if(digit==="0"){path="";confirmId=null;}
     else if(digit==="5"){
@@ -466,7 +492,17 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }else if(path==="129"){
     if(digit==="0"){path="";}
    }else if(personalPaths.has(path)){
-    if(digit==="0"){path="";page=0;confirmId=null;}
+    if(path==="122"&&digit==="3"){
+     if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+      feedback="Link your website account before viewing private contacts. ";
+     }else{
+      const selected=await currentOwnedCase(client,userId,page);
+      if(selected){confirmId=selected.id;path="137";page=0;chunk=0;
+       feedback="Contact directory for case "+selected.id+". Choose a contact, then press an outcome twice to record a MANUAL entry. ";}
+      else feedback="No matching case was found. ";
+     }
+    }
+    else if(digit==="0"){path="";page=0;confirmId=null;}
     else if(digit==="1"){page++;confirmId=null;}
     else if(digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(digit==="2"){page=0;confirmId=null;}
@@ -541,6 +577,14 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    const permitted=!sectionRequiresLogin.has(path)||
       await memberAllowed(client,{...s,member_id:userId});
    spoken+=await readPhoneSection(client,path,permitted?userId:null,page);
+  }else if(path==="137"){
+   if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+    spoken="Private MAX contacts require a linked website member. Press zero to return and use option 8 to link your account.";
+   }else{spoken+=await telephoneMAXContact360(client,userId,page,confirmId);}
+  }else if(path==="139"){
+   if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+    spoken="MAX finance summaries require a linked website account. Press zero for main menu.";
+   }else{spoken+=await telephoneMAXFinanceSummary(client,userId);}
   }else if(path==="127"){
    spoken+="New Olam Hachesed case draft. Press 5 twice to create a private draft in your account. It will have no personal details until you edit it on the website. Press zero to return.";
   }else if(path==="128"||path==="129"){
