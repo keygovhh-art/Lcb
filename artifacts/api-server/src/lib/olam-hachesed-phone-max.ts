@@ -65,7 +65,7 @@ export async function telephoneMAXContact360(client:PoolClient,userId:number,pag
   "Open follow ups "+(followups.rows[0]?.count||0)+". "+
   (caseId?"For selected case "+caseId+", ":"")+
   "Press 1 next, 8 previous, 2 restart, 0 return. ";
- if(caseId)response+="MANUAL report for case "+caseId+": press 3 no answer, 4 callback, 5 not interested, 6 do not call, or 7 spoke. Press twice to confirm.";
+ if(caseId)response+="Manual result for case "+caseId+": 3 no answer, 4 callback, 5 not interested, 6 do not call, 7 spoke. Press twice to confirm. Press 9 to enter a pledge amount.";
  else response+="To record a result, choose a case under My Cases, then press 3.";
  return response;
 }
@@ -173,4 +173,59 @@ export async function telephoneMAXFinanceSummary(client:PoolClient,userId:number
   "Do not treat unverified reports as received money. "+
   "Outstanding balances require matching receipts to their exact pledges. "+
   "Press zero for main menu.";
+}
+
+/** Manual, never auto-verified, phone pledge. Idempotent across callback retries. */
+export async function logMAXPhonePledge(
+ client:PoolClient,userId:number,caseId:number,contactId:number,dollarsAmount:number,callHash:string
+):Promise<string>{
+ if(!Number.isSafeInteger(dollarsAmount)||dollarsAmount<1||dollarsAmount>999999)
+  return "Invalid pledge amount. No record was saved.";
+ const owned=await client.query(
+  "SELECT id FROM public.askanus_cases WHERE id=$1 AND user_id=$2 FOR UPDATE",
+  [caseId,userId]
+ );
+ if(!owned.rowCount)return "This case is not in your account.";
+ const contact=await client.query<{id:number;name:string}>(
+  "SELECT id,name FROM public.communication_contacts WHERE id=$1 AND user_id=$2 FOR UPDATE",
+  [contactId,userId]
+ );
+ const donor=contact.rows[0];
+ if(!donor)return "Contact not found in your account.";
+ const requestId="phone-max-pledge:"+callHash+":"+caseId+":"+contactId+":"+dollarsAmount;
+ const created=await client.query<{id:number}>(
+  "INSERT INTO public.fundraising_call_reports "+
+  "(user_id,case_id,contact_id,contact_name,outcome,observed_mood,money_kind,amount,note,request_id) "+
+  "VALUES($1,$2,$3,$4,'other','neutral','pledged',$5,"+
+  "'MANUALLY entered pledge from verified telephone keypad. No provider call or received payment verified.',$6) "+
+  "ON CONFLICT(user_id,request_id) DO NOTHING RETURNING id",
+  [userId,caseId,contactId,donor.name,String(dollarsAmount),requestId]
+ );
+ if(!created.rowCount)return "This pledge has already been saved for this phone session. No duplicate.";
+ const p=await client.query<{id:number}>(
+  "INSERT INTO public.max_pledges "+
+  "(user_id,case_id,contact_id,call_report_id,amount,paid_amount,status,note) "+
+  "VALUES($1,$2,$3,$4,$5,0,'open',$6) RETURNING id",
+  [userId,caseId,contactId,created.rows[0].id,String(dollarsAmount),
+   "Manual pledge logged on MAX keypad; not received or independently verified."]
+ );
+ const today=dateNow();
+ await client.query(
+  "UPDATE public.askanus_cases SET funds_promised=funds_promised+$3::numeric,last_updated=now() "+
+  "WHERE id=$1 AND user_id=$2",[caseId,userId,String(dollarsAmount)]
+ );
+ await client.query(
+  "INSERT INTO public.case_activity_log(case_id,date,type,note,amount) "+
+  "VALUES($1,$2,'funds_promised',$3,$4)",
+  [caseId,today,"Manual pledge from verified phone MAX contact "+contactId,String(dollarsAmount)]
+ );
+ await client.query(
+  "INSERT INTO public.max_history_events "+
+  "(user_id,case_id,entity_type,entity_id,action,title,details) "+
+  "VALUES($1,$2,'pledge',$3,'phone_pledge_recorded',$4,$5)",
+  [userId,caseId,p.rows[0].id,donor.name,
+   JSON.stringify({origin:"phone_keypad",pledgeId:p.rows[0].id,amount:dollarsAmount,status:"open"})]
+ );
+ return "Manual pledge of "+dollarsAmount+" dollars recorded for case "+caseId+
+  ". No money was marked as received. This pledge is now visible on the website.";
 }
