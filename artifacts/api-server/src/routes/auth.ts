@@ -9,6 +9,8 @@ import { createRateLimiter } from "../middlewares/rate-limit";
 declare module "express-session" {
   interface SessionData {
     userId?: number;
+    adminEmailEnrollmentUntil?: number;
+    adminEmailEnrollmentUserId?: number;
     userRole?: string;
     linkedUserIds?: number[];
     linkedPasswordVersions?: Record<string,string>;
@@ -224,6 +226,91 @@ router.post("/auth/change-password", requireAuth, async (req, res): Promise<void
   await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
   req.session.linkedPasswordVersions={...(req.session.linkedPasswordVersions||{}),[userId]:passwordVersion(passwordHash)};
   res.json({ ok: true });
+});
+
+
+/**
+ * Owner email enrollment to the SAME, preexisting super_admin account.
+ * No extra role or password creation, no login without the CURRENT password.
+ * Proof is limited to 10 minutes, one email update per verified session.
+ */
+const adminEmailSetupLimiter=createRateLimiter({
+ name:"admin-email-enrollment",windowMs:10*60*1000,max:5,
+ message:"Too many authentication attempts; wait before retrying."
+});
+router.post("/auth/admin-email-enrollment/start",adminEmailSetupLimiter,async(req,res,next)=>{
+ try{
+  if(!originMatches(req))return void res.status(403).json({error:"Invalid origin"});
+  const password=typeof req.body?.password==="string"?req.body.password:"";
+  if(password.length<8||password.length>256)
+   return void res.status(400).json({error:"Enter your existing administrator password"});
+  const result=await pool.query<{id:number;password_hash:string;role:string;status:string}>(
+   "SELECT id,password_hash,role,status FROM public.users WHERE role='super_admin' AND status='active' LIMIT 2"
+  );
+  const owner=result.rows.length===1?result.rows[0]:null;
+  // Identical error for unknown owner and invalid password.
+  if(!owner||!await verifyPassword(password,owner.password_hash))
+   return void res.status(401).json({error:"Existing administrator password is incorrect"});
+  await new Promise<void>((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
+  req.session.userId=owner.id;
+  req.session.userRole="super_admin";
+  req.session.linkedUserIds=[owner.id];
+  req.session.linkedPasswordVersions={[owner.id]:passwordVersion(owner.password_hash)};
+  req.session.adminEmailEnrollmentUserId=owner.id;
+  req.session.adminEmailEnrollmentUntil=Date.now()+10*60*1000;
+  await new Promise<void>((resolve,reject)=>req.session.save(error=>error?reject(error):resolve()));
+  res.setHeader("Cache-Control","no-store");
+  res.json({ok:true,validForSeconds:600,next:"/founder/connect-email"});
+ }catch(error){next(error);}
+});
+function enrolled(req:import("express").Request){
+ return Number.isSafeInteger(req.session.userId)&&
+  req.session.userId===req.session.adminEmailEnrollmentUserId&&
+  typeof req.session.adminEmailEnrollmentUntil==="number"&&
+  req.session.adminEmailEnrollmentUntil>Date.now();
+}
+router.get("/auth/admin-email-enrollment/status",requireAuth,async(req,res,next)=>{
+ try{
+  if(!enrolled(req))return void res.status(403).json({error:"The 10-minute email setup has expired"});
+  const list=await pool.query<{id:number;email:string|null}>(
+   "SELECT id,email FROM public.users WHERE id=$1 AND role='super_admin' AND status='active'",
+   [req.session.userId]);
+  if(list.rows.length!==1)return void res.status(403).json({error:"Only the existing super-admin can change this email"});
+  res.setHeader("Cache-Control","private,no-store");
+  res.json({ok:true,existingEmail:list.rows[0].email||null,
+   expiresAt:req.session.adminEmailEnrollmentUntil});
+ }catch(error){next(error);}
+});
+router.post("/auth/admin-email-enrollment/save",requireAuth,async(req,res,next)=>{
+ try{
+  if(!originMatches(req))return void res.status(403).json({error:"Invalid origin"});
+  if(!enrolled(req))return void res.status(403).json({error:"The one-time setup is no longer valid"});
+  const email=typeof req.body?.email==="string"?req.body.email.trim().toLowerCase():"";
+  if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+   return void res.status(400).json({error:"Provide a valid email address"});
+  const client=await pool.connect();
+  try{
+   await client.query("BEGIN");
+   const row=await client.query<{id:number;email:string|null}>(
+    "SELECT id,email FROM public.users WHERE id=$1 AND role='super_admin' AND status='active' FOR UPDATE",
+    [req.session.userId]);
+   if(row.rows.length!==1)throw Error("Super-admin account missing");
+   await client.query(
+    "UPDATE public.users SET email=$1 WHERE id=$2 AND role='super_admin' AND status='active'",
+    [email,req.session.userId]);
+   await client.query("COMMIT");
+  }catch(error){
+   await client.query("ROLLBACK").catch(()=>{});
+   if((error as {code?:string}).code==="23505")return void res.status(409).json({error:"This email already belongs to another account"});
+   throw error;
+  }finally{client.release();}
+  req.session.adminEmailEnrollmentUntil=undefined;
+  req.session.adminEmailEnrollmentUserId=undefined;
+  await new Promise<void>((resolve,reject)=>req.session.save(error=>error?reject(error):resolve()));
+  res.setHeader("Cache-Control","private,no-store");
+  res.json({ok:true,accountUnchanged:true,passwordUnchanged:true,role:"super_admin",
+   message:"Existing super-admin email saved. The one-time 10-minute setup was consumed."});
+ }catch(error){next(error);}
 });
 
 router.post("/auth/logout", (req, res): void => {
