@@ -128,6 +128,41 @@ router.post("/voice-switch/apply",async(req,res,next)=>{
   });
  }catch(e){next(e);}
 });
+router.post("/voice-switch/rollback",async(req,res,next)=>{
+ try{
+  if(req.body?.confirm!=="RESTORE_6056558080_CALLING_ONLY")
+   throw error(400,"Explicit rollback confirmation required");
+  const prior=await pool.query<{cutover_enabled:boolean;original_route_details:any}>(
+   "SELECT cutover_enabled,original_route_details FROM public.gavhah_signalwire_shared_route WHERE id=1");
+  if(!prior.rows[0]?.cutover_enabled)
+   throw error(409,"Recorded cutover is not active; refusing to overwrite a live calling handler");
+  const saved=prior.rows[0].original_route_details?.voice_only_cutover_snapshot;
+  if(!saved||!uuid.test(saved.oldCallingResourceId)||!uuid.test(saved.newCallingResourceId)||
+    !uuid.test(saved.callingAddressId)||!uuid.test(saved.messagingAddressId))
+   throw error(409,"Original calling resource snapshot not available for safe rollback");
+  const c=await credential();
+  const current=await inventory(c);
+  if(current.calling.id!==saved.callingAddressId||current.calling.resource_id!==saved.newCallingResourceId||
+     current.messaging.id!==saved.messagingAddressId||
+     current.messaging.resource_id!==saved.messagingResourceId)
+   throw error(409,"Provider route changed; cannot safely rollback automatically");
+  const response=await sw(c,"phone_number_addresses/"+current.calling.id,"PATCH",
+   {resource_id:saved.oldCallingResourceId});
+  if(response.id!==current.calling.id||response.handler_type!=="calling"||
+     response.phone_number!==E164||response.resource_id!==saved.oldCallingResourceId)
+   throw error(502,"Provider rollback response could not be verified");
+  const verify=await sw(c,"phone_number_addresses?page_size=1000");
+  const entries=(verify.data||[]).filter((x:Address)=>x.phone_number===E164);
+  if(entries.find((x:Address)=>x.handler_type==="calling")?.resource_id!==saved.oldCallingResourceId||
+     entries.find((x:Address)=>x.handler_type==="messaging")?.resource_id!==saved.messagingResourceId)
+   throw error(502,"Provider rollback verification failed. Inspect SignalWire.");
+  await pool.query("UPDATE public.gavhah_signalwire_shared_route SET cutover_enabled=false,updated_at=now() WHERE id=1");
+  res.set("Cache-Control","private,no-store").json({
+   restored:true,number:E164,messagingUnchanged:true,
+   note:"Calling handler restored to the original resource. Neither SMS nor the resource definitions were edited."
+  });
+ }catch(e){next(e);}
+});
 router.use((err:any,_req:any,res:any,_next:any)=>{
  res.status(typeof err?.status==="number"&&err.status>=400&&err.status<600?err.status:502)
   .json({error:String(err?.message||"SignalWire voice migration unavailable")});
