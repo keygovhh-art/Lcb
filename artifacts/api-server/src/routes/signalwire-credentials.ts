@@ -148,11 +148,11 @@ export async function readSignalWireInventory(){
  if(!row||!row.verified_at)throw Error("Verify your SignalWire connection before inventory");
  const token=decrypt(row);
  const url="https://"+row.space_hostname+"/api/laml/2010-04-01/Accounts/"+
-  row.project_id+"/IncomingPhoneNumbers?PageSize=1000";
+  row.project_id+"/IncomingPhoneNumbers?PageSize=50";
  const auth="Basic "+Buffer.from(row.project_id+":"+token,"utf8").toString("base64");
  const response=await fetch(url,{method:"GET",headers:{Authorization:auth,Accept:"application/json"},
   redirect:"error",cache:"no-store",signal:AbortSignal.timeout(15000)});
- if(!response.ok)throw Error("SignalWire numbers inventory unavailable; no provider settings changed");
+ if(!response.ok)throw Error("SignalWire provider inventory HTTP "+response.status);
  const data:unknown=await response.json();
  if(!data||typeof data!=="object"||!Array.isArray((data as any).incoming_phone_numbers))
   throw Error("Unexpected SignalWire numbers response");
@@ -174,7 +174,28 @@ router.get("/numbers",async(_req,res,next)=>{
  try{
   const inventory=await readSignalWireInventory();
   res.set("Cache-Control","private,no-store").json(inventory);
- }catch(e){next(e);}
+ }catch(e){
+  // Do not log or return the secret, encrypted payload, queries or provider body.
+  const m=e instanceof Error?e.message:"";
+  const providerMatch=/^SignalWire provider inventory HTTP (\\d{3})$/.exec(m);
+  const code=/authenticate data|bad decrypt|unable to authenticate|Invalid key length/i.test(m)
+   ?"TOKEN_DECRYPT_FAILED":
+   /Verify your SignalWire connection/.test(m)?"NOT_VERIFIED":
+   providerMatch?"PROVIDER_HTTP_"+providerMatch[1]:
+   /unexpected.*response/i.test(m)?"PROVIDER_FORMAT_ERROR":
+   /Unexpected provider phone numbers/.test(m)?"PROVIDER_PHONE_VALIDATION":
+   /timed out|timeout|fetch failed|network/i.test(m)||(e instanceof Error&&e.name==="TimeoutError")?"PROVIDER_NETWORK_ERROR":
+   "INVENTORY_UNCLASSIFIED";
+  console.error(JSON.stringify({event:"gavhah.signalwire.inventory_failure",at:new Date().toISOString(),code}));
+  const isCredential=code==="TOKEN_DECRYPT_FAILED";
+  const isProvider=code.startsWith("PROVIDER_");
+  res.status(isCredential?503:isProvider?502:code==="NOT_VERIFIED"?409:503)
+   .set("Cache-Control","private,no-store")
+   .json({error:isCredential
+    ?"Saved SignalWire token cannot be decrypted with this Cloudflare encryption key. No provider settings were changed."
+    :isProvider?"SignalWire inventory could not be read; no provider settings were changed."
+    :"SignalWire inventory is not currently available; no provider settings were changed.",supportCode:code});
+ }
 });
 
 type SharedAudit={audit_state:string;provider_number_sid:string|null;original_voice_url:string|null;original_voice_application_sid:string|null;original_provider_api:string|null;original_call_handler:string|null;checked_at:Date|null;last_error:string|null};
