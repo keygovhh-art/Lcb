@@ -3,6 +3,7 @@ import {randomUUID, createDecipheriv} from "node:crypto";
 import {pool} from "@workspace/db";
 import {requireAuth, getCurrentSessionUser} from "../middlewares/auth";
 import {phoneTree} from "./yemot-whole-platform-ivr";
+import {sectionPaths} from "../lib/yemot-section-batch1";
 
 // Only the already approved Gavhah/Yemot connection is used. Never change
 // the root extension, switch numbers, or use SignalWire for this feature.
@@ -44,7 +45,10 @@ function catalogue(){
   }
  };
  visit(phoneTree as Record<string,TreeItem>,"");
- return items;
+ // Implementation != verified phone functionality: label honestly.
+ const known=new Set([...sectionPaths,"111","1121","1122","1123","1124","1125","1126","1127","1128","1129","113","114","115","121","122","123","124","125","126","185"]);
+ return items.map(item=>({...item,capability:item.kind==="menu"?"navigation":
+  known.has(item.path)?"api_implemented_not_phone_verified":"roadmap_only"}));
 }
 function knownPath(input:string){return catalogue().some(x=>x.path===input);}
 function getName(req:Request){return String(req.params.path||"");}
