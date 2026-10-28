@@ -40,7 +40,8 @@ export const phoneTree: Record<string,Item> = {
     }),
     "5":group("Kindness and help",{
       "1":leaf("Charity and campaigns","/charity"),"2":leaf("Ask for assistance","/united"),
-      "3":leaf("Volunteer to help","/united"),"4":leaf("Community projects","/community-projects")
+      "3":leaf("Volunteer to help","/united"),"4":leaf("Community projects","/community-projects"),
+      "5":leaf("Read a public charity campaign by its website number","/charity/:id")
     }),
     "6":group("Community",{
       "1":leaf("Groups","/groups"),"2":leaf("Discussion forum","/forum"),
@@ -49,7 +50,8 @@ export const phoneTree: Record<string,Item> = {
       "7":leaf("Open a selected group","/groups/:id")
     }),
     "7":group("Minyans and appointments",{
-      "1":leaf("Minyan directory","/minyans"),"2":leaf("Reservations","/reservations")
+      "1":leaf("Minyan directory","/minyans"),"2":leaf("Reservations","/reservations"),
+      "3":leaf("Read an approved minyan by its website number","/minyans/:id")
     }),
     "8":group("Messages and account",{
       "1":leaf("Notifications","/notifications"),"2":leaf("My profile","/profile"),
