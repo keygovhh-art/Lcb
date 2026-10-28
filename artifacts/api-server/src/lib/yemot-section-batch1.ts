@@ -71,6 +71,89 @@ const detail=(index:number,s:string)=>"Item "+(index+1)+". "+s+". "+navigation;
 const scalar=async(client:PoolClient,query:string,args:unknown[])=> (await client.query(query,args)).rows[0]||{};
 
 /**
+ * Public, read-only item lookups by website ID. The same published/approved
+ * filters as public browsing apply; no private group, unapproved minyan,
+ * scheduled/unpublished charity or non-public member data can be exposed.
+ * IDs never bypass moderation, and no payment or membership is created.
+ */
+export const publicIdSections=new Set(["155","166","167","173"]);
+export async function readPhonePublicById(
+ client:PoolClient,path:string,id:number,part:number
+):Promise<{text:string;hasMore:boolean}>{
+ const returnMenu="Press nine to enter another item number, or zero for the main menu.";
+ if(!publicIdSections.has(path)||!Number.isSafeInteger(id)||id<1||id>99999999)
+  return {text:"Invalid public item number. "+returnMenu,hasMore:false};
+ let heading="",body="";
+ if(path==="155"){
+  const q=await scalar(client,
+   "SELECT name,description,goal_amount,raised_amount FROM public.charities "+
+   "WHERE id=$1 AND is_active=true AND (publication_state='live' OR "+
+   "(publication_state='scheduled' AND scheduled_at<=now()))",[id]);
+  if(q.name){
+   heading="Public charity "+id+". "+(speak(q.name,85)||"A Yiddish campaign title")+
+     ". Published fundraising goal "+amount(q.goal_amount)+
+     " dollars. Website reported "+amount(q.raised_amount)+
+     " dollars raised. No payments are accepted by telephone. ";
+   body=speak(q.description,5000)||"The description needs an approved Yiddish recording.";
+  }
+ }else if(path==="166"){
+  // Discussions are website-public content. Locked means no new replies,
+  // not that reading is prohibited.
+  const q=await scalar(client,
+   "SELECT title,content,is_locked,comment_count FROM public.discussions WHERE id=$1",[id]);
+  if(q.title){
+   heading="Public forum topic "+id+". "+(speak(q.title,85)||"Title requires approved audio")+
+     ". "+(q.is_locked?"Replies closed. ":"Replies open. ")+
+     Number(q.comment_count||0)+" comments. ";
+   body=speak(q.content,5000)||"This forum text needs approved Yiddish audio.";
+  }
+ }else if(path==="167"){
+  const q=await scalar(client,
+   "SELECT name,description,member_count FROM public.groups WHERE id=$1 AND privacy='public'",[id]);
+  if(q.name){
+   heading="Public community group "+id+". "+(speak(q.name,85)||"Group title requires approved audio")+
+     ". "+Number(q.member_count||0)+" members. ";
+   body=speak(q.description,5000)||"The group description needs approved Yiddish audio.";
+  }
+ }else if(path==="173"){
+  const q=await scalar(client,
+   "SELECT synagogue_name,city,country,community,shacharis,mincha,maariv,notes "+
+   "FROM public.minyans WHERE id=$1 AND status='approved'",[id]);
+  if(q.synagogue_name){
+   heading="Approved minyan "+id+". "+(speak(q.synagogue_name,85)||"Name needs Yiddish audio")+
+    ". City "+(speak(q.city,45)||"on website")+
+    ". Country "+(speak(q.country,38)||"on website")+". ";
+   body=[
+    q.community?"Community "+(speak(q.community,90)||"available on website")+". ":"",
+    q.shacharis?"Shacharis "+(speak(q.shacharis,70)||"hours on website")+". ":"",
+    q.mincha?"Mincha "+(speak(q.mincha,70)||"hours on website")+". ":"",
+    q.maariv?"Maariv "+(speak(q.maariv,70)||"hours on website")+". ":"",
+    q.notes?speak(q.notes,900):""
+   ].join(" ").trim()||"Additional details are available on the website.";
+  }
+ }
+ if(!heading)return {text:"This public item does not exist or is not approved for public viewing. "+returnMenu,hasMore:false};
+ // Split at word boundaries so recordings remain intelligible within Yemot
+ // read=t- limits; do not loop forever on a long unbroken word.
+ const chunks:string[]=[];
+ let rest=body.replace(/\s+/g," ").trim();
+ while(rest&&chunks.length<35){
+  if(rest.length<=185){chunks.push(rest);break;}
+  let end=rest.lastIndexOf(" ",185);if(end<90)end=185;
+  chunks.push(rest.slice(0,end).trim());
+  rest=rest.slice(end).trimStart();
+ }
+ if(!chunks.length)chunks.push("Details are available on the website.");
+ const current=Math.max(0,Math.min(Math.trunc(part)||0,chunks.length-1));
+ const hasMore=current<chunks.length-1;
+ return {text:
+  (current===0?heading:"Continuation for item "+id+". ")+chunks[current]+". "+
+  (hasMore?"Press one for the next part. ":"End of this item. ")+
+  "Press eight for the previous part, two to restart, nine for another item, or zero for the main menu.",
+  hasMore};
+}
+
+/**
  * Every query has a fixed SQL shape. All private data are restricted to the
  * verified user ID, and text returned to IVR is shortened and sanitized.
  * No raw phone numbers, email addresses, contact notes, or secrets are spoken.
@@ -148,12 +231,12 @@ export async function readPhoneSection(
  }
  if(path==="151"){
   const x=await scalar(client,
-   "SELECT name,goal_amount,raised_amount FROM public.charities "+
+   "SELECT id,name,goal_amount,raised_amount FROM public.charities "+
    "WHERE is_active=true AND (publication_state='live' OR "+
    "(publication_state='scheduled' AND scheduled_at<=now())) "+
    "ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $1",[p]);
   if(!x.name)return missing("published charity campaigns");
-  return detail(p,"Public charity campaign "+
+  return detail(p,"Public charity campaign number "+x.id+". "+
    (speak(x.name)||"Name requires an approved Yiddish recording")+
    ". Target "+amount(x.goal_amount)+" dollars. Website reported raised "+
    amount(x.raised_amount)+" dollars. No phone payments are collected");
@@ -183,16 +266,16 @@ export async function readPhoneSection(
    (x.location?". Location "+(speak(x.location,60)||"not available in English"):""));
  }
  if(path==="161"){
-  const x=await scalar(client,"SELECT name,description FROM public.groups "+
+  const x=await scalar(client,"SELECT id,name,description FROM public.groups "+
    "WHERE privacy='public' ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $1",[p]);
   if(!x.name)return missing("public groups");
-  return detail(p,"Public community group "+(speak(x.name)||"Name needs an approved recording"));
+  return detail(p,"Public community group number "+x.id+". "+(speak(x.name)||"Name needs an approved recording"));
  }
  if(path==="162"){
-  const x=await scalar(client,"SELECT title,is_locked,comment_count FROM public.discussions "+
+  const x=await scalar(client,"SELECT id,title,is_locked,comment_count FROM public.discussions "+
    "ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $1",[p]);
   if(!x.title)return missing("public discussion topics");
-  return detail(p,"Public forum topic "+
+  return detail(p,"Public forum topic number "+x.id+". "+
    (speak(x.title)||"Title requires Yiddish audio")+
    ". "+(x.is_locked?"Replies closed":"Replies open")+
    ". "+Number(x.comment_count||0)+" recorded comments");
@@ -215,10 +298,10 @@ export async function readPhoneSection(
    ". Type "+(speak(x.entity_type,35)||"saved"));
  }
  if(path==="171"){
-  const x=await scalar(client,"SELECT synagogue_name,city,shacharis,mincha,maariv FROM public.minyans "+
+  const x=await scalar(client,"SELECT id,synagogue_name,city,shacharis,mincha,maariv FROM public.minyans "+
    "WHERE status='approved' ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $1",[p]);
   if(!x.synagogue_name)return missing("approved minyan listings");
-  return detail(p,"Approved minyan "+
+  return detail(p,"Approved minyan number "+x.id+". "+
    (speak(x.synagogue_name)||"Name requires recorded Yiddish audio")+
    ". City "+(speak(x.city,35)||"not in English")+
    (x.shacharis?". Morning "+(speak(x.shacharis,30)||"time available online"):"")+
