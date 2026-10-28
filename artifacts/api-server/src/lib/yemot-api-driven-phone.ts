@@ -453,7 +453,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      feedback="Link your website account to record a private pledge. ";chunk=0;
     }else if(!confirmId||page<1){feedback="Choose an owned case and contact first. ";path="137";page=0;chunk=0;}
     else if(chunk===0){
-     if(/^[1-9]\\d{0,5}$/.test(digit)){
+     if(/^[1-9][0-9]{0,5}$/.test(digit)){
       chunk=Number(digit);feedback="You entered "+chunk+" dollars. This is a PLEDGE only, not a received payment. ";
      }else feedback="Enter a pledge amount of 1 to 999999 whole dollars, then press pound. ";
     }else if(digit==="5"){
