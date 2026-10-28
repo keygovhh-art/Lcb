@@ -62,7 +62,10 @@ export default {
    if(isPhoneWebhook&&!readiness.phoneCallbacksEnabled)
     return paused("Independent hotline webhooks are not activated. Existing phone calls remain on Render.");
    if(path.startsWith("/api/admin/hotline-migration")&&
-    !["GET","HEAD","OPTIONS"].includes(request.method))
+    !["GET","HEAD","OPTIONS"].includes(request.method)&&
+    !(request.method==="POST"&&
+      (path==="/api/admin/hotline-migration/signalwire/voice-switch/apply"||
+       path==="/api/admin/hotline-migration/signalwire/voice-switch/rollback")))
     return paused("Shared live phone-provider administration is locked on the independent Cloudflare copy.",403);
    return api.fetch(request,env,ctx);
   }
