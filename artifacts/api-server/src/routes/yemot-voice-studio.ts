@@ -239,6 +239,18 @@ router.post("/admin/yemot/voice-studio/:path/publish",requireAuth,admin,wrap(asy
  await pool.query("UPDATE "+dbTable+" SET published_path=$2,published_at=now(),updated_at=now() WHERE path=$1",[path,published]);
  res.json({ok:true,verified:true,publishedPath:published,liveOnConnectedExtension:true});
 }));
+
+router.delete("/admin/yemot/voice-studio/:path/published",requireAuth,admin,wrap(async(req,res)=>{
+ const path=getName(req);
+ if(!safePath(path)||!knownPath(path)){problem(res,400,"Unknown telephone menu path");return;}
+ if(req.body?.confirm!=="USE_TTS_INSTEAD_OF_AUDIO"){
+  problem(res,400,"Explicit audio deactivation confirmation required");return;
+ }
+ // Do not delete provider audio; only change the active prompt pointer.
+ await pool.query("UPDATE "+dbTable+" SET published_path=NULL,published_at=NULL,updated_at=now() WHERE path=$1",[path]);
+ res.json({ok:true,ttsFallback:true,providerFilesPreserved:true});
+}));
+
 export async function phonePromptOverride(path:string):Promise<{ttsText:string|null;audioPath:string|null}>{
  const key=path||"root";
  if(!safePath(key))return {ttsText:null,audioPath:null};
