@@ -72,12 +72,13 @@ async function processLocally(blob:Blob,fx:Effects){
  source.start(0);
  return wavData(await offline.startRendering());
 }
-async function asBase64(blob:Blob){
- const arr=new Uint8Array(await blob.arrayBuffer());
- let result="";
- // Keep each String.fromCharCode call bounded on Android.
- for(let i=0;i<arr.length;i+=8192)result+=String.fromCharCode(...arr.subarray(i,i+8192));
- return btoa(result);
+async function asBase64(blob:Blob):Promise<string>{
+ return new Promise((resolve,reject)=>{
+  const reader=new FileReader();
+  reader.onerror=()=>reject(Error("Audio file could not be read"));
+  reader.onload=()=>resolve(String(reader.result||"").split(",")[1]||"");
+  reader.readAsDataURL(blob);
+ });
 }
 export function YemotVoiceStudio(){
  const [data,setData]=useState<StudioResponse|null>(null);
@@ -106,11 +107,8 @@ export function YemotVoiceStudio(){
   stream.current?.getTracks().forEach(t=>t.stop());
   if(micMonitor.current)void micMonitor.current.close();
  };},[]);
- useEffect(()=>{
-  const item=data?.prompts.find(x=>x.path===selected);
-  setTts(item?.tts_text||"");setRecording(null);setPreviewUrl("");
-  setEffects(original);setError("");setMessage("");
- },[selected,data?.catalogue]);
+ useEffect(()=>{setRecording(null);setPreviewUrl("");setEffects(original);setError("");setMessage("");},[selected]);
+ useEffect(()=>{const item=data?.prompts.find(x=>x.path===selected);setTts(item?.tts_text||"");},[selected,data?.prompts]);
  useEffect(()=>{
   if(!recording){setPreviewUrl("");return;}
   const url=URL.createObjectURL(recording);setPreviewUrl(url);
