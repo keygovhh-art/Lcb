@@ -148,7 +148,7 @@ export async function readSignalWireInventory(){
  if(!row||!row.verified_at)throw Error("Verify your SignalWire connection before inventory");
  const token=decrypt(row);
  const url="https://"+row.space_hostname+"/api/laml/2010-04-01/Accounts/"+
-  row.project_id+"/IncomingPhoneNumbers?PageSize=50";
+  row.project_id+"/IncomingPhoneNumbers?PageSize=1000";
  const auth="Basic "+Buffer.from(row.project_id+":"+token,"utf8").toString("base64");
  const response=await fetch(url,{method:"GET",headers:{Authorization:auth,Accept:"application/json"},
   redirect:"error",cache:"no-store",signal:AbortSignal.timeout(15000)});
