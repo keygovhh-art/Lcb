@@ -9,7 +9,7 @@ test('Private owner-only shared route status cannot perform a number switch',()=
  assert.match(creds,/router\.post\("\/shared-route\/recheck"/);
  assert.match(creds,/inspectExisting8080RouteOnce\(\)/);
  assert.match(creds,/cutoverEnabled:false/);
- assert.match(creds,/providerRouteUnchanged:true/);
+ assert.match(creds,/providerRouteUnchanged:!r\?\.cutover_enabled/);
  assert.doesNotMatch(creds,/UpdateIncomingPhoneNumber|VoiceUrl=/);
 });
 test('Replacing SignalWire credentials invalidates any old provider route snapshot',()=>{
