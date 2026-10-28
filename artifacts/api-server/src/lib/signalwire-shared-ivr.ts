@@ -124,7 +124,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
   res.status(status).type("text/plain").send("Gavhah phone engine unavailable");
   return;
  }
- const root=reply.startsWith("read=t-Gavhah SignalWire main menu.");
+ const root=reply.startsWith("read=t-Welcome to Olam Hachesed Communications, MAX.");
  res.status(200).type("application/xml; charset=utf-8")
   .set("Cache-Control","no-store")
   .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root));
