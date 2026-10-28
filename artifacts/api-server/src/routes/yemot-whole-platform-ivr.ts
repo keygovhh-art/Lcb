@@ -35,7 +35,9 @@ export const phoneTree: Record<string,Item> = {
     }),
     "3":group("People and contacts",{
       "1":leaf("Donor 360","/communications"),"2":leaf("Contacts","/communications"),
-      "3":leaf("Pledges and receipts","/communications"),"4":leaf("Follow ups","/communications")
+      "3":leaf("Pledges and receipts","/communications"),"4":leaf("Follow ups","/communications"),
+      "7":{label:"MAX donor 360 and manual call results",web:"/communications",phone:"menu"},
+      "9":{label:"MAX pledge and verified receipt totals",web:"/communications",phone:"menu"}
     }),
     "4":group("Calling center",{
       "1":leaf("My call queue","/communications"),"2":leaf("Call history","/communications"),
