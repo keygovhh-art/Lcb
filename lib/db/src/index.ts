@@ -18,7 +18,7 @@ export const pool = new Pool({
     // Cloudflare forbids reusing a TCP connection made during a prior request.
     // maxUses:1 removes every pg client on release, including after a transaction.
     // Keep Render's existing pool behavior completely unchanged.
-    ? { max: 3, maxUses: 1, idleTimeoutMillis: 1_000, connectionTimeoutMillis: 8_000, allowExitOnIdle: true }
+    ? { max: 2, maxUses: 1, idleTimeoutMillis: 1_000, connectionTimeoutMillis: 8_000, allowExitOnIdle: true }
     : process.env.VERCEL === "1"
       ? { max: 3, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 5_000, allowExitOnIdle: true }
       : {}),
