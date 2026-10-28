@@ -8,7 +8,10 @@ const web=readFileSync(resolve(root,'artifacts/gavhah/src/App.tsx'),'utf8');
 const ivr=readFileSync(resolve(root,'artifacts/api-server/src/routes/yemot-whole-platform-ivr.ts'),'utf8');
 const actual=[...new Set([...web.matchAll(/<Route\s+path="([^"]+)"/g)].map(m=>m[1]))].sort();
 const phone=[...new Set([...ivr.matchAll(/leaf\("[^"]+","([^"]+)"/g)].map(m=>m[1]))].sort();
-const missing=actual.filter(r=>!phone.includes(r));
+// A bearer-token recovery page must NEVER be exposed as a dial-in phone action.
+// It is deliberately not a phone feature and therefore exempt from IVR parity.
+const phoneIneligible=new Set(["/admin-reset"]);
+const missing=actual.filter(r=>!phoneIneligible.has(r)&&!phone.includes(r));
 assert.equal(missing.length,0,
  'Web routes missing from phone roadmap (NOT WORKING IVR): '+missing.join(', '));
 assert.ok(actual.length>20,'Route parser appears incomplete; review parser before passing');
