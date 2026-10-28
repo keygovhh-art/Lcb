@@ -13,12 +13,20 @@ import cors from "cors";
 import session from "express-session";
 import {randomUUID} from "node:crypto";
 import router from "./routes";
-import {pool} from "@workspace/db";
+import {pool,runWithCloudflareDatabaseRequest} from "@workspace/db";
 import {PostgresSessionStore} from "./lib/postgres-session-store";
 import {sessionOptions,usesPostgresSessions} from "./lib/session-options";
 
 const app:Express=express();
 app.set("trust proxy",1);
+if(process.env.CF_WORKER_RUNTIME==="1"){
+ app.use((_req,res,next)=>{
+  runWithCloudflareDatabaseRequest(requestPool=>{
+   res.once("finish",()=>{void requestPool?.end().catch(()=>{});});
+   next();
+  });
+ });
+}
 
 // Cloudflare-only structured incident tracker. Does not log identifiers,
 // cookies, request bodies, SQL, passwords, or untrusted exception messages.
