@@ -450,7 +450,7 @@ export default function FounderDashboard() {
           </details>
 
           {user?.role === "super_admin" && <TabsContent value="security" className="space-y-4"><div className="rounded-xl border p-5 space-y-3 max-w-xl" dir="rtl"><h2 className="text-xl font-bold">סופער־עדמין — אקאונט־איינשטעלונגען</h2><p>פארבינד אן אימעיל צום עקזיסטירנדן אקאונט מיט דיין פעסווארד. קיין נייע אקאונט אדער פעסווארד; איינמאל גילטיג 10 מינוט.</p><Link href="/founder/connect-email" className="underline font-semibold">צולייגן אדער טוישן אדמין־אימעיל</Link></div></TabsContent>}
-          {/* ─── Operations Inbox ─── */
+          {/* ─── Operations Inbox ─── */}
           <TabsContent value="operations" className="space-y-6">
             <OperationsInbox onOpenPrivateAssistance={() => {setActiveTab("private-assistance"); window.scrollTo({top:0,behavior:"smooth"});}} />
           </TabsContent>
