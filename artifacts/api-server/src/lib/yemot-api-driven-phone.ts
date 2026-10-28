@@ -16,6 +16,7 @@ type State={
  member_id:number|null;linked_until:string|null;login_failures:number;
  phone_page:number;selected_item_id:number|null;
  news_actions_open:boolean;news_reply_mode:boolean;news_reply_target:number|null;news_report_mode:boolean;
+ action_flash:string;
 };
 const categories:Record<string,string>={
  "1121":"emergency_appeal","1122":"fundraising","1123":"announcement",
@@ -246,6 +247,65 @@ async function exactSecret(req:Request){
  return expected.length===provided.length&&
   timingSafeEqual(Buffer.from(expected),Buffer.from(provided))?supplied:null;
 }
+type ManualResultPending={
+ stage:"choose"|"confirm";userId:number;contactId:number;caseId:number;
+ contactName:string;outcome?:string;expiresAt:number;requestId:string;
+};
+const manualOutcomes:Record<string,string>={
+ "1":"spoke","2":"no_answer","3":"callback","4":"not_interested","5":"do_not_call"
+};
+function readManualResultPending(value:string):ManualResultPending|null{
+ try{
+  const p=JSON.parse(value) as ManualResultPending;
+  if(!p||!["choose","confirm"].includes(p.stage)||!Number.isSafeInteger(p.userId)||
+   !Number.isSafeInteger(p.contactId)||p.contactId<=0||!Number.isSafeInteger(p.caseId)||
+   p.caseId<=0||!Number.isFinite(p.expiresAt)||p.expiresAt<Date.now()||
+   typeof p.contactName!=="string"||typeof p.requestId!=="string"||
+   !/^[a-f0-9]{64}$/.test(p.requestId))return null;
+  if(p.stage==="confirm"&&!Object.values(manualOutcomes).includes(p.outcome||""))return null;
+  return p;
+ }catch{return null;}
+}
+const choosePrompt="Manual result for the selected contact. Press 1 if you spoke, 2 if no answer, "+
+ "3 for callback requested, 4 for not interested, or 5 for Do Not Call. "+
+ "Press zero to cancel. This does NOT initiate an outbound phone call.";
+const confirmationPrompt=(p:ManualResultPending)=>
+ "You selected "+(p.outcome||"").replace(/_/g," ")+
+ ". Press 5 again to SAVE the result to your Gavhah MAX website history. "+
+ "Press zero to cancel. No money, donation, or payment will be recorded.";
+async function recordConfirmedManualResult(client:import("pg").PoolClient,p:ManualResultPending){
+ // Recheck ownership and DNC status at commit time, not only when the menu
+ // first opened. A moved contact or closed case cannot receive a new result.
+ const contact=await client.query<{id:number;name:string;do_not_call:boolean}>(
+  "SELECT id,name,do_not_call FROM public.communication_contacts "+
+  "WHERE id=$1 AND user_id=$2 FOR UPDATE",[p.contactId,p.userId]);
+ const owned=contact.rows[0];
+ const test=await client.query<{id:number}>(
+  "SELECT id FROM public.askanus_cases WHERE id=$1 AND user_id=$2 AND status!='closed' FOR UPDATE",
+  [p.caseId,p.userId]);
+ if(!owned||!test.rows[0]||owned.do_not_call)return "Contact is unavailable or marked Do Not Call. Nothing was saved.";
+ const outcome=p.outcome||"other";
+ const ins=await client.query<{id:number}>(
+  "INSERT INTO public.fundraising_call_reports "+
+  "(user_id,case_id,contact_id,contact_name,outcome,money_kind,amount,note,request_id,observed_mood) "+
+  "VALUES ($1,$2,$3,$4,$5,'none',0,$6,$7,'neutral') "+
+  "ON CONFLICT(user_id,request_id) DO NOTHING RETURNING id",
+  [p.userId,p.caseId,p.contactId,owned.name,outcome,"Manual call outcome saved from verified Yemot IVR",p.requestId]);
+ if(!ins.rows[0])return "This result was already saved. No duplicate was created.";
+ await client.query(
+  "INSERT INTO public.case_activity_log(case_id,date,type,note) VALUES($1,$2,'contact',$3)",
+  [p.caseId,new Date().toISOString().slice(0,10),
+   ("Telephone IVR manual call report: "+owned.name+" - "+outcome).slice(0,1400)]);
+ if(outcome==="do_not_call"){
+  await client.query("UPDATE public.communication_contacts "+
+   "SET do_not_call=true,opt_out_reason='Do Not Call explicitly confirmed through verified Yemot hotline',updated_at=now() "+
+   "WHERE id=$1 AND user_id=$2",[p.contactId,p.userId]);
+ }
+ return "Saved to your MAX website call history. "+
+  (outcome==="do_not_call"?"Do Not Call protection is now enabled. ":"")+
+  "No actual call was placed and no payment was collected.";
+}
+
 export async function handleYemotApp(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<void>{
  const from4444=req.path.endsWith("/4444");
  const fromShared=req.path.endsWith("/shared-ivr");
@@ -280,12 +340,13 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
  try{
   await client.query("BEGIN");
   await client.query("INSERT INTO public.gavhah_yemot_call_states(call_hash) VALUES($1) ON CONFLICT(call_hash) DO NOTHING",[callHash]);
-  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
+  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,news_actions_open,news_reply_mode,news_reply_target,news_report_mode,action_flash FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
   if(from4444 && step===0 && !path)path="2";
   let userId=s.member_id;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
-  if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
+  let manualFlash=s.action_flash||"";
+  if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";}
   const inputName=(replyMode?"rr":path==="125"?"ln":path==="185"?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
@@ -418,6 +479,47 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      const now=await newsPrompt(path,position,chunk);
      if(now.hasMore)chunk++;else{position++;chunk=0;}
     }
+   }else if(path==="141" && (digit==="9"||readManualResultPending(manualFlash))){
+    if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+      manualFlash="";
+      feedback="Please link your own Gavhah website account with the eight digit code first. ";
+    }else{
+      const existing=readManualResultPending(manualFlash);
+      if(digit==="0"){manualFlash="";path="";page=0;feedback="Cancelled. No call result was recorded. ";}
+      else if(existing && existing.userId===userId){
+        if(existing.stage==="choose"){
+          const outcome=manualOutcomes[digit];
+          if(!outcome)feedback=choosePrompt+" ";
+          else{
+            existing.outcome=outcome;existing.stage="confirm";
+            manualFlash=JSON.stringify(existing);
+            feedback=confirmationPrompt(existing)+" ";
+          }
+        }else if(digit==="5"){
+          feedback=(await recordConfirmedManualResult(client,existing))+" ";
+          manualFlash="";
+        }else feedback=confirmationPrompt(existing)+" ";
+      }else if(digit==="9"){
+        const picked=await client.query<{id:number;name:string}>(
+          "SELECT id,name FROM public.communication_contacts "+
+          "WHERE user_id=$1 AND do_not_call=false ORDER BY updated_at DESC,id DESC LIMIT 1 OFFSET $2",
+          [userId,Math.max(0,Math.min(40,page))]);
+        const matchingCase=await client.query<{id:number}>(
+          "SELECT id FROM public.askanus_cases WHERE user_id=$1 AND status!='closed' "+
+          "ORDER BY last_updated DESC,id DESC LIMIT 1",[userId]);
+        if(!picked.rows[0])feedback="This calling-list contact is unavailable. Nothing was recorded. ";
+        else if(!matchingCase.rows[0])feedback="Please create an open MAX case on your website before recording a call result. ";
+        else{
+          const contact=picked.rows[0];
+          manualFlash=JSON.stringify({
+            stage:"choose",userId,contactId:contact.id,caseId:matchingCase.rows[0].id,
+            contactName:contact.name.slice(0,240),expiresAt:Date.now()+5*60*1000,
+            requestId:createHash("sha256").update(callHash+":"+step+":"+contact.id).digest("hex")
+          } satisfies ManualResultPending);
+          feedback=choosePrompt+" ";
+        }
+      }else{manualFlash="";feedback="The previous result session has expired. Press nine to start again. ";}
+    }
    }else if(sectionPaths.has(path)){
     // For protected actions require a recently paired website identity.
     // Every row is further scoped to that member ID in the SQL.
@@ -517,13 +619,14 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    if(!path && directGavhah && !from4444)mode="root";
    spoken+=menuPrompt(path,tree,ready4444,fromNext,fromShared);
   }
+  if(path!=="141")manualFlash="";
   await client.query("UPDATE public.gavhah_yemot_call_states "+
-   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,updated_at=now() "+
-   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode]);
+   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,action_flash=$15,updated_at=now() "+
+   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,manualFlash]);
   let publishedAudio:string|null=null;
   // Menu-only overrides: never replace personal records, credentials, PIN,
   // monetary confirmations, news content, or other dynamic disclosures.
-  if((mode==="menu"||mode==="root")&&!goToProviderManagement&&!goToCampaignExtension&&
+  if((mode==="menu"||mode==="root")&&!manualFlash&&!goToProviderManagement&&!goToCampaignExtension&&
      !feedback&&path!=="125"&&path!=="185"){
     const custom=await phonePromptOverride(path);
     if(custom.ttsText)spoken=custom.ttsText;
