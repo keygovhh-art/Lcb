@@ -26,9 +26,15 @@ function nativeReadiness(env:Record<string,unknown>){
  const providerCryptographyConfigured=encryptedProviderKey.length>=40&&
   encryptedProviderKey!=="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
  const webhookSigningConfigured=String(env.SIGNALWIRE_SIGNING_KEY||"").length>=24;
- const phoneCallbacksEnabled=databaseCredentialPresent&&providerCryptographyConfigured&&
-  webhookSigningConfigured&&String(env.CF_PHONE_WEBHOOKS_ENABLED||"")==="true";
- return {databaseCredentialPresent,sessionsConfigured,phoneCallbacksEnabled};
+ // Yemot must never depend on SignalWire credentials or routes.
+ const operatorEnabled=String(env.CF_PHONE_WEBHOOKS_ENABLED||"")==="true";
+ const yemotPhoneCallbacksEnabled=databaseCredentialPresent&&sessionsConfigured&&
+  providerCryptographyConfigured&&operatorEnabled;
+ const signalwirePhoneCallbacksEnabled=databaseCredentialPresent&&sessionsConfigured&&
+  webhookSigningConfigured&&operatorEnabled;
+ const phoneCallbacksEnabled=yemotPhoneCallbacksEnabled&&signalwirePhoneCallbacksEnabled;
+ return {databaseCredentialPresent,sessionsConfigured,phoneCallbacksEnabled,
+  yemotPhoneCallbacksEnabled,signalwirePhoneCallbacksEnabled};
 }
 function paused(message:string,status=503){
  return Response.json({status:"staging",message},{status,headers:{"Cache-Control":"no-store"}});
@@ -45,6 +51,8 @@ export default {
     databaseCredentialsConfigured:readiness.databaseCredentialPresent,
     sessionsConfigured:readiness.sessionsConfigured,
     phoneCallbacksEnabled:readiness.phoneCallbacksEnabled,
+    yemotPhoneCallbacksEnabled:readiness.yemotPhoneCallbacksEnabled,
+    signalwirePhoneCallbacksEnabled:readiness.signalwirePhoneCallbacksEnabled,
     databaseReachabilityVerified:false,
     livePhoneNumberTransferred:false
    },{headers:{"Cache-Control":"no-store"}});
@@ -53,10 +61,10 @@ export default {
    if(!readiness.databaseCredentialPresent||!readiness.sessionsConfigured)
     return paused("Independent Cloudflare backend is awaiting its Neon and session configuration.");
    const path=url.pathname;
-   const isPhoneWebhook=path.startsWith("/api/signalwire/")||
-    path.startsWith("/api/yemot/");
-   if(isPhoneWebhook&&!readiness.phoneCallbacksEnabled)
-    return paused("Independent hotline webhooks are not activated. Existing phone calls remain on Render.");
+   if(path.startsWith("/api/yemot/")&&!readiness.yemotPhoneCallbacksEnabled)
+    return paused("Yemot callback is not yet activated on Cloudflare; existing provider routing remains unchanged.");
+   if(path.startsWith("/api/signalwire/")&&!readiness.signalwirePhoneCallbacksEnabled)
+    return paused("Legacy SignalWire callback is locked; this has no effect on Yemot.");
    if(path.startsWith("/api/admin/hotline-migration")&&
     !["GET","HEAD","OPTIONS"].includes(request.method))
     return paused("Shared live phone-provider administration is locked on the independent Cloudflare copy.",403);
