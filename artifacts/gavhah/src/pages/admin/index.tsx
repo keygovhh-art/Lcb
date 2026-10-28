@@ -344,6 +344,7 @@ export default function FounderDashboard() {
       <div className="container mx-auto px-4 py-10">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="bg-muted/50 flex flex-wrap h-auto gap-1 p-1">
+            {user?.role === "super_admin" && <TabsTrigger value="security" className="gap-2"><Lock className="h-4 w-4" /> אדמין־זיכערהייט</TabsTrigger>}
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" /> Overview
             </TabsTrigger>
@@ -448,7 +449,8 @@ export default function FounderDashboard() {
             </div>
           </details>
 
-          {/* ─── Operations Inbox ─── */}
+          {user?.role === "super_admin" && <TabsContent value="security" className="space-y-4"><div className="rounded-xl border p-5 space-y-3 max-w-xl" dir="rtl"><h2 className="text-xl font-bold">סופער־עדמין — אקאונט־איינשטעלונגען</h2><p>פארבינד אן אימעיל צום עקזיסטירנדן אקאונט מיט דיין פעסווארד. קיין נייע אקאונט אדער פעסווארד; איינמאל גילטיג 10 מינוט.</p><Link href="/founder/connect-email" className="underline font-semibold">צולייגן אדער טוישן אדמין־אימעיל</Link></div></TabsContent>}
+          {/* ─── Operations Inbox ─── */
           <TabsContent value="operations" className="space-y-6">
             <OperationsInbox onOpenPrivateAssistance={() => {setActiveTab("private-assistance"); window.scrollTo({top:0,behavior:"smooth"});}} />
           </TabsContent>
