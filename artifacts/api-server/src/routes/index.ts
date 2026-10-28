@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import authRouter from "./auth";
+import adminOneTimePasswordReset from "./admin-one-time-password-reset";
 import usersRouter from "./users";
 import meCreatedContentRouter from "./me-created-content";
 import discussionsRouter from "./discussions";
@@ -53,6 +54,7 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(adminOneTimePasswordReset);
 router.use(usersRouter);
 router.use(meCreatedContentRouter);
 router.use(discussionsRouter);
