@@ -3,7 +3,7 @@ import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Textarea} from "@/components/ui/textarea";
 
-type Menu={path:string;label:string;kind:string;parent:string;depth:number};
+type Menu={path:string;label:string;kind:string;parent:string;depth:number;capability:"navigation"|"api_implemented_not_phone_verified"|"roadmap_only"};
 type Saved={path:string;tts_text:string;audio_size:number|null;published_path:string|null;published_at:string|null;updated_at:string};
 type StudioResponse={catalogue:Menu[];prompts:Saved[];provider:{state:string;approvedFolder:string|null};note:string};
 type Effects={pitch:number;speed:number;warmth:number;clarity:number;echo:number;robot:boolean};
@@ -214,6 +214,8 @@ export function YemotVoiceStudio(){
     {!options.some(x=>x.path===selected)&&current&&<option value={selected}>{current.label}</option>}
    </select>
    <p className="text-sm">אויסגעקליבן: <strong>{current?.label||"Main menu"}</strong> · <code dir="ltr">{selected==="root"?"/":"/"+selected}</code></p>
+   <p className="text-xs">{current?.capability==="api_implemented_not_phone_verified"?"די API־פונקציע איז פארהאן אינעם קאוד; אן אמתער רוף־טעסט פעלט.":current?.capability==="roadmap_only"?"די פונקציע איז נאכנישט טעלעפאניש איינגעבויט — דערווייל בלויז אין מעניו־פלאן.":"דאס איז א מעניו־נאוויגאציע־שטאפל."}</p>
+   <p className="text-xs text-muted-foreground">פון אלע טעלעפאן־קנעפלעך: {(data?.catalogue||[]).filter(x=>x.capability==="api_implemented_not_phone_verified").length} האבן שוין API־לאגיק; {(data?.catalogue||[]).filter(x=>x.capability==="roadmap_only").length} זענען נאך בלויז געפלאנט. דאס איז נישט קיין באשטעטיגונג פון עכטע טעלעפאן־טעסטס.</p>
    {family.length>0&&<div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
     {family.map(x=><Button key={x.path} size="sm" variant="outline" onClick={()=>setSelected(x.path)}>
      {x.path.slice(-1)} — {x.label.slice(0,24)}
