@@ -197,6 +197,14 @@ export function YemotVoiceStudio(){
     קיין ElevenLabs, Fish אדער SignalWire ווערט נישט גענוצט.
    </p>
    <p className="text-xs">ימות־מצב: <strong>{data?.provider.state||"ליידט"}</strong> · באשטעטיגטער אודיא־פאלדער: <span dir="ltr">{data?.provider.approvedFolder&&/^\/[0-9]{1,3}$/.test(data.provider.approvedFolder)?data.provider.approvedFolder:"נאכנישט צוגעגרייט"}</span></p>
+   {data?.provider.state==="live"&&!data.provider.approvedFolder&&<div className="rounded-lg border p-3 space-y-2">
+    <p className="text-sm">כדי רעקארדירונגען זאלן שפילן אויף ימות דארף מען איין מאל צוגרייטן א באזונדערן ליידיגן אודיא־פאלדער. דער עקזיסטירנדער הויפט־מעניו ווערט נישט געטוישט.</p>
+    <Button disabled={busy} variant="outline" onClick={()=>void work(async()=>{
+     if(!window.confirm("שאפן איין נייער ליידיגער אודיא־פאלדער ביי ימות? די עקזיסטירנדע שלוחות און רעקארדירונגען בלייבן אומגערירט."))return;
+     const r=await req("/prepare-folder",{method:"POST",body:JSON.stringify({confirm:"CREATE_EMPTY_AUDIO_FOLDER_ONLY"})});
+     setMessage("דער באזונדערער ימות־פאלדער "+r.mediaFolder+" איז צוגעגרייט, אן טוישן דעם הויפט־מעניו.");
+    })}>צוגרייטן א זיכערער ימות־אודיא־פאלדער</Button>
+   </div>}
   </div>
   <div className="rounded-xl border p-4 space-y-3 bg-card">
    <label className="font-semibold block">טרעף אן אפטיילונג, מעניו אדער קנעפל</label>
