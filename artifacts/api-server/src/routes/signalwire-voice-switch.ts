@@ -115,12 +115,15 @@ router.post("/voice-switch/apply",async(req,res,next)=>{
   if(result.id!==x.calling.id||result.handler_type!=="calling"||
     result.phone_number!==E164||result.resource_id!==x.targetId)
    throw error(502,"Provider response did not prove correct Calling-only switch; check console before more actions");
+  // The provider has already acknowledged the changed calling resource.
+  // Mark the cutover BEFORE the secondary read-back so a temporary provider
+  // GET failure never hides the safe rollback control in the admin dashboard.
+  await pool.query(
+   "UPDATE public.gavhah_signalwire_shared_route SET cutover_enabled=true,updated_at=now() WHERE id=1");
   const confirmation=await inventory(x.auth);
   if(confirmation.calling.resource_id!==x.targetId||
     confirmation.messaging.resource_id!==x.messaging.resource_id)
-   throw error(502,"Post-switch verification mismatch; check routing immediately");
-  await pool.query(
-   "UPDATE public.gavhah_signalwire_shared_route SET cutover_enabled=true,updated_at=now() WHERE id=1");
+   throw error(502,"Post-switch verification mismatch; use saved rollback control or inspect SignalWire");
   res.set("Cache-Control","private,no-store").json({
    switched:true,number:E164,callingResourceChanged:true,messagingUnchanged:true,
    previousCallingResourceId:x.calling.resource_id,newCallingResourceId:x.targetId,
