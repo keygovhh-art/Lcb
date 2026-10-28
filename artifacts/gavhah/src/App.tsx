@@ -31,6 +31,8 @@ import Reservations from "@/pages/reservations/index";
 import SystemCenter from "@/pages/system/index";
 import Dashboard from "@/pages/dashboard/index";
 import Login from "@/pages/auth/login";
+import AdminEmailSetup from "@/pages/auth/admin-email-setup";
+import AdminResetPage from "@/pages/auth/admin-reset";
 import Register from "@/pages/auth/register";
 import FounderDashboard from "@/pages/admin/index";
 import SignalWireCredentialsPage from "@/pages/admin/signalwire";
@@ -183,6 +185,7 @@ function Router() {
       <Route path="/my" component={MyAskanus} />
       <Route path="/reservations" component={Reservations} />
       <Route path="/system" component={SystemCenter} />
+      <Route path="/founder/connect-email" component={AdminEmailSetup} />
       <Route path="/founder/signalwire" component={SignalWireCredentialsPage} />
       <Route path="/founder" component={FounderDashboard} />
       <Route path="/group-team" component={GroupTeamWorkspace} />
@@ -194,6 +197,7 @@ function Router() {
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/terms" component={TermsPage} />
       <Route path="/login" component={Login} />
+      <Route path="/admin-reset" component={AdminResetPage} />
       <Route path="/register" component={Register} />
       <Route component={NotFound} />
       </Switch>

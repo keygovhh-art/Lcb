@@ -22,17 +22,22 @@ export const phoneTree: Record<string,Item> = {
       "4":leaf("Featured updates","/news"),
       "5":leaf("Read an update by its article number","/news/:id")
     }),
-    "2":group("My Askanus and MAX",{
-      "1":leaf("My tasks, including marking complete","/my"),
-      "2":leaf("My personal cases and goals","/my"),
+    "2":group("Olam Hachesed cases, tasks and MAX",{
+      "1":{label:"My tasks, including marking complete",web:"/my",phone:"menu"},
+      "2":{label:"My personal cases, status changes and follow ups",web:"/my",phone:"menu"},
       "3":leaf("My private notes","/my"),
-      "4":leaf("My personal dashboard","/my"),
-      "5":leaf("Securely link my website account by eight-digit code","/my"),
-      "6":leaf("Log out of this phone session","/my")
+      "4":{label:"My personal dashboard",web:"/my",phone:"menu"},
+      "5":{label:"Securely link my website account with an eight-digit code",web:"/my",phone:"menu"},
+      "6":{label:"Log out of this phone session",web:"/my",phone:"menu"},
+      "7":{label:"Create a private new telephone case draft",web:"/my",phone:"menu"},
+      "8":{label:"My case follow up reminders",web:"/my",phone:"menu"},
+      "9":{label:"My case status summary",web:"/my",phone:"menu"}
     }),
     "3":group("People and contacts",{
       "1":leaf("Donor 360","/communications"),"2":leaf("Contacts","/communications"),
-      "3":leaf("Pledges and receipts","/communications"),"4":leaf("Follow ups","/communications")
+      "3":leaf("Pledges and receipts","/communications"),"4":leaf("Follow ups","/communications"),
+      "7":{label:"MAX donor 360 and manual call results",web:"/communications",phone:"menu"},
+      "9":{label:"MAX pledge and verified receipt totals",web:"/communications",phone:"menu"}
     }),
     "4":group("Calling center",{
       "1":leaf("My call queue","/communications"),"2":leaf("Call history","/communications"),
@@ -40,8 +45,7 @@ export const phoneTree: Record<string,Item> = {
     }),
     "5":group("Kindness and help",{
       "1":leaf("Charity and campaigns","/charity"),"2":leaf("Ask for assistance","/united"),
-      "3":leaf("Volunteer to help","/united"),"4":leaf("Community projects","/community-projects"),
-      "5":leaf("Read a public charity campaign by its website number","/charity/:id")
+      "3":leaf("Volunteer to help","/united"),"4":leaf("Community projects","/community-projects")
     }),
     "6":group("Community",{
       "1":leaf("Groups","/groups"),"2":leaf("Discussion forum","/forum"),
@@ -50,18 +54,11 @@ export const phoneTree: Record<string,Item> = {
       "7":leaf("Open a selected group","/groups/:id")
     }),
     "7":group("Minyans and appointments",{
-      "1":leaf("Minyan directory","/minyans"),"2":leaf("Reservations","/reservations"),
-      "3":leaf("Read an approved minyan by its website number","/minyans/:id")
+      "1":leaf("Minyan directory","/minyans"),"2":leaf("Reservations","/reservations")
     }),
     "8":group("Messages and account",{
       "1":leaf("Notifications","/notifications"),"2":leaf("My profile","/profile"),
-      "3":group("Search public records by website number",{
-      "1":leaf("Find a published charity campaign by number","/charity/:id"),
-      "2":leaf("Find a public forum topic by number","/forum/:id"),
-      "3":leaf("Find a public group by number","/groups/:id"),
-      "4":leaf("Find an approved minyan by number","/minyans/:id"),
-      "5":leaf("Website search for more topics and names","/search","For text searches and other topics, use the website search page. Press zero to return to the main menu.")
-    }),"4":leaf("Sign in or link my account","/login","For an existing Gavhah website account choose My Askanus, then press 5 and enter your one-time website pairing code. To create a new member entirely on the phone press 5 in this account menu."),
+      "3":leaf("Search","/search"),"4":leaf("Sign in or link my account","/login","For an existing Gavhah website account choose My Askanus, then press 5 and enter your one-time website pairing code. To create a new member entirely on the phone press 5 in this account menu."),
       "5":leaf("Create a Gavhah website member by phone","/register","Real keypad signup: choose and confirm your twelve to sixteen digit secret code to receive a member ID beginning with M. Website login accepts this member ID and your chosen code. Not a Campaign Center account."),"6":leaf("Privacy information","/privacy"),
       "7":leaf("Terms and conditions","/terms"),"8":leaf("Gavhah welcome homepage","/")
     }),

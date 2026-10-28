@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import authRouter from "./auth";
+import adminOneTimePasswordReset from "./admin-one-time-password-reset";
 import usersRouter from "./users";
 import meCreatedContentRouter from "./me-created-content";
 import discussionsRouter from "./discussions";
@@ -30,7 +31,6 @@ import communicationsConnectRouter from "./communications-connect";
 import socialRouter from "./social";
 import adminRouter from "./admin";
 import yemotCentralRouter from "./yemot-central";
-import yemotVoiceStudioRouter from "./yemot-voice-studio";
 import yemotWholePlatformIvr from "./yemot-whole-platform-ivr";
 import hotlineMigrationRouter from "./hotline-migration";
 import {signalWireNextHotline} from "../lib/signalwire-next-hotline";
@@ -54,6 +54,7 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(adminOneTimePasswordReset);
 router.use(usersRouter);
 router.use(meCreatedContentRouter);
 router.use(discussionsRouter);
@@ -103,7 +104,6 @@ router.use(communicationsConnectRouter);
 router.use(socialRouter);
 router.use(adminRouter);
 router.use(yemotCentralRouter);
-router.use(yemotVoiceStudioRouter);
 router.use(yemotWholePlatformIvr);
 router.use("/admin/hotline-migration",hotlineMigrationRouter);
 // Future SignalWire number: TEST ONLY, signed Compatibility cXML POST.
