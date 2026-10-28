@@ -28,7 +28,7 @@ const personalPaths=new Set(["121","122","123","124"]);
 const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
 const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
-const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
+const sharedSignalwireRoot="Welcome to Olam Hachesed Communications, MAX. Press 1 for My Askanus and MAX, 2 for Contacts, 3 for Calling Center, 4 for Kindness and Help, 5 for Community, 6 for Minyans and Appointments, 7 for News, 8 for Messages and Account, or 9 for Management. For the previously connected Emes Newsroom system press five five five five five. Press pound after a single-digit selection.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -229,7 +229,7 @@ async function exactSecret(req:Request){
   const key=String(process.env.SIGNALWIRE_SIGNING_KEY||"");
   if(key.length<24)return null;
   const row=(await pool.query("SELECT route_fingerprint,audit_state FROM public.gavhah_signalwire_shared_route "+
-   "WHERE id=1 AND requested_number='6056558080' AND old_extension='55555' AND cutover_enabled=false")).rows[0];
+   "WHERE id=1 AND requested_number='6056558080' AND old_extension='55555'")).rows[0];
   if(row?.audit_state!=="verified_compatibility_voice_url"||
      !/^[a-f0-9]{64}$/.test(String(row?.route_fingerprint||"")))return null;
   const expected=createHmac("sha256",key).update("gavhah-shared-55555-v1:"+row.route_fingerprint).digest("hex");
@@ -376,6 +376,9 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
    }else if(!from4444 && !fromNext && ready4444 && path==="" && digit==="4444"){
     goToCampaignExtension=true;
+    }else if(fromShared && path==="" && /^[1-9]$/.test(digit)){
+     const menuMap:Record<string,string>={"1":"12","2":"13","3":"14","4":"15","5":"16","6":"17","7":"11","8":"18","9":"19"};
+     path=menuMap[digit]||"";
    }else if(!from4444 && directGavhah && path==="" && /^[1-9]$/.test(digit) && tree["1"]?.children?.[digit]){
     path="1"+digit;
    }else if(path==="" && digit==="8" && !ready4444){
