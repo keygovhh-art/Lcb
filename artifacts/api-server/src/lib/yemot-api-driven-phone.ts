@@ -5,7 +5,7 @@ import { logger } from "./logger";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
-import {sectionPaths,sectionRequiresLogin,pagedSections,readPhoneSection,currentPhoneActionId,confirmPhoneAction} from "./yemot-section-batch1";
+import {sectionPaths,sectionRequiresLogin,pagedSections,readPhoneSection,currentPhoneActionId,confirmPhoneAction,publicIdSections,readPhonePublicById} from "./yemot-section-batch1";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -73,6 +73,19 @@ function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fro
  return current.label+". "+Object.entries(nodes)
   .map(([n,item])=>"Press "+n+" for "+item.label+".").join(" ")+
   " Press zero to return to the main menu.";
+}
+// Only parent-navigation menus can be replaced with a recorded custom
+// greeting. Dynamic public and private content must NEVER be shadowed.
+function isNavigationalMenu(path:string,tree:Record<string,TreeNode>){
+ if(!path)return true;
+ let nodes=tree;
+ let current:TreeNode|undefined;
+ for(const digit of path){
+  current=nodes[digit];
+  if(!current)return false;
+  nodes=current.children||{};
+ }
+ return !!current?.children;
 }
 function treeSelect(path:string,digit:string,tree:Record<string,TreeNode>){
  if(digit==="0")return "";
@@ -347,7 +360,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   let manualFlash=s.action_flash||"";
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";}
-  const inputName=(replyMode?"rr":path==="125"?"ln":path==="185"?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(replyMode?"rr":path==="125"?"ln":path==="185"?"rg":(path==="115"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
   let goToProviderManagement=false;
@@ -469,6 +482,19 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      if(current.hasMore)chunk++;
      else{confirmId=null;chunk=0;feedback="End of article. Enter another article number. ";}
     }
+   }else if(publicIdSections.has(path)){
+    // Type a website ID using up to eight digits. Once a public record is
+    // selected, one, eight and two navigate paragraphs; nine picks another.
+    if(digit==="0"){path="";confirmId=null;page=0;}
+    else if(confirmId===null){
+     if(/^\d{1,8}$/.test(digit)&&Number(digit)>0){
+      confirmId=Number(digit);page=0;
+     }else feedback="Enter the website item number, one to eight digits, then press pound. ";
+    }else if(digit==="9"){confirmId=null;page=0;}
+    else if(digit==="1")page=Math.min(34,page+1);
+    else if(digit==="8")page=Math.max(0,page-1);
+    else if(digit==="2")page=0;
+    else feedback="Press one for next, eight for previous, two to restart, nine for another item, or zero for the main menu. ";
    }else if(newsPath(path)){
     if(digit==="0"){path="";position=0;chunk=0;actionsOpen=false;}
     else if(digit==="1"){actionsOpen=true;}
@@ -606,6 +632,13 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }else{
     spoken+=(await articlePrompt(client,confirmId,chunk)).text;
    }
+  }else if(publicIdSections.has(path)){
+   if(confirmId===null){
+    mode="article";
+    spoken+="Enter the public website item number, one to eight digits, then press pound. Press zero to return.";
+   }else{
+    spoken+=(await readPhonePublicById(client,path,confirmId,page)).text;
+   }
   }else if(newsPath(path)){
    mode="news";spoken+=(await newsPrompt(path,position,chunk)).text;
   }else if(path==="141"&&readManualResultPending(manualFlash)){
@@ -635,7 +668,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   // Menu-only overrides: never replace personal records, credentials, PIN,
   // monetary confirmations, news content, or other dynamic disclosures.
   if((mode==="menu"||mode==="root")&&!manualFlash&&!goToProviderManagement&&!goToCampaignExtension&&
-     !feedback&&path!=="125"&&path!=="185"){
+     !feedback&&path!=="125"&&path!=="185"&&isNavigationalMenu(path,tree)){
     const custom=await phonePromptOverride(path);
     if(custom.ttsText)spoken=custom.ttsText;
     publishedAudio=custom.audioPath;
