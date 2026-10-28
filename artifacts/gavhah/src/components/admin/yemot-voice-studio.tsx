@@ -196,7 +196,7 @@ export function YemotVoiceStudio(){
     רעקארדירן אויפן פלאץ, ארויפלאדן א פייל, און רעדאגירן דעם קול לאקאל אינעם בראוזער.
     קיין ElevenLabs, Fish אדער SignalWire ווערט נישט גענוצט.
    </p>
-   <p className="text-xs">ימות־מצב: <strong>{data?.provider.state||"ליידט"}</strong> · באשטעטיגטער פאלדער: <span dir="ltr">{data?.provider.approvedFolder||"נאכנישט"}</span></p>
+   <p className="text-xs">ימות־מצב: <strong>{data?.provider.state||"ליידט"}</strong> · באשטעטיגטער אודיא־פאלדער: <span dir="ltr">{data?.provider.approvedFolder&&/^\/[0-9]{1,3}$/.test(data.provider.approvedFolder)?data.provider.approvedFolder:"נאכנישט צוגעגרייט"}</span></p>
   </div>
   <div className="rounded-xl border p-4 space-y-3 bg-card">
    <label className="font-semibold block">טרעף אן אפטיילונג, מעניו אדער קנעפל</label>
@@ -265,7 +265,7 @@ export function YemotVoiceStudio(){
      finally{setBusy(false);}
     })()}>▶️ טוישן קול און איבערהערן</Button>
     <Button disabled={busy||!recording} onClick={uploadAudio}>היטן אודיא־טיוטע</Button>
-    <Button disabled={busy||!saved?.audio_size||data?.provider.state!=="live"} variant="outline" onClick={publish}>פובליצירן צום ימות־האטליין</Button>
+    <Button disabled={busy||!saved?.audio_size||(data?.provider.state!=="live"||!/^\/[0-9]{1,3}$/.test(data.provider.approvedFolder||""))} variant="outline" onClick={publish}>פובליצירן צום ימות־האטליין</Button>
    </div>
    <p className="text-sm">פריוואטע אודיא־טיוטע: {saved?.audio_size?"יא, "+Math.round(saved.audio_size/1024)+" KB":"ניין"} · אויפן ימות־פאלדער: {saved?.published_path?"באשטעטיגט":"נאך נישט"}</p>
    <p className="text-xs text-muted-foreground">דער קנעפל „פובליצירן“ טוישט נאר דעם אודיא פאר דער אויסגעקליבענער מעניו־אפטיילונג. אן אן עקזיסטירנדן באשטעטיגטן ימות־פאלדער ווערט גארנישט געענדערט.</p>
