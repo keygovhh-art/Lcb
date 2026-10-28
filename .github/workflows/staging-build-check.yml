@@ -57,6 +57,8 @@ jobs:
         run: node --test tests/signalwire-old-route-admin.test.mjs
       - name: Verify shared SignalWire 8080 root and reversible 55555 staging safely
         run: node --test tests/signalwire-shared-55555-staging.test.mjs
+      - name: Verify superadmin-only Yemot callback cutover and rollback safety
+        run: node --test tests/yemot-cloudflare-provider-cutover.test.mjs
       - name: Verify real public by-ID phone reading and privacy filters
         run: node --experimental-strip-types --test tests/yemot-public-community-reading.test.mjs
       - name: Verify actual private and public IVR features with authorization and controlled writes
