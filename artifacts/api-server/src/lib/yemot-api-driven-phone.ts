@@ -27,7 +27,7 @@ const personalPaths=new Set(["121","122","123","124"]);
 const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
 const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
-const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
+const sharedSignalwireRoot="Welcome to Olam Hachesed Communications. Press 1 for my tasks, 2 for cases and MAX, 3 for donors and contacts, 4 for calling center, 5 for pledges and receipts, 6 for case follow ups, 7 for case summary, 8 to securely link your website account, or 9 to open a new private case draft. Enter four four four four for Campaign Center. Enter five five five five five for the previously connected system. Press pound after your selection.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -248,8 +248,6 @@ async function exactSecret(req:Request){
 export async function handleYemotApp(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<void>{
  const from4444=req.path.endsWith("/4444");
  const fromShared=req.path.endsWith("/shared-ivr");
- // Only the signed 4444 server-side bridge may designate its case-specific entry.
- const fromOlam4444=fromShared&&req.body?.phoneBranch==="olam4444";
  const fromNext=req.path.endsWith("/next-ivr")||fromShared;
  const secret=await exactSecret(req);
  if(!secret){res.status(403).type("text/plain").send("Access denied");return;}
@@ -284,7 +282,6 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
   if(from4444 && step===0 && !path)path="2";
-  if(fromOlam4444 && step===0 && !path)path="12";
   let userId=s.member_id;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
@@ -304,6 +301,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
    }else if(!from4444 && !fromNext && ready4444 && path==="" && digit==="4444"){
     goToCampaignExtension=true;
+   }else if(fromShared && path==="" && digit==="4444"){
+    feedback="Campaign Center is reserved on extension 4444. Its secure provider bridge must be connected and tested separately. ";
+   }else if(fromShared && path==="" && /^[1-9]$/.test(digit)){
+    const links:Record<string,string>={"1":"121","2":"12","3":"13","4":"14","5":"133","6":"128","7":"129","8":"125","9":"127"};
+    path=links[digit]||"";
    }else if(!from4444 && directGavhah && path==="" && /^[1-9]$/.test(digit) && tree["1"]?.children?.[digit]){
     path="1"+digit;
    }else if(path==="" && digit==="8" && !ready4444){
@@ -505,8 +507,6 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
    step++;
   }
-  // Extension-only Olam Hachesed: zero returns to its own menu, never the number root.
-  if(fromOlam4444 && path===""){path="12";page=0;confirmId=null;}
   let mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",spoken=feedback;
   if(reportMode){
    spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
