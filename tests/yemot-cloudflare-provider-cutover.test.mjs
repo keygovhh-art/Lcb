@@ -1,3 +1,14 @@
+test("Unauthenticated visitors reach existing same-origin sign-in without bypassing owner gate",()=>{
+ const redirect=src.indexOf('router.get(cloudflareSwitchPath,async(req,res,next)=>');
+ const protectedPage=src.indexOf('router.get(cloudflareSwitchPath,requireAuth,admin');
+ assert.ok(redirect>0&&protectedPage>redirect);
+ assert.match(src,/res.redirect\(303,"\/login\?return=%2Fapi%2Fadmin%2Fyemot%2Fcloudflare-switch"\)/);
+ assert.match(src,/const user=await getCurrentSessionUser\(req\)/);
+ assert.match(src,/if\(!user\)/);
+ assert.match(src,/router\.get\(cloudflareSwitchPath\+"\/verify",requireAuth,admin/);
+ assert.match(src,/router\.post\(cloudflareSwitchPath,requireAuth,admin/);
+});
+
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
