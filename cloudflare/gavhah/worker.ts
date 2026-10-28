@@ -27,11 +27,12 @@ function nativeReadiness(env:Record<string,unknown>){
   encryptedProviderKey!=="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
  const webhookSigningConfigured=String(env.SIGNALWIRE_SIGNING_KEY||"").length>=24;
  // Yemot must never depend on SignalWire credentials or routes.
- const operatorEnabled=String(env.CF_PHONE_WEBHOOKS_ENABLED||"")==="true";
+ const yemotOperatorEnabled=String(env.CF_YEMOT_WEBHOOKS_ENABLED||"")==="true";
+ const signalwireOperatorEnabled=String(env.CF_PHONE_WEBHOOKS_ENABLED||"")==="true";
  const yemotPhoneCallbacksEnabled=databaseCredentialPresent&&sessionsConfigured&&
-  providerCryptographyConfigured&&operatorEnabled;
+  providerCryptographyConfigured&&yemotOperatorEnabled;
  const signalwirePhoneCallbacksEnabled=databaseCredentialPresent&&sessionsConfigured&&
-  webhookSigningConfigured&&operatorEnabled;
+  webhookSigningConfigured&&signalwireOperatorEnabled;
  const phoneCallbacksEnabled=yemotPhoneCallbacksEnabled&&signalwirePhoneCallbacksEnabled;
  return {databaseCredentialPresent,sessionsConfigured,phoneCallbacksEnabled,
   yemotPhoneCallbacksEnabled,signalwirePhoneCallbacksEnabled};
