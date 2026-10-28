@@ -21,16 +21,15 @@ test('New staged shared handler never modifies SignalWire number or the existing
  assert.match(routes,/router.post\("\/signalwire\/shared-ivr"/);
 });
 
-test('55555 redirects only from root to archived old provider URL with original GET or POST',()=>{
- assert.match(shared,/digits===LEGACY_EXTENSION/);
- assert.match(shared,/if\(!state\|\|!state\.path\)/);
- assert.match(shared,/route\.original_voice_method==="GET"\?"GET":"POST"/);
- assert.match(shared,/originalSystemRedirectXml\(route\.original_voice_url!,method\)/);
- assert.match(shared,/<Redirect method=/);
- assert.match(shared,/xmlEscape\(url\)/);
- assert.match(shared,/u.protocol!=="https:"/);
- assert.match(shared,/u.hostname==="gavhah.onrender.com"/);
+test('SignalWire is now Olam Hachesed ONLY; original phone number route remains unchanged',()=>{
+ assert.match(engine,/Welcome to Olam Hachesed Communications and MAX/);
+ assert.doesNotMatch(engine,/const sharedSignalwireRoot="[^"]*Press 4444/);
+ assert.doesNotMatch(engine,/const sharedSignalwireRoot="[^"]*55555/);
+ assert.doesNotMatch(shared,/digits===LEGACY_EXTENSION/);
+ assert.match(shared,/convertGavhahReplyToCxml\(reply,SHARED_SIGNALWIRE_URL,false\)/);
  assert.doesNotMatch(shared,/fetch\(route\.original_voice_url/);
+ assert.match(shared,/u.protocol!=="https:"/);
+ assert.match(shared,/originalSystemRedirectXml/); // Archived utility is retained for rollback only.
 });
 
 test('Shared webhook checks provider HMAC, telephone number and existing verified snapshot',()=>{
@@ -63,4 +62,16 @@ test('Admin only describes staged route and warns real calls and signing key unv
  assert.match(page,/sharedIvrSigningKeyReady/);
  assert.match(page,/livePhoneTestPassed/);
  assert.match(page,/55555־פארבינדונג/);
+});
+test('MAX keypad adds owner-scoped donor360 and idempotent reports to the SAME website database',()=>{
+ const max=read('artifacts/api-server/src/lib/olam-hachesed-phone-max.ts');
+ assert.match(max,/FROM public.communication_contacts WHERE user_id=\$1/);
+ assert.match(max,/FROM public.max_pledges WHERE user_id=\$1/);
+ assert.match(max,/FROM public.max_receipts WHERE user_id=\$1/);
+ assert.match(max,/DO NOT CALL/);
+ assert.match(max,/ON CONFLICT\(user_id,request_id\) DO NOTHING/);
+ assert.match(max,/public.max_followup_contacts/);
+ assert.match(engine,/telephoneMAXContact360/);
+ assert.match(engine,/logMAXPhoneOutcome/);
+ assert.match(engine,/memberAllowed\(client/);
 });
