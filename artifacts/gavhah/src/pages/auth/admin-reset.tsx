@@ -5,7 +5,7 @@ import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 
 function captureToken(){
- if(typeof window==="undefined")return "";
+ if(typeof window==="undefined")return {token:"",cloudflare:false};
  const fragment=window.location.hash;
  const cfToken=fragment.match(/^#cloudflare=([a-fA-F0-9]{64})$/)?.[1]||"";
  const token=cfToken||fragment.match(/^#token=([a-fA-F0-9]{64})$/)?.[1]||"";
