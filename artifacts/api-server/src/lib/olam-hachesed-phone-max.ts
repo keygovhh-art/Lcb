@@ -64,9 +64,9 @@ export async function telephoneMAXContact360(client:PoolClient,userId:number,pag
     ", observed mood "+last.observed_mood+". ":"No manual calls reported. ")+
   "Open follow ups "+(followups.rows[0]?.count||0)+". "+
   (caseId?"For selected case "+caseId+", ":"")+
-  "Press 1 next contact, 8 previous, 2 restart, 0 return. ";
- if(caseId)response+="To record a MANUAL result for this case, press 3 no answer, 4 callback, 5 not interested, 6 do not call, or 7 spoke. Press the choice twice to confirm.";
- else response+="To enter a result, choose a case first under My Cases, then press 3.";
+  "Press 1 next, 8 previous, 2 restart, 0 return. ";
+ if(caseId)response+="MANUAL report for case "+caseId+": press 3 no answer, 4 callback, 5 not interested, 6 do not call, or 7 spoke. Press twice to confirm.";
+ else response+="To record a result, choose a case under My Cases, then press 3.";
  return response;
 }
 
@@ -148,4 +148,29 @@ export async function logMAXPhoneOutcome(
   (outcome==="do_not_call"?"Calling is now blocked. ":
    outcome==="callback"?"An unscheduled follow up was created; set its time on the website. ":"")+
   "The same records are available on the website.";
+}
+
+/** Read-only finance overview. Do not equate a manually reported receipt with a verified payment. */
+export async function telephoneMAXFinanceSummary(client:PoolClient,userId:number):Promise<string>{
+ const result=await client.query<{
+  pledged:string;reported:string;verified:string;refunds:string;pledge_count:number;receipt_count:number
+ }>(
+  "SELECT "+
+  "(SELECT COALESCE(sum(amount),0)::text FROM public.max_pledges WHERE user_id=$1) AS pledged,"+
+  "(SELECT COALESCE(sum(amount-refunded_amount),0)::text FROM public.max_receipts WHERE user_id=$1) AS reported,"+
+  "(SELECT COALESCE(sum(amount-refunded_amount),0)::text FROM public.max_receipts "+
+  "WHERE user_id=$1 AND verification='verified') AS verified,"+
+  "(SELECT COALESCE(sum(amount),0)::text FROM public.max_receipt_refunds WHERE user_id=$1) AS refunds,"+
+  "(SELECT count(*)::int FROM public.max_pledges WHERE user_id=$1) AS pledge_count,"+
+  "(SELECT count(*)::int FROM public.max_receipts WHERE user_id=$1) AS receipt_count",[userId]
+ );
+ const x=result.rows[0];
+ return "Your private MAX finance overview. "+
+  x.pledge_count+" pledges totaling "+dollars(x.pledged)+" dollars. "+
+  x.receipt_count+" manually entered receipt records, net "+dollars(x.reported)+" dollars. "+
+  "Separately verified receipts net "+dollars(x.verified)+" dollars. "+
+  "Recorded refunds "+dollars(x.refunds)+" dollars. "+
+  "Do not treat unverified reports as received money. "+
+  "Outstanding balances require matching receipts to their exact pledges. "+
+  "Press zero for main menu.";
 }
