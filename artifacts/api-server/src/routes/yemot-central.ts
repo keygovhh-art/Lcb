@@ -430,6 +430,21 @@ async function getLiveCloudflareSwitchStatus(){
   note:"Saved provider callback is not independently verified until the read-only inspection succeeds."
  };
 }
+// Human-facing admin page: a new phone browser starts without a session.
+// Send it through the existing same-origin sign-in flow. The `return`
+// parameter is a fixed local path, NOT user-supplied (no open redirect).
+// The actual page and all cutover actions remain super-admin protected.
+router.get(cloudflareSwitchPath,async(req,res,next)=>{
+ try{
+  const user=await getCurrentSessionUser(req);
+  if(!user){
+   res.set("Cache-Control","no-store");
+   res.redirect(303,"/login?return=%2Fapi%2Fadmin%2Fyemot%2Fcloudflare-switch");
+   return;
+  }
+  next();
+ }catch(error){next(error);}
+});
 router.get(cloudflareSwitchPath,requireAuth,admin,wrap(async(_req,res)=>{
  const status=await getLiveCloudflareSwitchStatus();
  const html=String.raw`<!doctype html>
