@@ -608,6 +608,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
   }else if(newsPath(path)){
    mode="news";spoken+=(await newsPrompt(path,position,chunk)).text;
+  }else if(path==="141"&&readManualResultPending(manualFlash)){
+   // While choosing or confirming, speak only the active keypad instructions.
+   // Do not repeat the entire contact queue or the menu customization.
+   const pending=readManualResultPending(manualFlash)!;
+   if(!feedback)spoken+=pending.stage==="choose"?choosePrompt:confirmationPrompt(pending);
   }else if(sectionPaths.has(path)){
    const permitted=!sectionRequiresLogin.has(path)||
       await memberAllowed(client,{...s,member_id:userId});
