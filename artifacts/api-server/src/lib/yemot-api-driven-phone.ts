@@ -504,11 +504,14 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
           "SELECT id,name FROM public.communication_contacts "+
           "WHERE user_id=$1 AND do_not_call=false ORDER BY updated_at DESC,id DESC LIMIT 1 OFFSET $2",
           [userId,Math.max(0,Math.min(40,page))]);
+        // Never silently attribute a call to an unrelated case. Until the
+        // keypad supports explicit case selection, require exactly one open case.
         const matchingCase=await client.query<{id:number}>(
           "SELECT id FROM public.askanus_cases WHERE user_id=$1 AND status!='closed' "+
-          "ORDER BY last_updated DESC,id DESC LIMIT 1",[userId]);
+          "ORDER BY last_updated DESC,id DESC LIMIT 2",[userId]);
         if(!picked.rows[0])feedback="This calling-list contact is unavailable. Nothing was recorded. ";
         else if(!matchingCase.rows[0])feedback="Please create an open MAX case on your website before recording a call result. ";
+        else if(matchingCase.rows.length>1)feedback="You have more than one open MAX case. To prevent incorrect case attribution, choose the case and log this result on the website. ";
         else{
           const contact=picked.rows[0];
           manualFlash=JSON.stringify({
