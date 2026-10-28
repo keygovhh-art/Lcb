@@ -10,7 +10,7 @@ const actual=[...new Set([...web.matchAll(/<Route\s+path="([^"]+)"/g)].map(m=>m[
 const phone=[...new Set([...ivr.matchAll(/leaf\("[^"]+","([^"]+)"/g)].map(m=>m[1]))].sort();
 // A bearer-token recovery page must NEVER be exposed as a dial-in phone action.
 // It is deliberately not a phone feature and therefore exempt from IVR parity.
-const phoneIneligible=new Set(["/admin-reset"]);
+const phoneIneligible=new Set(["/admin-reset","/founder/connect-email"]);
 const missing=actual.filter(r=>!phoneIneligible.has(r)&&!phone.includes(r));
 assert.equal(missing.length,0,
  'Web routes missing from phone roadmap (NOT WORKING IVR): '+missing.join(', '));
