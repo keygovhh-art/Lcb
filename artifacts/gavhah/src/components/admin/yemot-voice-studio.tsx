@@ -277,6 +277,13 @@ export function YemotVoiceStudio(){
     })()}>▶️ טוישן קול און איבערהערן</Button>
     <Button disabled={busy||!recording} onClick={uploadAudio}>היטן אודיא־טיוטע</Button>
     <Button disabled={busy||!saved?.audio_size||(data?.provider.state!=="live"||!/^\/[0-9]{1,3}$/.test(data.provider.approvedFolder||""))} variant="outline" onClick={publish}>פובליצירן צום ימות־האטליין</Button>
+    {saved?.published_path&&<Button disabled={busy} variant="outline" onClick={()=>void work(async()=>{
+     if(!window.confirm("אויסלעשן די אוידיא פאר דעם מעניו און נוצן ווידער TTS? דער פייל ביי ימות בלייבט אפגעהיטן."))return;
+     await req("/"+encodeURIComponent(selected)+"/published",{
+      method:"DELETE",body:JSON.stringify({confirm:"USE_TTS_INSTEAD_OF_AUDIO"})
+     });
+     setMessage("די אויסגעקליבענע מעניו נוצט ווידער ענגלישן TTS.");
+    })}>צוריקשטעלן TTS פאר דעם מעניו</Button>}
    </div>
    <p className="text-sm">פריוואטע אודיא־טיוטע: {saved?.audio_size?"יא, "+Math.round(saved.audio_size/1024)+" KB":"ניין"} · אויפן ימות־פאלדער: {saved?.published_path?"באשטעטיגט":"נאך נישט"}</p>
    <p className="text-xs text-muted-foreground">דער קנעפל „פובליצירן“ טוישט נאר דעם אודיא פאר דער אויסגעקליבענער מעניו־אפטיילונג. אן אן עקזיסטירנדן באשטעטיגטן ימות־פאלדער ווערט גארנישט געענדערט.</p>
