@@ -94,28 +94,48 @@ router.get("/auth/me", async (req, res): Promise<void> => {
 });
 
 router.post("/auth/login", loginLimiter, async (req, res): Promise<void> => {
-  const { identifier, password } = req.body as { identifier: string; password: string };
-  if (!identifier || !password) {
-    res.status(400).json({ error: "Email/phone and password are required" });
-    return;
+  let stage: "input" | "verification" | "session" | "response" = "input";
+  try {
+    const { identifier, password } = (req.body || {}) as {identifier?:string;password?:string};
+    if (typeof identifier !== "string" || typeof password !== "string" || !identifier || !password) {
+      res.status(400).json({ error: "Email/phone and password are required" });
+      return;
+    }
+    if (!originMatches(req)) { res.status(403).json({error:"Invalid origin"}); return; }
+    stage = "verification";
+    const result=await verifyAccount(identifier,password);
+    if (!result.user){res.status(result.status||401).json({error:result.error});return;}
+    const user=result.user;
+    const linked=linkedUsers(req.session.linkedUserIds,req.session.userId);
+    const linkedVersions={...req.session.linkedPasswordVersions};
+    stage="session";
+    // Keep session ID rotation: never bypass this when recovering from errors.
+    await new Promise<void>((resolve, reject) => {
+      req.session.regenerate(err => err ? reject(err) : resolve());
+    });
+    req.session.userId=user.id;
+    req.session.userRole=user.role;
+    req.session.linkedUserIds=linkedUsers([...linked,user.id]);
+    req.session.linkedPasswordVersions={...linkedVersions,[user.id]:passwordVersion(user.passwordHash)};
+    // Require the persistent store to acknowledge the newly authenticated
+    // session before claiming login succeeded. Avoid after-response session 500s.
+    await new Promise<void>((resolve,reject)=>req.session.save(err=>err?reject(err):resolve()));
+    stage="response";
+    res.setHeader("Cache-Control","private, no-store");
+    res.json({user:safeUser(user)});
+  } catch (error) {
+    const code=typeof error==="object"&&error!==null&&"code" in error
+      ? String((error as {code?:unknown}).code).slice(0,32):"UNKNOWN";
+    // Do not log identifier, password, stored hash, or session ID.
+    console.error("Gavhah login failure",stage,code);
+    if (!res.headersSent) {
+      res.status(503).set("Cache-Control","no-store").json({
+        error:"Gavhah login service had a temporary server problem. Your password was not rejected.",
+        supportCode:stage==="verification"?"AUTH-DB":stage==="session"?"AUTH-SESSION":"AUTH-SERVER"
+      });
+    }
   }
-
-  if(!originMatches(req)){res.status(403).json({error:"Invalid origin"});return;}
-  const result=await verifyAccount(identifier,password);
-  if(!result.user){res.status(result.status||401).json({error:result.error});return;}
-  const user=result.user;
-  const linked=linkedUsers(req.session.linkedUserIds,req.session.userId);
-  const linkedVersions={...req.session.linkedPasswordVersions};
-  await new Promise<void>((resolve, reject) => {
-    req.session.regenerate(err => err ? reject(err) : resolve());
-  });
-  req.session.userId = user.id;
-  req.session.userRole = user.role;
-  req.session.linkedUserIds=linkedUsers([...linked,user.id]);
-  req.session.linkedPasswordVersions={...linkedVersions,[user.id]:passwordVersion(user.passwordHash)};
-  res.setHeader("Cache-Control","private, no-store");
-  res.json({ user: safeUser(user) });
-});
+}
 
 // The chooser contains only identities already authenticated within this
 // server-side session, and never returns another account's private profile.
