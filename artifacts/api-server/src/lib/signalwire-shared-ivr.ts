@@ -9,8 +9,8 @@ import {normalizedSignalWireNumber} from "./signalwire-number-safety";
 /**
  * STAGED ONLY: the provider-owned +1 (605) 655-8080 webhook is NOT changed
  * by this module. When separately approved and physically tested, this will
- * make Gavhah the root and delegate 55555 to the saved original provider
- * cXML webhook using SignalWire's <Redirect> instruction.
+ * make Olam Hachesed Communications the isolated SignalWire root.
+ * Gavhah main menu and Campaign Center remain on Yemot.
  *
  * The old system's original URL is NEVER sent to the dashboard, logged,
  * replaced, fetched server-side, or altered by this code.
@@ -46,7 +46,7 @@ export function sharedRouteReady(r:SharedRoute|null):boolean{
  if(r.requested_number!=="6056558080"||r.old_extension!==LEGACY_EXTENSION||
   r.audit_state!=="verified_compatibility_voice_url"||
   r.original_call_handler!=="laml_webhooks"||
-  r.cutover_enabled!==false||!/^[a-f0-9]{64}$/.test(r.route_fingerprint||"")||
+  typeof r.cutover_enabled!=="boolean"||!/^[a-f0-9]{64}$/.test(r.route_fingerprint||"")||
   !r.original_voice_url)return false;
  try{
   const target=new URL(r.original_voice_url);
@@ -86,25 +86,6 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  // grants access to a private member record.
  const entryKey=createHmac("sha256",signingKey)
   .update("gavhah-shared-55555-v1:"+route.route_fingerprint).digest("hex");
- const callHash=createHmac("sha256",entryKey).update(callId).digest("hex");
- if(digits===LEGACY_EXTENSION){
-  const state=(await pool.query<{path:string}>(
-   "SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",
-   [callHash])).rows[0];
-  // Only from the shared ROOT menu; the previous system is never reached
-  // inadvertently from within a Gavhah personal/finance submenu.
-  if(!state||!state.path){
-   try{
-    const method=route.original_voice_method==="GET"?"GET":"POST";
-    res.status(200).type("application/xml; charset=utf-8")
-     .set("Cache-Control","no-store")
-     .send(originalSystemRedirectXml(route.original_voice_url!,method));
-   }catch{
-    res.status(503).type("text/plain").send("Saved original system route is unsafe");
-   }
-   return;
-  }
- }
  // The same GV Neon phone engine handles news, members, MAX, tasks and phone
  // account pairing. No second database, no copy of account records.
  let status=200,reply="";
@@ -124,8 +105,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
   res.status(status).type("text/plain").send("Gavhah phone engine unavailable");
   return;
  }
- const root=reply.startsWith("read=t-Gavhah SignalWire main menu.");
  res.status(200).type("application/xml; charset=utf-8")
   .set("Cache-Control","no-store")
-  .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root));
+  .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,false));
 }

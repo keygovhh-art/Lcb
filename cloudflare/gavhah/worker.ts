@@ -26,9 +26,12 @@ function nativeReadiness(env:Record<string,unknown>){
  const providerCryptographyConfigured=encryptedProviderKey.length>=40&&
   encryptedProviderKey!=="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
  const webhookSigningConfigured=String(env.SIGNALWIRE_SIGNING_KEY||"").length>=24;
+ const phoneSwitchConfigured=String(env.CF_PHONE_WEBHOOKS_ENABLED||"")==="true";
  const phoneCallbacksEnabled=databaseCredentialPresent&&providerCryptographyConfigured&&
-  webhookSigningConfigured&&String(env.CF_PHONE_WEBHOOKS_ENABLED||"")==="true";
- return {databaseCredentialPresent,sessionsConfigured,phoneCallbacksEnabled};
+  webhookSigningConfigured&&phoneSwitchConfigured;
+ return {databaseCredentialPresent,sessionsConfigured,phoneCallbacksEnabled,
+  phoneChecks:{encryptionKeyConfigured:providerCryptographyConfigured,
+   signingKeyConfigured:webhookSigningConfigured,phoneSwitchConfigured}};
 }
 function paused(message:string,status=503){
  return Response.json({status:"staging",message},{status,headers:{"Cache-Control":"no-store"}});
@@ -45,6 +48,7 @@ export default {
     databaseCredentialsConfigured:readiness.databaseCredentialPresent,
     sessionsConfigured:readiness.sessionsConfigured,
     phoneCallbacksEnabled:readiness.phoneCallbacksEnabled,
+    phoneChecks:readiness.phoneChecks,
     databaseReachabilityVerified:false,
     livePhoneNumberTransferred:false
    },{headers:{"Cache-Control":"no-store"}});
@@ -58,7 +62,10 @@ export default {
    if(isPhoneWebhook&&!readiness.phoneCallbacksEnabled)
     return paused("Independent hotline webhooks are not activated. Existing phone calls remain on Render.");
    if(path.startsWith("/api/admin/hotline-migration")&&
-    !["GET","HEAD","OPTIONS"].includes(request.method))
+    !["GET","HEAD","OPTIONS"].includes(request.method)&&
+    !(request.method==="POST"&&
+      (path==="/api/admin/hotline-migration/signalwire/voice-switch/apply"||
+       path==="/api/admin/hotline-migration/signalwire/voice-switch/rollback")))
     return paused("Shared live phone-provider administration is locked on the independent Cloudflare copy.",403);
    return api.fetch(request,env,ctx);
   }
