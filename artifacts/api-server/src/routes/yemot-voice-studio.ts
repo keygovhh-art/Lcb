@@ -59,14 +59,15 @@ function checkAudio(bytes:Buffer,mime:string){
  return false;
 }
 router.get("/admin/yemot/voice-studio",requireAuth,admin,wrap(async(_req,res)=>{
- const [prompts,installation]=await Promise.all([
+ const [prompts,installation,voiceFolder]=await Promise.all([
   pool.query("SELECT path,tts_text,mime_type,octet_length(audio_data) AS audio_size,published_path,published_at,updated_at FROM "+dbTable+" ORDER BY path"),
-  pool.query("SELECT state,target_path FROM public.gavhah_yemot_ivr_install WHERE id=1")
+  pool.query("SELECT state,target_path FROM public.gavhah_yemot_ivr_install WHERE id=1"),
+  pool.query("SELECT media_folder FROM public.gavhah_yemot_voice_storage WHERE id=1")
  ]);
  res.setHeader("Cache-Control","private, no-store");
  res.json({catalogue:catalogue(),prompts:prompts.rows,
   provider: {state:installation.rows[0]?.state||"not_configured",
-    approvedFolder:installation.rows[0]?.target_path||null},
+    approvedFolder:voiceFolder.rows[0]?.media_folder||null},
   note:"Draft audio is private. Only a manually published and verified file is offered to the existing Yemot IVR. No phone number, root menu, or SignalWire configuration is changed."});
 }));
 router.put("/admin/yemot/voice-studio/:path",requireAuth,admin,wrap(async(req,res)=>{
@@ -119,7 +120,7 @@ const providerRequest=async(token:string,operation:string,values:Record<string,s
   body,redirect:"error",cache:"no-store",signal:AbortSignal.timeout(20000)
  });
  if(!response.ok)throw Error("Yemot API unavailable");
- const result=await response.json() as {responseStatus?:string;files?:unknown[]};
+ const result=await response.json() as {responseStatus?:string;files?:unknown[];dirs?:unknown[];fileExists?:boolean};
  if(result?.responseStatus!=="OK")throw Error("Yemot declined "+operation);
  return result;
 };
@@ -132,6 +133,55 @@ const decrypt=(row:{token_nonce:string;token_ciphertext:string;token_tag:string}
  decipher.setAuthTag(Buffer.from(row.token_tag,"base64"));
  return Buffer.concat([decipher.update(Buffer.from(row.token_ciphertext,"base64")),decipher.final()]).toString("utf8");
 };
+
+// Separate, explicitly-approved add-only media folder. Never edit the hotline
+// root settings, existing folders, recordings, or customer-specific extensions.
+router.post("/admin/yemot/voice-studio/prepare-folder",requireAuth,admin,wrap(async(req,res)=>{
+ if(req.body?.confirm!=="CREATE_EMPTY_AUDIO_FOLDER_ONLY"){
+  problem(res,400,"Confirm add-only audio-folder creation");return;
+ }
+ const current=await pool.query("SELECT media_folder FROM public.gavhah_yemot_voice_storage WHERE id=1");
+ if(current.rows[0]){res.json({ok:true,alreadyReady:true,mediaFolder:current.rows[0].media_folder});return;}
+ const [installed,global]=await Promise.all([
+  pool.query("SELECT state FROM public.gavhah_yemot_ivr_install WHERE id=1"),
+  pool.query("SELECT token_nonce,token_ciphertext,token_tag,enabled,last_verified_at FROM public.gavhah_yemot_global WHERE id=1")
+ ]);
+ if(installed.rows[0]?.state!=="live"||!global.rows[0]?.enabled||!global.rows[0]?.last_verified_at){
+  problem(res,409,"Verified Yemot connection and existing root must be active");return;
+ }
+ const token=decrypt(global.rows[0]);
+ const root=await providerRequest(token,"GetIVR2Dir",{path:"/"});
+ if(!Array.isArray(root.dirs)||!Array.isArray(root.files)){
+  problem(res,502,"Complete provider root directory inventory unavailable; no changes made");return;
+ }
+ const names=new Set<string>();
+ for(const item of root.dirs){
+  const candidate=typeof item==="string"?item:
+   typeof item==="object"&&item!==null?String((item as {name?:string;path?:string;dir?:string}).name||
+    (item as {path?:string}).path||(item as {dir?:string}).dir||""):"";
+  if(!candidate){problem(res,409,"Ambiguous provider folder name; no changes made");return;}
+  const suffix=candidate.replace(/\/+$/,"").split("/").pop()||"";
+  if(/^[0-9]{1,3}$/.test(suffix))names.add(suffix);
+ }
+ const reserved=["897","896","895","894","893","892","891","890","887","886","885","884","883"];
+ const candidate=reserved.find(x=>!names.has(x));
+ if(!candidate){problem(res,409,"No free isolated media folder in the reserved pool");return;}
+ const exists=await providerRequest(token,"CheckIfFileExists",{path:"ivr2:/"+candidate+"/ext.ini"});
+ if(exists.fileExists!==false){problem(res,409,"Candidate may already contain files; aborting");return;}
+ // Only a new child extension is added. 'hangup' prevents users who guess its
+ // number from entering an unintended recording or management menu.
+ await providerRequest(token,"UpdateExtension",{
+  path:"ivr2:"+candidate,type:"hangup",title:"Gavhah audio assets - storage only"
+ });
+ const verified=await providerRequest(token,"GetIVR2Dir",{path:"/"+candidate});
+ if(!Array.isArray(verified.files)||verified.files.length>0){
+  problem(res,502,"Could not confirm isolated empty provider media folder");return;
+ }
+ await pool.query("INSERT INTO public.gavhah_yemot_voice_storage(id,media_folder) VALUES(1,$1) ON CONFLICT(id) DO NOTHING",
+  ["/"+candidate]);
+ res.json({ok:true,mediaFolder:"/"+candidate,verified:true,rootUnchanged:true});
+}));
+
 router.post("/admin/yemot/voice-studio/:path/publish",requireAuth,admin,wrap(async(req,res)=>{
  const path=getName(req);
  if(!safePath(path)||!knownPath(path)){problem(res,400,"Unknown menu path");return;}
@@ -142,17 +192,19 @@ router.post("/admin/yemot/voice-studio/:path/publish",requireAuth,admin,wrap(asy
  const asset=row.rows[0];
  if(!asset?.audio_data){problem(res,404,"Record or upload audio first");return;}
  const [installed,global]=await Promise.all([
-  pool.query("SELECT state,target_path FROM public.gavhah_yemot_ivr_install WHERE id=1"),
+  pool.query("SELECT state FROM public.gavhah_yemot_ivr_install WHERE id=1"),
   pool.query("SELECT token_nonce,token_ciphertext,token_tag,enabled,last_verified_at FROM public.gavhah_yemot_global WHERE id=1")
  ]);
+ const savedFolder=await pool.query("SELECT media_folder FROM public.gavhah_yemot_voice_storage WHERE id=1");
  const target=installed.rows[0];
- if(target?.state!=="live"||!/^\/[0-9]{1,3}$/.test(target?.target_path||"")){
+ const mediaFolder=String(savedFolder.rows[0]?.media_folder||"");
+ if(target?.state!=="live"||!/^\/[0-9]{2,3}$/.test(mediaFolder)){
   problem(res,409,"A verified add-only Yemot extension must be live first; root untouched");return;
  }
  const conn=global.rows[0];
  if(!conn?.enabled||!conn?.last_verified_at){problem(res,409,"Central Yemot connection is not active");return;}
  const token=decrypt(conn);
- const directory="ivr2:"+target.target_path;
+ const directory="ivr2:"+mediaFolder;
  const before=await providerRequest(token,"GetIVR2Dir",{path:directory});
  if(!Array.isArray(before.files))throw Error("Cannot verify approved Yemot media folder");
  const file="gavhah_"+randomUUID().replace(/-/g,"")+".wav";
