@@ -11,6 +11,7 @@
 import express,{type Express,type ErrorRequestHandler} from "express";
 import cors from "cors";
 import session from "express-session";
+import {randomUUID} from "node:crypto";
 import router from "./routes";
 import {pool} from "@workspace/db";
 import {PostgresSessionStore} from "./lib/postgres-session-store";
@@ -39,7 +40,7 @@ function safeErrorCode(error:unknown):string|undefined{
 }
 app.use((req,res,next)=>{
  const started=Date.now();
- const requestId=crypto.randomUUID();
+ const requestId=randomUUID();
  res.locals.gavhahRequestId=requestId;
  res.locals.gavhahStage="request.initial";
  res.setHeader("X-Request-ID",requestId);
@@ -86,6 +87,10 @@ if(env.CF_WORKER_RUNTIME==="1"){
  if(env.SESSION_STORE!=="postgres")throw Error("Native Cloudflare requires SESSION_STORE=postgres");
  if(env.SESSION_COOKIE_SECURE!=="true")throw Error("Native Cloudflare requires secure session cookies");
 }
+app.use((req,res,next)=>{
+ if(env.CF_WORKER_RUNTIME==="1")res.locals.gavhahStage="session.load";
+ next();
+});
 app.use(session({
  ...sessionOptions(env),
  ...(usesPostgresSessions(env)?{store:new PostgresSessionStore(pool)}:{})
