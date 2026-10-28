@@ -177,7 +177,7 @@ router.get("/numbers",async(_req,res,next)=>{
  }catch(e){
   // Do not log or return the secret, encrypted payload, queries or provider body.
   const m=e instanceof Error?e.message:"";
-  const providerMatch=/^SignalWire provider inventory HTTP (\\d{3})$/.exec(m);
+  const providerMatch=/^SignalWire provider inventory HTTP ([0-9]{3})$/.exec(m);
   const code=/authenticate data|bad decrypt|unable to authenticate|Invalid key length/i.test(m)
    ?"TOKEN_DECRYPT_FAILED":
    /Verify your SignalWire connection/.test(m)?"NOT_VERIFIED":
