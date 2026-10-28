@@ -94,11 +94,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: "include",
         body: JSON.stringify({ identifier, password }),
       });
-      const data = await res.json();
-      if (res.ok) { setUser(data.user); void loadAccounts(); return { ok: true }; }
-      return { ok: false, error: data.error ?? "Login failed" };
+      // Cloudflare can return an HTML error page (1101/1102/429/5xx).
+      // Never mislabel that as an incorrect password or a generic network issue.
+      const raw = await res.text();
+      let data: { user?: AuthUser; error?: string; supportCode?: string } | null = null;
+      try { data = JSON.parse(raw) as { user?: AuthUser; error?: string; supportCode?: string }; } catch { /* non-JSON edge response */ }
+      if (res.ok && data?.user) {
+        setUser(data.user);
+        void loadAccounts();
+        return { ok: true };
+      }
+      if (res.ok) return { ok: false, error: "Login service returned an incomplete response. Please retry." };
+      if (typeof data?.error === "string" && data.error) return { ok: false, error: data.supportCode ? `${data.error} (${data.supportCode})` : data.error };
+      if (res.status === 429) return { ok: false, error: "Cloudflare is temporarily limiting login requests (HTTP 429). Please retry shortly." };
+      if (res.status >= 500) return { ok: false, error: `Gavhah server error (HTTP ${res.status}). Your password was not rejected; the service needs repair.` };
+      return { ok: false, error: `Login service returned HTTP ${res.status}; your password has not been verified.` };
     } catch {
-      return { ok: false, error: "Connection error. Please try again." };
+      return { ok: false, error: "Unable to reach the Gavhah login service. Try opening this address directly in Chrome; this does not mean your password is wrong." };
     }
   }, [loadAccounts]);
 
