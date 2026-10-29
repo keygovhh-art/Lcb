@@ -11,8 +11,12 @@ const mk=(row,seen=[])=>({
   }
 });
 test('16 actual phone sections have explicit security and require account pairing for personal data', async()=>{
- assert.equal(sectionPaths.size,24);
- assert.equal(sectionRequiresLogin.size,18);
+ assert.equal(sectionPaths.size,35);
+ assert.equal(sectionRequiresLogin.size,29);
+ for(const route of ["127","1451","1452","1453","1454","1455","1456","1457","1461","1462","1463"]){
+  assert.ok(sectionPaths.has(route),route);
+  assert.ok(sectionRequiresLogin.has(route),"Private MAX handset route requires member pairing: "+route);
+ }
  const requests=[];
  const out=await readPhoneSection(mk({name:'should never be read'},requests),'132',null,0);
  assert.match(out,/private/i);
