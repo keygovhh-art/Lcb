@@ -404,7 +404,7 @@ export function MaxCallDesk() {
             דער עסקן וועט ערשט ווערן געווארנט ווען ער וויל שפעטער ווידער אריינגיין אדער עפענען דעם דיילער.
             „נישט אינטערעסירט“ בלאקירט קיינעם נישט.
             {contactId===null&&<span className="block text-destructive">קלייב אויס דעם ריכטיגן נדבן פון דער קשרים־ליסטע.</span>}
-          </p>
+          </p>}
           {outcome==="gave" && <div className="rounded-xl border p-3 space-y-2">
             <Label htmlFor="max-money">געגעבן א נדבה — וועלכער מצב?</Label>
             <select id="max-money" className="w-full h-11 rounded-lg border bg-background px-3" value={moneyKind} onChange={e=>setMoneyKind(e.target.value)}>
@@ -464,7 +464,7 @@ export function MaxCallDesk() {
               <option value="none">איינמאליג</option><option value="daily">יעדן טאג</option>
               <option value="weekly">יעדע וואך</option><option value="monthly">יעדן חודש</option>
             </select></div>}
-          <Button className="w-full min-h-11" type="submit" disabled={busy||!caseId||!name.trim()||(outcome==="gave"&&(moneyKind==="none"||!(Number(amount)>0)))||(recontactEnabled&&contactId===null)||(outcome==="do_not_call"&&contactId===null)>
+          <Button className="w-full min-h-11" type="submit" disabled={busy||!caseId||!name.trim()||(outcome==="gave"&&(moneyKind==="none"||!(Number(amount)>0)))||(recontactEnabled&&contactId===null)||(outcome==="do_not_call"&&contactId===null)}>
             <Save className="h-4 w-4 ml-2"/> {busy?"היט אפ...":"אפהיטן — און דערהיינטיגן מיין עסקנות"}
           </Button>
           <div className="rounded-xl border p-3 space-y-2">
