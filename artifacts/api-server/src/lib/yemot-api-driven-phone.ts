@@ -289,11 +289,6 @@ async function recordConfirmedManualResult(client:import("pg").PoolClient,p:Manu
  if(!owned||!caseResult.rows[0]||owned.do_not_call)
   return "Contact is unavailable or marked Do Not Call. Nothing was saved.";
  const outcome=p.outcome||"other",mood=p.mood||"not_entered";
- // The caller's first keypad choice must never directly mark the donor Do Not Call.
- // Only an explicit, separately confirmed DNC stage may set the block on SAVE.
- if(outcome==="do_not_call"&&p.doNotCallConfirmed!==true)
-  return "Do Not Call was not confirmed. Nothing was saved and the donor was not blocked.";
-
  const kind=p.moneyKind||"none",amount=p.amount||0;
  if((outcome==="gave"&&(!["pledged","received"].includes(kind)||amount<=0))||
     (outcome!=="gave"&&kind!=="none")||!Number.isSafeInteger(amount)||amount<0||amount>99999999)
@@ -322,9 +317,9 @@ async function recordConfirmedManualResult(client:import("pg").PoolClient,p:Manu
  await client.query(
   "INSERT INTO public.case_activity_log(case_id,date,type,note) VALUES($1,$2,'contact',$3)",
   [p.caseId,day,("MAX phone manual report: "+owned.name+" / "+outcome+" / "+mood).slice(0,1400)]);
- if(outcome==="do_not_call" && p.doNotCallConfirmed===true){
+ if(outcome==="do_not_call"){
   await client.query("UPDATE public.communication_contacts "+
-   "SET do_not_call=true,opt_out_reason='Do Not Call confirmed by owner through paired MAX phone',updated_at=now() "+
+   "SET do_not_call=true,opt_out_reason='Donor asked not to be called again (MAX phone report)',updated_at=now() "+
    "WHERE id=$1 AND user_id=$2",[p.contactId,p.userId]);
  }
  if(kind==="pledged"){
