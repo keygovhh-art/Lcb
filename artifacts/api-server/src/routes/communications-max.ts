@@ -1,13 +1,14 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { askanuscases, caseActivityLog, caseFollowups, communicationContacts, fundraisingCallReports, maxPledges, maxReceipts, maxFollowupContacts, maxHistoryEvents } from "@workspace/db/schema";
+import { askanuscases, caseActivityLog, caseFollowups, communicationContacts, fundraisingCallReports, maxPledges, maxReceipts, maxFollowupContacts, maxHistoryEvents, maxDonorRecontacts } from "@workspace/db/schema";
 import { and, desc, eq, sql, or, ilike } from "drizzle-orm";
 import { getSessionUserId, requireAuth } from "../middlewares/auth";
 import { isRepeatRule, validCalendarDate } from "../lib/followup-recurrence";
+import { computeMaxCallback,computeMaxRecontact,maxMoods, type MaxCallbackPlan,type MaxRecontactPlan } from "../lib/max-calling-workflow";
 
 const router = Router();
 const moneyKinds = new Set(["none", "received", "pledged"]);
-const outcomes = new Set(["spoke", "no_answer", "callback", "not_interested", "do_not_call", "other"]);
+const outcomes = new Set(["gave", "no_answer", "callback", "not_interested", "do_not_call", "other", "spoke"]); // legacy spoke remains readable/accepted, but hidden in new UX
 const clean = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 const cleanTags = (value: unknown) => {
   const original=clean(value,600);
@@ -165,6 +166,20 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   const dueTime = clean(body.dueTime, 5) || null;
   const timeZone = clean(body.timeZone, 80) || null;
   const repeatRule = clean(body.repeatRule || "none",20);
+  const callbackPlan = body.callbackPlan as MaxCallbackPlan|undefined;
+  const recontactPlan = body.recontactPlan as MaxRecontactPlan|undefined;
+  const localZone = clean(body.timeZone || "America/New_York",80);
+  let calculatedCallback:ReturnType<typeof computeMaxCallback>=null;
+  let calculatedRecontact:Date|null=null;
+  try{
+    if(callbackPlan)calculatedCallback=computeMaxCallback(callbackPlan,new Date(),localZone);
+    if(recontactPlan)calculatedRecontact=computeMaxRecontact(recontactPlan,new Date());
+  }catch(e){
+    res.status(400).json({error:e instanceof Error?e.message:"Invalid MAX callback or recontact schedule"});return;
+  }
+  if(calculatedRecontact&&(body.contactId===null||body.contactId===undefined||body.contactId==="")){
+    res.status(400).json({error:"Choose an existing donor to schedule a future eligibility review"});return;
+  }
   if(dueTime){
     try{if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(dueTime)||!timeZone)throw Error();
       new Intl.DateTimeFormat("en-US",{timeZone}).format();
@@ -174,8 +189,12 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   const mood = clean(body.mood || "neutral",40);
 
   if (!safeId(caseId) || !requestId || requestId.length < 12 ||
-      !new Set(["friendly","neutral","busy","uncomfortable","uninterested","other"]).has(mood) ||
+      !new Set<string>([...maxMoods]).has(mood) ||
       !contactName || !outcomes.has(outcome) || !moneyKinds.has(moneyKind) ||
+      (outcome==="gave" && moneyKind==="none") ||
+      ((mood==="gave_generously"||mood==="warm_and_gave_generously") && moneyKind==="none") ||
+      (outcome==="no_answer" && moneyKind!=="none") ||
+      (outcome==="do_not_call" && !!calculatedRecontact) ||
       !Number.isFinite(amount) || amount < 0 || amount > 9999999999 ||
       Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001 ||
       (moneyKind === "none" && amount !== 0) ||
@@ -242,13 +261,32 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
         lastUpdated: new Date(),
       }).where(and(eq(askanuscases.id,caseId),eq(askanuscases.userId,userId)));
     }
-    if (followupNote) {
+    const effectiveFollowup=calculatedCallback
+      ? (followupNote||"צוריק רופן נאכן פארענדיגן דעם רוף")
+      : followupNote;
+    const effectiveDate=calculatedCallback?.date||dueDate;
+    const effectiveTime=calculatedCallback?.time||dueTime;
+    const effectiveZone=calculatedCallback?.timeZone||timeZone;
+    if (effectiveFollowup) {
       const [followup]=await tx.insert(caseFollowups).values({
-        caseId,date:today,note:followupNote,dueDate,dueTime,timeZone:dueTime?timeZone:null,
+        caseId,date:today,note:effectiveFollowup,dueDate:effectiveDate,dueTime:effectiveTime,timeZone:effectiveTime?effectiveZone:null,
         repeatRule,repeatAnchorDay:repeatRule==="monthly"&&dueDate?Number(dueDate.slice(-2)):null,
       }).returning();
       if(contactId!==null)await tx.insert(maxFollowupContacts).values({
         userId,contactId,followupId:followup.id,
+      });
+    }
+    if(calculatedRecontact && contactId!==null){
+      // An eligibility window is informational; DNC remains in force and
+      // eligibility NEVER triggers an automatic outgoing call.
+      await tx.insert(maxDonorRecontacts).values({
+        userId,caseId,contactId,scope:recontactPlan!.scope,
+        dueAt:calculatedRecontact,sourceReportId:saved.id,status:"waiting",
+      }).onConflictDoUpdate({
+        target:[maxDonorRecontacts.userId,maxDonorRecontacts.contactId,
+          maxDonorRecontacts.caseId,maxDonorRecontacts.scope],
+        set:{dueAt:calculatedRecontact,sourceReportId:saved.id,
+          status:"waiting",updatedAt:new Date()},
       });
     }
     return {kind:"created" as const, report:saved};
@@ -260,6 +298,55 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   res.status(result.kind==="duplicate" ? 200 : 201).json({
     duplicate:result.kind==="duplicate",report:formatCall(result.report),
   });
+});
+
+
+// All categories are based on SAVED results, not assumed phone-call statuses.
+// Counts aggregate all historical records, including old legacy "spoke" reports.
+router.get("/askanus/max/outcome-groups",requireAuth,async(req,res)=>{
+ const userId=getSessionUserId(req)!;
+ const group=clean(req.query.outcome,40);
+ if(group && !outcomes.has(group)){res.status(400).json({error:"Unknown outcome"});return;}
+ const counts=await db.select({
+  outcome:fundraisingCallReports.outcome,
+  count:sql<number>`cast(count(*) as integer)`
+ }).from(fundraisingCallReports).where(eq(fundraisingCallReports.userId,userId))
+  .groupBy(fundraisingCallReports.outcome);
+ const results=await db.select().from(fundraisingCallReports)
+  .where(group?and(eq(fundraisingCallReports.userId,userId),eq(fundraisingCallReports.outcome,group)):
+    eq(fundraisingCallReports.userId,userId))
+  .orderBy(desc(fundraisingCallReports.createdAt)).limit(100);
+ res.setHeader("Cache-Control","private,no-store");
+ res.json({groups:counts,items:results.map(formatCall)});
+});
+
+router.get("/askanus/max/recontact",requireAuth,async(req,res)=>{
+ const userId=getSessionUserId(req)!;
+ const filter=clean(req.query.filter||"all",20);
+ if(!["all","due","waiting","done"].includes(filter)){
+  res.status(400).json({error:"Invalid recontact filter"});return;
+ }
+ const rows=await db.select({
+  record:maxDonorRecontacts,donor:communicationContacts.name,
+  doNotCall:communicationContacts.doNotCall,project:askanuscases.title
+ }).from(maxDonorRecontacts)
+  .innerJoin(communicationContacts,and(eq(communicationContacts.id,maxDonorRecontacts.contactId),
+    eq(communicationContacts.userId,userId)))
+  .innerJoin(askanuscases,and(eq(askanuscases.id,maxDonorRecontacts.caseId),
+    eq(askanuscases.userId,userId)))
+  .where(and(eq(maxDonorRecontacts.userId,userId),
+    filter==="done"?eq(maxDonorRecontacts.status,"done"):
+    filter==="due"?and(eq(maxDonorRecontacts.status,"waiting"),sql`${maxDonorRecontacts.dueAt}<=now()`):
+    filter==="waiting"?and(eq(maxDonorRecontacts.status,"waiting"),sql`${maxDonorRecontacts.dueAt}>now()`):
+    sql`true`))
+  .orderBy(maxDonorRecontacts.dueAt).limit(300);
+ res.setHeader("Cache-Control","private,no-store");
+ res.json({items:rows.map(({record,donor,doNotCall,project})=>({
+  ...record,donor,doNotCall,project,
+  dueAt:record.dueAt.toISOString(),
+  eligible:record.status==="waiting"&&record.dueAt.getTime()<=Date.now()&&!doNotCall,
+  canAutoCall:false
+ }))});
 });
 
 export default router;
