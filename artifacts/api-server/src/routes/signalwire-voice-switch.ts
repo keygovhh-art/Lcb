@@ -31,9 +31,11 @@ async function credential(){
 async function sw(c:Awaited<ReturnType<typeof credential>>,part:string,method:"GET"|"PATCH"="GET",body?:object){
  const response=await fetch(apiURL(c.space,part),{
   method,headers:{Authorization:c.auth,Accept:"application/json",...(body?{"Content-Type":"application/json"}:{})},
-  ...(body?{body:JSON.stringify(body)}:{}),redirect:"error",cache:"no-store",
+  ...(body?{body:JSON.stringify(body)}:{}),redirect:"manual",cache:"no-store",
   signal:AbortSignal.timeout(10000)
  });
+ if(response.status>=300&&response.status<400||response.type==="opaqueredirect")
+  throw error(502,"SignalWire API redirect refused; no credentials or Calling settings were forwarded");
  if(!response.ok)throw error(response.status===401||response.status===403?403:502,
   method==="GET"?"SignalWire inventory unavailable; check Calling and Voice API token scopes":
   "SignalWire rejected voice-only reassignment; no SMS request was made");
