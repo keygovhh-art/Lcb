@@ -145,7 +145,36 @@ export function MaxCallDesk() {
   const addContact=async(e:React.FormEvent)=>{
     e.preventDefault();setBusy(true);setError("");setMessage("");
     try {
-      const saved=await request<Contact>("/api/askanus/contacts",json(newContact));
+      const response=await fetch("/api/askanus/contacts",{
+        ...json(newContact),credentials:"include",cache:"no-store"
+      });
+      if(response.status===409){
+        const warning=await response.json() as {
+          error?:string;doNotCallWarning?:boolean;existingContactId?:number
+        };
+        if(warning.doNotCallWarning&&Number.isSafeInteger(warning.existingContactId)){
+          const open=window.confirm(
+            "אכטונג: דער נומער איז שוין פאראן אלס ״נישט רופן״. ביסט זיכער אז דו ווילסט נאכאמאל אריינגיין אין דעם נדבן־קארטל? "+
+            "דאס ענטפערט נישט אויף דער פראגע צי מ׳מעג אים ווידער רופן."
+          );
+          if(!open){setMessage("קיין נייעם קאנטאקט איז נישט געשאפן געווארן.");return;}
+          const profile=await request<{contact:Contact}>(
+            "/api/askanus/contacts/"+warning.existingContactId+"/360"
+          );
+          const existing=profile.contact;
+          setContacts(items=>[existing,...items.filter(c=>c.id!==existing.id)]);
+          setSelectedContact(existing);setContactId(existing.id);setName(existing.name);
+          setNewContact({name:"",phone:"",email:""});
+          setMessage("דער עקזיסטירנדע נדבן־קארטל איז געעפנט, מיטן ״נישט רופן״־צייכן. קיין צווייטער קאנטאקט איז נישט געשאפן געווארן.");
+          return;
+        }
+        throw new Error(warning.error||"דער קאנטאקט דארף אן איבערקוק");
+      }
+      if(!response.ok){
+        const err=await response.json().catch(()=>({})) as {error?:string};
+        throw new Error(err.error||"נישט געלונגען אפהיטן דעם קאנטאקט");
+      }
+      const saved=await response.json() as Contact;
       setContacts(items=>[saved,...items]);setContactId(saved.id);
       setSelectedContact(saved);setName(saved.name);
       setNewContact({name:"",phone:"",email:""});
