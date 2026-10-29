@@ -172,6 +172,16 @@ export function SignalWireCredentials(){
   <section className="space-y-3 rounded-xl border p-3 sm:p-4" aria-label="Olam MAX SignalWire calling-only cutover">
    <h3 className="font-semibold">עולם החסד MAX — 605-655-8080 · נאר Voice</h3>
    <p className="text-sm">SignalWire איז בלויז עולם החסד־קאמיוניקאציע. דער גבהה־הויפטמעניו מיט 4444 בלייבט אויף ימות. דער נייע Calling־Handler ווערט געטעסט באזונדער; SMS און דער אלטער emes-newsroom־Handler בלייבן אומגערירט.</p>
+   <div className="rounded-lg border p-3 space-y-2 text-sm">
+    <p><strong>0. צוגרייטן דעם MAX־Calling־Handler.</strong> דער קנעפל קוקט ערשט צי דער ריכטיגער cXML־וועבהוק עקזיסטירט. נאר אויב ער פעלט, שאפט ער א נייעם אומפארבונדענעם Handler. ער טוישט נישט דעם נומער, SMS, אדער דעם אלטן Emes Newsroom.</p>
+    <Button variant="outline" disabled={busy||!status.verified||!!oldRoute?.cutoverEnabled} onClick={()=>void work(async()=>{
+     const result=await request("voice-switch/prepare",{method:"POST",body:"{}"}) as {prepared:boolean;created:boolean};
+     setVoiceSwitch(null);
+     setMessage(result.created?
+      "דער עולם החסד MAX־Calling־Webhook איז געשאפן געווארן. קיין רופן זענען נישט איבערגעשטעלט. דרוק יעצט שריט 1 צו באשטעטיגן די גאנצע פארבינדונג.":
+      "דער MAX־Webhook איז שוין ריכטיג צוגעגרייט. קיין פראוויידער־רוטינג איז נישט געטוישט. דרוק יעצט שריט 1.");
+    })}>0. שאפן אדער באשטעטיגן דעם MAX־cXML Webhook</Button>
+   </div>
    <Button variant="outline" disabled={busy||!status.verified} onClick={()=>void work(async()=>{
     const result=await request("voice-switch/preflight") as VoiceSwitchPreview;
     setVoiceSwitch(result);
