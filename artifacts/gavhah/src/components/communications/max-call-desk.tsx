@@ -61,6 +61,7 @@ export function MaxCallDesk() {
   const [importPreview,setImportPreview] = useState<{total:number;ready:number;duplicates:number;preview:Array<{line:number;name:string;phone:string;email:string;doNotCall:boolean}>}|null>(null);
   const [name,setName] = useState("");
   const [outcome,setOutcome] = useState("gave");
+  const [doNotCallConfirmed,setDoNotCallConfirmed] = useState(false);
   const [moneyKind,setMoneyKind] = useState("none");
   const [amount,setAmount] = useState("");
   const [note,setNote] = useState("");
@@ -133,7 +134,7 @@ export function MaxCallDesk() {
         .toLocaleLowerCase().includes(contactSearch.trim().toLocaleLowerCase()))
     : contacts;
   const setContact = (id:number | null) => {
-    setContactId(id);
+    setContactId(id);setDoNotCallConfirmed(false);
     const person=[...contacts,...(remoteContacts??[])].find(c=>c.id===id);
     setSelectedContact(person??null);
     setName(person?.name??"");
@@ -142,7 +143,7 @@ export function MaxCallDesk() {
     e.preventDefault();setBusy(true);setError("");setMessage("");
     try {
       const saved=await request<Contact>("/api/askanus/contacts",json(newContact));
-      setContacts(items=>[saved,...items]);setContactId(saved.id);
+      setContacts(items=>[saved,...items]);setContactId(saved.id);setDoNotCallConfirmed(false);
       setSelectedContact(saved);setName(saved.name);
       setNewContact({name:"",phone:"",email:""});
       setMessage("דער קאנטאקט איז אפגעהיטן אין דיין פריוואטן קשרים־בוך.");
@@ -178,6 +179,7 @@ export function MaxCallDesk() {
       const result=await request<{duplicate:boolean;report:Call;callbackDueAt?:string|null;callbackTimeZone?:string|null;recontactDueAt?:string|null}>(
         "/api/askanus/cases/"+caseId+"/call-reports",
         json({requestId,contactId,contactName:name.trim(),outcome,
+          doNotCallConfirmed:outcome==="do_not_call"&&doNotCallConfirmed,
           moneyKind:outcome==="gave"?moneyKind:"none",mood,
           amount:outcome==="gave"&&moneyKind!=="none"?Number(amount):0,
           note,followupNote,dueDate:dueDate||null,dueTime:dueTime||null,
@@ -200,7 +202,7 @@ export function MaxCallDesk() {
         ? "דער פריערדיגער באריכט איז שוין אפגעהיטן. קיין צווייטע נדבה איז נישט צוגערעכנט."
         : "דער רוף־באריכט איז אפגעהיטן אין MAX און מיין עסקנות."+callbackText+recontactText);
       setCalls(items=>[result.report,...items.filter(r=>r.id!==result.report.id)].slice(0,100));
-      setRequestId(crypto.randomUUID());setOutcome("gave");setMoneyKind("none");setAmount("");setMood("not_entered");setRevision(v=>v+1);
+      setRequestId(crypto.randomUUID());setOutcome("gave");setDoNotCallConfirmed(false);setMoneyKind("none");setAmount("");setMood("not_entered");setRevision(v=>v+1);
       setNote("");setFollowupNote("");setDueDate("");setDueTime("");setRepeatRule("none");setCallbackKind("none");setRecontactEnabled(false);setRecontactMonths("6");
       await load();
       await qc.invalidateQueries({queryKey:getListAskanuscasesQueryKey()});
@@ -361,11 +363,24 @@ export function MaxCallDesk() {
             <Input id="max-name" value={name} onChange={e=>setName(e.target.value)} required maxLength={240}/></div>
           <div className="space-y-1"><Label htmlFor="max-outcome">וואס איז געשען?</Label>
             <select id="max-outcome" className="w-full h-11 rounded-lg border bg-background px-3" value={outcome} onChange={e=>{
-              setOutcome(e.target.value);setMoneyKind("none");setAmount("");
+              setOutcome(e.target.value);setDoNotCallConfirmed(false);setMoneyKind("none");setAmount("");
               if(e.target.value!=="gave")setMood("not_entered");
             }}>
               {Object.entries(outcomeNames).filter(([k])=>k!=="spoke").map(([k,v])=><option key={k} value={k}>{v}</option>)}
             </select></div>
+          {outcome==="do_not_call" && <div className="rounded-xl border border-amber-500/50 p-3 space-y-3">
+            <p className="font-semibold">באשטעטיגן — דער נדבן האט בפירוש געבעטן מער נישט צו רופן?</p>
+            <p className="text-sm text-muted-foreground">דער אויסוואל אליין וועט קיינעם נישט בלאקירן.
+              נאר נאך דעם קלארן באשטעטיגן און אפהיטן וועט MAX צייכענען דעם אויסגעקליבענעם נדבן אלס ״נישט רופן״.
+              אויב ער איז בלויז נישט אינטערעסירט, קלייבט ״נישט אינטערעסירט״ — אן בלאקירן.</p>
+            {contactId===null&&<p className="text-sm text-destructive">מען דארף אויסקלויבן דעם ריכטיגן נדבן פון דער קשרים־ליסטע פאר מ׳קען אים בלאקירן.</p>}
+            <label className="flex gap-2 items-start font-medium">
+              <input type="checkbox" checked={doNotCallConfirmed} disabled={contactId===null}
+                onChange={e=>setDoNotCallConfirmed(e.target.checked)}
+                aria-label="באשטעטיג בפירוש — מער נישט רופן דעם אויסגעקליבענעם נדבן"/>
+              <span>יא, איך באשטעטיג בפירוש: דער אויסגעקליבענער נדבן האט געבעטן מער נישט צו רופן, און איך וויל אקטיווירן ״נישט רופן״.</span>
+            </label>
+          </div>}
           {outcome==="gave" && <div className="rounded-xl border p-3 space-y-2">
             <Label htmlFor="max-money">געגעבן א נדבה — וועלכער מצב?</Label>
             <select id="max-money" className="w-full h-11 rounded-lg border bg-background px-3" value={moneyKind} onChange={e=>setMoneyKind(e.target.value)}>
@@ -425,7 +440,7 @@ export function MaxCallDesk() {
               <option value="none">איינמאליג</option><option value="daily">יעדן טאג</option>
               <option value="weekly">יעדע וואך</option><option value="monthly">יעדן חודש</option>
             </select></div>}
-          <Button className="w-full min-h-11" type="submit" disabled={busy||!caseId||!name.trim()||(outcome==="gave"&&(moneyKind==="none"||!(Number(amount)>0)))||(recontactEnabled&&contactId===null)}>
+          <Button className="w-full min-h-11" type="submit" disabled={busy||!caseId||!name.trim()||(outcome==="gave"&&(moneyKind==="none"||!(Number(amount)>0)))||(recontactEnabled&&contactId===null)||(outcome==="do_not_call"&&(contactId===null||!doNotCallConfirmed))}>
             <Save className="h-4 w-4 ml-2"/> {busy?"היט אפ...":"אפהיטן — און דערהיינטיגן מיין עסקנות"}
           </Button>
           <div className="rounded-xl border p-3 space-y-2">
