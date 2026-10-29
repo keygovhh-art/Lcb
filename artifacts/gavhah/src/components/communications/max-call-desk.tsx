@@ -231,7 +231,7 @@ export function MaxCallDesk() {
     </div>
     <nav aria-label="MAX הויפט־אפטיילונגען" className="grid grid-cols-5 gap-1.5 text-center text-[11px] sm:text-sm">
       {[
-        {href:"#max-today",label:"היינט"},
+        {href:"#max-tishl",label:"מיין טישל"},
         {href:"#max-call",label:"רופן"},
         {href:"#max-contacts",label:"מענטשן"},
         {href:"#max-projects",label:"צוועקן"},
@@ -356,7 +356,7 @@ export function MaxCallDesk() {
           <div className="space-y-1"><Label htmlFor="max-outcome">וואס איז געשען?</Label>
             <select id="max-outcome" className="w-full h-11 rounded-lg border bg-background px-3" value={outcome} onChange={e=>{
               setOutcome(e.target.value);setMoneyKind("none");setAmount("");
-              if(e.target.value==="no_answer")setMood("not_entered");
+              if(e.target.value!=="gave")setMood("not_entered");
             }}>
               {Object.entries(outcomeNames).filter(([k])=>k!=="spoke").map(([k,v])=><option key={k} value={k}>{v}</option>)}
             </select></div>
