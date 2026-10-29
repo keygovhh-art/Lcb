@@ -70,6 +70,7 @@ export default {
     !["GET","HEAD","OPTIONS"].includes(request.method)&&
     !(request.method==="POST"&&[
       "/api/admin/hotline-migration/signalwire/test",
+      "/api/admin/hotline-migration/signalwire/voice-switch/prepare",
       "/api/admin/hotline-migration/signalwire/voice-switch/apply",
       "/api/admin/hotline-migration/signalwire/voice-switch/rollback"
     ].includes(path)))
