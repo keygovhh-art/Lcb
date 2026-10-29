@@ -2,13 +2,13 @@
  * This does not place an outgoing call, or prove an answered/settled call.
  */
 export type PhoneStage=
- "choose"|"do_not_call_confirm"|"donation_kind"|"donation_amount"|"mood"|"callback"|
+ "choose"|"donation_kind"|"donation_amount"|"mood"|"callback"|
  "callback_minutes"|"callback_hours"|"callback_exact_choice"|"callback_exact_minute"|
  "recontact_scope"|"recontact_period"|"recontact_months"|"confirm";
 export type PhonePending={
  stage:PhoneStage;userId:number;contactId:number;caseId:number;contactName:string;
  expiresAt:number;requestId:string;at:number;
- outcome?:string;doNotCallConfirmed?:boolean;moneyKind?:"none"|"received"|"pledged";amount?:number;
+ outcome?:string;moneyKind?:"none"|"received"|"pledged";amount?:number;
  mood?:string;callbackKind?:"none"|"ten_minutes"|"minutes"|"one_hour"|"hours";
  callbackMinutes?:number;callbackHours?:number;callbackMinuteOfHour?:number|null;
  recontactScope?:"same_purpose"|"new_purpose";recontactMonths?:number;
@@ -22,7 +22,7 @@ const moods:Record<string,string>={"1":"not_entered","2":"neutral","3":"friendly
 export function readMaxPhonePending(raw:string):PhonePending|null{
  try{
   const x=JSON.parse(raw) as PhonePending;
-  if(!x||!["choose","do_not_call_confirm","donation_kind","donation_amount","mood","callback",
+  if(!x||!["choose","donation_kind","donation_amount","mood","callback",
    "callback_minutes","callback_hours","callback_exact_choice","callback_exact_minute",
    "recontact_scope","recontact_period","recontact_months","confirm"].includes(x.stage)||
    !Number.isSafeInteger(x.userId)||x.userId<=0||
@@ -41,7 +41,6 @@ export function maxPhonePrompt(x:PhonePending):{text:string;digits:number}{
   case "choose":return{text:"Manual call result for "+x.contactName+
    ". Press 1 for gave a donation, 2 for did not answer, 3 for callback requested,"+
    " 4 for not interested, 5 for Do Not Call, or 6 for other."+menu,digits:1};
-  case "do_not_call_confirm":return{text:"Important: The donor asked not to be called again. Press 1 to CONFIRM and activate Do Not Call for this donor. Press 2 to return and correct the call result. The donor will not be blocked without confirmation.",digits:1};
   case "donation_kind":return{text:"Donation information. Press 1 if received, manually reported."+
    " Press 2 for a pledge, not yet received."+menu,digits:1};
   case "donation_amount":return{text:"Enter the dollar amount, up to eight digits, then pound. It will be manually reported, not provider verified.",digits:8};
@@ -72,14 +71,9 @@ export function advanceMaxPhone(x:PhonePending,digit:string):{pending:PhonePendi
  if(x.stage==="choose"){
   const outcome=outcomes[digit];
   if(!outcome)return{pending:x,error:"Choose one through six."};
-  const change={...x,outcome,doNotCallConfirmed:false,moneyKind:"none" as const,mood:"not_entered"};
-  return{pending:next(change,outcome==="do_not_call"?"do_not_call_confirm":outcome==="gave"?"donation_kind":
+  const change={...x,outcome,moneyKind:"none" as const,mood:"not_entered"};
+  return{pending:next(change,outcome==="gave"?"donation_kind":
    outcome==="no_answer"||outcome==="callback"?"callback":"mood")};
- }
- if(x.stage==="do_not_call_confirm"){
-  if(digit==="1")return{pending:next({...x,doNotCallConfirmed:true},"mood")};
-  if(digit==="2")return{pending:next({...x,outcome:undefined,doNotCallConfirmed:false},"choose")};
-  return{pending:x,error:"Press one to explicitly confirm Do Not Call, or two to correct the result."};
  }
  if(x.stage==="donation_kind"){
   if(digit!=="1"&&digit!=="2")return{pending:x,error:"Press one for received, or two for pledged."};
@@ -133,13 +127,8 @@ export function advanceMaxPhone(x:PhonePending,digit:string):{pending:PhonePendi
   return{pending:next({...x,recontactMonths:+digit},"confirm")};
  }
  if(x.stage==="confirm"){
-  if(digit==="1"){
-   // Defense-in-depth: the global save button cannot bypass a dedicated DNC confirmation.
-   if(x.outcome==="do_not_call"&&x.doNotCallConfirmed!==true)
-    return{pending:next(x,"do_not_call_confirm"),error:"Confirm Do Not Call explicitly before saving."};
-   return{pending:x,save:true};
-  }
-  if(digit==="2")return{pending:next({...x,outcome:undefined,doNotCallConfirmed:false,moneyKind:"none",amount:undefined,
+  if(digit==="1")return{pending:x,save:true};
+  if(digit==="2")return{pending:next({...x,outcome:undefined,moneyKind:"none",amount:undefined,
     mood:"not_entered",callbackKind:"none",recontactScope:undefined,recontactMonths:undefined},"choose")};
   return{pending:x,error:"Press one to save or two to restart."};
  }
