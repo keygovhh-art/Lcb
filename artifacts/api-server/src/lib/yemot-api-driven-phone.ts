@@ -5,6 +5,8 @@ import { logger } from "./logger";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
+import {readMaxPhonePending,advanceMaxPhone,maxPhonePrompt,type PhonePending} from "./max-phone-result";
+import {computeMaxCallback,computeMaxRecontact,type MaxCallbackPlan} from "./max-calling-workflow";
 import {sectionPaths,sectionRequiresLogin,pagedSections,readPhoneSection,currentPhoneActionId,confirmPhoneAction,publicIdSections,readPhonePublicById} from "./yemot-section-batch1";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
@@ -261,63 +263,107 @@ async function exactSecret(req:Request){
  return expected.length===provided.length&&
   timingSafeEqual(Buffer.from(expected),Buffer.from(provided))?supplied:null;
 }
-type ManualResultPending={
- stage:"choose"|"confirm";userId:number;contactId:number;caseId:number;
- contactName:string;outcome?:string;expiresAt:number;requestId:string;
-};
+// Keep legacy helper names stable; the actual stages and options now come
+// from the SAME MAX donor outcome contract as the private website API.
+type ManualResultPending=PhonePending;
 const manualOutcomes:Record<string,string>={
- "1":"spoke","2":"no_answer","3":"callback","4":"not_interested","5":"do_not_call"
+ "1":"gave","2":"no_answer","3":"callback","4":"not_interested",
+ "5":"do_not_call","6":"other"
 };
-function readManualResultPending(value:string):ManualResultPending|null{
- try{
-  const p=JSON.parse(value) as ManualResultPending;
-  if(!p||!["choose","confirm"].includes(p.stage)||!Number.isSafeInteger(p.userId)||
-   !Number.isSafeInteger(p.contactId)||p.contactId<=0||!Number.isSafeInteger(p.caseId)||
-   p.caseId<=0||!Number.isFinite(p.expiresAt)||p.expiresAt<Date.now()||
-   typeof p.contactName!=="string"||typeof p.requestId!=="string"||
-   !/^[a-f0-9]{64}$/.test(p.requestId))return null;
-  if(p.stage==="confirm"&&!Object.values(manualOutcomes).includes(p.outcome||""))return null;
-  return p;
- }catch{return null;}
-}
-const choosePrompt="Manual result for the selected contact. Press 1 if you spoke, 2 if no answer, "+
- "3 for callback requested, 4 for not interested, or 5 for Do Not Call. "+
- "Press zero to cancel. This does NOT initiate an outbound phone call.";
-const confirmationPrompt=(p:ManualResultPending)=>
- "You selected "+(p.outcome||"").replace(/_/g," ")+
- ". Press 5 again to SAVE the result to your Gavhah MAX website history. "+
- "Press zero to cancel. No money, donation, or payment will be recorded.";
+const readManualResultPending=readMaxPhonePending;
+const choosePrompt="Manual MAX report. Press 1 gave a donation, 2 did not answer, 3 callback, 4 not interested, 5 Do Not Call, 6 other.";
+const confirmationPrompt=(p:ManualResultPending)=>maxPhonePrompt(p).text;
+
+/** Persist exactly once in the SAME MAX tables used by the website.
+ * No automatic provider call or payment is initiated by this handler.
+ * Invoked inside the existing IVR transaction, with owner/consent rechecks.
+ */
 async function recordConfirmedManualResult(client:import("pg").PoolClient,p:ManualResultPending){
- // Recheck ownership and DNC status at commit time, not only when the menu
- // first opened. A moved contact or closed case cannot receive a new result.
- const contact=await client.query<{id:number;name:string;do_not_call:boolean}>(
-  "SELECT id,name,do_not_call FROM public.communication_contacts "+
+ const contact=await client.query<{id:number;name:string;do_not_call:boolean;preferred_timezone:string}>(
+  "SELECT id,name,do_not_call,preferred_timezone FROM public.communication_contacts "+
   "WHERE id=$1 AND user_id=$2 FOR UPDATE",[p.contactId,p.userId]);
  const owned=contact.rows[0];
- const test=await client.query<{id:number}>(
+ const caseResult=await client.query<{id:number}>(
   "SELECT id FROM public.askanus_cases WHERE id=$1 AND user_id=$2 AND status!='closed' FOR UPDATE",
   [p.caseId,p.userId]);
- if(!owned||!test.rows[0]||owned.do_not_call)return "Contact is unavailable or marked Do Not Call. Nothing was saved.";
- const outcome=p.outcome||"other";
+ if(!owned||!caseResult.rows[0]||owned.do_not_call)
+  return "Contact is unavailable or marked Do Not Call. Nothing was saved.";
+ const outcome=p.outcome||"other",mood=p.mood||"not_entered";
+ const kind=p.moneyKind||"none",amount=p.amount||0;
+ if((outcome==="gave"&&(!["pledged","received"].includes(kind)||amount<=0))||
+    (outcome!=="gave"&&kind!=="none")||!Number.isSafeInteger(amount)||amount<0||amount>99999999)
+  return "Invalid donation amount or result. No financial record was saved.";
+ const zone=owned.preferred_timezone||"America/New_York";
+ let callback:ReturnType<typeof computeMaxCallback>=null;
+ let recontact:Date|null=null;
+ try{
+  const plan:MaxCallbackPlan={kind:p.callbackKind||"none",
+   minutes:p.callbackMinutes,hours:p.callbackHours,minuteOfHour:p.callbackMinuteOfHour};
+  callback=computeMaxCallback(plan,new Date(p.at),zone);
+  if(p.recontactScope&&p.recontactMonths&&outcome!=="do_not_call")
+   recontact=computeMaxRecontact({scope:p.recontactScope,afterMonths:p.recontactMonths},new Date(p.at));
+ }catch{return "Invalid callback schedule. Please reenter the report; no money was recorded.";}
  const ins=await client.query<{id:number}>(
   "INSERT INTO public.fundraising_call_reports "+
   "(user_id,case_id,contact_id,contact_name,outcome,money_kind,amount,note,request_id,observed_mood) "+
-  "VALUES ($1,$2,$3,$4,$5,'none',0,$6,$7,'neutral') "+
+  "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) "+
   "ON CONFLICT(user_id,request_id) DO NOTHING RETURNING id",
-  [p.userId,p.caseId,p.contactId,owned.name,outcome,"Manual call outcome saved from verified Yemot IVR",p.requestId]);
- if(!ins.rows[0])return "This result was already saved. No duplicate was created.";
+  [p.userId,p.caseId,p.contactId,owned.name,outcome,kind,amount,
+   "Manual MAX phone report; not proof of provider-verified call or payment",
+   p.requestId,mood]);
+ const reportId=ins.rows[0]?.id;
+ if(!reportId)return "This report is already saved. No duplicate donation or reminder was created.";
+ const day=new Date().toISOString().slice(0,10);
  await client.query(
   "INSERT INTO public.case_activity_log(case_id,date,type,note) VALUES($1,$2,'contact',$3)",
-  [p.caseId,new Date().toISOString().slice(0,10),
-   ("Telephone IVR manual call report: "+owned.name+" - "+outcome).slice(0,1400)]);
+  [p.caseId,day,("MAX phone manual report: "+owned.name+" / "+outcome+" / "+mood).slice(0,1400)]);
  if(outcome==="do_not_call"){
   await client.query("UPDATE public.communication_contacts "+
-   "SET do_not_call=true,opt_out_reason='Do Not Call explicitly confirmed through verified Yemot hotline',updated_at=now() "+
+   "SET do_not_call=true,opt_out_reason='Do Not Call confirmed by owner through paired MAX phone',updated_at=now() "+
    "WHERE id=$1 AND user_id=$2",[p.contactId,p.userId]);
  }
- return "Saved to your MAX website call history. "+
-  (outcome==="do_not_call"?"Do Not Call protection is now enabled. ":"")+
-  "No actual call was placed and no payment was collected.";
+ if(kind==="pledged"){
+  await client.query("INSERT INTO public.max_pledges "+
+   "(user_id,case_id,contact_id,call_report_id,amount,note) VALUES($1,$2,$3,$4,$5,$6)",
+   [p.userId,p.caseId,p.contactId,reportId,amount,"Manual MAX phone pledge"]);
+ }else if(kind==="received"){
+  await client.query("INSERT INTO public.max_receipts "+
+   "(user_id,case_id,contact_id,call_report_id,amount,request_id,method,verification) "+
+   "VALUES($1,$2,$3,$4,$5,$6,'other','manually_reported')",
+   [p.userId,p.caseId,p.contactId,reportId,amount,"phone:"+p.requestId]);
+ }
+ if(kind!=="none"){
+  await client.query(
+   "INSERT INTO public.case_activity_log(case_id,date,type,note,amount) VALUES($1,$2,$3,$4,$5)",
+   [p.caseId,day,kind==="received"?"funds_received":"funds_promised",
+    "Manually reported "+kind+" through paired MAX phone",amount]);
+  await client.query("UPDATE public.askanus_cases SET "+
+   (kind==="received"?"funds_received=funds_received+$1":"funds_promised=funds_promised+$1")+
+   ",last_updated=now() WHERE id=$2 AND user_id=$3",
+   [amount,p.caseId,p.userId]);
+ }
+ if(callback){
+  const saved=await client.query<{id:number}>(
+   "INSERT INTO public.case_followups(case_id,date,note,due_date,due_time,time_zone,repeat_rule) "+
+   "VALUES($1,$2,$3,$4,$5,$6,'none') RETURNING id",
+   [p.caseId,day,"צוריק רופן "+owned.name,callback.date,callback.time,callback.timeZone]);
+  await client.query("INSERT INTO public.max_followup_contacts(user_id,contact_id,followup_id) "+
+   "VALUES($1,$2,$3)",[p.userId,p.contactId,saved.rows[0].id]);
+ }
+ if(recontact&&p.recontactScope){
+  await client.query("INSERT INTO public.max_donor_recontact "+
+   "(user_id,contact_id,case_id,scope,due_at,source_report_id,status) "+
+   "VALUES($1,$2,$3,$4,$5,$6,'waiting') "+
+   "ON CONFLICT(user_id,contact_id,case_id,scope) DO UPDATE "+
+   "SET due_at=excluded.due_at,source_report_id=excluded.source_report_id,"+
+   "status='waiting',updated_at=now()",
+   [p.userId,p.contactId,p.caseId,p.recontactScope,recontact,reportId]);
+ }
+ return "Saved to your MAX website, project and Tishl. "+
+  (callback?"Your callback is scheduled for "+callback.date+" "+callback.time+" "+zone+". ":"")+
+  (recontact?"Your future donor review is saved. ":"")+
+  "No outgoing call was placed by this report, and no payment provider was verified. "+
+  "Press one to review the next contact, or zero for the MAX main menu.";
 }
 
 export async function handleYemotApp(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<void>{
