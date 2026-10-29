@@ -69,10 +69,11 @@ function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fro
  let nodes=tree,current:TreeNode|undefined;
  for(const d of path){current=nodes[d];if(!current)return root;nodes=current.children||{};}
  if(!path)return fromShared?sharedSignalwireRoot:fromNext?nextHotlineRoot:ready4444?gavhahRoot:root;
- if(!current?.children)return current?.details||"This option is not ready on the phone. Press zero to return to the main menu.";
+ if(!current?.children)return (current?.details||"This option is not available on the phone yet.")+
+  (fromShared?" Press star for the previous menu, or zero for the main menu.":" Press zero to return to the main menu.");
  return current.label+". "+Object.entries(nodes)
   .map(([n,item])=>"Press "+n+" for "+item.label+".").join(" ")+
-  " Press zero to return to the main menu.";
+  (fromShared?" Press star for the previous menu, or zero for the main menu.":" Press zero to return to the main menu.");
 }
 // Only parent-navigation menus can be replaced with a recorded custom
 // greeting. Dynamic public and private content must NEVER be shadowed.
@@ -370,7 +371,14 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    // Existing Yemot management is usually extension /0 (admin_login).
    // Preserve it on root 0, and keep nested 0 returning to the API root.
    // Moving to /0 DOES NOT bypass the provider admin password.
-   if(path==="" && digit==="0" && !fromNext){
+   if(fromShared && digit==="*"){
+    // Universal keypad back-navigation on the SignalWire MAX line only.
+    // Keep the old Yemot 0/4444 controls and all secure code handlers intact.
+    if(path==="185")await cancelPhoneSignup(client,callHash);
+    path=path.length>2?path.slice(0,-1):"";
+    position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;
+    replyMode=false;replyTarget=null;reportMode=false;manualFlash="";
+   }else if(path==="" && digit==="0" && !fromNext){
     goToProviderManagement=true;
    }else if(from4444 && digit==="0"){
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
@@ -599,7 +607,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     // A sign-out action is deliberately reachable only through My Askanus.
     userId=null;s.member_id=null;s.linked_until=null;path="12";feedback="You have signed out from this call. ";
    }else{
+    const previousPath=path;
     path=treeSelect(path,digit,tree);
+    if(fromShared && digit!=="0" && path===previousPath)
+     feedback="That selection is unavailable. Please choose a listed option. ";
     if(path==="126"){
       userId=null;s.member_id=null;s.linked_until=null;path="12";feedback="You have signed out from this call. ";
     }
