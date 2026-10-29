@@ -592,47 +592,43 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     }
    }else if(path==="141" && (digit==="9"||readManualResultPending(manualFlash))){
     if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
-      manualFlash="";
-      feedback="Please link your own Gavhah website account with the eight digit code first. ";
+     manualFlash="";
+     feedback="Link your MAX website account with your one-time eight digit code first. ";
     }else{
-      const existing=readManualResultPending(manualFlash);
-      if(digit==="0"){manualFlash="";path="";page=0;feedback="Cancelled. No call result was recorded. ";}
-      else if(existing && existing.userId===userId){
-        if(existing.stage==="choose"){
-          const outcome=manualOutcomes[digit];
-          if(!outcome)feedback=choosePrompt+" ";
-          else{
-            existing.outcome=outcome;existing.stage="confirm";
-            manualFlash=JSON.stringify(existing);
-            feedback=confirmationPrompt(existing)+" ";
-          }
-        }else if(digit==="5"){
-          feedback=(await recordConfirmedManualResult(client,existing))+" ";
-          manualFlash="";
-        }else feedback=confirmationPrompt(existing)+" ";
-      }else if(digit==="9"){
-        const picked=await client.query<{id:number;name:string}>(
-          "SELECT id,name FROM public.communication_contacts "+
-          "WHERE user_id=$1 AND do_not_call=false ORDER BY updated_at DESC,id DESC LIMIT 1 OFFSET $2",
-          [userId,Math.max(0,Math.min(40,page))]);
-        // Never silently attribute a call to an unrelated case. Until the
-        // keypad supports explicit case selection, require exactly one open case.
-        const matchingCase=await client.query<{id:number}>(
-          "SELECT id FROM public.askanus_cases WHERE user_id=$1 AND status!='closed' "+
-          "ORDER BY last_updated DESC,id DESC LIMIT 2",[userId]);
-        if(!picked.rows[0])feedback="This calling-list contact is unavailable. Nothing was recorded. ";
-        else if(!matchingCase.rows[0])feedback="Please create an open MAX case on your website before recording a call result. ";
-        else if(matchingCase.rows.length>1)feedback="You have more than one open MAX case. To prevent incorrect case attribution, choose the case and log this result on the website. ";
-        else{
-          const contact=picked.rows[0];
-          manualFlash=JSON.stringify({
-            stage:"choose",userId,contactId:contact.id,caseId:matchingCase.rows[0].id,
-            contactName:contact.name.slice(0,240),expiresAt:Date.now()+5*60*1000,
-            requestId:createHash("sha256").update(callHash+":"+step+":"+contact.id).digest("hex")
-          } satisfies ManualResultPending);
-          feedback=choosePrompt+" ";
-        }
-      }else{manualFlash="";feedback="The previous result session has expired. Press nine to start again. ";}
+     const existing=readManualResultPending(manualFlash);
+     if(digit==="0"){manualFlash="";path="";page=0;feedback="Cancelled. No record was saved. ";}
+     else if(existing && existing.userId===userId){
+      const update=advanceMaxPhone(existing,digit);
+      if(update.save){
+       feedback=(await recordConfirmedManualResult(client,update.pending))+" ";
+       manualFlash="";
+      }else{
+       manualFlash=JSON.stringify(update.pending);
+       feedback=(update.error?update.error+" ":"");
+      }
+     }else if(digit==="9"){
+      const picked=await client.query<{id:number;name:string}>(
+       "SELECT id,name FROM public.communication_contacts "+
+       "WHERE user_id=$1 AND do_not_call=false ORDER BY updated_at DESC,id DESC LIMIT 1 OFFSET $2",
+       [userId,Math.max(0,Math.min(40,page))]);
+      // Do not guess the project. The paired owner must have ONE open case
+      // in the phone session; otherwise the website offers explicit selection.
+      const matchingCase=await client.query<{id:number}>(
+       "SELECT id FROM public.askanus_cases WHERE id=$1 AND user_id=$2 AND status!='closed' "+
+       "ORDER BY last_updated DESC,id DESC LIMIT 2",[userId]);
+      if(!picked.rows[0])feedback="The donor is not available. Nothing saved. ";
+      else if(!matchingCase.rows[0])feedback="Open a MAX project on the website first. ";
+      else if(matchingCase.rows.length>1)feedback="More than one open project. Choose the correct project on your MAX website; nothing is saved on the phone. ";
+      else{
+       const contact=picked.rows[0];
+       manualFlash=JSON.stringify({
+        stage:"choose",userId,contactId:contact.id,caseId:matchingCase.rows[0].id,
+        contactName:contact.name.slice(0,240),at:Date.now(),
+        expiresAt:Date.now()+15*60*1000,
+        requestId:createHash("sha256").update(callHash+":"+step+":"+contact.id).digest("hex")
+       } satisfies ManualResultPending);
+      }
+     }else{manualFlash="";feedback="That report expired. Press nine to start again. ";}
     }
    }else if(sectionPaths.has(path)){
     // For protected actions require a recently paired website identity.
@@ -730,10 +726,12 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(newsPath(path)){
    mode="news";spoken+=(await newsPrompt(path,position,chunk)).text;
   }else if(path==="141"&&readManualResultPending(manualFlash)){
-   // While choosing or confirming, speak only the active keypad instructions.
-   // Do not repeat the entire contact queue or the menu customization.
+   // One real staged phone report: dollars, optional callback and future donor
+   // review are NOT saved until the paired account owner explicitly confirms.
    const pending=readManualResultPending(manualFlash)!;
-   if(!feedback)spoken+=pending.stage==="choose"?choosePrompt:confirmationPrompt(pending);
+   const prompt=maxPhonePrompt(pending);
+   mode=prompt.digits>1?"article":"menu";
+   spoken+=prompt.text;
   }else if(sectionPaths.has(path)){
    const permitted=!sectionRequiresLogin.has(path)||
       await memberAllowed(client,{...s,member_id:userId});
