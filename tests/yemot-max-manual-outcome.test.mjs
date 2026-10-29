@@ -69,7 +69,8 @@ test("Phone reports have owner lock, idempotency, correct finance and recontact 
   "WHERE id=$1 AND user_id=$2",
   "Press one to review the next contact"
  ])assert.ok(phone.includes(fragment),fragment);
- assert.match(phone,/if\(outcome==="do_not_call"\)/);
+ assert.match(phone,/if\(outcome==="do_not_call" && p\.doNotCallConfirmed===true\)/);
+ assert.match(phone,/if\(outcome==="do_not_call"&&p\.doNotCallConfirmed!==true\)/);
 });
 test("Callback timestamp respects true minutes and caller timezone; future period exact calendar months",()=>{
  const start=new Date("2026-10-29T20:46:00.000Z");
