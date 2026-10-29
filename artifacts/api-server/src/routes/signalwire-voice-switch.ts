@@ -28,7 +28,7 @@ async function credential(){
  }catch{throw error(503,"SignalWire token cannot be decrypted using the current encryption key");}
  return {space:x.space_hostname,auth:"Basic "+Buffer.from(x.project_id+":"+token,"utf8").toString("base64")};
 }
-async function sw(c:Awaited<ReturnType<typeof credential>>,part:string,method:"GET"|"PATCH"="GET",body?:object){
+async function sw(c:Awaited<ReturnType<typeof credential>>,part:string,method:"GET"|"PATCH"|"POST"="GET",body?:object){
  const response=await fetch(apiURL(c.space,part),{
   method,headers:{Authorization:c.auth,Accept:"application/json",...(body?{"Content-Type":"application/json"}:{})},
   ...(body?{body:JSON.stringify(body)}:{}),redirect:"manual",cache:"no-store",
@@ -38,6 +38,7 @@ async function sw(c:Awaited<ReturnType<typeof credential>>,part:string,method:"G
   throw error(502,"SignalWire API redirect refused; no credentials or Calling settings were forwarded");
  if(!response.ok)throw error(response.status===401||response.status===403?403:502,
   method==="GET"?"SignalWire inventory unavailable; check Calling and Voice API token scopes":
+  method==="POST"?"SignalWire rejected the MAX cXML Webhook setup; no phone number or SMS assignment was changed":
   "SignalWire rejected voice-only reassignment; no SMS request was made");
  return await response.json() as any;
 }
@@ -83,6 +84,77 @@ async function preflight(){
   throw error(409,"Current live calling resource no longer matches saved old Emes Newsroom");
  return {...live,auth:c,alreadySwitched:live.calling.resource_id===live.targetId,markedCutover:old.cutover_enabled};
 }
+/** Only creates a new, initially UNASSIGNED Calling cXML resource, never a phone route.
+ * The existing super-admin session and same-origin middleware authorize the POST.
+ * A database row lock makes repeated/concurrent setup requests idempotent.
+ */
+router.post("/voice-switch/prepare",async(_req,res,next)=>{
+ const client=await pool.connect();
+ let locked=false;
+ try{
+  if(process.env.CF_WORKER_RUNTIME!=="1"||
+     process.env.CF_PHONE_WEBHOOKS_ENABLED!=="true"||
+     String(process.env.SIGNALWIRE_SIGNING_KEY||"").length<24)
+   throw error(503,"Cloudflare signed voice callback must be enabled before creating a MAX resource");
+  await client.query("BEGIN");locked=true;
+  const found=await client.query<{
+   requested_number:string;old_extension:string;audit_state:string;
+   cutover_enabled:boolean;original_voice_url:string|null;original_call_handler:string|null
+  }>("SELECT requested_number,old_extension,audit_state,cutover_enabled,original_voice_url,original_call_handler "+
+     "FROM public.gavhah_signalwire_shared_route WHERE id=1 FOR UPDATE");
+  const previous=found.rows[0];
+  if(!previous||
+     previous.requested_number!=="6056558080"||
+     previous.old_extension!=="55555"||
+     previous.audit_state!=="verified_compatibility_voice_url"||
+     previous.cutover_enabled||
+     !previous.original_voice_url?.startsWith("https://emes-newsroom.vercel.app/")||
+     previous.original_call_handler!=="laml_webhooks")
+   throw error(409,"Original Emes Newsroom route must be verified and Calling must be untouched before MAX setup");
+  const cred=await credential();
+  const list=await sw(cred,"resources/cxml_webhooks?page_size=1000");
+  if(!Array.isArray(list.data)||list.links?.next)
+   throw error(409,"Incomplete SignalWire cXML webhook inventory; no resource was created");
+  const existing=(list.data as R[]).filter(x=>
+   x.display_name==="Olam Hachesed MAX"||
+   x.cxml_webhook?.name==="Olam Hachesed MAX"||
+   x.cxml_webhook?.primary_request_url===CALLBACK);
+  const valid=(x:R)=>x.type==="cxml_webhook"&&uuid.test(x.id)&&
+   (x.display_name==="Olam Hachesed MAX"||x.cxml_webhook?.name==="Olam Hachesed MAX")&&
+   x.cxml_webhook?.used_for==="calling"&&
+   x.cxml_webhook?.primary_request_url===CALLBACK&&
+   x.cxml_webhook?.primary_request_method==="POST";
+  if(existing.length>1||existing.length===1&&!valid(existing[0]))
+   throw error(409,"A MAX-named or MAX-URL resource already exists with incompatible settings; review it in SignalWire, do not duplicate it");
+  let created=false;
+  let target=existing[0];
+  if(!target){
+   const result=await sw(cred,"resources/cxml_webhooks","POST",{
+    name:"Olam Hachesed MAX",used_for:"calling",
+    primary_request_url:CALLBACK,primary_request_method:"POST"
+   }) as R;
+   if(!valid(result))
+    throw error(502,"Provider did not verify the new MAX webhook; inspect SignalWire before retrying");
+   target=result;created=true;
+  }
+  // Read the provider again, ensuring there is exactly one usable target.
+  const verify=await sw(cred,"resources/cxml_webhooks?page_size=1000");
+  if(!Array.isArray(verify.data)||verify.links?.next||
+     (verify.data as R[]).filter(valid).length!==1)
+   throw error(502,"MAX webhook creation may have succeeded but uniqueness cannot be verified; inspect the provider before retrying");
+  await client.query("COMMIT");locked=false;
+  res.set("Cache-Control","private,no-store").json({
+   prepared:true,created,resourceId:target.id,numberUnchanged:true,
+   callingAssignmentUnchanged:true,smsUnchanged:true,
+   message:created?"MAX Calling cXML resource created but not assigned to any telephone number":
+    "Existing MAX Calling cXML resource already correctly configured; no changes made"
+  });
+ }catch(err){
+  if(locked)await client.query("ROLLBACK").catch(()=>{});
+  next(err);
+ }finally{client.release();}
+});
+
 router.get("/voice-switch/preflight",async(_req,res,next)=>{
  try{
   const x=await preflight();res.set("Cache-Control","private,no-store").json({
