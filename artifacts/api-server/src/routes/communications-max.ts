@@ -107,11 +107,6 @@ router.patch("/askanus/contacts/:id", requireAuth, async (req, res) => {
     if(req.body?.doNotCall===false&&prior.doNotCall){
       return {kind:"audit_required" as const};
     }
-    // The donor profile editor must not activate a new DNC flag from a
-    // single checkbox without a separate explicit owner confirmation.
-    if(req.body?.doNotCall===true&&!prior.doNotCall&&req.body?.confirmDoNotCall!==true){
-      return {kind:"confirmation_required" as const};
-    }
     const [current]=await tx.update(communicationContacts).set(updates).where(and(
       eq(communicationContacts.id,contactId),eq(communicationContacts.userId,userId)
     )).returning();
@@ -140,9 +135,6 @@ router.patch("/askanus/contacts/:id", requireAuth, async (req, res) => {
   if(result.kind==="audit_required"){
     res.status(409).json({error:"Use the explicitly audited owner override or donor permission workflow"});return;
   }
-  if(result.kind==="confirmation_required"){
-    res.status(409).json({error:"Explicit Do Not Call confirmation is required before blocking this donor"});return;
-  }
   res.json(formatContact(result.row));
 });
 
@@ -167,9 +159,6 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   const contactName = clean(body.contactName, 240);
   const note = clean(body.note, 1500);
   const outcome = clean(body.outcome, 32);
-  // Only a distinct, explicit confirmation allows a recorded Do Not Call
-  // request to update the contact-wide blocking flag.
-  const doNotCallConfirmed = body.doNotCallConfirmed === true;
   const moneyKind = clean(body.moneyKind, 32) || "none";
   const amount = Number(body.amount ?? 0);
   const followupNote = clean(body.followupNote, 1500);
@@ -213,8 +202,7 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
       !isoDate(dueDate) || !isRepeatRule(repeatRule) ||
       (repeatRule!=="none" && (!followupNote||!dueDate)) || (dueTime && (!followupNote || !dueDate)) || (followupNote && !dueDate && body.dueDate) ||
       (contactId !== null && !safeId(contactId)) ||
-      (outcome === "do_not_call" && (contactId === null || !doNotCallConfirmed)) ||
-      (outcome !== "do_not_call" && doNotCallConfirmed)) {
+      (outcome === "do_not_call" && contactId === null)) {
     res.status(400).json({ error: "Invalid call report fields" }); return;
   }
   // Check the signed-in member owns the case; increments below are atomic SQL updates.
@@ -245,7 +233,7 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
       caseId,date:today,type:"contact",
       note: `Manual call report: ${contactName} — ${outcome} (observed mood: ${mood})${note ? " — "+note : ""}`.slice(0,1500),
     });
-    if(outcome==="do_not_call" && doNotCallConfirmed && contactId!==null) {
+    if(outcome==="do_not_call" && contactId!==null) {
       await tx.update(communicationContacts).set({
         doNotCall:true,optOutReason:note||"Asked not to be called",updatedAt:new Date(),
       }).where(and(eq(communicationContacts.id,contactId),eq(communicationContacts.userId,userId)));
