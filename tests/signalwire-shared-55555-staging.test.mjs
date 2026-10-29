@@ -13,7 +13,8 @@ test('New staged shared handler never modifies SignalWire number or the existing
  assert.match(shared,/SHARED_E164="\+16056558080"/);
  assert.match(shared,/SHARED_SIGNALWIRE_URL=/);
  assert.match(shared,/sharedRouteReady\(route\)/);
- assert.match(shared,/cutover_enabled!==false/);
+ // The signed IVR must KEEP working after the owner completes Calling-only cutover.
+ assert.doesNotMatch(shared,/cutover_enabled!==false/);
  assert.match(shared,/original_voice_url/);
  assert.match(shared,/originalSystemRedirectXml/);
  assert.match(shared,/SHARED_SIGNALWIRE_URL/);
