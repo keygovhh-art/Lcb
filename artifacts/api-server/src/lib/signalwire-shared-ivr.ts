@@ -69,10 +69,15 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  const digits=typeof form.Digits==="string"?form.Digits:undefined;
  if(!/^[A-Za-z0-9_.:-]{8,160}$/.test(callId)||
   normalizedSignalWireNumber(called)!=="6056558080"||
-  (digits!==undefined&&!/^\d{0,16}$/.test(digits))){
+  (digits!==undefined&&!/^(?:[0-9]{0,16}|\*)$/.test(digits))){
   res.status(400).type("text/plain").send("Invalid SignalWire call or keypad input");
   return;
  }
+ // Sanitary event tracking: never log phone number, call SID, raw digits or PIN.
+ console.info(JSON.stringify({event:"gavhah.signalwire.keypad",at:new Date().toISOString(),
+  inputType:digits===undefined?"new_call":digits===LEGACY_EXTENSION?"legacy_55555":
+   digits==="*"?"previous_menu":digits==="0"?"main_menu":"keypad",
+  digitCount:digits?.length??0}));
  const route=(await pool.query<SharedRoute>(
   "SELECT requested_number,old_extension,audit_state,original_voice_url,"+
   "original_voice_method,original_call_handler,route_fingerprint,cutover_enabled "+
@@ -124,7 +129,10 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
   res.status(status).type("text/plain").send("Gavhah phone engine unavailable");
   return;
  }
- const root=reply.startsWith("read=t-Welcome to Olam Hachesed Communications, MAX.");
+ // Feedback may precede the greeting after an invalid key or keypad back.
+ // Detect the MAX root by content rather than only by a rigid string prefix.
+ const root=reply.startsWith("read=t-")&&
+  reply.includes("Welcome to Olam Hachesed Communications, MAX.");
  res.status(200).type("application/xml; charset=utf-8")
   .set("Cache-Control","no-store")
   .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root));
