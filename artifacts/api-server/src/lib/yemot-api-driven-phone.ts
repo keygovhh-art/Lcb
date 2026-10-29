@@ -391,7 +391,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     path=path.length>2?path.slice(0,-1):"";
     position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;
     replyMode=false;replyTarget=null;reportMode=false;manualFlash="";
-   }else if(path==="" && digit==="0" && !fromNext){
+   }else if(path==="" && digit==="0" && !fromNext && !fromShared){
+    // Old Yemot root management only; 0 on MAX repeats the MAX greeting.
     goToProviderManagement=true;
    }else if(from4444 && digit==="0"){
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
