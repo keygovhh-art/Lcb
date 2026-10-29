@@ -120,6 +120,38 @@ export const phoneTree: Record<string,Item> = {
     })
   })
 };
+/**
+ * The SignalWire number +1 605-655-8080 is an Olam Hachesed Communications
+ * (MAX) tool, NOT a mirror of Gavhah News, Campaign Center or public
+ * communities/minyanim. Keep the original Yemot menu tree unchanged.
+ *
+ * These five headings follow the 2026-10-14 MAX master build contract.
+ * Branches 15 (More) and 16 (Projects) are telephone-only virtual menus;
+ * their digits are translated into real, owner-scoped MAX routes by the
+ * SignalWire-only code in yemot-api-driven-phone.ts.
+ */
+const gavhahSections=phoneTree["1"].children!;
+export const olamCommunicationsPhoneTree:Record<string,Item>={
+  "1":group("Olam Hachesed MAX",{
+    "2":gavhahSections["2"], // Today: tasks, cases, notes, own work
+    "3":gavhahSections["3"], // People: Donor 360, contacts, pledges, followups
+    "4":gavhahSections["4"], // Calling: queues, reports, consent
+    "5":group("More: finance, followups, history and secure account",{
+      "1":leaf("Pledges and receipts","/communications"),
+      "2":leaf("Followups and reminders","/communications"),
+      "3":leaf("Call history and reports","/communications"),
+      "4":leaf("Calling permission and Do Not Call","/communications"),
+      "5":leaf("Link your website account securely","/my"),
+      "6":leaf("Sign out from this phone session","/my")
+    }),
+    "6":group("Projects and personal goals",{
+      "1":leaf("My cases and project goals","/my"),
+      "2":leaf("My personal work overview","/my"),
+      "3":leaf("Tasks linked to my projects","/my")
+    })
+  })
+};
+
 export function phoneNode(path:string):Item|undefined {
   let current:Item|undefined;
   let children=phoneTree;
