@@ -79,10 +79,18 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
   },[contactId]);
   useEffect(()=>{void load();},[load,revision]);
   const savePreferences=async()=>{
+    const markingNotCallable=doNotCall&&!data?.contact.doNotCall;
+    // Do not mistake disinterest for an explicit opt-out.
+    // A separate confirmation is required before a donor is actually blocked.
+    if(markingNotCallable&&!window.confirm(
+      "באשטעטיג בפירוש: דער אויסגעקליבענער נדבן האט געבעטן מער נישט צו רופן, און דו ווילסט אים אנצייכענען אלס ״נישט רופן״? "+
+      "נישט אינטערעסירט אליין איז נישט קיין רופן־פארבאט."
+    ))return;
     setBusy(true);setError("");setMessage("");
     try{
       await jsonCall("/api/askanus/contacts/"+contactId,write({
-        preferredHours:hours,relationshipNotes:moodNotes,doNotCall,optOutReason:optReason,
+        preferredHours:hours,relationshipNotes:moodNotes,doNotCall,
+        confirmDoNotCall:markingNotCallable,optOutReason:optReason,
         organization,city,tags,contactRole,
       },"PATCH"));
       await load();onChanged();setEditing(false);
@@ -200,7 +208,7 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
       <label className="flex gap-2 items-center text-sm">
         <input type="checkbox" className="h-5 w-5" checked={doNotCall} disabled={c.doNotCall}
           onChange={e=>setDoNotCall(e.target.checked)}/>
-        נישט רופן דעם מענטש
+        נישט רופן דעם מענטש — פארלאנגט א באזונדערע באשטעטיגונג ביים אפהיטן
       </label>
       {c.doNotCall&&<p className="text-xs text-muted-foreground">דער עסקן קען אראפנעמען דעם צייכן אויב ער באשליסט אזוי, מיט א ווארענונג און א געשיכטע. דאס איז נישט א נייע רשות פונעם נדבן.</p>}
       <Label htmlFor="donor-reason">סיבה פון רופן־פארבאט</Label>
