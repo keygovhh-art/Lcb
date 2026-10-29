@@ -7,6 +7,7 @@ import ts from "typescript";
 const next = readFileSync("artifacts/api-server/src/lib/signalwire-next-hotline.ts","utf8");
 const shared = readFileSync("artifacts/api-server/src/lib/signalwire-shared-ivr.ts","utf8");
 const keypad = readFileSync("artifacts/api-server/src/lib/yemot-api-driven-phone.ts","utf8");
+const planMenu=readFileSync("artifacts/api-server/src/routes/yemot-whole-platform-ivr.ts","utf8");
 const source=next.slice(next.indexOf('const xml='),next.indexOf('// Normalization and protected number list'));
 assert.ok(source.includes('export function convertGavhahReplyToCxml'));
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
@@ -52,4 +53,23 @@ test("star navigation is safe, 0 resets, 55555 routes to unchanged legacy URL",(
  assert.match(keypad,/if\(fromShared && digit==="\*"\)/);
  assert.match(keypad,/path=path.length>2\?path.slice\(0,-1\):""/);
  assert.match(keypad,/if\(digit==="0"\)return ""/);
+});
+
+test("SignalWire root follows the five MAX departments and excludes news/minyanim/forum",()=>{
+ const root=keypad.split("\\n").find(x=>x.startsWith("const sharedSignalwireRoot="));
+ assert.ok(root);
+ for(const name of ["Today and My Work","Calling and Communication","People and Donor 360","Projects and Goals","More: finance"])assert.ok(root.includes(name),name);
+ for(const unwanted of ["Press 7 for News","Press 6 for Minyans","Press 5 for Community","Press 8 for Messages","Press 9 for Management","Campaign Center"])assert.ok(!root.includes(unwanted),unwanted);
+ assert.match(keypad,/menuMap:Record<string,string>=\\{[\\s\\S]*?"1":"12","2":"14","3":"13","4":"16","5":"15"/);
+ assert.doesNotMatch(keypad,/menuMap\\[digit\\]\\|\\|"11"/);
+ assert.match(planMenu,/olamCommunicationsPhoneTree/);
+ assert.match(shared,/handleYemotApp\\(proxy,capture,olamCommunicationsPhoneTree\\)/);
+ assert.doesNotMatch(shared,/handleYemotApp\\(proxy,capture,phoneTree\\)/);
+});
+
+test("all MAX virtual choices map only to real owner-scoped project/finance/contact routes",()=>{
+ assert.match(keypad,/"16":\\{"1":"122","2":"124","3":"121"\\}/);
+ assert.match(keypad,/"15":\\{"1":"133","2":"134","3":"142","4":"143","5":"125","6":"126"\\}/);
+ assert.match(keypad,/if\\(!allowed.has\\(path\\)\\)/);
+ assert.match(keypad,/if\\(fromShared && path===""\\)/);
 });
