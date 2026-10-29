@@ -175,7 +175,7 @@ export function MaxCallDesk() {
     e.preventDefault();if(!caseId || !name.trim()) return;
     setBusy(true);setError("");setMessage("");
     try{
-      const result=await request<{duplicate:boolean;report:Call}>(
+      const result=await request<{duplicate:boolean;report:Call;callbackDueAt?:string|null;callbackTimeZone?:string|null;recontactDueAt?:string|null}>(
         "/api/askanus/cases/"+caseId+"/call-reports",
         json({requestId,contactId,contactName:name.trim(),outcome,
           moneyKind:outcome==="gave"?moneyKind:"none",mood,
@@ -190,9 +190,15 @@ export function MaxCallDesk() {
           recontactPlan:recontactEnabled&&contactId!==null&&outcome!=="do_not_call"?
             {scope:recontactScope,afterMonths:Number(recontactMonths)}:undefined}),
       );
+      const callbackText=result.callbackDueAt
+        ? " דער צוריק־רוף ליגט אויפן טישל פאר "+new Date(result.callbackDueAt).toLocaleString(undefined,
+           {weekday:"long",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})+".":"";
+      const recontactText=result.recontactDueAt
+        ? " דער נדבן איז אריינגעלייגט אין דער שפעטער־רופן־ליסטע פאר "+
+          new Date(result.recontactDueAt).toLocaleDateString()+".":"";
       setMessage(result.duplicate
         ? "דער פריערדיגער באריכט איז שוין אפגעהיטן. קיין צווייטע נדבה איז נישט צוגערעכנט."
-        : "דער רוף־באריכט איז אפגעהיטן. מיין עסקנות באנוצט די זעלבע פראיעקט־דאַטן.");
+        : "דער רוף־באריכט איז אפגעהיטן אין MAX און מיין עסקנות."+callbackText+recontactText);
       setCalls(items=>[result.report,...items.filter(r=>r.id!==result.report.id)].slice(0,100));
       setRequestId(crypto.randomUUID());setOutcome("gave");setMoneyKind("none");setAmount("");setMood("not_entered");setRevision(v=>v+1);
       setNote("");setFollowupNote("");setDueDate("");setDueTime("");setRepeatRule("none");setCallbackKind("none");setRecontactEnabled(false);setRecontactMonths("6");
