@@ -46,7 +46,7 @@ export function sharedRouteReady(r:SharedRoute|null):boolean{
  if(r.requested_number!=="6056558080"||r.old_extension!==LEGACY_EXTENSION||
   r.audit_state!=="verified_compatibility_voice_url"||
   r.original_call_handler!=="laml_webhooks"||
-  r.cutover_enabled!==false||!/^[a-f0-9]{64}$/.test(r.route_fingerprint||"")||
+  !/^[a-f0-9]{64}$/.test(r.route_fingerprint||"")||
   !r.original_voice_url)return false;
  try{
   const target=new URL(r.original_voice_url);
