@@ -107,6 +107,11 @@ router.patch("/askanus/contacts/:id", requireAuth, async (req, res) => {
     if(req.body?.doNotCall===false&&prior.doNotCall){
       return {kind:"audit_required" as const};
     }
+    // The donor profile editor must not activate a new DNC flag from a
+    // single checkbox without a separate explicit owner confirmation.
+    if(req.body?.doNotCall===true&&!prior.doNotCall&&req.body?.confirmDoNotCall!==true){
+      return {kind:"confirmation_required" as const};
+    }
     const [current]=await tx.update(communicationContacts).set(updates).where(and(
       eq(communicationContacts.id,contactId),eq(communicationContacts.userId,userId)
     )).returning();
@@ -134,6 +139,9 @@ router.patch("/askanus/contacts/:id", requireAuth, async (req, res) => {
   if(result.kind==="missing"){res.status(404).json({error:"Not found"});return;}
   if(result.kind==="audit_required"){
     res.status(409).json({error:"Use the explicitly audited owner override or donor permission workflow"});return;
+  }
+  if(result.kind==="confirmation_required"){
+    res.status(409).json({error:"Explicit Do Not Call confirmation is required before blocking this donor"});return;
   }
   res.json(formatContact(result.row));
 });
