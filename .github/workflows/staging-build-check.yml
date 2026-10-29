@@ -53,6 +53,8 @@ jobs:
         run: node --test tests/signalwire-cloudflare-redirect-regression.test.mjs
       - name: Verify MAX cXML preparation, superadmin, SMS isolation and 55555 after Calling migration
         run: node --test tests/signalwire-max-cxml-setup.test.mjs
+      - name: Execute MAX audible cXML and keypad navigation regression
+        run: node --test tests/signalwire-max-audible-keypad.test.mjs
       - name: Protect 8080655605 and every assigned SignalWire phone route
         run: node --experimental-strip-types --test tests/signalwire-protected-number-inventory.test.mjs
       - name: Audit shared SignalWire number without any provider mutation
