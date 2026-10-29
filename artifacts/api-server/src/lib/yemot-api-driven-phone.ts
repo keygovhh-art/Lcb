@@ -28,7 +28,7 @@ const personalPaths=new Set(["121","122","123","124"]);
 const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
 const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
-const sharedSignalwireRoot="Welcome to Olam Hachesed Communications, MAX. Press 1 for My Askanus and MAX, 2 for Contacts, 3 for Calling Center, 4 for Kindness and Help, 5 for Community, 6 for Minyans and Appointments, 7 for News, 8 for Messages and Account, or 9 for Management. For the previously connected Emes Newsroom system press five five five five five. Press pound after a single-digit selection.";
+const sharedSignalwireRoot="Welcome to Olam Hachesed Communications, MAX. Press 1 for My Askanus and MAX, 2 for Contacts, 3 for Calling Center, 4 for Kindness and Help, 5 for Community, 6 for Minyans and Appointments, 7 for News, 8 for Messages and Account, or 9 for Management. Press five five five five five for Emes Newsroom. Press pound after a single digit to continue immediately, or wait briefly. Press zero to repeat this menu.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -670,7 +670,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let publishedAudio:string|null=null;
   // Menu-only overrides: never replace personal records, credentials, PIN,
   // monetary confirmations, news content, or other dynamic disclosures.
-  if((mode==="menu"||mode==="root")&&!manualFlash&&!goToProviderManagement&&!goToCampaignExtension&&
+  if(!fromShared&&(mode==="menu"||mode==="root")&&!manualFlash&&!goToProviderManagement&&!goToCampaignExtension&&
      !feedback&&path!=="125"&&path!=="185"&&isNavigationalMenu(path,tree)){
     const custom=await phonePromptOverride(path);
     if(custom.ttsText)spoken=custom.ttsText;
