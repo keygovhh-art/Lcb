@@ -55,7 +55,7 @@ export function maxPhonePrompt(x:PhonePending):{text:string;digits:number}{
   case "callback_hours":return{text:"Enter one to twenty four hours after this report, then pound.",digits:2};
   case "callback_exact_choice":return{text:"Press 1 to use the same minute as now, or 2 to choose the exact minute within that future hour.",digits:1};
   case "callback_exact_minute":return{text:"Enter the exact minute, zero to fifty nine, then pound.",digits:2};
-  case "recontact_scope":return{text:"Do you want this donor considered for a future purpose?"+
+  case "recontact_scope":return{text:x.outcome==="do_not_call"?"Do Not Call is in effect. Press 1 to continue without a future calling schedule.":"Do you want this donor considered for a future purpose?"+
    " Press 1 for no, 2 for this same purpose, or 3 for a new purpose.",digits:1};
   case "recontact_period":return{text:"Press 1 for six calendar months, or 2 for a custom number of months.",digits:1};
   case "recontact_months":return{text:"Enter one to twenty four months, then pound.",digits:2};
