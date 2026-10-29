@@ -11,24 +11,79 @@
 import express,{type Express,type ErrorRequestHandler} from "express";
 import cors from "cors";
 import session from "express-session";
+import {randomUUID} from "node:crypto";
 import router from "./routes";
-import {pool} from "@workspace/db";
+import {pool,runWithCloudflareDatabaseRequest} from "@workspace/db";
 import {PostgresSessionStore} from "./lib/postgres-session-store";
 import {sessionOptions,usesPostgresSessions} from "./lib/session-options";
 
 const app:Express=express();
 app.set("trust proxy",1);
+if(process.env.CF_WORKER_RUNTIME==="1"){
+ app.use((_req,res,next)=>{
+  runWithCloudflareDatabaseRequest(requestPool=>{
+   res.once("finish",()=>{void requestPool?.end().catch(()=>{});});
+   next();
+  });
+ });
+}
 
-// A Cloudflare-native, non-pino request logger avoids CJS pino-http startup
-// defects while keeping req.log.error usable in our current error middleware.
-app.use((req,_res,next)=>{
+// Cloudflare-only structured incident tracker. Does not log identifiers,
+// cookies, request bodies, SQL, passwords, or untrusted exception messages.
+function errorCategory(error:unknown):string{
+ const obj=error&&typeof error==="object"?error as {message?:unknown;code?:unknown}:null;
+ const msg=typeof obj?.message==="string"?obj.message:"";
+ const code=typeof obj?.code==="string"?obj.code:"";
+ if(code==="ETIMEDOUT"||/timeout/i.test(msg))return "db_timeout";
+ if(code==="ECONNRESET"||code==="ECONNREFUSED"||/connection terminated|connection closed|not queryable/i.test(msg))return "db_connection";
+ if(/different request|request context/i.test(msg))return "worker_io_context";
+ if(/app_sessions|session store/i.test(msg))return "session_store";
+ if(/^28P01$|^3D000$|^42P01$/.test(code))return "db_configuration";
+ if(code.startsWith("08"))return "db_connection";
+ return "unclassified";
+}
+function safeRouteLabel(path:string):string{
+ if(path==="/api/auth/login")return "auth.login";
+ if(path.startsWith("/api/admin/hotline-migration/signalwire/voice-switch/"))return "signalwire.voice_switch";
+ if(path.startsWith("/api/admin/hotline-migration/signalwire/"))return "signalwire.admin";
+ if(path.startsWith("/api/signalwire/"))return "signalwire.callback";
+ if(path.startsWith("/api/yemot/"))return "yemot.callback";
+ if(path.startsWith("/api/"))return "api.other";
+ return "other";
+}
+function safeErrorCode(error:unknown):string|undefined{
+ const code=error&&typeof error==="object"&&(error as {code?:unknown}).code;
+ return typeof code==="string"&&/^[A-Za-z0-9_]{2,16}$/.test(code)?code:undefined;
+}
+app.use((req,res,next)=>{
+ const started=Date.now();
+ const requestId=randomUUID();
+ res.locals.gavhahRequestId=requestId;
+ res.locals.gavhahStage="request.initial";
+ res.setHeader("X-Request-ID",requestId);
  (req as unknown as {log:{error:(info:unknown,message:string)=>void}}).log={
-  error(info:unknown,message:string){
+  error(info:unknown,_message:string){
    const error=info&&typeof info==="object"&&"err" in info?
-    (info as {err?:{message?:string}}).err?.message:"";
-   console.error("Gavhah Cloudflare API",message,String(error||"error"));
+     (info as {err?:unknown}).err:undefined;
+   console.error(JSON.stringify({
+    event:"gavhah.api.error",requestId,at:new Date().toISOString(),
+    stage:String(res.locals.gavhahStage||"unknown").slice(0,72),
+    method:req.method,route:safeRouteLabel(req.path),status:res.statusCode,
+    category:errorCategory(error),code:safeErrorCode(error),
+    durationMs:Date.now()-started
+   }));
   }
  };
+ res.once("finish",()=>{
+  if(res.statusCode>=500){
+   console.error(JSON.stringify({
+    event:"gavhah.api.http_5xx",requestId,at:new Date().toISOString(),
+    stage:String(res.locals.gavhahStage||"unknown").slice(0,72),
+    method:req.method,route:safeRouteLabel(req.path),status:res.statusCode,
+    durationMs:Date.now()-started
+   }));
+  }
+ });
  next();
 });
 if(process.env.NODE_ENV!=="production")
@@ -49,6 +104,10 @@ if(env.CF_WORKER_RUNTIME==="1"){
  if(env.SESSION_STORE!=="postgres")throw Error("Native Cloudflare requires SESSION_STORE=postgres");
  if(env.SESSION_COOKIE_SECURE!=="true")throw Error("Native Cloudflare requires secure session cookies");
 }
+app.use((req,res,next)=>{
+ if(env.CF_WORKER_RUNTIME==="1")res.locals.gavhahStage="session.load";
+ next();
+});
 app.use(session({
  ...sessionOptions(env),
  ...(usesPostgresSessions(env)?{store:new PostgresSessionStore(pool)}:{})
@@ -58,6 +117,11 @@ app.use("/api",(_req,res)=>{res.status(404).json({error:"API route not found"});
 app.use(((err,req,res,next)=>{
  req.log.error({err},"Request failed");
  if(res.headersSent)return next(err);
- res.status(500).json({error:"Internal server error"});
+ res.setHeader("Cache-Control","no-store");
+ res.status(500).json({
+  error:"Internal server error",
+  requestId:res.locals.gavhahRequestId,
+  category:errorCategory(err),
+ });
 }) as ErrorRequestHandler);
 export default app;

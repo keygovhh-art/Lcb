@@ -119,7 +119,8 @@ router.post("/test",async(_req,res,next)=>{
     row.project_id+"/IncomingPhoneNumbers?PageSize=1";
    const auth="Basic "+Buffer.from(row.project_id+":"+token,"utf8").toString("base64");
    const response=await fetch(endpoint,{method:"GET",headers:{Authorization:auth,Accept:"application/json"},
-    redirect:"error",cache:"no-store",signal:AbortSignal.timeout(12000)});
+    redirect:"manual",cache:"no-store",signal:AbortSignal.timeout(12000)});
+   if(response.status>=300&&response.status<400||response.type==="opaqueredirect")throw Error("SignalWire API redirect blocked; credentials were not forwarded");
    if(!response.ok)throw Error("SignalWire token authentication or Numbers scope failed");
    const data:any=await response.json();
    if(!Array.isArray(data?.incoming_phone_numbers))throw Error("SignalWire returned unexpected response");
@@ -151,8 +152,9 @@ export async function readSignalWireInventory(){
   row.project_id+"/IncomingPhoneNumbers?PageSize=1000";
  const auth="Basic "+Buffer.from(row.project_id+":"+token,"utf8").toString("base64");
  const response=await fetch(url,{method:"GET",headers:{Authorization:auth,Accept:"application/json"},
-  redirect:"error",cache:"no-store",signal:AbortSignal.timeout(15000)});
- if(!response.ok)throw Error("SignalWire numbers inventory unavailable; no provider settings changed");
+  redirect:"manual",cache:"no-store",signal:AbortSignal.timeout(15000)});
+ if(response.status>=300&&response.status<400||response.type==="opaqueredirect")throw Error("SignalWire inventory redirect blocked; credentials were not forwarded");
+ if(!response.ok)throw Error("SignalWire provider inventory HTTP "+response.status);
  const data:unknown=await response.json();
  if(!data||typeof data!=="object"||!Array.isArray((data as any).incoming_phone_numbers))
   throw Error("Unexpected SignalWire numbers response");
@@ -174,13 +176,34 @@ router.get("/numbers",async(_req,res,next)=>{
  try{
   const inventory=await readSignalWireInventory();
   res.set("Cache-Control","private,no-store").json(inventory);
- }catch(e){next(e);}
+ }catch(e){
+  // Do not log or return the secret, encrypted payload, queries or provider body.
+  const m=e instanceof Error?e.message:"";
+  const providerMatch=/^SignalWire provider inventory HTTP ([0-9]{3})$/.exec(m);
+  const code=/authenticate data|bad decrypt|unable to authenticate|Invalid key length/i.test(m)
+   ?"TOKEN_DECRYPT_FAILED":
+   /Verify your SignalWire connection/.test(m)?"NOT_VERIFIED":
+   providerMatch?"PROVIDER_HTTP_"+providerMatch[1]:
+   /unexpected.*response/i.test(m)?"PROVIDER_FORMAT_ERROR":
+   /Unexpected provider phone numbers/.test(m)?"PROVIDER_PHONE_VALIDATION":
+   /timed out|timeout|fetch failed|network/i.test(m)||(e instanceof Error&&e.name==="TimeoutError")?"PROVIDER_NETWORK_ERROR":
+   "INVENTORY_UNCLASSIFIED";
+  console.error(JSON.stringify({event:"gavhah.signalwire.inventory_failure",at:new Date().toISOString(),code}));
+  const isCredential=code==="TOKEN_DECRYPT_FAILED";
+  const isProvider=code.startsWith("PROVIDER_");
+  res.status(isCredential?503:isProvider?502:code==="NOT_VERIFIED"?409:503)
+   .set("Cache-Control","private,no-store")
+   .json({error:isCredential
+    ?"Saved SignalWire token cannot be decrypted with this Cloudflare encryption key. No provider settings were changed."
+    :isProvider?"SignalWire inventory could not be read; no provider settings were changed."
+    :"SignalWire inventory is not currently available; no provider settings were changed.",supportCode:code});
+ }
 });
 
-type SharedAudit={audit_state:string;provider_number_sid:string|null;original_voice_url:string|null;original_voice_application_sid:string|null;original_provider_api:string|null;original_call_handler:string|null;checked_at:Date|null;last_error:string|null};
+type SharedAudit={cutover_enabled:boolean;audit_state:string;provider_number_sid:string|null;original_voice_url:string|null;original_voice_application_sid:string|null;original_provider_api:string|null;original_call_handler:string|null;checked_at:Date|null;last_error:string|null};
 async function sharedAudit(){
  const result=await pool.query<SharedAudit>(
-  "SELECT audit_state,provider_number_sid,original_voice_url,original_voice_application_sid,original_provider_api,original_call_handler,checked_at,last_error "+
+  "SELECT cutover_enabled,audit_state,provider_number_sid,original_voice_url,original_voice_application_sid,original_provider_api,original_call_handler,checked_at,last_error "+
   "FROM public.gavhah_signalwire_shared_route WHERE id=1");
  const r=result.rows[0];
  return {number:"6056558080",oldSystemExtension:"55555",state:r?.audit_state||"not_configured",
@@ -194,7 +217,7 @@ async function sharedAudit(){
   sharedIvrCodeReady:r?.audit_state==="verified_compatibility_voice_url",
   sharedIvrSigningKeyReady:String(process.env.SIGNALWIRE_SIGNING_KEY||"").length>=24,
   livePhoneTestPassed:false,
-  cutoverEnabled:false,providerRouteUnchanged:true,
+  cutoverEnabled:!!r?.cutover_enabled,providerRouteUnchanged:!r?.cutover_enabled,
   nextStep:r?.audit_state==="not_found"?
    "The verified number +16056558080 was not found by either API. Check the native SignalWire project and permissions before switching any routing.":
    r?.audit_state==="unresolved"?

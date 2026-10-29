@@ -200,7 +200,7 @@ export function Donor360({contactId,caseId,onChanged,revision=0}:{
       <label className="flex gap-2 items-center text-sm">
         <input type="checkbox" className="h-5 w-5" checked={doNotCall} disabled={c.doNotCall}
           onChange={e=>setDoNotCall(e.target.checked)}/>
-        נישט רופן דעם מענטש
+        נישט רופן דעם מענטש — דער צייכן ווערט אפגעהיטן גלייך, אבער ווידער־רופן פארלאנגט א באזונדערע איבערקוק
       </label>
       {c.doNotCall&&<p className="text-xs text-muted-foreground">דער עסקן קען אראפנעמען דעם צייכן אויב ער באשליסט אזוי, מיט א ווארענונג און א געשיכטע. דאס איז נישט א נייע רשות פונעם נדבן.</p>}
       <Label htmlFor="donor-reason">סיבה פון רופן־פארבאט</Label>

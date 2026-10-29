@@ -14,6 +14,7 @@ import { MaxReminderInbox } from "@/components/communications/max-reminder-inbox
 import { MaxPerformancePanel } from "@/components/communications/max-performance-panel";
 import { MaxHistoryPanel } from "@/components/communications/max-history-panel";
 import { GavhahConnectPanel } from "@/components/communications/gavhah-connect-panel";
+import { MaxTishl } from "@/components/communications/max-tishl";
 
 type PersonalCase = {
   id:number; title:string; goalAmount:number; fundsReceived:number; fundsPromised:number;
@@ -38,7 +39,7 @@ const json = (body:unknown,method="POST"):RequestInit => ({
   method,headers:{"Content-Type":"application/json"},body:JSON.stringify(body),
 });
 const outcomeNames:Record<string,string> = {
-  spoke:"גערעדט",no_answer:"נישט געענטפערט",callback:"בעט צוריקצורופן",
+  spoke:"גערעדט (אלטער באריכט)",gave:"געגעבן א נדבה",no_answer:"נישט אויפגעהויבן",callback:"בעט צוריקצורופן",
   do_not_call:"בעט נישט מער צו רופן",
   not_interested:"נישט אינטערעסירט",other:"אנדערע",
 };
@@ -59,16 +60,23 @@ export function MaxCallDesk() {
   const [importFilename,setImportFilename] = useState("");
   const [importPreview,setImportPreview] = useState<{total:number;ready:number;duplicates:number;preview:Array<{line:number;name:string;phone:string;email:string;doNotCall:boolean}>}|null>(null);
   const [name,setName] = useState("");
-  const [outcome,setOutcome] = useState("spoke");
+  const [outcome,setOutcome] = useState("gave");
   const [moneyKind,setMoneyKind] = useState("none");
   const [amount,setAmount] = useState("");
   const [note,setNote] = useState("");
-  const [mood,setMood] = useState("neutral");
+  const [mood,setMood] = useState("not_entered");
   const [revision,setRevision] = useState(0);
   const [followupNote,setFollowupNote] = useState("");
   const [dueDate,setDueDate] = useState("");
   const [dueTime,setDueTime] = useState("");
   const [repeatRule,setRepeatRule] = useState("none");
+  const [callbackKind,setCallbackKind]=useState("none");
+  const [callbackMinutes,setCallbackMinutes]=useState("20");
+  const [callbackHours,setCallbackHours]=useState("7");
+  const [callbackMinuteOfHour,setCallbackMinuteOfHour]=useState("");
+  const [recontactEnabled,setRecontactEnabled]=useState(false);
+  const [recontactMonths,setRecontactMonths]=useState("6");
+  const [recontactScope,setRecontactScope]=useState<"same_purpose"|"new_purpose">("same_purpose");
   const [quickNote,setQuickNote] = useState("");
   const [quickDate,setQuickDate] = useState("");
   const [quickTime,setQuickTime] = useState("");
@@ -125,15 +133,48 @@ export function MaxCallDesk() {
         .toLocaleLowerCase().includes(contactSearch.trim().toLocaleLowerCase()))
     : contacts;
   const setContact = (id:number | null) => {
-    setContactId(id);
     const person=[...contacts,...(remoteContacts??[])].find(c=>c.id===id);
+    if(person?.doNotCall&&!window.confirm(
+      "אכטונג: דער נדבן האט געבעטן מער נישט צו רופן. ביסט זיכער אז דו ווילסט נאכאמאל אריינגיין אין זיין קארטל? "+
+      "דאס עפנט נאר דעם קארטל, און איז נישט קיין רשות אים צו רופן."
+    ))return;
+    setContactId(id);
     setSelectedContact(person??null);
     setName(person?.name??"");
   };
   const addContact=async(e:React.FormEvent)=>{
     e.preventDefault();setBusy(true);setError("");setMessage("");
     try {
-      const saved=await request<Contact>("/api/askanus/contacts",json(newContact));
+      const response=await fetch("/api/askanus/contacts",{
+        ...json(newContact),credentials:"include",cache:"no-store"
+      });
+      if(response.status===409){
+        const warning=await response.json() as {
+          error?:string;doNotCallWarning?:boolean;existingContactId?:number
+        };
+        if(warning.doNotCallWarning&&Number.isSafeInteger(warning.existingContactId)){
+          const open=window.confirm(
+            "אכטונג: דער נומער איז שוין פאראן אלס ״נישט רופן״. ביסט זיכער אז דו ווילסט נאכאמאל אריינגיין אין דעם נדבן־קארטל? "+
+            "דאס ענטפערט נישט אויף דער פראגע צי מ׳מעג אים ווידער רופן."
+          );
+          if(!open){setMessage("קיין נייעם קאנטאקט איז נישט געשאפן געווארן.");return;}
+          const profile=await request<{contact:Contact}>(
+            "/api/askanus/contacts/"+warning.existingContactId+"/360"
+          );
+          const existing=profile.contact;
+          setContacts(items=>[existing,...items.filter(c=>c.id!==existing.id)]);
+          setSelectedContact(existing);setContactId(existing.id);setName(existing.name);
+          setNewContact({name:"",phone:"",email:""});
+          setMessage("דער עקזיסטירנדע נדבן־קארטל איז געעפנט, מיטן ״נישט רופן״־צייכן. קיין צווייטער קאנטאקט איז נישט געשאפן געווארן.");
+          return;
+        }
+        throw new Error(warning.error||"דער קאנטאקט דארף אן איבערקוק");
+      }
+      if(!response.ok){
+        const err=await response.json().catch(()=>({})) as {error?:string};
+        throw new Error(err.error||"נישט געלונגען אפהיטן דעם קאנטאקט");
+      }
+      const saved=await response.json() as Contact;
       setContacts(items=>[saved,...items]);setContactId(saved.id);
       setSelectedContact(saved);setName(saved.name);
       setNewContact({name:"",phone:"",email:""});
@@ -167,19 +208,33 @@ export function MaxCallDesk() {
     e.preventDefault();if(!caseId || !name.trim()) return;
     setBusy(true);setError("");setMessage("");
     try{
-      const result=await request<{duplicate:boolean;report:Call}>(
+      const result=await request<{duplicate:boolean;report:Call;callbackDueAt?:string|null;callbackTimeZone?:string|null;recontactDueAt?:string|null}>(
         "/api/askanus/cases/"+caseId+"/call-reports",
-        json({requestId,contactId,contactName:name.trim(),outcome,moneyKind,mood,
-          amount:moneyKind==="none"?0:Number(amount),note,followupNote,dueDate:dueDate||null,dueTime:dueTime||null,
-          timeZone:dueTime?(Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York"):null,
-          repeatRule}),
+        json({requestId,contactId,contactName:name.trim(),outcome,
+          moneyKind:outcome==="gave"?moneyKind:"none",mood,
+          amount:outcome==="gave"&&moneyKind!=="none"?Number(amount):0,
+          note,followupNote,dueDate:dueDate||null,dueTime:dueTime||null,
+          timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone||"America/New_York",
+          repeatRule,
+          callbackPlan:(outcome==="no_answer"||outcome==="callback")
+            ?{kind:callbackKind,minutes:Number(callbackMinutes),hours:Number(callbackHours),
+              minuteOfHour:callbackMinuteOfHour===""?null:Number(callbackMinuteOfHour)}
+            :{kind:"none"},
+          recontactPlan:recontactEnabled&&contactId!==null&&outcome!=="do_not_call"?
+            {scope:recontactScope,afterMonths:Number(recontactMonths)}:undefined}),
       );
+      const callbackText=result.callbackDueAt
+        ? " דער צוריק־רוף ליגט אויפן טישל פאר "+new Date(result.callbackDueAt).toLocaleString(undefined,
+           {weekday:"long",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})+".":"";
+      const recontactText=result.recontactDueAt
+        ? " דער נדבן איז אריינגעלייגט אין דער שפעטער־רופן־ליסטע פאר "+
+          new Date(result.recontactDueAt).toLocaleDateString()+".":"";
       setMessage(result.duplicate
         ? "דער פריערדיגער באריכט איז שוין אפגעהיטן. קיין צווייטע נדבה איז נישט צוגערעכנט."
-        : "דער רוף־באריכט איז אפגעהיטן. מיין עסקנות באנוצט די זעלבע פראיעקט־דאַטן.");
+        : "דער רוף־באריכט איז אפגעהיטן אין MAX און מיין עסקנות."+callbackText+recontactText);
       setCalls(items=>[result.report,...items.filter(r=>r.id!==result.report.id)].slice(0,100));
-      setRequestId(crypto.randomUUID());setOutcome("spoke");setMoneyKind("none");setAmount("");setMood("neutral");setRevision(v=>v+1);
-      setNote("");setFollowupNote("");setDueDate("");setDueTime("");setRepeatRule("none");
+      setRequestId(crypto.randomUUID());setOutcome("gave");setMoneyKind("none");setAmount("");setMood("not_entered");setRevision(v=>v+1);
+      setNote("");setFollowupNote("");setDueDate("");setDueTime("");setRepeatRule("none");setCallbackKind("none");setRecontactEnabled(false);setRecontactMonths("6");
       await load();
       await qc.invalidateQueries({queryKey:getListAskanuscasesQueryKey()});
     } catch(e){setError(e instanceof Error?e.message:"נישט געלונגען אפצוהיטן");}
@@ -215,13 +270,14 @@ export function MaxCallDesk() {
     </div>
     <nav aria-label="MAX הויפט־אפטיילונגען" className="grid grid-cols-5 gap-1.5 text-center text-[11px] sm:text-sm">
       {[
-        {href:"#max-today",label:"היינט"},
+        {href:"#max-tishl",label:"מיין טישל"},
         {href:"#max-call",label:"רופן"},
         {href:"#max-contacts",label:"מענטשן"},
         {href:"#max-projects",label:"צוועקן"},
         {href:"#max-more",label:"מער"},
       ].map(a=><a key={a.href} href={a.href} className="rounded-lg border bg-card p-2 font-medium min-h-11 flex items-center justify-center hover:bg-muted/60">{a.label}</a>)}
     </nav>
+    <MaxTishl revision={revision} />
     <section id="max-today" className="rounded-xl border bg-card p-4 sm:p-6 space-y-3 scroll-mt-24">
       <h3 className="text-lg font-bold">מיין היינטיגע ארבעט — וואס דארף איך יעצט טון?</h3>
       <div className="grid grid-cols-3 gap-2 text-center text-sm">
@@ -337,28 +393,65 @@ export function MaxCallDesk() {
           <div className="space-y-1"><Label htmlFor="max-name">מיט וועמען האסטו גערעדט?</Label>
             <Input id="max-name" value={name} onChange={e=>setName(e.target.value)} required maxLength={240}/></div>
           <div className="space-y-1"><Label htmlFor="max-outcome">וואס איז געשען?</Label>
-            <select id="max-outcome" className="w-full h-11 rounded-lg border bg-background px-3" value={outcome} onChange={e=>setOutcome(e.target.value)}>
-              {Object.entries(outcomeNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+            <select id="max-outcome" className="w-full h-11 rounded-lg border bg-background px-3" value={outcome} onChange={e=>{
+              setOutcome(e.target.value);setMoneyKind("none");setAmount("");
+              if(e.target.value!=="gave")setMood("not_entered");
+            }}>
+              {Object.entries(outcomeNames).filter(([k])=>k!=="spoke").map(([k,v])=><option key={k} value={k}>{v}</option>)}
             </select></div>
-          <div className="space-y-1"><Label htmlFor="max-money">נדבה־מצב</Label>
+          {outcome==="do_not_call" && <p className="text-sm rounded-lg border p-3">
+            „בעט נישט מער צו רופן“ ווערט ביים אפהיטן גלייך אנגעצייכנט אויפן נדבן־קארטל.
+            דער עסקן וועט ערשט ווערן געווארנט ווען ער וויל שפעטער ווידער אריינגיין אדער עפענען דעם דיילער.
+            „נישט אינטערעסירט“ בלאקירט קיינעם נישט.
+            {contactId===null&&<span className="block text-destructive">קלייב אויס דעם ריכטיגן נדבן פון דער קשרים־ליסטע.</span>}
+          </p>}
+          {outcome==="gave" && <div className="rounded-xl border p-3 space-y-2">
+            <Label htmlFor="max-money">געגעבן א נדבה — וועלכער מצב?</Label>
             <select id="max-money" className="w-full h-11 rounded-lg border bg-background px-3" value={moneyKind} onChange={e=>setMoneyKind(e.target.value)}>
-              <option value="none">קיין נדבה נישט אריינגעשריבן</option>
-              <option value="received">באקומען — מיין מאנועלער באריכט</option>
+              <option value="none">קלייב אויס נדבה־מצב</option>
+              <option value="received">באקומען — מאנועל באריכטעט</option>
               <option value="pledged">צוגעזאגט — נאכנישט באצאלט</option>
-            </select></div>
-          {moneyKind!=="none" && <div className="space-y-1"><Label htmlFor="max-amount">סכום ($)</Label>
+            </select>
+          </div>}
+          {outcome==="gave" && moneyKind!=="none" && <div className="space-y-1"><Label htmlFor="max-amount">סכום ($)</Label>
             <Input id="max-amount" type="number" inputMode="decimal" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} required/></div>}
           <div className="space-y-1"><Label htmlFor="max-mood">וויאזוי איז דער שמועס געווען? (דיין באמערקונג)</Label>
             <select id="max-mood" className="w-full h-11 rounded-lg border bg-background px-3"
               value={mood} onChange={e=>setMood(e.target.value)}>
-              <option value="neutral">נייטראל</option>
+              <option value="not_entered">נישט אריינגעלייגט</option>
+              <option value="neutral">נייטראל — נאר אויב מ׳קלייבט עס אויס</option>
               <option value="friendly">פריינטליך</option>
               <option value="busy">פארנומען</option>
               <option value="uncomfortable">אומבאקוועם</option>
               <option value="uninterested">נישט אינטערעסירט</option>
+              <option value="very_warm">גאר ווארעם אויפגענומען</option>
+              {outcome==="gave"&&<option value="gave_generously">געגעבן גאר שיין</option>}
+              {outcome==="gave"&&<option value="warm_and_gave_generously">ווארעם אויפגענומען און געגעבן שיין</option>}
               <option value="other">אנדערש</option>
             </select>
           </div>
+          {(outcome==="no_answer"||outcome==="callback") && <div className="rounded-xl border p-3 space-y-3">
+            <h4 className="font-semibold">ווען זאל דער צוריק־רוף ליגן אויפן טישל?</h4>
+            <select aria-label="צוריק־רופן־צייט" className="w-full h-11 rounded-lg border bg-background px-2"
+              value={callbackKind} onChange={e=>setCallbackKind(e.target.value)}>
+              <option value="none">נישט אנשטעלן יעצט</option>
+              <option value="ten_minutes">אין 10 מינוט</option>
+              <option value="minutes">אייגענע מינוטן (ביז א שעה)</option>
+              <option value="one_hour">אין איין שעה</option>
+              <option value="hours">פון 1 ביז 24 שעה</option>
+            </select>
+            {callbackKind==="minutes"&&<div className="space-y-1"><Label htmlFor="max-cb-minutes">אין וויפיל מינוט? (1–60)</Label>
+              <Input id="max-cb-minutes" type="number" min="1" max="60" value={callbackMinutes}
+                onChange={e=>setCallbackMinutes(e.target.value)} /></div>}
+            {callbackKind==="hours"&&<div className="grid grid-cols-2 gap-2">
+              <div><Label htmlFor="max-cb-hours">אין וויפיל שעה? (1–24)</Label><Input id="max-cb-hours"
+                type="number" min="1" max="24" value={callbackHours} onChange={e=>setCallbackHours(e.target.value)} /></div>
+              <div><Label htmlFor="max-cb-exact-minute">ספעציפישע מינוט אין יענער שעה (אפציאנעל)</Label>
+                <Input id="max-cb-exact-minute" type="number" min="0" max="59"
+                  placeholder="למשל 46" value={callbackMinuteOfHour} onChange={e=>setCallbackMinuteOfHour(e.target.value)}/></div>
+            </div>}
+            {callbackKind!=="none"&&<p className="text-xs text-muted-foreground">די גענויע צייט ווערט אויסגערעכנט נאכן אפהיטן פונעם באריכט, לויטן צייט־זאנע פונעם עסקן, און קומט אריין אינעם טישל און די נאכפאלגן.</p>}
+          </div>}
           <div className="space-y-1"><Label htmlFor="max-note">קורצע נאטיץ פונעם רוף</Label>
             <Textarea id="max-note" value={note} onChange={e=>setNote(e.target.value)} maxLength={1500}/></div>
           <div className="space-y-1"><Label htmlFor="max-callback">נאכפאלג צולייגן (אפציאנעל)</Label>
@@ -371,9 +464,26 @@ export function MaxCallDesk() {
               <option value="none">איינמאליג</option><option value="daily">יעדן טאג</option>
               <option value="weekly">יעדע וואך</option><option value="monthly">יעדן חודש</option>
             </select></div>}
-          <Button className="w-full min-h-11" type="submit" disabled={busy||!caseId||!name.trim()||(moneyKind!=="none"&&!(Number(amount)>0))}>
+          <Button className="w-full min-h-11" type="submit" disabled={busy||!caseId||!name.trim()||(outcome==="gave"&&(moneyKind==="none"||!(Number(amount)>0)))||(recontactEnabled&&contactId===null)||(outcome==="do_not_call"&&contactId===null)}>
             <Save className="h-4 w-4 ml-2"/> {busy?"היט אפ...":"אפהיטן — און דערהיינטיגן מיין עסקנות"}
           </Button>
+          <div className="rounded-xl border p-3 space-y-2">
+            <label className="flex items-center gap-2 font-semibold"><input type="checkbox" checked={recontactEnabled}
+              onChange={e=>setRecontactEnabled(e.target.checked)} disabled={contactId===null||outcome==="do_not_call"}/>
+              נאכן באריכט: צולייגן דעם נדבן צו א שפעטער־ווידער־רופן־ליסטע
+            </label>
+            {recontactEnabled&&contactId!==null&&outcome!=="do_not_call"&&<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div><Label htmlFor="max-recontact-months">אין וויפיל חדשים?</Label>
+                <Input id="max-recontact-months" type="number" min="1" max="24"
+                  value={recontactMonths} onChange={e=>setRecontactMonths(e.target.value)}/></div>
+              <div><Label htmlFor="max-recontact-purpose">פאר וועלכן צוועק?</Label>
+                <select id="max-recontact-purpose" className="w-full h-11 rounded-lg border bg-background px-2"
+                  value={recontactScope} onChange={e=>setRecontactScope(e.target.value as "same_purpose"|"new_purpose")}>
+                  <option value="same_purpose">דער זעלבער צוועק</option><option value="new_purpose">א נייער צוועק</option>
+                </select></div>
+              <p className="sm:col-span-2 text-xs text-muted-foreground">דאס מאכט נאר א שפעטערדיקע בארעכטיגקייט־ליסטע, נישט קיין אויטאמאטישן רוף. ״נישט רופן״ בלייבט א פארבאט.</p>
+            </div>}
+          </div>
           <p className="text-xs text-muted-foreground">א צוגעזאגטע נדבה ווערט נישט פאררעכנט אלס באקומען. דאס איז א מאנועלער באריכט, נישט קיין באצאלונג־באשטעטיגונג פון א פינאנציעלער סערוויס.</p>
         </form>
       </section>

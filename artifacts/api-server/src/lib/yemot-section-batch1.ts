@@ -7,13 +7,15 @@ import type { PoolClient } from "pg";
  * The phone does not originate calls, collect card data or bypass web roles.
  */
 export const sectionPaths=new Set([
- "131","132","133","134","141","142","143","144",
+ "127","131","132","133","134","141","142","143","144",
+ "1451","1452","1453","1454","1455","1456","1457","1461","1462","1463",
  "151","152","153","154","161","162","163","164","171","172","181","182","191","192","193","194"
 ]);
 export const sectionRequiresLogin=new Set([
- "131","132","133","134","141","142","143","144","152","153","164","172","181","182","191","192","193","194"
+ "127","131","132","133","134","141","142","143","144",
+ "1451","1452","1453","1454","1455","1456","1457","1461","1462","1463","152","153","164","172","181","182","191","192","193","194"
 ]);
-export const pagedSections=new Set(["132","141","142","151","152","154","161","162","163","164","171","172","181","194"]);
+export const pagedSections=new Set(["132","141","142","1451","1452","1453","1454","1455","1456","1457","1461","1462","1463","151","152","154","161","162","163","164","171","172","181","194"]);
 
 /** For a double-press confirmation, fetch just the CURRENT user's row. */
 export async function currentPhoneActionId(
@@ -172,6 +174,56 @@ export async function readPhoneSection(
   return "This is private. Link your Gavhah website account using the eight digit code in My Askanus option 2 then 5.";
  const userId=memberId!;
  const p=Math.min(40,Math.max(0,Math.trunc(page)||0));
+ if(path==="127"){
+  const result=await scalar(client,
+   "SELECT (SELECT count(*) FROM public.askanus_tasks WHERE user_id=$1 AND completed=false)::int AS tasks,"+
+   "(SELECT count(*) FROM public.case_followups f JOIN public.askanus_cases c ON c.id=f.case_id "+
+   "WHERE c.user_id=$1 AND f.completed=false AND f.due_date<=to_char(now(),'YYYY-MM-DD'))::int AS due,"+
+   "(SELECT count(*) FROM public.max_donor_recontact r JOIN public.communication_contacts d "+
+   "ON d.id=r.contact_id AND d.user_id=$1 WHERE r.user_id=$1 AND r.status='waiting' "+
+   "AND r.due_at<=now() AND COALESCE(d.do_not_call,false)=false)::int AS eligible",[userId]);
+  return "Your MAX Tishl. "+result.tasks+" open tasks, "+result.due+" due followups, and "+
+   result.eligible+" donors whose next review date has arrived. "+
+   "For call result categories press zero, then two for Calling, and five for Saved Results.";
+ }
+ if(/^145[1-7]$/.test(path)){
+  const outcomes:Record<string,string>={
+   "1451":"gave","1452":"no_answer","1453":"callback","1454":"not_interested",
+   "1455":"do_not_call","1456":"other","1457":"spoke"
+  };
+  const selected=outcomes[path];
+  const list=await client.query<{contact_name:string;money_kind:string;amount:string;created_at:string}>(
+   "SELECT contact_name,money_kind,amount,created_at FROM public.fundraising_call_reports "+
+   "WHERE user_id=$1 AND outcome=$2 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $3",
+   [userId,selected,p]);
+  const row=list.rows[0];
+  if(!row)return missing("saved "+selected.replaceAll("_"," ")+" call reports");
+  return detail(p,"Saved MAX result "+selected.replaceAll("_"," ")+". "+
+   (speak(row.contact_name,90)||"Donor name needs an approved Yiddish recording")+
+   ". "+(row.money_kind!=="none"?"Manually recorded "+row.money_kind+" "+
+    amount(row.amount)+" dollars. ":"")+
+   "Press one for next record, eight for previous, two to restart, zero for MAX root");
+ }
+ if(/^146[1-3]$/.test(path)){
+  const wait=path==="1462",due=path==="1461";
+  const state=due?"AND r.status='waiting' AND r.due_at<=now() ":
+   wait?"AND r.status='waiting' AND r.due_at>now() ":"";
+  const query="SELECT d.name,d.do_not_call,r.scope,r.due_at "+
+   "FROM public.max_donor_recontact r "+
+   "JOIN public.communication_contacts d ON d.id=r.contact_id AND d.user_id=$1 "+
+   "JOIN public.askanus_cases c ON c.id=r.case_id AND c.user_id=$1 "+
+   "WHERE r.user_id=$1 "+state+"ORDER BY r.due_at ASC,r.id ASC LIMIT 1 OFFSET $2";
+  const results=await client.query<{name:string;do_not_call:boolean;scope:string;due_at:Date}>(query,[userId,p]);
+  const row=results.rows[0];
+  if(!row)return missing("future donor reviews");
+  return detail(p,"Donor review. "+
+   (speak(row.name,90)||"Name needs an approved Yiddish recording")+
+   ". For "+(row.scope==="same_purpose"?"the same purpose":"a new purpose")+
+   ". Review date "+row.due_at.toISOString().slice(0,16).replace("T"," at ")+
+   " Universal time. "+(row.do_not_call?"Do Not Call is active. No calling allowed. ":
+    row.due_at.getTime()<=Date.now()?"Review date arrived; check calling consent and hours. ":"Not due yet. ")+
+   "Press one for next, eight for previous, two to restart, zero for MAX root");
+ }
  if(path==="131"){
   const x=await scalar(client,
    "SELECT (SELECT count(*) FROM public.communication_contacts WHERE user_id=$1)::int AS contacts,"+

@@ -67,7 +67,13 @@ export default {
    if(path.startsWith("/api/signalwire/")&&!readiness.signalwirePhoneCallbacksEnabled)
     return paused("Legacy SignalWire callback is locked; this has no effect on Yemot.");
    if(path.startsWith("/api/admin/hotline-migration")&&
-    !["GET","HEAD","OPTIONS"].includes(request.method))
+    !["GET","HEAD","OPTIONS"].includes(request.method)&&
+    !(request.method==="POST"&&[
+      "/api/admin/hotline-migration/signalwire/test",
+      "/api/admin/hotline-migration/signalwire/voice-switch/prepare",
+      "/api/admin/hotline-migration/signalwire/voice-switch/apply",
+      "/api/admin/hotline-migration/signalwire/voice-switch/rollback"
+    ].includes(path)))
     return paused("Shared live phone-provider administration is locked on the independent Cloudflare copy.",403);
    return api.fetch(request,env,ctx);
   }

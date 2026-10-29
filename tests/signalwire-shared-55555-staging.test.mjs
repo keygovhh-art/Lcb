@@ -13,7 +13,8 @@ test('New staged shared handler never modifies SignalWire number or the existing
  assert.match(shared,/SHARED_E164="\+16056558080"/);
  assert.match(shared,/SHARED_SIGNALWIRE_URL=/);
  assert.match(shared,/sharedRouteReady\(route\)/);
- assert.match(shared,/cutover_enabled!==false/);
+ // The signed IVR must KEEP working after the owner completes Calling-only cutover.
+ assert.doesNotMatch(shared,/cutover_enabled!==false/);
  assert.match(shared,/original_voice_url/);
  assert.match(shared,/originalSystemRedirectXml/);
  assert.match(shared,/SHARED_SIGNALWIRE_URL/);
@@ -43,7 +44,7 @@ test('Shared webhook checks provider HMAC, telephone number and existing verifie
 });
 
 test('Share existing Gavhah membership and MAX phone engine, without mixing with Yemot or Campaign Center',()=>{
- assert.match(shared,/handleYemotApp\(proxy,capture,phoneTree\)/);
+ assert.match(shared,/handleYemotApp\(proxy,capture,olamCommunicationsPhoneTree\)/);
  assert.match(engine,/req\.path\.endsWith\("\/shared-ivr"\)/);
  assert.match(engine,/gavhah-shared-55555-v1:/);
  assert.match(engine,/timingSafeEqual/);

@@ -3,6 +3,7 @@ import { createHash, createHmac, randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAuth, getCurrentSessionUser } from "../middlewares/auth";
 import signalwireCredentialsRouter,{readSignalWireInventory} from "./signalwire-credentials";
+import signalwireVoiceSwitchRouter from "./signalwire-voice-switch";
 import {normalizedSignalWireNumber,isProtectedSignalWireNumber} from "../lib/signalwire-number-safety";
 
 const router=Router();
@@ -48,6 +49,8 @@ router.use(async(req,res,next)=>{
 });
 // Attached only AFTER administrator identity and same-origin checks.
 router.use("/signalwire",signalwireCredentialsRouter);
+// Same super-admin and same-origin guard as the existing credentials router.
+router.use("/signalwire",signalwireVoiceSwitchRouter);
 type Migration={
  provider_kind:"signalwire"|"yemot"|"other";provider_label:string;candidate_number:string;
  stage:"draft"|"testing";callback_hash:string|null;generation:string;

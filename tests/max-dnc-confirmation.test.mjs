@@ -1,0 +1,66 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {runInNewContext} from "node:vm";
+import ts from "typescript";
+const src=path=>readFileSync(path,"utf8");
+const phone=src("artifacts/api-server/src/lib/max-phone-result.ts");
+const handler=src("artifacts/api-server/src/lib/yemot-api-driven-phone.ts");
+const web=src("artifacts/gavhah/src/components/communications/max-call-desk.tsx");
+const donor360=src("artifacts/gavhah/src/components/communications/donor-360.tsx");
+const api=src("artifacts/api-server/src/routes/communications-max.ts");
+const vm={exports:{},Date,Intl,JSON,Number,Error};
+runInNewContext(ts.transpileModule(phone,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,vm);
+const {advanceMaxPhone,maxPhonePrompt}=vm.exports;
+const pending=()=>({stage:"choose",userId:1,contactId:2,caseId:3,contactName:"Donor",at:Date.now(),expiresAt:Date.now()+600000,requestId:"a".repeat(64)});
+const choose=(p,d)=>advanceMaxPhone(p,d).pending;
+test("Not interested is merely a saved result; it never flags the contact do-not-call",()=>{
+ let x=choose(pending(),"4");
+ assert.equal(x.outcome,"not_interested");
+ assert.equal(x.stage,"mood");
+ assert.equal(choose(x,"1").stage,"recontact_scope");
+ assert.ok(!maxPhonePrompt(x).text.includes("Do Not Call is in effect"));
+ assert.match(web,/not_interested:"נישט אינטערעסירט"/);
+ assert.doesNotMatch(api,/outcome==="not_interested"\s*&&\s*.*doNotCall/);
+});
+test("Choosing 'asked not to call' advances normally without a second confirmation stage",()=>{
+ let x=choose(pending(),"5");
+ assert.equal(x.outcome,"do_not_call");
+ assert.equal(x.stage,"mood");
+ assert.equal(choose(x,"1").stage,"recontact_scope");
+ x=choose(x,"1");
+ x=choose(x,"1");
+ assert.equal(x.stage,"confirm");
+ assert.equal(advanceMaxPhone(x,"1").save,true);
+ assert.ok(!phone.includes("do_not_call_confirm"));
+ assert.ok(!phone.includes("doNotCallConfirmed"));
+});
+test("Opt-out saves as part of the existing final report save, including both web and IVR",()=>{
+ assert.match(handler,/if\(outcome==="do_not_call"\)\{/);
+ assert.match(handler,/SET do_not_call=true/);
+ assert.match(api,/if\(outcome==="do_not_call" && contactId!==null\)/);
+ assert.match(api,/doNotCall:true,optOutReason/);
+ assert.match(api,/outcome === "do_not_call" && contactId === null/);
+ assert.doesNotMatch(web,/doNotCallConfirmed/);
+ assert.doesNotMatch(donor360,/confirmDoNotCall:markingNotCallable/);
+});
+test("On NEXT attempted contact selection, number entry or call, show Are you sure instead",()=>{
+ assert.match(web,/if\(person\?\.doNotCall&&!window\.confirm/);
+ assert.match(web,/דער נדבן האט געבעטן מער נישט צו רופן\. ביסט זיכער/);
+ assert.match(web,/if\(chosenContact\.doNotCall && !window\.confirm/);
+ assert.match(web,/if\(warning\.doNotCallWarning&&Number\.isSafeInteger/);
+ assert.match(web,/const open=window\.confirm/);
+ assert.match(web,/const profile=await request<\{contact:Contact\}>/);
+ assert.match(api,/if\(existingBlocked\)/);
+ assert.match(api,/eq\(communicationContacts\.doNotCall,true\),sameNumber/);
+ assert.match(api,/existingContactId:existingBlocked\.id,doNotCallWarning:true/);
+ assert.match(donor360,/owner_override/);
+});
+test("Warnings do not remove do-not-call or claim renewed dialing permission",()=>{
+ assert.match(web,/דאס ענטפערט נישט אויף דער פראגע צי מ׳מעג אים ווידער רופן/);
+ assert.match(web,/דאס ענדערט נישט זיין רופן־צייכן און איז נישט קיין נייע רשות/);
+ assert.match(api,/אומבלאקירטער קאנטאקט/);
+ assert.doesNotMatch(web,/doNotCall:false/);
+ assert.match(handler,/WHERE user_id=\$1 AND do_not_call=false/);
+ assert.match(handler,/owned\.do_not_call/);
+});

@@ -1,0 +1,87 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {runInNewContext} from "node:vm";
+import ts from "typescript";
+
+const next = readFileSync("artifacts/api-server/src/lib/signalwire-next-hotline.ts","utf8");
+const shared = readFileSync("artifacts/api-server/src/lib/signalwire-shared-ivr.ts","utf8");
+const keypad = readFileSync("artifacts/api-server/src/lib/yemot-api-driven-phone.ts","utf8");
+const planMenu=readFileSync("artifacts/api-server/src/routes/yemot-whole-platform-ivr.ts","utf8");
+const source=next.slice(next.indexOf('const xml='),next.indexOf('// Normalization and protected number list'));
+assert.ok(source.includes('export function convertGavhahReplyToCxml'));
+const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const sandbox={exports:{}};
+runInNewContext(js,sandbox);
+const reply=(text,mode="iv",n="0",max="1")=>`read=t-${text}=${mode}${n},no,${max},1,8,No,no`;
+const convert=(text,root=false)=>sandbox.exports.convertGavhahReplyToCxml(text,"https://gavhah-cloudflare-native.keygovhh.workers.dev/api/signalwire/shared-ivr",root);
+
+test("MAX greeting plays audible English via Say and five-digit 55555 shortcut",()=>{
+ const text="Welcome to Olam Hachesed Communications, MAX. Press 1 for MAX. Press 55555 for Emes Newsroom.";
+ const c=convert(reply(text,"iv","0","4"),true);
+ assert.match(c,/<Response>/);
+ assert.match(c,/<Gather input="dtmf"/);
+ assert.match(c,/numDigits="5"/);
+ assert.match(c,/finishOnKey="#"/);
+ assert.match(c,/<Say voice="man" language="en-US">Welcome to Olam Hachesed Communications, MAX/);
+ assert.match(c,/method="POST"/);
+ assert.match(c,/api\/signalwire\/shared-ivr/);
+});
+
+test("single key menu, 8 digit pairing and 16 digit registration have distinct DTMF lengths",()=>{
+ assert.match(convert(reply("Press 1", "iv","1","1")),/numDigits="1"/);
+ assert.match(convert(reply("Enter website code", "ln","3","8")),/numDigits="8"/);
+ assert.match(convert(reply("Enter phone registration code", "rg","4","16")),/numDigits="16"/);
+ assert.match(convert(reply("Enter article number", "ar","5","8")),/numDigits="8"/);
+});
+
+test("provider XML escapes text and does not leak caller fields",()=>{
+ const c=convert(reply('Hello & <item> "quoted"',"iv","8","1"));
+ assert.match(c,/Hello &amp; &lt;item&gt;/);
+ assert.doesNotMatch(c,/<item>/);
+});
+
+test("MAX root does not load unusable old Yemot audio or overwrite live greeting",()=>{
+ assert.match(keypad,/if\(!fromShared&&\(mode==="menu"\|\|mode==="root"\)/);
+ assert.match(keypad,/sharedSignalwireRoot="Welcome to Olam Hachesed Communications, MAX/);
+ assert.match(shared,/reply\.includes\("Welcome to Olam Hachesed Communications, MAX\."/);
+});
+
+test("star navigation is safe, 0 resets, 55555 routes to unchanged legacy URL",()=>{
+ assert.match(shared,/\(digits!==undefined&&!\/\^\(\?:\[0-9\]\{0,16\}\|\\\*\)\$\/.test\(digits\)\)/);
+ assert.match(shared,/digits===LEGACY_EXTENSION/);
+ assert.match(keypad,/if\(fromShared && digit==="\*"\)/);
+ assert.match(keypad,/path=path.length>2\?path.slice\(0,-1\):""/);
+ assert.match(keypad,/if\(digit==="0"\)return ""/);
+});
+
+
+test("SignalWire root follows exactly five MAX departments, no Gavhah news or forums",()=>{
+ const root=keypad.split("\n").find(x=>x.startsWith("const sharedSignalwireRoot="));
+ assert.ok(root);
+ for(const name of ["My Tishl: Today, tasks and followups","Calling and Communication","People and Donor 360","Projects and Goals","More: finance"]){
+  assert.ok(root.includes(name),name);
+ }
+ for(const name of ["Press 7 for News","Press 6 for Minyans","Press 5 for Community","Press 8 for Messages","Press 9 for Management","Campaign Center"]){
+  assert.ok(!root.includes(name),name);
+ }
+ const menuMap=keypad.slice(keypad.indexOf("const menuMap:Record<string,string>"),keypad.indexOf("const menuMap:Record<string,string>")+320);
+ assert.ok(menuMap.includes('"1":"12","2":"14","3":"13","4":"16","5":"15"'));
+ assert.ok(!menuMap.includes('"7":"11"'));
+ assert.ok(planMenu.includes("olamCommunicationsPhoneTree"));
+ assert.ok(shared.includes("handleYemotApp(proxy,capture,olamCommunicationsPhoneTree)"));
+ assert.ok(!shared.includes("handleYemotApp(proxy,capture,phoneTree)"));
+});
+
+test("MAX submenus use only existing private project and communications paths",()=>{
+ assert.ok(keypad.includes('"16":{"1":"122","2":"124","3":"121"}'));
+ assert.ok(keypad.includes('"15":{"1":"133","2":"134","3":"142","4":"143","5":"125","6":"126"}'));
+ assert.ok(keypad.includes("if(!allowed.has(path))"));
+ assert.ok(keypad.includes('fromShared && path===""'));
+});
+
+test("0 repeats MAX root and never enters old Yemot provider management",()=>{
+ assert.match(keypad,/path==="" && digit==="0" && !fromNext && !fromShared/);
+ assert.match(keypad,/fromShared && path===""/);
+ assert.match(keypad,/if\(!path&&digit!=="0"\)/);
+});

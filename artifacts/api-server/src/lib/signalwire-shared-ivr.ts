@@ -2,7 +2,7 @@ import {createHmac} from "node:crypto";
 import type {Request,Response} from "express";
 import {pool} from "@workspace/db";
 import {handleYemotApp} from "./yemot-api-driven-phone";
-import {phoneTree} from "../routes/yemot-whole-platform-ivr";
+import {olamCommunicationsPhoneTree} from "../routes/yemot-whole-platform-ivr";
 import {checkSignalWireSignature,convertGavhahReplyToCxml} from "./signalwire-next-hotline";
 import {normalizedSignalWireNumber} from "./signalwire-number-safety";
 
@@ -46,7 +46,7 @@ export function sharedRouteReady(r:SharedRoute|null):boolean{
  if(r.requested_number!=="6056558080"||r.old_extension!==LEGACY_EXTENSION||
   r.audit_state!=="verified_compatibility_voice_url"||
   r.original_call_handler!=="laml_webhooks"||
-  r.cutover_enabled!==false||!/^[a-f0-9]{64}$/.test(r.route_fingerprint||"")||
+  !/^[a-f0-9]{64}$/.test(r.route_fingerprint||"")||
   !r.original_voice_url)return false;
  try{
   const target=new URL(r.original_voice_url);
@@ -61,6 +61,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  const form=req.body as Record<string,string>;
  if(req.method!=="POST"||req.originalUrl!=="/api/signalwire/shared-ivr"||
   !checkSignalWireSignature(signingKey,signature,SHARED_SIGNALWIRE_URL,form)){
+  console.warn(JSON.stringify({event:"gavhah.signalwire.callback_rejected",reason:"signature",at:new Date().toISOString()}));
   res.status(403).type("text/plain").send("Invalid SignalWire callback signature");
   return;
  }
@@ -69,15 +70,22 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  const digits=typeof form.Digits==="string"?form.Digits:undefined;
  if(!/^[A-Za-z0-9_.:-]{8,160}$/.test(callId)||
   normalizedSignalWireNumber(called)!=="6056558080"||
-  (digits!==undefined&&!/^\d{0,16}$/.test(digits))){
+  (digits!==undefined&&!/^(?:[0-9]{0,16}|\*)$/.test(digits))){
+  console.warn(JSON.stringify({event:"gavhah.signalwire.callback_rejected",reason:"input_format",at:new Date().toISOString()}));
   res.status(400).type("text/plain").send("Invalid SignalWire call or keypad input");
   return;
  }
+ // Sanitary event tracking: never log phone number, call SID, raw digits or PIN.
+ console.info(JSON.stringify({event:"gavhah.signalwire.keypad",at:new Date().toISOString(),
+  inputType:digits===undefined?"new_call":digits===LEGACY_EXTENSION?"legacy_55555":
+   digits==="*"?"previous_menu":digits==="0"?"main_menu":"keypad",
+  digitCount:digits?.length??0}));
  const route=(await pool.query<SharedRoute>(
   "SELECT requested_number,old_extension,audit_state,original_voice_url,"+
   "original_voice_method,original_call_handler,route_fingerprint,cutover_enabled "+
   "FROM public.gavhah_signalwire_shared_route WHERE id=1")).rows[0];
  if(!sharedRouteReady(route)||signingKey.length<24){
+  console.error(JSON.stringify({event:"gavhah.signalwire.ivr_unavailable",reason:"route_or_signing_key",at:new Date().toISOString()}));
   res.status(503).type("text/plain").send("Shared SignalWire IVR is not prepared");
   return;
  }
@@ -119,12 +127,16 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
   body:{ApiCallId:callId,entryKey,...(digits===undefined?{}:{signalwireDigits:digits})},
   query:{}
  } as unknown as Request;
- await handleYemotApp(proxy,capture,phoneTree);
+ await handleYemotApp(proxy,capture,olamCommunicationsPhoneTree);
  if(status!==200){
+  console.error(JSON.stringify({event:"gavhah.signalwire.ivr_unavailable",reason:"engine_status",status,at:new Date().toISOString()}));
   res.status(status).type("text/plain").send("Gavhah phone engine unavailable");
   return;
  }
- const root=reply.startsWith("read=t-Gavhah SignalWire main menu.");
+ // Feedback may precede the greeting after an invalid key or keypad back.
+ // Detect the MAX root by content rather than only by a rigid string prefix.
+ const root=reply.startsWith("read=t-")&&
+  reply.includes("Welcome to Olam Hachesed Communications, MAX.");
  res.status(200).type("application/xml; charset=utf-8")
   .set("Cache-Control","no-store")
   .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root));

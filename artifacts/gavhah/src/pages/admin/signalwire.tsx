@@ -13,6 +13,11 @@ type OldRouteAudit={
  cutoverEnabled:boolean;providerRouteUnchanged:boolean;nextStep:string;
  stagedSharedIvrUrl:string;sharedIvrCodeReady:boolean;sharedIvrSigningKeyReady:boolean;livePhoneTestPassed:boolean
 };
+type VoiceSwitchPreview={
+ number:string;voiceOnly:boolean;oldCallingResourceId:string;
+ newCallingResourceId:string;callingAddressId:string;messagingResourceId:string|null;
+ messagingAddressId:string;alreadySwitched:boolean;webhookPrepared:boolean;
+};
 type PhoneInventory={
  numbers:Array<{number:string;label:string;reserved:boolean;voiceAssigned:boolean;voiceCapable:boolean;canConsider:boolean;reason:string}>;
  complete:boolean;hasMore:boolean;readOnly:boolean;protectedNumber:string;
@@ -42,6 +47,7 @@ export function SignalWireCredentials(){
  const [showToken,setShowToken]=useState(false);
  const [inventory,setInventory]=useState<PhoneInventory|null>(null);
  const [oldRoute,setOldRoute]=useState<OldRouteAudit|null>(null);
+ const [voiceSwitch,setVoiceSwitch]=useState<VoiceSwitchPreview|null>(null);
  const [inventoryLoading,setInventoryLoading]=useState(false);
  const [loaded,setLoaded]=useState(false);
  const [busy,setBusy]=useState(false);
@@ -162,6 +168,51 @@ export function SignalWireCredentials(){
     })}>
     נאכקוקן און אפהיטן דעם אלטן 8080־רופן־וועג (נאר לייענען)
    </Button>
+  </section>
+  <section className="space-y-3 rounded-xl border p-3 sm:p-4" aria-label="Olam MAX SignalWire calling-only cutover">
+   <h3 className="font-semibold">עולם החסד MAX — 605-655-8080 · נאר Voice</h3>
+   <p className="text-sm">SignalWire איז בלויז עולם החסד־קאמיוניקאציע. דער גבהה־הויפטמעניו מיט 4444 בלייבט אויף ימות. דער נייע Calling־Handler ווערט געטעסט באזונדער; SMS און דער אלטער emes-newsroom־Handler בלייבן אומגערירט.</p>
+   <div className="rounded-lg border p-3 space-y-2 text-sm">
+    <p><strong>0. צוגרייטן דעם MAX־Calling־Handler.</strong> דער קנעפל קוקט ערשט צי דער ריכטיגער cXML־וועבהוק עקזיסטירט. נאר אויב ער פעלט, שאפט ער א נייעם אומפארבונדענעם Handler. ער טוישט נישט דעם נומער, SMS, אדער דעם אלטן Emes Newsroom.</p>
+    <Button variant="outline" disabled={busy||!status.verified||!!oldRoute?.cutoverEnabled} onClick={()=>void work(async()=>{
+     const result=await request("voice-switch/prepare",{method:"POST",body:"{}"}) as {prepared:boolean;created:boolean};
+     setVoiceSwitch(null);
+     setMessage(result.created?
+      "דער עולם החסד MAX־Calling־Webhook איז געשאפן געווארן. קיין רופן זענען נישט איבערגעשטעלט. דרוק יעצט שריט 1 צו באשטעטיגן די גאנצע פארבינדונג.":
+      "דער MAX־Webhook איז שוין ריכטיג צוגעגרייט. קיין פראוויידער־רוטינג איז נישט געטוישט. דרוק יעצט שריט 1.");
+    })}>0. שאפן אדער באשטעטיגן דעם MAX־cXML Webhook</Button>
+   </div>
+   <Button variant="outline" disabled={busy||!status.verified} onClick={()=>void work(async()=>{
+    const result=await request("voice-switch/preflight") as VoiceSwitchPreview;
+    setVoiceSwitch(result);
+    setMessage("דער סופער־עדמין־טעסט האט פארגליכן דעם אלטן Calling־Handler, דעם נייעם MAX־Webhook און דעם אפגעזונדערטן SMS־וועג. נאך קיין רוטינג איז נישט געטוישט.");
+   })}>1. איבערקוקן דעם נייעם MAX־Voice־Handler (נאר לייענען)</Button>
+   {voiceSwitch&&!voiceSwitch.alreadySwitched&&<div className="rounded-lg border p-3 text-sm space-y-2">
+    <p><strong>Voice־רוטינג איז גרייט פאר איבערשטעלונג.</strong> דער פריערדיגער Handler איז אפגעהיטן פאר צוריקשטעלן.</p>
+    <p>Calling Address: <span dir="ltr">{voiceSwitch.callingAddressId}</span></p>
+    <p>SMS־Handler: <strong>בלייבט אומגעענדערט</strong>.</p>
+    <p role="alert" className="text-amber-700">אכטונג: דער נומער וועט גלייך אויפהערן צו ניצן דעם emes-newsroom Voice־Handler. די רופן־טעסטן זענען נאך נישט פיזיש באשטעטיגט.</p>
+    <Button disabled={busy} onClick={()=>{
+      if(!window.confirm("באשטעטיגסטו צו איבערנעמען די אריינקומענדיגע רופן פון +1 605 655 8080 צום עולם החסד MAX־מעניו? דער אלטער emes-newsroom Voice־Handler וועט אפגעטיילט ווערן, SMS בלייבט אומגערירט. אויב דער טעסט־רוף פעלט אויס, נוץ דעם צוריקשטעלן־קנעפל."))return;
+      void work(async()=>{
+       const result=await request("voice-switch/apply",{method:"POST",body:JSON.stringify({
+        confirm:"MOVE_6056558080_CALLING_ONLY",expectedCallingResourceId:voiceSwitch.oldCallingResourceId
+       })});
+       setVoiceSwitch(null);
+       setMessage(result.switched?"SignalWire Voice איז איבערגעשטעלט צו עולם החסד MAX. רוף יעצט 605-655-8080 און פרוביר דעם מעניו. SMS איז אומגעענדערט.":"SignalWire האט נישט באשטעטיגט די איבערשטעלונג.");
+      });
+    }}>2. איבערשטעלן נאר Calling אויף MAX</Button>
+   </div>}
+   {(oldRoute?.cutoverEnabled)&&<div className="rounded-lg border p-3 space-y-2 text-sm">
+    <p>Voice־איבערשטעלונג איז אנגעצייכנט אלס געשען. פרוביר א רוף. אויב MAX קען נישט אויפנעמען, קען מען צוריקשטעלן דעם אלטן Calling־Handler.</p>
+    <Button variant="destructive" disabled={busy} onClick={()=>{
+     if(!window.confirm("צוריקשטעלן דעם פריערדיגן emes-newsroom Calling־Handler? SMS בלייבט אומגערירט."))return;
+     void work(async()=>{
+      const value=await request("voice-switch/rollback",{method:"POST",body:JSON.stringify({confirm:"RESTORE_6056558080_CALLING_ONLY"})});
+      setMessage(value.restored?"דער פריערדיגער emes-newsroom Voice־Handler איז צוריקגעשטעלט. SMS איז נישט געטוישט.":"נישט צוריקגעשטעלט.");
+     });
+    }}>צוריקשטעלן דעם אלטן Voice־Handler</Button>
+   </div>}
   </section>
     <section className="space-y-3 rounded-xl border p-3 sm:p-4" aria-label="SignalWire phone number safety">
    <h3 className="font-semibold">SignalWire־נומערן — נישט טוישן אנדערע סיסטעמען</h3>
