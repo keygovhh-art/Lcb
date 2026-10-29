@@ -44,7 +44,7 @@ test('Shared webhook checks provider HMAC, telephone number and existing verifie
 });
 
 test('Share existing Gavhah membership and MAX phone engine, without mixing with Yemot or Campaign Center',()=>{
- assert.match(shared,/handleYemotApp\(proxy,capture,phoneTree\)/);
+ assert.match(shared,/handleYemotApp\(proxy,capture,olamCommunicationsPhoneTree\)/);
  assert.match(engine,/req\.path\.endsWith\("\/shared-ivr"\)/);
  assert.match(engine,/gavhah-shared-55555-v1:/);
  assert.match(engine,/timingSafeEqual/);
