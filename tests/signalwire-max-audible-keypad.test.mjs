@@ -79,3 +79,9 @@ test("MAX submenus use only existing private project and communications paths",(
  assert.ok(keypad.includes("if(!allowed.has(path))"));
  assert.ok(keypad.includes('fromShared && path===""'));
 });
+
+test("0 repeats MAX root and never enters old Yemot provider management",()=>{
+ assert.match(keypad,/path==="" && digit==="0" && !fromNext && !fromShared/);
+ assert.match(keypad,/fromShared && path===""/);
+ assert.match(keypad,/if\(!path&&digit!=="0"\)/);
+});
