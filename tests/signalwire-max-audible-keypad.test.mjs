@@ -55,21 +55,27 @@ test("star navigation is safe, 0 resets, 55555 routes to unchanged legacy URL",(
  assert.match(keypad,/if\(digit==="0"\)return ""/);
 });
 
-test("SignalWire root follows the five MAX departments and excludes news/minyanim/forum",()=>{
- const root=keypad.split("\\n").find(x=>x.startsWith("const sharedSignalwireRoot="));
+
+test("SignalWire root follows exactly five MAX departments, no Gavhah news or forums",()=>{
+ const root=keypad.split("\n").find(x=>x.startsWith("const sharedSignalwireRoot="));
  assert.ok(root);
- for(const name of ["Today and My Work","Calling and Communication","People and Donor 360","Projects and Goals","More: finance"])assert.ok(root.includes(name),name);
- for(const unwanted of ["Press 7 for News","Press 6 for Minyans","Press 5 for Community","Press 8 for Messages","Press 9 for Management","Campaign Center"])assert.ok(!root.includes(unwanted),unwanted);
- assert.match(keypad,/menuMap:Record<string,string>=\\{[\\s\\S]*?"1":"12","2":"14","3":"13","4":"16","5":"15"/);
- assert.doesNotMatch(keypad,/menuMap\\[digit\\]\\|\\|"11"/);
- assert.match(planMenu,/olamCommunicationsPhoneTree/);
- assert.match(shared,/handleYemotApp\\(proxy,capture,olamCommunicationsPhoneTree\\)/);
- assert.doesNotMatch(shared,/handleYemotApp\\(proxy,capture,phoneTree\\)/);
+ for(const name of ["Today and My Work","Calling and Communication","People and Donor 360","Projects and Goals","More: finance"]){
+  assert.ok(root.includes(name),name);
+ }
+ for(const name of ["Press 7 for News","Press 6 for Minyans","Press 5 for Community","Press 8 for Messages","Press 9 for Management","Campaign Center"]){
+  assert.ok(!root.includes(name),name);
+ }
+ const menuMap=keypad.slice(keypad.indexOf("const menuMap:Record<string,string>"),keypad.indexOf("const menuMap:Record<string,string>")+320);
+ assert.ok(menuMap.includes('"1":"12","2":"14","3":"13","4":"16","5":"15"'));
+ assert.ok(!menuMap.includes('"7":"11"'));
+ assert.ok(planMenu.includes("olamCommunicationsPhoneTree"));
+ assert.ok(shared.includes("handleYemotApp(proxy,capture,olamCommunicationsPhoneTree)"));
+ assert.ok(!shared.includes("handleYemotApp(proxy,capture,phoneTree)"));
 });
 
-test("all MAX virtual choices map only to real owner-scoped project/finance/contact routes",()=>{
- assert.match(keypad,/"16":\\{"1":"122","2":"124","3":"121"\\}/);
- assert.match(keypad,/"15":\\{"1":"133","2":"134","3":"142","4":"143","5":"125","6":"126"\\}/);
- assert.match(keypad,/if\\(!allowed.has\\(path\\)\\)/);
- assert.match(keypad,/if\\(fromShared && path===""\\)/);
+test("MAX submenus use only existing private project and communications paths",()=>{
+ assert.ok(keypad.includes('"16":{"1":"122","2":"124","3":"121"}'));
+ assert.ok(keypad.includes('"15":{"1":"133","2":"134","3":"142","4":"143","5":"125","6":"126"}'));
+ assert.ok(keypad.includes("if(!allowed.has(path))"));
+ assert.ok(keypad.includes('fromShared && path===""'));
 });
