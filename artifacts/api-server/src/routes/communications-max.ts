@@ -58,6 +58,30 @@ router.post("/askanus/contacts", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
   const name = clean(req.body?.name, 240);
   if (!name) { res.status(400).json({ error: "Contact name is required" }); return; }
+  // Never let a second, unblocked contact silently bypass an existing donor's
+  // Do Not Call marker just because their number is typed again.
+  const newPhoneDigits=clean(req.body?.phone,80).replace(/\D/g,"");
+  if(newPhoneDigits.length>=7){
+    const exactTen=(newPhoneDigits.length===10 ||
+      (newPhoneDigits.length===11&&newPhoneDigits.startsWith("1")));
+    const lookupDigits=exactTen?newPhoneDigits.slice(-10):newPhoneDigits;
+    const knownDigits=sql<string>`regexp_replace(coalesce(${communicationContacts.phone},''),'[^0-9]','','g')`;
+    const sameNumber=exactTen
+      ? sql`(right(${knownDigits},10)=${lookupDigits} AND length(${knownDigits}) IN (10,11))`
+      : sql`${knownDigits}=${lookupDigits}`;
+    const [existingBlocked]=await db.select({id:communicationContacts.id})
+      .from(communicationContacts).where(and(
+        eq(communicationContacts.userId,userId),
+        eq(communicationContacts.doNotCall,true),sameNumber
+      )).limit(1);
+    if(existingBlocked){
+      res.status(409).json({
+        error:"דער נומער איז שוין פאראן ביי א נדבן מיט ״נישט רופן״. ביסט זיכער אז דו ווילסט אים ווידער באטראכטן? עפן זיין עקזיסטירנדן קארטל; עס איז נישט געשאפן געווארן קיין צווייטער, אומבלאקירטער קאנטאקט.",
+        existingContactId:existingBlocked.id,doNotCallWarning:true
+      });
+      return;
+    }
+  }
   const created=await db.transaction(async tx=>{
     const [newContact]=await tx.insert(communicationContacts).values({
       userId,name,phone:clean(req.body?.phone,80),
