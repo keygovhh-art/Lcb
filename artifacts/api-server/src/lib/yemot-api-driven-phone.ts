@@ -28,7 +28,7 @@ const personalPaths=new Set(["121","122","123","124"]);
 const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
 const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
-const sharedSignalwireRoot="Welcome to Olam Hachesed Communications, MAX. Press 1 for My Askanus and MAX, 2 for Contacts, 3 for Calling Center, 4 for Kindness and Help, 5 for Community, 6 for Minyans and Appointments, 7 for News, 8 for Messages and Account, or 9 for Management. Press five five five five five for Emes Newsroom. Press pound after a single digit to continue immediately, or wait briefly. Press zero to repeat this menu.";
+const sharedSignalwireRoot="Welcome to Olam Hachesed Communications, MAX. Press 1 for Today and My Work: tasks and followups. Press 2 for Calling and Communication. Press 3 for People and Donor 360. Press 4 for Projects and Goals. Press 5 for More: finance, reports and account. Press 55555 for the old Emes Newsroom. For a single-digit option press pound, or wait briefly. Press zero to repeat.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -356,6 +356,19 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   await client.query("INSERT INTO public.gavhah_yemot_call_states(call_hash) VALUES($1) ON CONFLICT(call_hash) DO NOTHING",[callHash]);
   const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,news_actions_open,news_reply_mode,news_reply_target,news_report_mode,action_flash FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
+  if(fromShared){
+   // Reset stale sessions from the previously-shared Gavhah menu.
+   const allowed=new Set([
+    "","12","121","122","123","124","125","126",
+    "13","131","132","133","134",
+    "14","141","142","143","144","15","16"
+   ]);
+   if(!allowed.has(path)){
+    path="";page=0;position=0;chunk=0;confirmId=null;
+    s.news_actions_open=false;s.news_reply_mode=false;s.news_report_mode=false;
+    s.action_flash="";
+   }
+  }
   if(from4444 && step===0 && !path)path="2";
   let userId=s.member_id;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
@@ -384,9 +397,23 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
    }else if(!from4444 && !fromNext && ready4444 && path==="" && digit==="4444"){
     goToCampaignExtension=true;
-    }else if(fromShared && path==="" && /^[1-9]$/.test(digit)){
-     const menuMap:Record<string,string>={"1":"12","2":"13","3":"14","4":"15","5":"16","6":"17","7":"11","8":"18","9":"19"};
+    }else if(fromShared && path===""){
+     // This line is MAX only. The old Gavhah/Yemot line is unchanged.
+     const menuMap:Record<string,string>={
+      "1":"12","2":"14","3":"13","4":"16","5":"15"
+     };
      path=menuMap[digit]||"";
+     if(!path&&digit!=="0")feedback="Please choose one through five for MAX.";
+    }else if(fromShared && (path==="15"||path==="16")){
+     // Two virtual MAX-only menus, mapped to the existing private functions.
+     const routes:Record<string,Record<string,string>>={
+      "16":{"1":"122","2":"124","3":"121"},
+      "15":{"1":"133","2":"134","3":"142","4":"143","5":"125","6":"126"}
+     };
+     const next=routes[path][digit];
+     if(digit==="0")path="";
+     else if(next)path=next;
+     else feedback="That choice is not in this MAX menu. Choose a listed option.";
    }else if(!from4444 && directGavhah && path==="" && /^[1-9]$/.test(digit) && tree["1"]?.children?.[digit]){
     path="1"+digit;
    }else if(path==="" && digit==="8" && !ready4444){
