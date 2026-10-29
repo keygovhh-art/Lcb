@@ -59,7 +59,7 @@ test("star navigation is safe, 0 resets, 55555 routes to unchanged legacy URL",(
 test("SignalWire root follows exactly five MAX departments, no Gavhah news or forums",()=>{
  const root=keypad.split("\n").find(x=>x.startsWith("const sharedSignalwireRoot="));
  assert.ok(root);
- for(const name of ["Today and My Work","Calling and Communication","People and Donor 360","Projects and Goals","More: finance"]){
+ for(const name of ["My Tishl: Today, tasks and followups","Calling and Communication","People and Donor 360","Projects and Goals","More: finance"]){
   assert.ok(root.includes(name),name);
  }
  for(const name of ["Press 7 for News","Press 6 for Minyans","Press 5 for Community","Press 8 for Messages","Press 9 for Management","Campaign Center"]){
