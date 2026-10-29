@@ -48,7 +48,7 @@ router.get("/askanus/max/today",requireAuth,async(_req,res)=>{
   const projectById=new Map(projects.map(p=>[p.id,p.title]));
   const nextFollowups=followups.map(f=>({
     id:f.id,caseId:f.caseId,project:projectById.get(f.caseId)||"",
-    note:f.note,dueDate:f.dueDate,source:"case_followups",
+    note:f.note,dueDate:f.dueDate,dueTime:f.dueTime,timeZone:f.timeZone,source:"case_followups",
     url:"/my?case="+f.caseId,
   })).sort((a,b)=>(a.dueDate||"9999-12-31").localeCompare(b.dueDate||"9999-12-31"));
   const received=projects.reduce((sum,p)=>sum+Number(p.fundsReceived),0);
