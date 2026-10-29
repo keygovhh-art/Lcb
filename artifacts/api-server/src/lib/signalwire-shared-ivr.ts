@@ -61,6 +61,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  const form=req.body as Record<string,string>;
  if(req.method!=="POST"||req.originalUrl!=="/api/signalwire/shared-ivr"||
   !checkSignalWireSignature(signingKey,signature,SHARED_SIGNALWIRE_URL,form)){
+  console.warn(JSON.stringify({event:"gavhah.signalwire.callback_rejected",reason:"signature",at:new Date().toISOString()}));
   res.status(403).type("text/plain").send("Invalid SignalWire callback signature");
   return;
  }
@@ -70,6 +71,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  if(!/^[A-Za-z0-9_.:-]{8,160}$/.test(callId)||
   normalizedSignalWireNumber(called)!=="6056558080"||
   (digits!==undefined&&!/^(?:[0-9]{0,16}|\*)$/.test(digits))){
+  console.warn(JSON.stringify({event:"gavhah.signalwire.callback_rejected",reason:"input_format",at:new Date().toISOString()}));
   res.status(400).type("text/plain").send("Invalid SignalWire call or keypad input");
   return;
  }
@@ -83,6 +85,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
   "original_voice_method,original_call_handler,route_fingerprint,cutover_enabled "+
   "FROM public.gavhah_signalwire_shared_route WHERE id=1")).rows[0];
  if(!sharedRouteReady(route)||signingKey.length<24){
+  console.error(JSON.stringify({event:"gavhah.signalwire.ivr_unavailable",reason:"route_or_signing_key",at:new Date().toISOString()}));
   res.status(503).type("text/plain").send("Shared SignalWire IVR is not prepared");
   return;
  }
@@ -126,6 +129,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  } as unknown as Request;
  await handleYemotApp(proxy,capture,phoneTree);
  if(status!==200){
+  console.error(JSON.stringify({event:"gavhah.signalwire.ivr_unavailable",reason:"engine_status",status,at:new Date().toISOString()}));
   res.status(status).type("text/plain").send("Gavhah phone engine unavailable");
   return;
  }
