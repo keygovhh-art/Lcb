@@ -34,7 +34,7 @@ export function computeMaxCallback(plan:MaxCallbackPlan,at=new Date(),zone="Amer
    minutes+=exact-localParts(new Date(at.getTime()+minutes*60000),zone).minute;
   }
  }else throw Error("Unknown callback schedule");
- if(minutes<1||minutes>24*60+59)throw Error("Callback must be within the next 24 hours");
+ if(minutes<1||minutes>24*60)throw Error("Callback must be within the next 24 hours");
  const instant=new Date(at.getTime()+minutes*60000);
  return {dueAt:instant.toISOString(),...localParts(instant,zone),timeZone:zone};
 }
