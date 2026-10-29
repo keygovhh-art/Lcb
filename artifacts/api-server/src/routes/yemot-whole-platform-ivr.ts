@@ -133,9 +133,28 @@ export const phoneTree: Record<string,Item> = {
 const gavhahSections=phoneTree["1"].children!;
 export const olamCommunicationsPhoneTree:Record<string,Item>={
   "1":group("Olam Hachesed MAX",{
-    "2":gavhahSections["2"], // Today: tasks, cases, notes, own work
+    "2":group("Today and My Work",{
+      ...(gavhahSections["2"].children||{}),
+      "7":leaf("My Tishl: due tasks, callbacks and donor work","/communications")
+    }),
     "3":gavhahSections["3"], // People: Donor 360, contacts, pledges, followups
-    "4":gavhahSections["4"], // Calling: queues, reports, consent
+    "4":group("Calling and donor reports",{
+      ...(gavhahSections["4"].children||{}),
+      "5":group("Saved reports by exact outcome",{
+        "1":leaf("Gave a donation","/communications"),
+        "2":leaf("Did not answer","/communications"),
+        "3":leaf("Callback requested","/communications"),
+        "4":leaf("Not interested","/communications"),
+        "5":leaf("Do Not Call","/communications"),
+        "6":leaf("Other report","/communications"),
+        "7":leaf("Older reports: spoke","/communications")
+      }),
+      "6":group("When may this donor be reviewed again",{
+        "1":leaf("Already due for review","/communications"),
+        "2":leaf("Waiting for the future date","/communications"),
+        "3":leaf("All future donor reviews","/communications")
+      })
+    }),
     "5":group("More: finance, followups, history and secure account",{
       "1":leaf("Pledges and receipts","/communications"),
       "2":leaf("Followups and reminders","/communications"),
