@@ -69,8 +69,8 @@ function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fro
  let nodes=tree,current:TreeNode|undefined;
  for(const d of path){current=nodes[d];if(!current)return root;nodes=current.children||{};}
  if(!path)return fromShared?sharedSignalwireRoot:fromNext?nextHotlineRoot:ready4444?gavhahRoot:root;
- if(!current?.children)return (current?.details||"This option is not available on the phone yet.")+
-  (fromShared?" Press star for the previous menu, or zero for the main menu.":" Press zero to return to the main menu.");
+ if(!current?.children)return (current?.details||"This option is not ready on the phone. Press zero to return to the main menu.")+
+  (fromShared?" Press star for the previous menu, or zero for the main menu.":"");
  return current.label+". "+Object.entries(nodes)
   .map(([n,item])=>"Press "+n+" for "+item.label+".").join(" ")+
   (fromShared?" Press star for the previous menu, or zero for the main menu.":" Press zero to return to the main menu.");
