@@ -48,7 +48,8 @@ function method(raw:unknown):"GET"|"POST"{
 }
 async function readJSON(url:string,auth:string){
  const r=await fetch(url,{method:"GET",headers:{Authorization:auth,Accept:"application/json"},
-  redirect:"error",cache:"no-store",signal:AbortSignal.timeout(15000)});
+  redirect:"manual",cache:"no-store",signal:AbortSignal.timeout(15000)});
+ if(r.status>=300&&r.status<400||r.type==="opaqueredirect")throw Error("Provider read-only redirect rejected");
  if(!r.ok)throw Error("Provider read-only GET failed");
  return await r.json() as any;
 }
