@@ -2,7 +2,7 @@ import {createHmac} from "node:crypto";
 import type {Request,Response} from "express";
 import {pool} from "@workspace/db";
 import {handleYemotApp} from "./yemot-api-driven-phone";
-import {phoneTree} from "../routes/yemot-whole-platform-ivr";
+import {olamCommunicationsPhoneTree} from "../routes/yemot-whole-platform-ivr";
 import {checkSignalWireSignature,convertGavhahReplyToCxml} from "./signalwire-next-hotline";
 import {normalizedSignalWireNumber} from "./signalwire-number-safety";
 
@@ -127,7 +127,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
   body:{ApiCallId:callId,entryKey,...(digits===undefined?{}:{signalwireDigits:digits})},
   query:{}
  } as unknown as Request;
- await handleYemotApp(proxy,capture,phoneTree);
+ await handleYemotApp(proxy,capture,olamCommunicationsPhoneTree);
  if(status!==200){
   console.error(JSON.stringify({event:"gavhah.signalwire.ivr_unavailable",reason:"engine_status",status,at:new Date().toISOString()}));
   res.status(status).type("text/plain").send("Gavhah phone engine unavailable");
