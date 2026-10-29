@@ -297,6 +297,9 @@ router.post("/askanus/cases/:id/call-reports", requireAuth, async (req, res) => 
   }
   res.status(result.kind==="duplicate" ? 200 : 201).json({
     duplicate:result.kind==="duplicate",report:formatCall(result.report),
+    callbackDueAt:result.kind==="created"?calculatedCallback?.dueAt||null:null,
+    callbackTimeZone:result.kind==="created"?calculatedCallback?.timeZone||null:null,
+    recontactDueAt:result.kind==="created"?calculatedRecontact?.toISOString()||null:null,
   });
 });
 
