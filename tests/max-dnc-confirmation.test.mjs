@@ -20,7 +20,7 @@ test("Not interested is merely a saved result; it never flags the contact do-not
  assert.equal(x.stage,"mood");
  assert.equal(choose(x,"1").stage,"recontact_scope");
  assert.ok(!maxPhonePrompt(x).text.includes("Do Not Call is in effect"));
- assert.match(web,/value="not_interested"/);
+ assert.match(web,/not_interested:"נישט אינטערעסירט"/);
  assert.doesNotMatch(api,/outcome==="not_interested"\s*&&\s*.*doNotCall/);
 });
 test("Choosing 'asked not to call' advances normally without a second confirmation stage",()=>{
