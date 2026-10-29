@@ -72,3 +72,20 @@ export const maxReminderSnoozes = pgTable("max_reminder_snoozes", {
   uniqueIndex("max_reminder_snoozes_owner_followup_unique").on(table.userId,table.followupId),
   index("max_reminder_snoozes_owner_until_idx").on(table.userId,table.snoozedUntil),
 ]);
+
+/** Future eligibility, distinct from immediate callback obligations and call permission. */
+export const maxDonorRecontacts=pgTable("max_donor_recontact",{
+ id:serial("id").primaryKey(),
+ userId:integer("user_id").notNull(),
+ contactId:integer("contact_id").notNull().references(()=>communicationContacts.id,{onDelete:"cascade"}),
+ caseId:integer("case_id").notNull().references(()=>askanuscases.id,{onDelete:"cascade"}),
+ scope:text("scope").notNull(),
+ dueAt:timestamp("due_at",{withTimezone:true}).notNull(),
+ sourceReportId:integer("source_report_id").references(()=>fundraisingCallReports.id,{onDelete:"set null"}),
+ status:text("status").notNull().default("waiting"),
+ createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+ updatedAt:timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
+},table=>[
+ uniqueIndex("max_donor_recontact_owner_scope_unique").on(table.userId,table.contactId,table.caseId,table.scope),
+ index("max_donor_recontact_owner_due_idx").on(table.userId,table.status,table.dueAt)
+]);
