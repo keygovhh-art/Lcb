@@ -1,29 +1,37 @@
-# Gavhah MAX phone keypad 88 — Cloudflare production release
-Release date: 2026-10-30 UTC
+# תיקון — מיין עסקנות אויף ימות המשיח, נישט SignalWire
+2026-10-30
 
-## Current production state
-- Worker: `gavhah-cloudflare-native`, account: configured `Kg` Cloudflare connection.
-- Active Worker deployment: `d42c5bfb-b6a3-4cb7-a012-30104af499fc`.
-- Active version: `af993733-e69b-48bd-9842-1636eb751e98`, 100% traffic.
-- Previous live version for immediate rollback: `2a0a43b6-d02f-4d43-bf77-c3fc70e07ed9`.
-- Deployment composed of the ACTUAL previously live Olam Hachesed MAX v44 compiled Worker plus compiled code from this feature branch for the isolated advanced keypad. No existing default menu implementation was overwritten.
-- All original 10 Cloudflare runtime bindings, including encrypted secrets, were inherited and verified intact.
-- Existing legacy 55555 and other live Olam Hachesed MAX routing are preserved.
-- Entry is 88 then # from the actual shared SignalWire root menu; no interference with already used 127 My Tishl.
-- Root menu copy now announces 88.
+## Definitive provider separation
+**My Askanus private advanced keypad runs ONLY in the Yemot API code. Never in the SignalWire shared IVR.**
+The mistaken SignalWire addon (root keypad 88) was rolled back to pre-addon Cloudflare Worker version `2a0a43b6-d02f-4d43-bf77-c3fc70e07ed9` at 100%, rollback deployment `9bd0f320-a1bb-4037-aff3-03c9c16ebce2`. The previously existing Olam Hachesed MAX menus, old 55555 route, SignalWire number, and other functions were left unchanged. The obsolete `max-askanus-phone.ts` SignalWire My Askanus bridge has been removed from this GitHub branch.
 
-## Phone account and features
-- Each call is validated by existing SignalWire webhook signature checks.
-- Private My Askanus records require the original 8-digit website/phone account link; caller ID does not grant access.
-- The add-on uses the same existing Neon tables as My Askanus and Communications MAX: tasks, cases, notes, followups, contacts, pledges, receipts, histories, and manual call reports.
-- Keypad-only creation from predefined task/case templates. Existing item selection, status, priority, due date, goal and DNC editing. Amount entry via cents and explicit two-step monetary confirmation, with idempotency protection and stored audit history. Optional English speech input for custom notes/tasks/cases with readback.
-- Real payment charging/refunding is intentionally not offered by telephone, only MANUALLY REPORTED financial records. No automatic dialer/provider change.
-- Most records are page-scoped in phone menus; the full rich-text and file UI of the website is NOT 100% mirrored. Do not claim full feature parity.
-- No actual end-to-end provider call or Yiddish speech recognition was confirmed from the connector tools.
+## New Yemot-only Cloudflare backend
+Cloudflare script `gavhah-cloudflare-native`, active Worker **version `85897d9c-698d-46c7-a519-7845c062a7eb`**, **deployment `15b351aa-e8e1-424d-b8d1-e1b3bbd41238`**, confirmed at 100% of Worker traffic. It was constructed from the original Olam MAX v44 Worker source and **added only** the isolated Yemot private keypad. All 10 original bindings were preserved. The SignalWire handler does NOT call the My Askanus keypad.
 
-## Checks and rollback
-- GitHub Actions: 4 groups succeeded for commit `af7efae5fe177c1becceca481954fce9bc9c4d59`.
-- Cloudflare compiled and accepted the combined existing Worker + additive keypad as a new version with all 10 previous bindings.
-- Cloudflare reported deployment 100% for new version.
-- The reversible rollback is a new Cloudflare deployment referencing the previous live version above at 100%. Do NOT modify the provider phone number, DNS, or legacy 55555.
-- Physical QA needed: sign into website, obtain 8-digit phone pairing code, call 605-655-8080, press 5 then 5 and enter code, return to main menu, press 88#, verify personal dashboard lists and reversible test changes on website.
+The native Yemot API endpoint is:
+`https://gavhah-cloudflare-native.keygovhh.workers.dev/api/yemot/ivr`
+
+Telephone entry from Yemot main menu `88#` or My Askanus menu `2 -> 7` (depending on existing menu and actual provider setup).
+The private caller must first link the website My Askanus account through the original short-lived 8-digit pairing code, through the existing menu option 5. No caller-ID identification.
+
+The keypad uses native Yemot `read=t-...=iv...` responses and the same Neon website tables for cases, tasks, notes, contacts, followups, pledges, read-only summaries, confirmed status changes and manual accounting entries; it does not initiate any actual card payment/refund.
+
+## Provider callback has NOT yet switched — do not call it phone-LIVE
+Neon provider config verified:
+- Yemot line **6055621286** enabled.
+- Installed root state `live`, but `provider_summary.apiEndpoint` is still **`https://gavhah.onrender.com/api/yemot/ivr`**.
+- New Yemot keypad compiled, tested and deployed to Cloudflare but is NOT routed from the actual incoming Yemot hotline until the provider callback is switched.
+- Physical real-world Yemot call test has NOT occurred; Yiddish TTS/transcription not confirmed.
+
+There is an existing superadmin-only, preflight-verified cutover page for this exact isolated Yemot switch:
+`https://gavhah.onrender.com/api/admin/yemot/cloudflare-switch`
+Superadmin must open, click Verify and approve the cutover. The implementation changes only the root `api_link` and performs read-only baseline/fingerprint checks before the provider write. No SignalWire modifications. If this page cannot verify the provider config, do NOT force a cutover.
+
+### Pending
+1. Perform superadmin verification and callback cutover using the above existing page.
+2. Check the provider's root api_link now equals the Cloudflare Yemot endpoint.
+3. Physical call test on **6055621286**: link existing website member and exercise keypad 88 with a harmless status/task.
+4. Verify those records on website and logs, followed by negative tests for unsigned/unpaired callbacks.
+5. More complete website parity, Yiddish prompts and speech, richer editing, actual file/audio integration remain future work, not production claims.
+
+The code branch and Cloudflare live Worker have divergent baselines. This PR is deliberately DRAFT/unmerged; do not redeploy branch wholesale over the newer production Worker.
