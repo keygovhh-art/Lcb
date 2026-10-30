@@ -40,12 +40,12 @@ router.get(prefix+"/:path",wrap(async(req,res)=>{
 router.put(prefix+"/:path",wrap(async(req,res)=>{
  const path=String(req.params.path||"");
  const result=await saveNode(path,req.body||{},Number(res.locals.maxAdminId));
- if("error" in result){problem(res,400,result.error);return;}
+ if("error" in result){problem(res,400,String(result.error||"Invalid draft request"));return;}
  res.setHeader("Cache-Control","no-store").json(result);
 }));
 router.put(prefix+"/:path/buttons/:digit",wrap(async(req,res)=>{
  const result=await saveButton(String(req.params.path||""),String(req.params.digit||""),req.body,Number(res.locals.maxAdminId));
- if("error" in result){problem(res,400,result.error);return;}
+ if("error" in result){problem(res,400,String(result.error||"Invalid draft request"));return;}
  res.setHeader("Cache-Control","no-store").json(result);
 }));
 router.delete(prefix+"/:path/buttons/:digit",wrap(async(req,res)=>{
