@@ -12,7 +12,7 @@ test('Gavhah main menu becomes direct only after provider confirmed the 4444 fol
  assert.match(phone,/ready4444\?gavhahRoot:root/);
  assert.match(phone,/path="1"\+digit/);
  assert.match(phone,/mode==="root"/);
- assert.match(phone,/\[name,"no","4","1","8","No","no"\]/);
+ assert.match(phone,/\[name,"no","4","1","2","No","no"\]/);
  assert.match(phone,/digit==="4444"/);
  assert.match(phone,/go_to_folder=\/4444/);
 });
