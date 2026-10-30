@@ -7,7 +7,9 @@ const verify=src.slice(src.indexOf('router.get(cloudflareSwitchPath+"/verify"'),
 const cutover=src.slice(src.indexOf('router.post(cloudflareSwitchPath,requireAuth,admin'),src.indexOf('export default router;'));
 test("Yemot verification errors are actionable and never throw generic 500",()=>{
  assert.match(verify,/ENCRYPTED_TOKEN_UNREADABLE/);
- assert.match(verify,/PROVIDER_REJECTED_READ/);
+ assert.match(verify,/PROVIDER_HTTP_403/);
+ assert.match(verify,/PROVIDER_API_/);
+ assert.match(src,/private.call2all.co.il/);
  assert.match(verify,/PROVIDER_UNREACHABLE/);
  assert.match(verify,/PROVIDER_ROOT_UNRECOGNIZED/);
  assert.match(verify,/PROVIDER_MISMATCH/);
