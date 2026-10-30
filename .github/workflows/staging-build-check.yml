@@ -65,6 +65,10 @@ jobs:
         run: node --experimental-strip-types --test tests/yemot-section-batch1.test.mjs
       - name: Check male root voice and real same-website phone registration
         run: node --test tests/yemot-male-signup-contract.test.mjs
+      - name: Check natural English Yemot TTS pauses, brisk male voice, safe keypad syntax
+        run: node --experimental-strip-types --test tests/yemot-english-prosody.test.mjs
+      - name: Verify fast authenticated Yemot hello and first-menu keys without missing words
+        run: node --test tests/yemot-fast-ivr-voice.test.mjs
       - name: Verify staged charity scheduling, private queue and donation buttons
         run: node --experimental-strip-types --test tests/charity-publishing.test.mjs
       - name: Verify optional own donation safety gates, amounts and admin controls
@@ -79,6 +83,16 @@ jobs:
         run: node --test tests/max-ledger-donor360.test.mjs
       - name: Verify MAX release safety regressions
         run: node --test tests/max-release-integrity.test.mjs
+      - name: Verify protected MAX IVR builder and one-time phone editor safeguards
+        run: node --test tests/max-ivr-editor-draft-safety.test.mjs
+      - name: Verify Olam SignalWire extension voice and strict Yemot separation
+        run: node --test tests/olam-signalwire-voice-separation.test.mjs
+      - name: Verify Yemot Cloudflare preflight error diagnostics and zero-write security
+        run: node --test tests/yemot-cloudflare-verify-diagnostics.test.mjs
+      - name: Verify linked My Askanus phone source-of-truth and consent safety
+        run: node --test tests/max-askanus-phone-parity.test.mjs
+      - name: Verify phone keypad editing, ownership, ledger and DNC protections
+        run: node --test tests/max-askanus-keypad-actions.test.mjs
       - name: Verify recurring follow-up calendar rules
         run: node --experimental-strip-types --test tests/max-recurring-followups.test.mjs
       - name: Verify timezone-accurate MAX reminder clock

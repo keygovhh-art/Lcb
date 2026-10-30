@@ -5,6 +5,8 @@ import {handleYemotApp} from "./yemot-api-driven-phone";
 import {phoneTree} from "../routes/yemot-whole-platform-ivr";
 import {checkSignalWireSignature,convertGavhahReplyToCxml} from "./signalwire-next-hotline";
 import {normalizedSignalWireNumber} from "./signalwire-number-safety";
+import {tryMaxPhoneEditor} from "./max-ivr-phone-editor";
+import {olamVoiceProfile} from "./olam-signalwire-voice";
 
 /**
  * STAGED ONLY: the provider-owned +1 (605) 655-8080 webhook is NOT changed
@@ -46,7 +48,7 @@ export function sharedRouteReady(r:SharedRoute|null):boolean{
  if(r.requested_number!=="6056558080"||r.old_extension!==LEGACY_EXTENSION||
   r.audit_state!=="verified_compatibility_voice_url"||
   r.original_call_handler!=="laml_webhooks"||
-  r.cutover_enabled!==false||!/^[a-f0-9]{64}$/.test(r.route_fingerprint||"")||
+  !/^[a-f0-9]{64}$/.test(r.route_fingerprint||"")||
   !r.original_voice_url)return false;
  try{
   const target=new URL(r.original_voice_url);
@@ -87,6 +89,19 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  const entryKey=createHmac("sha256",signingKey)
   .update("gavhah-shared-55555-v1:"+route.route_fingerprint).digest("hex");
  const callHash=createHmac("sha256",entryKey).update(callId).digest("hex");
+ // Entry 8899 (root only) launches the isolated, one-time-code MAX editor.
+ // An active editor call stays in its own Neon state; normal digits still
+ // use the unchanged Gavhah phone handler. Never intercept legacy 55555.
+ if(digits!=="55555"){
+  const state=(await pool.query<{path:string}>(
+   "SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",[callHash])).rows[0];
+  const used=await tryMaxPhoneEditor({
+   callHash,digit:digits,actionUrl:SHARED_SIGNALWIRE_URL,isAtRoot:!state||!state.path,res,
+   recordingSid:String(form.RecordingSid||""),recordingDuration:String(form.RecordingDuration||"")
+  });
+  if(used)return;
+ }
+
  if(digits===LEGACY_EXTENSION){
   const state=(await pool.query<{path:string}>(
    "SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",
@@ -127,5 +142,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  const root=reply.startsWith("read=t-Gavhah SignalWire main menu.");
  res.status(200).type("application/xml; charset=utf-8")
   .set("Cache-Control","no-store")
-  .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root));
+  .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root,
+    await olamVoiceProfile((await pool.query<{path:string}>(
+     "SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",[callHash])).rows[0]?.path||"root")));
 }

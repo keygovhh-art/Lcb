@@ -21,7 +21,7 @@ test('the published Gavhah phone menu has real registration, and a password inpu
  assert.match(menu,/"5":leaf\("Create a Gavhah website member by phone"/);
  assert.match(gateway,/path==="185"\?"rg"/);
  assert.match(gateway,/path==="" && digit==="8"/);
- assert.match(gateway,/Press 8 to create a Gavhah website member account by phone/);
+ assert.match(gateway,/To create a website member account, press 8/);
  assert.match(gateway,/mode==="registration"/);
  assert.match(gateway,/\[name,"no","16","1","18","No","no"\]/);
  assert.match(gateway,/enrollFromKeypad\(client,callHash,digit\)/);

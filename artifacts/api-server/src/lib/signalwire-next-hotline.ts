@@ -1,6 +1,7 @@
 import {createHmac,createHash,timingSafeEqual} from "node:crypto";
 import type {Request,Response} from "express";
 import {pool} from "@workspace/db";
+import {olamSpeak,type OlamVoiceProfile} from "./olam-signalwire-voice";
 import {handleYemotApp} from "./yemot-api-driven-phone";
 import {phoneTree} from "../routes/yemot-whole-platform-ivr";
 import {isProtectedSignalWireNumber,normalizedSignalWireNumber} from "./signalwire-number-safety";
@@ -36,7 +37,8 @@ function responseXml(body:string){
 }
 const speak=(text:string)=>'<Say voice="man" language="en-US">'+
  xml(text.replace(/[\u0590-\u05ff\u0600-\u06ff]/g," ").slice(0,3200))+'</Say>';
-export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,sharedRootMode=false):string{
+export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,sharedRootMode=false,olamProfile?:OlamVoiceProfile):string{
+ const say=(text:string)=>olamProfile?olamSpeak(text,olamProfile):speak(text);
  const found=/^read=t-([\s\S]*)=(iv|ln|ar|rg)(\d+),no,(\d+),(\d+),(\d+),No,no(?:,.*)?$/.exec(reply);
  if(found){
   const [,prompt,mode,,maxDigits,,timeout]=found;
@@ -47,17 +49,17 @@ export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,s
   const seconds=Math.min(18,Math.max(5,Number(timeout)||8));
   const gather='<Gather input="dtmf" action="'+xml(actionUrl)+'" method="POST" '+
    'numDigits="'+digits+'" finishOnKey="#" timeout="'+seconds+'">'+
-   speak(prompt)+'</Gather>';
-  return responseXml(gather+speak("No selection received. Please call again.")+"<Hangup/>");
+   say(prompt)+'</Gather>';
+  return responseXml(gather+say("No selection received. Please call again.")+"<Hangup/>");
  }
  if(/^read=t-[\s\S]*=rr\d+,,record$/.test(reply)){
   // Refuse to claim audio recording is saved: provider-specific webhook/media
   // import is a separate release gate; no fake recording links or caller data.
-  return responseXml(speak("This audio recording option needs the new provider recording integration. Please use the website until it is tested.")+"<Hangup/>");
+  return responseXml(say("This audio recording option needs the new provider recording integration. Please use the website until it is tested.")+"<Hangup/>");
  }
  if(reply.startsWith("id_list_message=t-"))
-  return responseXml(speak(reply.slice("id_list_message=t-".length))+"<Hangup/>");
- return responseXml(speak("This telephone action is not available through the new provider yet.")+"<Hangup/>");
+  return responseXml(say(reply.slice("id_list_message=t-".length))+"<Hangup/>");
+ return responseXml(say("This telephone action is not available through the new provider yet.")+"<Hangup/>");
 }
 // Normalization and protected number list are shared with admin preflight.
 export async function signalWireNextHotline(req:Request,res:Response){

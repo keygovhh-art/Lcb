@@ -37,7 +37,7 @@ export async function applyYemotVoiceRepair():Promise<void>{
  let attempted=false;
  try{
   const selected=await pool.query(
-   "UPDATE public.gavhah_yemot_voice_repair SET state='applying',reason='Configuring root male English text to speech without altering existing audio or directories',updated_at=now() "+
+   "UPDATE public.gavhah_yemot_voice_repair SET state='applying',reason='Configuring clear male English speech at slightly faster rate 2 while preserving all recorded audio',updated_at=now() "+
    "WHERE id=1 AND state='queued' RETURNING id");
   if(!selected.rowCount)return;
   claimed=true;
@@ -56,6 +56,9 @@ export async function applyYemotVoiceRepair():Promise<void>{
   // fallback voices may be mapped by the provider to ymSimcha.
   await request(token,"UpdateExtension",{
    path:"ivr2:",language:"en",voice:"ymMale",tts_voice:"ymMale",
+   // Professional English hotline pace: a modest lift from standard rate zero.
+   // Both names are used by Yemot depending on the TTS module.
+   rate:"6",tts_rate:"6",
    api_log:"no",api_hangup_send:"no"
   });
   await pool.query(

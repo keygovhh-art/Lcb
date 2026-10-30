@@ -1,6 +1,8 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import {phonePromptOverride} from "../routes/yemot-voice-studio";
+import {yemotEnglishSpeech,yemotEnglishRead} from "./yemot-english-prosody";
+import {yemotAskanusKeypad} from "./yemot-askanus-keypad";
 import { logger } from "./logger";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
@@ -25,22 +27,29 @@ const categories:Record<string,string>={
 };
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124"]);
-const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
-const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
-const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
+const root="Welcome to Gavhah and Campaign Center. For Gavhah, press 1. For Campaign Center, press 2. To create a website member account, press 8. For hotline management, press 0.";
+const gavhahRoot="Welcome to Gavhah. For news and updates, press 1. For My Askanus, press 2. For contacts, press 3. For calling, press 4. For kindness, press 5. For community, press 6. For minyans, press 7. For messages or registration, press 8. For management, press 9. For advanced Askanus keypad, enter 88 then pound. For Campaign Center, enter 4444. For telephone administration, press 0.";
+const nextHotlineRoot="Gavhah TEST LINE. For news, press 1. For My Askanus, press 2. For contacts, press 3. For calling, press 4. For kindness, press 5. For community, press 6. For minyans, press 7. For messages, press 8. For management, press 9. This is a test only.";
 const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
  if(/[\u0590-\u05ff\u0600-\u06ff]/u.test(plain))return "";
- return plain.replace(/[&=,;#.\-]/g," ").replace(/[^\x20-\x7e]/g," ")
+ // Keep the speaker punctuation until the provider-safe speech formatter
+ // turns it into natural prosody. In particular, commas and periods must
+ // not disappear from the headline or the caller\'s next spoken sentence.
+ return plain.replace(/[&=#\-]/g," ").replace(/[^\x20-\x7e]/g," ")
   .replace(/\s+/g," ").trim().slice(0,max);
 }
-function voice(s:string){return "t-"+safeVoice(s,430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null){
+function voice(s:string,fromShared=false){
+ // Keep the existing SignalWire/Olam Hachesed conversion compatible.
+ // New prosody applies only to the actual Yemot hotline.
+ return fromShared?"t-"+safeVoice(s,430):yemotEnglishSpeech(s,430);
+}
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null,fromShared=false){
  if(mode==="record"){
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
-   .send("read="+voice(prompt)+"=rr"+step+",,record");return;
+   .send("read="+voice(prompt,fromShared)+"=rr"+step+",,record");return;
  }
  const name=(mode==="code"?"ln":mode==="article"?"ar":mode==="registration"?"rg":"iv")+step;
  // Yehmot's documented read order is:
@@ -57,11 +66,11 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  : mode==="news"
  ? [name,"no","1","0","7","No","no","no","","0123456789","1","Ok","None"]
  : mode==="root"
- ? [name,"no","4","1","8","No","no"]
+ ? [name,"no","4","1","2","No","no"]
  : [name,"no","1","1","8","No","no"];
  const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
   ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
- const providerBody="read="+(audio||voice(prompt))+"="+opts.join(",");
+ const providerBody="read="+(audio||voice(prompt,fromShared))+"="+opts.join(",");
  if(step===0)logger.info({ivrResponse:"read",mode,step,promptCharacters:prompt.length,patternVersion:"basic-read-v2"},"Yemot welcome reply delivered");
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
 }
@@ -71,8 +80,8 @@ function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fro
  if(!path)return fromShared?sharedSignalwireRoot:fromNext?nextHotlineRoot:ready4444?gavhahRoot:root;
  if(!current?.children)return current?.details||"This option is not ready on the phone. Press zero to return to the main menu.";
  return current.label+". "+Object.entries(nodes)
-  .map(([n,item])=>"Press "+n+" for "+item.label+".").join(" ")+
-  " Press zero to return to the main menu.";
+  .map(([n,item])=>"For "+item.label+", press "+n+".").join(" ")+
+  " For the main menu, press zero.";
 }
 // Only parent-navigation menus can be replaced with a recorded custom
 // greeting. Dynamic public and private content must NEVER be shadowed.
@@ -319,7 +328,70 @@ async function recordConfirmedManualResult(client:import("pg").PoolClient,p:Manu
   "No actual call was placed and no payment was collected.";
 }
 
+/**
+ * Fast, read-only Yemot root. Avoid eight serial Neon round trips before the
+ * caller even hears the greeting. Authentication, enabled state, installed
+ * callback digest and published root voice are verified in ONE query.
+ * No fake logged-in member or caller-ID trust. The FIRST digit 1 is also
+ * handled by a single guarded state upsert; everything else uses normal IVR.
+ */
+async function tryFastYemotRoot(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<boolean>{
+ if(!req.path.endsWith("/yemot/ivr"))return false;
+ const digit=req.body?.iv0??req.query.iv0;
+ if(digit!==undefined&&digit!==null&&String(digit)!=="1")return false;
+ const call=sourceCallId(req);
+ const supplied=String(req.body?.entryKey??req.query.entryKey??"");
+ if(!call||!/^[a-f0-9]{64}$/.test(supplied))return false;
+ const rows=await pool.query<{callback_hash:string;state:string;enabled:boolean;
+  last_verified_at:string|null;campaign_state:string|null;tts_text:string|null;published_path:string|null}>(
+  "SELECT i.callback_hash,i.state,g.enabled,g.last_verified_at,"+
+  "i.provider_summary #>> '{campaign4444,state}' AS campaign_state,"+
+  "v.tts_text,v.published_path FROM public.gavhah_yemot_ivr_install i "+
+  "JOIN public.gavhah_yemot_global g ON g.id=1 "+
+  "LEFT JOIN public.gavhah_yemot_voice_prompts v ON v.path='root' WHERE i.id=1"
+ );
+ const cfg=rows.rows[0];
+ const got=createHash("sha256").update(supplied).digest("hex");
+ if(!cfg||!cfg.enabled||!cfg.last_verified_at||
+  !["installing","live"].includes(cfg.state)||
+  !/^[a-f0-9]{64}$/.test(String(cfg.callback_hash||""))||
+  !timingSafeEqual(Buffer.from(cfg.callback_hash,"hex"),Buffer.from(got,"hex"))){
+  res.status(403).type("text/plain").send("Access denied");return true;
+ }
+ const ready=cfg.campaign_state==="live";
+ const audio=typeof cfg.published_path==="string"&&
+  /^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(cfg.published_path)?
+  cfg.published_path:null;
+ if(digit===undefined||digit===null){
+  const prompt=typeof cfg.tts_text==="string"&&cfg.tts_text.trim()?cfg.tts_text:
+   ready?gavhahRoot:root;
+  sendRead(res,prompt,0,ready?"root":"menu",audio,false);
+  return true;
+ }
+ // Never overwrite a call that has already advanced to a different step.
+ const callHash=createHmac("sha256",supplied).update(call).digest("hex");
+ const path=ready?"11":"1";
+ const updated=await pool.query<{step:number;tts_text:string|null;published_path:string|null}>(
+  "WITH next AS (INSERT INTO public.gavhah_yemot_call_states(call_hash,step,path) "+
+  "VALUES($1,1,$2) ON CONFLICT(call_hash) DO UPDATE SET step=EXCLUDED.step,"+
+  "path=EXCLUDED.path,updated_at=now() "+
+  "WHERE public.gavhah_yemot_call_states.step=0 "+
+  "AND public.gavhah_yemot_call_states.path='' RETURNING step) "+
+  "SELECT next.step,v.tts_text,v.published_path FROM next "+
+  "LEFT JOIN public.gavhah_yemot_voice_prompts v ON v.path=$2",[callHash,path]);
+ if(!updated.rows[0])return false;
+ const custom=updated.rows[0];
+ const prompt=typeof custom.tts_text==="string"&&custom.tts_text.trim()?custom.tts_text:
+  menuPrompt(path,tree,ready);
+ const media=typeof custom.published_path==="string"&&
+  /^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(custom.published_path)?
+  custom.published_path:null;
+ sendRead(res,prompt,1,"menu",media,false);
+ return true;
+}
+
 export async function handleYemotApp(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<void>{
+ if(await tryFastYemotRoot(req,res,tree))return;
  const from4444=req.path.endsWith("/4444");
  const fromShared=req.path.endsWith("/shared-ivr");
  const fromNext=req.path.endsWith("/next-ivr")||fromShared;
@@ -367,6 +439,23 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let goToCampaignExtension=false;
   if(raw!==undefined&&raw!==null){
    const digit=String(raw).trim();
+   // My Askanus keypad is YEMOT-ONLY. SignalWire and campaign bridge never
+   // enter this workflow. The website member is authenticated via short-lived pairing.
+   const yemotEntry=!fromShared&&!from4444&&((path===""&&digit==="88")||(path==="12"&&digit==="7"));
+   const yemotInside=!fromShared&&!from4444&&path==="88";
+   if(yemotEntry||yemotInside){
+     const verified=await memberAllowed(client,{...s,member_id:userId});
+     const reply=await yemotAskanusKeypad(client,callHash,verified?userId:null,yemotEntry?undefined:digit,yemotEntry);
+     path=reply.exit?"12":"88";
+     page=0;confirmId=null;position=0;chunk=0;
+     step++;
+     await client.query("UPDATE public.gavhah_yemot_call_states SET step=$2,path=$3,phone_page=0,selected_item_id=NULL,updated_at=now() WHERE call_hash=$1",[callHash,step,path]);
+     await client.query("COMMIT");
+     const spoken=reply.message;
+     res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
+       .send(yemotEnglishRead(spoken,"iv"+step,reply.digits));
+     return;
+   }
    // Existing Yemot management is usually extension /0 (admin_login).
    // Preserve it on root 0, and keep nested 0 returning to the API root.
    // Moving to /0 DOES NOT bypass the provider admin password.
@@ -679,7 +768,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(goToCampaignExtension){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/4444");
   }else{
-   sendRead(res,spoken,step,mode,publishedAudio);
+   sendRead(res,spoken,step,mode,publishedAudio,fromShared);
   }
  }catch(err){await client.query("ROLLBACK").catch(()=>{});throw err;}
  finally{client.release();}

@@ -380,16 +380,47 @@ const cloudflareIvrCallback="https://gavhah-cloudflare-native.keygovhh.workers.d
 const previousIvrCallback="https://gavhah.onrender.com/api/yemot/ivr";
 const cloudflareSwitchPath="/admin/yemot/cloudflare-switch";
 type ProviderText={responseStatus?:string;contents?:string;message?:string};
+type YemotProviderError=Error&{code:string;httpStatus?:number};
+const safeProviderError=(code:string,httpStatus?:number):YemotProviderError=>
+ Object.assign(new Error(code),{code,httpStatus});
 async function yemotProviderCall(token:string,action:"GetTextFile"|"UpdateExtension",params:Record<string,string>){
- const response=await fetch("https://www.call2all.co.il/ym/api/"+action,{
-  method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},
-  body:new URLSearchParams({token,...params}),cache:"no-store",redirect:"error",
-  signal:AbortSignal.timeout(18000)
- });
- if(!response.ok)throw Error("ימות provider request failed");
- const json=await response.json() as ProviderText;
- if(json?.responseStatus!=="OK")throw Error("ימות provider did not accept "+action);
- return json;
+ // Two official Yemot endpoints. Read-only calls alone can retry.
+ // NEVER retry UpdateExtension: an ambiguous outcome could mutate the line.
+ const bases=action==="GetTextFile"
+  ?["https://www.call2all.co.il","https://private.call2all.co.il"]
+  :["https://www.call2all.co.il"];
+ let last:YemotProviderError=safeProviderError("PROVIDER_NETWORK");
+ for(let i=0;i<bases.length;i++){
+  try{
+   const response=await fetch(bases[i]+"/ym/api/"+action,{
+    method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},
+    body:new URLSearchParams({token,...params}),cache:"no-store",redirect:"error",
+    signal:AbortSignal.timeout(14000)
+   });
+   if(!response.ok){
+    last=safeProviderError("PROVIDER_HTTP_"+response.status,response.status);
+    if(action==="GetTextFile"&&i<bases.length-1&&
+     (response.status===403||response.status===429||response.status>=500))continue;
+    throw last;
+   }
+   let json:ProviderText;
+   try{json=await response.json() as ProviderText;}
+   catch{throw safeProviderError("PROVIDER_NOT_JSON");}
+   if(json?.responseStatus!=="OK")
+    throw safeProviderError("PROVIDER_API_"+
+      (/^(?:ERROR|EXCEPTION|FAIL|INVALID)$/i.test(String(json?.responseStatus||""))?
+      String(json.responseStatus).toUpperCase():"REJECTED"));
+   return json;
+  }catch(e){
+   const x=e as Partial<YemotProviderError>;
+   last=x?.code?safeProviderError(x.code,x.httpStatus):
+    safeProviderError(e instanceof Error&&e.name==="TimeoutError"?"PROVIDER_TIMEOUT":"PROVIDER_NETWORK");
+   if(action!=="GetTextFile"||i===bases.length-1||
+      !["PROVIDER_NETWORK","PROVIDER_TIMEOUT","PROVIDER_HTTP_403","PROVIDER_HTTP_429"].includes(last.code)&&
+      !/^PROVIDER_HTTP_5\d\d$/.test(last.code))throw last;
+  }
+ }
+ throw last;
 }
 async function readProviderRoot(token:string){
  const result=await yemotProviderCall(token,"GetTextFile",{what:"ivr2:/ext.ini"});
@@ -473,23 +504,62 @@ try{const r=await fetch(route,{method:'POST',credentials:'same-origin',headers:c
  res.set("Cache-Control","private, no-store").set("Content-Security-Policy","default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'");
  res.type("html").send(html);
 }));
+// Read-only owner verification must return actionable, sanitized diagnostics.
+// An API/decryption failure can NEVER be mistaken for authorization to cut over.
 router.get(cloudflareSwitchPath+"/verify",requireAuth,admin,wrap(async(_req,res)=>{
- const status=await getLiveCloudflareSwitchStatus();
- if(!status.ready){err(res,409,"Stored Yemot connection is not ready for an isolated cutover");return;}
- const row=await getRow();
- if(!row){err(res,409,"Provider token unavailable");return;}
- const token=decode(row);
- const root=await readProviderRoot(token);
- const c=await pool.query("SELECT callback_hash FROM public.gavhah_yemot_ivr_install WHERE id=1");
- const keyOk=verifiedProviderRoot(root,c.rows[0]?.callback_hash||"");
- const providerEndpoint=root.api_link||null;
- const safeToSwitch=keyOk&&providerEndpoint===previousIvrCallback&&
+ res.set("Cache-Control","private,no-store");
+ let stage="configuration";
+ try{
+  const status=await getLiveCloudflareSwitchStatus();
+  if(!status.ready){
+   res.status(409).json({safeToSwitch:false,code:"SAVED_CONNECTION_NOT_READY",
+    error:"דער אפגעהיטענער ימות־חשבון איז נישט גרייט פארן אריבערפיר. קיין ענדערונג געמאכט."});return;
+  }
+  stage="credentials";
+  const row=await getRow();
+  if(!row){
+   res.status(409).json({safeToSwitch:false,code:"NO_PROVIDER_CREDENTIALS",
+    error:"דער ימות־חשבון האט נישט קיין אפגעהיטענעם API־שליסל. קיין ענדערונג געמאכט."});return;
+  }
+  let token="";
+  try{token=decode(row);}
+  catch{
+   res.status(503).json({safeToSwitch:false,code:"ENCRYPTED_TOKEN_UNREADABLE",
+    error:"Cloudflare קען נישט אויפשליסן דעם ביז־איצטיגן ימות API־שליסל. דער YEMOT_ENCRYPTION_KEY מוז זיין דער זעלבער וואס האט פארשפארט דעם שליסל אין Render. קיין פארוואלטונגס־סודות נישט געענדערט."});return;
+  }
+  stage="provider_read";
+  let root:Record<string,string>;
+  try{root=await readProviderRoot(token);}
+  catch(e){
+   const kind=e instanceof Error?e.message:"";
+   const providerCode=String((e as Partial<YemotProviderError>)?.code||"");
+   const unreadable=kind.includes("Unrecognised")||kind.includes("Duplicate");
+   const coded=/^PROVIDER_(?:HTTP_\d{3}|API_[A-Z]+|NETWORK|TIMEOUT|NOT_JSON)$/.test(providerCode);
+   const code=unreadable?"PROVIDER_ROOT_UNRECOGNIZED":coded?providerCode:"PROVIDER_UNREACHABLE";
+   console.warn(JSON.stringify({event:"gavhah.yemot.preflight_read_failed",code,tokenLogged:false}));
+   res.status(502).json({safeToSwitch:false,code,
+    error:unreadable?"מען קען נישט זיכער ליינען דעם ימות הויפט־ext.ini. קיין ענדערונג געמאכט.":
+     code==="PROVIDER_HTTP_403"?"ימות האט אפגעוויזן דעם צוטריט (HTTP 403). קיין ענדערונג געמאכט.":
+     code==="PROVIDER_TIMEOUT"?"ימות ענטפערט נישט אין דער ערווארטעטער צייט. קיין ענדערונג געמאכט.":
+     code==="PROVIDER_NOT_JSON"?"דער ימות־פראוויידער האט נישט צוריקגעגעבן א גילטיגן API־ענטפער. קיין ענדערונג געמאכט.":
+     code.startsWith("PROVIDER_API_")?"ימות האט נישט אנגענומען דעם API־ליינען־דורכקוק. קיין ענדערונג געמאכט.":
+     "Cloudflare קען נישט מצליח ליינען דעם ימות־פראוויידער. קיין ענדערונג געמאכט."});return;
+  }finally{token="";}
+  stage="fingerprint";
+  const c=await pool.query("SELECT callback_hash FROM public.gavhah_yemot_ivr_install WHERE id=1");
+  const keyOk=verifiedProviderRoot(root,c.rows[0]?.callback_hash||"");
+  const providerEndpoint=root.api_link||null;
+  const safeToSwitch=keyOk&&providerEndpoint===previousIvrCallback&&
     status.configuredCallback===previousIvrCallback;
- res.set("Cache-Control","private, no-store");
- res.json({safeToSwitch,providerCallback:providerEndpoint,cloudflareCallback:cloudflareIvrCallback,
-  savedCallback:status.configuredCallback,credentialsMatch:keyOk,
-  message:safeToSwitch?"The current Yemot root and pairing key match; changing only api_link is permitted.":
-   "Provider settings have changed or are not verified. No modification is permitted."});
+  res.json({safeToSwitch,providerCallback:providerEndpoint,cloudflareCallback:cloudflareIvrCallback,
+   savedCallback:status.configuredCallback,credentialsMatch:keyOk,code:safeToSwitch?"VERIFIED":"PROVIDER_MISMATCH",
+   message:safeToSwitch?"די עכטע ימות־פארבינדונג איז באשטעטיגט. נאר דער API־Callback קען יעצט געטוישט ווערן.":
+   "דער Callback אדער דער באשיצטער שליסל שטימט נישט. עס איז גארנישט געטוישט געווארן."});
+ }catch{
+  console.warn(JSON.stringify({event:"gavhah.yemot.cloudflare.verify_failed",stage,secretLogged:false}));
+  res.status(503).json({safeToSwitch:false,code:"VERIFICATION_FAILED_"+stage.toUpperCase(),
+   error:"דער זיכערהייט־דורכקוק האט א סערווער־פעלער. דער ימות־ליין איז נישט געענדערט געווארן."});
+ }
 }));
 router.post(cloudflareSwitchPath,requireAuth,admin,wrap(async(req,res)=>{
  // This is an authenticated, explicit single-purpose owner action, not

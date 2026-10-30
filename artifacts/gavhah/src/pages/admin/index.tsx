@@ -36,6 +36,7 @@ import { PrivateAssistanceManagement } from "@/components/admin/private-assistan
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 import { YemotCentralManagement } from "@/components/admin/yemot-central-management";
+import { MaxIvrBuilder } from "@/components/admin/max-ivr-builder";
 
 function reportContentPath(type: string, id: number) {
   if (type === "news") return `/news/${id}`;
@@ -362,6 +363,9 @@ export default function FounderDashboard() {
             {user?.role === "super_admin" && (
               <TabsTrigger value="yemot-global" className="gap-2"><Globe className="h-4 w-4" /> ימות API — צענטראל</TabsTrigger>
             )}
+            {user?.role === "super_admin" && (
+              <TabsTrigger value="max-voice-studio" className="gap-2">🎙️ עולם החסד MAX — קול־סטודיא</TabsTrigger>
+            )}
             {(user?.role === "admin" || user?.role === "super_admin") && (
               <TabsTrigger value="member-management" className="gap-2">
                 <Users className="h-4 w-4" /> {yi ? "מעמבער־פארוואלטונג" : "Advanced Members"}
@@ -523,6 +527,9 @@ export default function FounderDashboard() {
 
           {user?.role === "super_admin" && (
             <TabsContent value="yemot-global" className="space-y-6"><YemotCentralManagement /></TabsContent>
+          )}
+          {user?.role === "super_admin" && (
+            <TabsContent value="max-voice-studio" className="space-y-6"><MaxIvrBuilder /></TabsContent>
           )}
           <TabsContent value="welcome-pages" className="space-y-6">
             <MembershipGateManagement />
