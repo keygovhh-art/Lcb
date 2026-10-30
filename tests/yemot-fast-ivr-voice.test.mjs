@@ -24,6 +24,8 @@ test("Fast digit 1 keeps step state and does not destroy existing calls",()=>{
  assert.match(fast,/const path=ready\?"11":"1"/);
  assert.match(fast,/sendRead\(res,prompt,1/);
  assert.match(src,/if\(await tryFastYemotRoot\(req,res,tree\)\)return/);
+ assert.match(src,/\[name,"no","4","1","2","No","no"\]/);
+ assert.doesNotMatch(src,/\[name,"no","4","1","8","No","no"\]/);
  assert.match(src,/const fromShared=req\.path\.endsWith\("\/shared-ivr"\)/);
  assert.match(src,/path==="" && digit==="0"/);
 });
