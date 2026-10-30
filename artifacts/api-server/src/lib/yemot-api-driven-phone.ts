@@ -1,11 +1,12 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
-import {phonePromptOverride} from "../routes/yemot-voice-studio";
 import { logger } from "./logger";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
-import {sectionPaths,sectionRequiresLogin,pagedSections,readPhoneSection,currentPhoneActionId,confirmPhoneAction,publicIdSections,readPhonePublicById} from "./yemot-section-batch1";
+import {sectionPaths,sectionRequiresLogin,pagedSections,readPhoneSection,currentPhoneActionId,confirmPhoneAction} from "./yemot-section-batch1";
+import {currentOwnedCase,caseConfirmationToken,applyPhoneCaseAction,createTelephoneCaseDraft,telephoneCaseFollowup,telephoneCaseSummary} from "./olam-hachesed-phone-cases";
+import {currentMAXContact,telephoneMAXContact360,maxOutcomeToken,logMAXPhoneOutcome,telephoneMAXFinanceSummary,logMAXPhonePledge} from "./olam-hachesed-phone-max";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -16,7 +17,6 @@ type State={
  member_id:number|null;linked_until:string|null;login_failures:number;
  phone_page:number;selected_item_id:number|null;
  news_actions_open:boolean;news_reply_mode:boolean;news_reply_target:number|null;news_report_mode:boolean;
- action_flash:string;
 };
 const categories:Record<string,string>={
  "1121":"emergency_appeal","1122":"fundraising","1123":"announcement",
@@ -28,7 +28,7 @@ const personalPaths=new Set(["121","122","123","124"]);
 const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
 const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
-const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
+const sharedSignalwireRoot="Welcome to Olam Hachesed Communications and MAX. Press 1 my tasks, 2 private cases, 3 donor 360, 4 calling center, 5 pledge and receipt totals, 6 follow ups, 7 case statistics, 8 secure website account login, or 9 a new case draft. The Gavhah main menu and Campaign Center are on the separate Yemot hotline.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -37,7 +37,7 @@ export function safeVoice(input:unknown,max=430){
   .replace(/\s+/g," ").trim().slice(0,max);
 }
 function voice(s:string){return "t-"+safeVoice(s,430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null){
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu"){
  if(mode==="record"){
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
    .send("read="+voice(prompt)+"=rr"+step+",,record");return;
@@ -59,9 +59,7 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  : mode==="root"
  ? [name,"no","4","1","8","No","no"]
  : [name,"no","1","1","8","No","no"];
- const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
-  ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
- const providerBody="read="+(audio||voice(prompt))+"="+opts.join(",");
+ const providerBody="read="+voice(prompt)+"="+opts.join(",");
  if(step===0)logger.info({ivrResponse:"read",mode,step,promptCharacters:prompt.length,patternVersion:"basic-read-v2"},"Yemot welcome reply delivered");
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
 }
@@ -73,19 +71,6 @@ function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fro
  return current.label+". "+Object.entries(nodes)
   .map(([n,item])=>"Press "+n+" for "+item.label+".").join(" ")+
   " Press zero to return to the main menu.";
-}
-// Only parent-navigation menus can be replaced with a recorded custom
-// greeting. Dynamic public and private content must NEVER be shadowed.
-function isNavigationalMenu(path:string,tree:Record<string,TreeNode>){
- if(!path)return true;
- let nodes=tree;
- let current:TreeNode|undefined;
- for(const digit of path){
-  current=nodes[digit];
-  if(!current)return false;
-  nodes=current.children||{};
- }
- return !!current?.children;
 }
 function treeSelect(path:string,digit:string,tree:Record<string,TreeNode>){
  if(digit==="0")return "";
@@ -212,6 +197,7 @@ async function myPrompt(client:import("pg").PoolClient,path:string,userId:number
  if(path==="122")return heading+"Status "+x.status+". Priority "+x.urgency+". "+
   (x.deadline?"Deadline "+safeVoice(x.deadline,22)+". ":"")+
   "Recorded goal "+Number(x.goal_amount)+" dollars. "+
+  "Press 3 to choose a donor and record a manual call result. Press 5 twice for in progress, 6 twice to close, 7 twice to reopen, or 9 twice for an unscheduled follow up. "+
   "Press 1 for next, 8 for previous, 2 to restart, or zero for the main menu.";
  return heading+(safeVoice(x.content,170)||"This note needs an English audio version.")+
   ". Press 1 for next, 8 for previous, 2 to restart, or zero for the main menu.";
@@ -260,65 +246,6 @@ async function exactSecret(req:Request){
  return expected.length===provided.length&&
   timingSafeEqual(Buffer.from(expected),Buffer.from(provided))?supplied:null;
 }
-type ManualResultPending={
- stage:"choose"|"confirm";userId:number;contactId:number;caseId:number;
- contactName:string;outcome?:string;expiresAt:number;requestId:string;
-};
-const manualOutcomes:Record<string,string>={
- "1":"spoke","2":"no_answer","3":"callback","4":"not_interested","5":"do_not_call"
-};
-function readManualResultPending(value:string):ManualResultPending|null{
- try{
-  const p=JSON.parse(value) as ManualResultPending;
-  if(!p||!["choose","confirm"].includes(p.stage)||!Number.isSafeInteger(p.userId)||
-   !Number.isSafeInteger(p.contactId)||p.contactId<=0||!Number.isSafeInteger(p.caseId)||
-   p.caseId<=0||!Number.isFinite(p.expiresAt)||p.expiresAt<Date.now()||
-   typeof p.contactName!=="string"||typeof p.requestId!=="string"||
-   !/^[a-f0-9]{64}$/.test(p.requestId))return null;
-  if(p.stage==="confirm"&&!Object.values(manualOutcomes).includes(p.outcome||""))return null;
-  return p;
- }catch{return null;}
-}
-const choosePrompt="Manual result for the selected contact. Press 1 if you spoke, 2 if no answer, "+
- "3 for callback requested, 4 for not interested, or 5 for Do Not Call. "+
- "Press zero to cancel. This does NOT initiate an outbound phone call.";
-const confirmationPrompt=(p:ManualResultPending)=>
- "You selected "+(p.outcome||"").replace(/_/g," ")+
- ". Press 5 again to SAVE the result to your Gavhah MAX website history. "+
- "Press zero to cancel. No money, donation, or payment will be recorded.";
-async function recordConfirmedManualResult(client:import("pg").PoolClient,p:ManualResultPending){
- // Recheck ownership and DNC status at commit time, not only when the menu
- // first opened. A moved contact or closed case cannot receive a new result.
- const contact=await client.query<{id:number;name:string;do_not_call:boolean}>(
-  "SELECT id,name,do_not_call FROM public.communication_contacts "+
-  "WHERE id=$1 AND user_id=$2 FOR UPDATE",[p.contactId,p.userId]);
- const owned=contact.rows[0];
- const test=await client.query<{id:number}>(
-  "SELECT id FROM public.askanus_cases WHERE id=$1 AND user_id=$2 AND status!='closed' FOR UPDATE",
-  [p.caseId,p.userId]);
- if(!owned||!test.rows[0]||owned.do_not_call)return "Contact is unavailable or marked Do Not Call. Nothing was saved.";
- const outcome=p.outcome||"other";
- const ins=await client.query<{id:number}>(
-  "INSERT INTO public.fundraising_call_reports "+
-  "(user_id,case_id,contact_id,contact_name,outcome,money_kind,amount,note,request_id,observed_mood) "+
-  "VALUES ($1,$2,$3,$4,$5,'none',0,$6,$7,'neutral') "+
-  "ON CONFLICT(user_id,request_id) DO NOTHING RETURNING id",
-  [p.userId,p.caseId,p.contactId,owned.name,outcome,"Manual call outcome saved from verified Yemot IVR",p.requestId]);
- if(!ins.rows[0])return "This result was already saved. No duplicate was created.";
- await client.query(
-  "INSERT INTO public.case_activity_log(case_id,date,type,note) VALUES($1,$2,'contact',$3)",
-  [p.caseId,new Date().toISOString().slice(0,10),
-   ("Telephone IVR manual call report: "+owned.name+" - "+outcome).slice(0,1400)]);
- if(outcome==="do_not_call"){
-  await client.query("UPDATE public.communication_contacts "+
-   "SET do_not_call=true,opt_out_reason='Do Not Call explicitly confirmed through verified Yemot hotline',updated_at=now() "+
-   "WHERE id=$1 AND user_id=$2",[p.contactId,p.userId]);
- }
- return "Saved to your MAX website call history. "+
-  (outcome==="do_not_call"?"Do Not Call protection is now enabled. ":"")+
-  "No actual call was placed and no payment was collected.";
-}
-
 export async function handleYemotApp(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<void>{
  const from4444=req.path.endsWith("/4444");
  const fromShared=req.path.endsWith("/shared-ivr");
@@ -353,14 +280,13 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
  try{
   await client.query("BEGIN");
   await client.query("INSERT INTO public.gavhah_yemot_call_states(call_hash) VALUES($1) ON CONFLICT(call_hash) DO NOTHING",[callHash]);
-  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,news_actions_open,news_reply_mode,news_reply_target,news_report_mode,action_flash FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
+  const r=await client.query<State>("SELECT step,path,news_position,news_chunk,member_id,linked_until,login_failures,phone_page,selected_item_id,news_actions_open,news_reply_mode,news_reply_target,news_report_mode FROM public.gavhah_yemot_call_states WHERE call_hash=$1 FOR UPDATE",[callHash]);
   let s=r.rows[0],{step,path,news_position:position,news_chunk:chunk,phone_page:page,selected_item_id:confirmId}=s;
   if(from4444 && step===0 && !path)path="2";
   let userId=s.member_id;
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
-  let manualFlash=s.action_flash||"";
-  if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";}
-  const inputName=(replyMode?"rr":path==="125"?"ln":path==="185"?"rg":(path==="115"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;}
+  const inputName=(replyMode?"rr":path==="125"?"ln":path==="185"?"rg":path==="115"&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
   let goToProviderManagement=false;
@@ -376,6 +302,9 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
    }else if(!from4444 && !fromNext && ready4444 && path==="" && digit==="4444"){
     goToCampaignExtension=true;
+   }else if(fromShared && path==="" && /^[1-9]$/.test(digit)){
+    const links:Record<string,string>={"1":"121","2":"12","3":"137","4":"14","5":"139","6":"128","7":"129","8":"125","9":"127"};
+    path=links[digit]||"";
    }else if(!from4444 && directGavhah && path==="" && /^[1-9]$/.test(digit) && tree["1"]?.children?.[digit]){
     path="1"+digit;
    }else if(path==="" && digit==="8" && !ready4444){
@@ -482,19 +411,6 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      if(current.hasMore)chunk++;
      else{confirmId=null;chunk=0;feedback="End of article. Enter another article number. ";}
     }
-   }else if(publicIdSections.has(path)){
-    // Type a website ID using up to eight digits. Once a public record is
-    // selected, one, eight and two navigate paragraphs; nine picks another.
-    if(digit==="0"){path="";confirmId=null;page=0;}
-    else if(confirmId===null){
-     if(/^\d{1,8}$/.test(digit)&&Number(digit)>0){
-      confirmId=Number(digit);page=0;
-     }else feedback="Enter the website item number, one to eight digits, then press pound. ";
-    }else if(digit==="9"){confirmId=null;page=0;}
-    else if(digit==="1")page=Math.min(34,page+1);
-    else if(digit==="8")page=Math.max(0,page-1);
-    else if(digit==="2")page=0;
-    else feedback="Press one for next, eight for previous, two to restart, nine for another item, or zero for the main menu. ";
    }else if(newsPath(path)){
     if(digit==="0"){path="";position=0;chunk=0;actionsOpen=false;}
     else if(digit==="1"){actionsOpen=true;}
@@ -504,50 +420,6 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     else if(digit==="2"||digit===""||digit==="None"){
      const now=await newsPrompt(path,position,chunk);
      if(now.hasMore)chunk++;else{position++;chunk=0;}
-    }
-   }else if(path==="141" && (digit==="9"||readManualResultPending(manualFlash))){
-    if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
-      manualFlash="";
-      feedback="Please link your own Gavhah website account with the eight digit code first. ";
-    }else{
-      const existing=readManualResultPending(manualFlash);
-      if(digit==="0"){manualFlash="";path="";page=0;feedback="Cancelled. No call result was recorded. ";}
-      else if(existing && existing.userId===userId){
-        if(existing.stage==="choose"){
-          const outcome=manualOutcomes[digit];
-          if(!outcome)feedback=choosePrompt+" ";
-          else{
-            existing.outcome=outcome;existing.stage="confirm";
-            manualFlash=JSON.stringify(existing);
-            feedback=confirmationPrompt(existing)+" ";
-          }
-        }else if(digit==="5"){
-          feedback=(await recordConfirmedManualResult(client,existing))+" ";
-          manualFlash="";
-        }else feedback=confirmationPrompt(existing)+" ";
-      }else if(digit==="9"){
-        const picked=await client.query<{id:number;name:string}>(
-          "SELECT id,name FROM public.communication_contacts "+
-          "WHERE user_id=$1 AND do_not_call=false ORDER BY updated_at DESC,id DESC LIMIT 1 OFFSET $2",
-          [userId,Math.max(0,Math.min(40,page))]);
-        // Never silently attribute a call to an unrelated case. Until the
-        // keypad supports explicit case selection, require exactly one open case.
-        const matchingCase=await client.query<{id:number}>(
-          "SELECT id FROM public.askanus_cases WHERE user_id=$1 AND status!='closed' "+
-          "ORDER BY last_updated DESC,id DESC LIMIT 2",[userId]);
-        if(!picked.rows[0])feedback="This calling-list contact is unavailable. Nothing was recorded. ";
-        else if(!matchingCase.rows[0])feedback="Please create an open MAX case on your website before recording a call result. ";
-        else if(matchingCase.rows.length>1)feedback="You have more than one open MAX case. To prevent incorrect case attribution, choose the case and log this result on the website. ";
-        else{
-          const contact=picked.rows[0];
-          manualFlash=JSON.stringify({
-            stage:"choose",userId,contactId:contact.id,caseId:matchingCase.rows[0].id,
-            contactName:contact.name.slice(0,240),expiresAt:Date.now()+5*60*1000,
-            requestId:createHash("sha256").update(callHash+":"+step+":"+contact.id).digest("hex")
-          } satisfies ManualResultPending);
-          feedback=choosePrompt+" ";
-        }
-      }else{manualFlash="";feedback="The previous result session has expired. Press nine to start again. ";}
     }
    }else if(sectionPaths.has(path)){
     // For protected actions require a recently paired website identity.
@@ -575,11 +447,98 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     else if(pagedSections.has(path)&&digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(pagedSections.has(path)&&digit==="2"){page=0;confirmId=null;}
     else confirmId=null;
+   }else if(path==="138"){
+    if(digit==="0"){path="137";page=0;chunk=0;}
+    else if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+     feedback="Link your website account to record a private pledge. ";chunk=0;
+    }else if(!confirmId||page<1){feedback="Choose an owned case and contact first. ";path="137";page=0;chunk=0;}
+    else if(chunk===0){
+     if(/^[1-9][0-9]{0,5}$/.test(digit)){
+      chunk=Number(digit);feedback="You entered "+chunk+" dollars. This is a PLEDGE only, not a received payment. ";
+     }else feedback="Enter a pledge amount of 1 to 999999 whole dollars, then press pound. ";
+    }else if(digit==="5"){
+     feedback=await logMAXPhonePledge(client,userId,confirmId,page,chunk,callHash);
+     path="137";page=0;chunk=0;
+    }else feedback="Press 5 and pound to confirm or zero to cancel. ";
+   }else if(path==="137"){
+    if(digit==="0"){path="";page=0;confirmId=null;chunk=0;}
+    else if(digit==="1"){page=Math.min(40,page+1);chunk=0;}
+    else if(digit==="8"){page=Math.max(0,page-1);chunk=0;}
+    else if(digit==="2"){page=0;chunk=0;}
+    else if(digit==="9"){
+     if(!userId||!await memberAllowed(client,{...s,member_id:userId})||!confirmId){
+      feedback="Choose a private case and link your website account before logging a pledge. ";chunk=0;
+     }else{
+      const contact=await currentMAXContact(client,userId,page);
+      if(contact){page=contact.id;chunk=0;path="138";feedback="Enter a whole dollar pledge amount. ";}
+      else feedback="Contact not found. ";
+     }
+    }
+    else if(["3","4","5","6","7"].includes(digit)){
+     if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+      feedback="First link the correct website account with the eight digit code. ";chunk=0;
+     }else if(!confirmId){
+      feedback="To write a manual call outcome choose an owned case under My Cases, then press 3. ";chunk=0;
+     }else{
+      const chosen=await currentMAXContact(client,userId,page);
+      const token=chosen&&maxOutcomeToken(chosen.id,digit);
+      if(!chosen||token===null){feedback="Contact not available. ";chunk=0;}
+      else if(chunk===token){
+       feedback=await logMAXPhoneOutcome(client,userId,confirmId,chosen.id,digit,callHash);
+       chunk=0;
+      }else{
+       chunk=token;
+       feedback="Press "+digit+" again to confirm a MANUAL "+
+        ({"3":"no answer","4":"callback","5":"not interested","6":"do not call","7":"spoke"} as Record<string,string>)[digit]+
+        " report for this contact and the selected case. "; 
+      }
+     }
+    }else{feedback="Choose 1 next, 8 previous, 2 first, or zero to return. ";chunk=0;}
+   }else if(path==="127"){
+    if(digit==="0"){path="";confirmId=null;}
+    else if(digit==="5"){
+     if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+      confirmId=null;feedback="Link your website account with the eight digit pairing code before opening a private case. ";
+     }else if(confirmId===127){
+      feedback=await createTelephoneCaseDraft(client,userId);
+      confirmId=null;path="122";page=0;
+     }else{confirmId=127;feedback="Press 5 again to confirm creating a new private draft case. ";}
+    }else{confirmId=null;feedback="Press 5 twice to create a draft case, or zero to return. ";}
+   }else if(path==="128"){
+    if(digit==="0"){path="";page=0;}
+    else if(digit==="1"){page=Math.min(40,page+1);}
+    else if(digit==="8"){page=Math.max(0,page-1);}
+    else if(digit==="2"){page=0;}
+   }else if(path==="129"||path==="139"){
+    if(digit==="0"){path="";}
    }else if(personalPaths.has(path)){
-    if(digit==="0"){path="";page=0;confirmId=null;}
+    if(path==="122"&&digit==="3"){
+     if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+      feedback="Link your website account before viewing private contacts. ";
+     }else{
+      const selected=await currentOwnedCase(client,userId,page);
+      if(selected){confirmId=selected.id;path="137";page=0;chunk=0;
+       feedback="Contact directory for case "+selected.id+". Choose a contact, then press an outcome twice to record a MANUAL entry. ";}
+      else feedback="No matching case was found. ";
+     }
+    }
+    else if(digit==="0"){path="";page=0;confirmId=null;}
     else if(digit==="1"){page++;confirmId=null;}
     else if(digit==="8"){page=Math.max(0,page-1);confirmId=null;}
     else if(digit==="2"){page=0;confirmId=null;}
+    else if(path==="122"&&["5","6","7","9"].includes(digit)){
+     if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+      feedback="Link your website account before changing a case. ";confirmId=null;
+     }else{
+      const item=await currentOwnedCase(client,userId,page);
+      const token=item&&caseConfirmationToken(item.id,digit);
+      if(!item||token===null){feedback="Case is not available for telephone editing. ";confirmId=null;}
+      else if(confirmId===token){
+       feedback=await applyPhoneCaseAction(client,userId,item.id,digit);
+       confirmId=null;
+      }else{confirmId=token;feedback="Press "+digit+" again to confirm this change to case "+item.id+". ";}
+     }
+    }
     else if(digit==="5"&&path==="121"&&userId&&await memberAllowed(client,s)){
      const current=await client.query<{id:number;completed:boolean}>(
        "SELECT id,completed FROM public.askanus_tasks WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",[userId,page]);
@@ -632,24 +591,33 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }else{
     spoken+=(await articlePrompt(client,confirmId,chunk)).text;
    }
-  }else if(publicIdSections.has(path)){
-   if(confirmId===null){
-    mode="article";
-    spoken+="Enter the public website item number, one to eight digits, then press pound. Press zero to return.";
-   }else{
-    spoken+=(await readPhonePublicById(client,path,confirmId,page)).text;
-   }
   }else if(newsPath(path)){
    mode="news";spoken+=(await newsPrompt(path,position,chunk)).text;
-  }else if(path==="141"&&readManualResultPending(manualFlash)){
-   // While choosing or confirming, speak only the active keypad instructions.
-   // Do not repeat the entire contact queue or the menu customization.
-   const pending=readManualResultPending(manualFlash)!;
-   if(!feedback)spoken+=pending.stage==="choose"?choosePrompt:confirmationPrompt(pending);
   }else if(sectionPaths.has(path)){
    const permitted=!sectionRequiresLogin.has(path)||
       await memberAllowed(client,{...s,member_id:userId});
    spoken+=await readPhoneSection(client,path,permitted?userId:null,page);
+  }else if(path==="138"){
+   mode="article";
+   spoken+=chunk>0
+    ?"Pledge amount "+chunk+" dollars. Press 5 then pound to confirm this MANUAL pledge, or zero to cancel. No payment is recorded."
+    :"Enter the whole dollar pledge amount from 1 through 999999 and press pound. Press zero to cancel.";
+  }else if(path==="137"){
+   if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+    spoken="Private MAX contacts require a linked website member. Press zero to return and use option 8 to link your account.";
+   }else{spoken+=await telephoneMAXContact360(client,userId,page,confirmId);}
+  }else if(path==="139"){
+   if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+    spoken="MAX finance summaries require a linked website account. Press zero for main menu.";
+   }else{spoken+=await telephoneMAXFinanceSummary(client,userId);}
+  }else if(path==="127"){
+   spoken+="New Olam Hachesed case draft. Press 5 twice to create a private draft in your account. It will have no personal details until you edit it on the website. Press zero to return.";
+  }else if(path==="128"||path==="129"){
+   if(!await memberAllowed(client,{...s,member_id:userId})){
+    spoken="This is a private Olam Hachesed section. Link your website account through My Askanus option 5 first. Press zero for the main menu.";
+   }else{
+    spoken+=path==="128"?await telephoneCaseFollowup(client,userId!,page):await telephoneCaseSummary(client,userId!);
+   }
   }else if(personalPaths.has(path)){
    if(!await memberAllowed(client,{...s,member_id:userId})){
     spoken="Your private account is not linked for this call. Open My Askanus on the website and generate an eight-digit code, then press 5 in this phone menu to sign in. If you do not have a website account, press zero to return, then press 8 at the welcome menu to register by phone.";
@@ -660,26 +628,16 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    if(!path && directGavhah && !from4444)mode="root";
    spoken+=menuPrompt(path,tree,ready4444,fromNext,fromShared);
   }
-  if(path!=="141")manualFlash="";
   await client.query("UPDATE public.gavhah_yemot_call_states "+
-   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,action_flash=$15,updated_at=now() "+
-   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,manualFlash]);
-  let publishedAudio:string|null=null;
-  // Menu-only overrides: never replace personal records, credentials, PIN,
-  // monetary confirmations, news content, or other dynamic disclosures.
-  if((mode==="menu"||mode==="root")&&!manualFlash&&!goToProviderManagement&&!goToCampaignExtension&&
-     !feedback&&path!=="125"&&path!=="185"&&isNavigationalMenu(path,tree)){
-    const custom=await phonePromptOverride(path);
-    if(custom.ttsText)spoken=custom.ttsText;
-    publishedAudio=custom.audioPath;
-  }
+   "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,updated_at=now() "+
+   "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode]);
   await client.query("COMMIT");
   if(goToProviderManagement){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/0");
   }else if(goToCampaignExtension){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/4444");
   }else{
-   sendRead(res,spoken,step,mode,publishedAudio);
+   sendRead(res,spoken,step,mode);
   }
  }catch(err){await client.query("ROLLBACK").catch(()=>{});throw err;}
  finally{client.release();}

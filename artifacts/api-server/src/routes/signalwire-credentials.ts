@@ -4,6 +4,7 @@ import {pool} from "@workspace/db";
 import {getCurrentSessionUser} from "../middlewares/auth";
 import {classifySignalWireNumber} from "../lib/signalwire-number-safety";
 import {inspectExisting8080RouteOnce} from "../lib/signalwire-old-route-snapshot";
+import signalwireVoiceSwitchRouter from "./signalwire-voice-switch";
 
 /**
  * The router is mounted AFTER existing super-admin + same-origin middleware
@@ -177,10 +178,10 @@ router.get("/numbers",async(_req,res,next)=>{
  }catch(e){next(e);}
 });
 
-type SharedAudit={audit_state:string;provider_number_sid:string|null;original_voice_url:string|null;original_voice_application_sid:string|null;original_provider_api:string|null;original_call_handler:string|null;checked_at:Date|null;last_error:string|null};
+type SharedAudit={cutover_enabled:boolean;audit_state:string;provider_number_sid:string|null;original_voice_url:string|null;original_voice_application_sid:string|null;original_provider_api:string|null;original_call_handler:string|null;checked_at:Date|null;last_error:string|null};
 async function sharedAudit(){
  const result=await pool.query<SharedAudit>(
-  "SELECT audit_state,provider_number_sid,original_voice_url,original_voice_application_sid,original_provider_api,original_call_handler,checked_at,last_error "+
+  "SELECT cutover_enabled,audit_state,provider_number_sid,original_voice_url,original_voice_application_sid,original_provider_api,original_call_handler,checked_at,last_error "+
   "FROM public.gavhah_signalwire_shared_route WHERE id=1");
  const r=result.rows[0];
  return {number:"6056558080",oldSystemExtension:"55555",state:r?.audit_state||"not_configured",
@@ -189,12 +190,12 @@ async function sharedAudit(){
   providerApi:r?.original_provider_api||null,oldCallHandler:r?.original_call_handler||null,
   providerApplicationPresent:!!r?.original_voice_application_sid,
   checkedAt:r?.checked_at||null,reason:r?.last_error||null,
-  mainMenuWillBeGavhah:true,oldSystemWillUseExtension:"55555",
+  mainMenuWillBeGavhah:false,oldSystemWillUseExtension:null,signalwireDedicatedTo:"Olam Hachesed MAX",
   stagedSharedIvrUrl:"https://gavhah.onrender.com/api/signalwire/shared-ivr",
   sharedIvrCodeReady:r?.audit_state==="verified_compatibility_voice_url",
   sharedIvrSigningKeyReady:String(process.env.SIGNALWIRE_SIGNING_KEY||"").length>=24,
   livePhoneTestPassed:false,
-  cutoverEnabled:false,providerRouteUnchanged:true,
+  cutoverEnabled:!!r?.cutover_enabled,providerRouteUnchanged:!r?.cutover_enabled,
   nextStep:r?.audit_state==="not_found"?
    "The verified number +16056558080 was not found by either API. Check the native SignalWire project and permissions before switching any routing.":
    r?.audit_state==="unresolved"?
@@ -236,4 +237,6 @@ router.delete("/connection",async(req,res,next)=>{
   });
  }catch(e){next(e);}
 });
+// This route inherits super_admin, session and same-origin mutation checks.
+router.use(signalwireVoiceSwitchRouter);
 export default router;

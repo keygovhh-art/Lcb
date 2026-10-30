@@ -97,7 +97,8 @@ export default function Login() {
               </Button>
             </form>
 
-            <div className="mt-6 pt-6 border-t text-center">
+            <div className="mt-6 pt-6 border-t text-center space-y-3">
+              <Link href="/founder/connect-email" className="text-secondary font-semibold underline block">עקזיסטירנדער סופער־עדמין? צולייגן אן אימעיל — נאר מיט פעסווארד</Link>
               <p className="text-sm text-muted-foreground">
                 Don't have an account?{" "}
                 <Link href="/register" className="text-secondary font-semibold hover:underline">
