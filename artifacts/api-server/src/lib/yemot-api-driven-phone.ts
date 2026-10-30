@@ -27,9 +27,9 @@ const categories:Record<string,string>={
 };
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124"]);
-const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
-const gavhahRoot="Welcome to Gavhah. For advanced My Askanus keypad press 8 8 then pound. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
-const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
+const root="Welcome to Gavhah and Campaign Center. For Gavhah, press 1. For Campaign Center, press 2. To create a website member account, press 8. For hotline management, press 0.";
+const gavhahRoot="Welcome to Gavhah. For news and updates, press 1. For My Askanus, press 2. For contacts, press 3. For calling, press 4. For kindness, press 5. For community, press 6. For minyans, press 7. For messages or registration, press 8. For management, press 9. For advanced Askanus keypad, enter 88 then pound. For Campaign Center, enter 4444. For telephone administration, press 0.";
+const nextHotlineRoot="Gavhah TEST LINE. For news, press 1. For My Askanus, press 2. For contacts, press 3. For calling, press 4. For kindness, press 5. For community, press 6. For minyans, press 7. For messages, press 8. For management, press 9. This is a test only.";
 const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
@@ -80,8 +80,8 @@ function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fro
  if(!path)return fromShared?sharedSignalwireRoot:fromNext?nextHotlineRoot:ready4444?gavhahRoot:root;
  if(!current?.children)return current?.details||"This option is not ready on the phone. Press zero to return to the main menu.";
  return current.label+". "+Object.entries(nodes)
-  .map(([n,item])=>"Press "+n+" for "+item.label+".").join(" ")+
-  " Press zero to return to the main menu.";
+  .map(([n,item])=>"For "+item.label+", press "+n+".").join(" ")+
+  " For the main menu, press zero.";
 }
 // Only parent-navigation menus can be replaced with a recorded custom
 // greeting. Dynamic public and private content must NEVER be shadowed.
