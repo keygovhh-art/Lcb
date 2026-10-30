@@ -51,7 +51,7 @@ test("phone recordings use only a fixed SignalWire project URL",()=>{
  assert.match(recording,/\.signalwire\.com\/api\/laml/);
  assert.match(recording,/redirect:"error"/);
  assert.match(recording,/4\*1024\*1024/);
- assert.match(recording,/no live/i);
+ assert.match(recording,/NOT change any live extension/i);
  assert.doesNotMatch(recording,/fetch\(recordingUrl/i);
  assert.match(phone,/privateMaxRecording/);
  assert.match(phone,/beginMaxRecording/);
