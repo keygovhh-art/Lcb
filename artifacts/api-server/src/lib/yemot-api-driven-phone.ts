@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import {phonePromptOverride} from "../routes/yemot-voice-studio";
+import {yemotAskanusKeypad} from "./yemot-askanus-keypad";
 import { logger } from "./logger";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
@@ -26,9 +27,9 @@ const categories:Record<string,string>={
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124"]);
 const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
-const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
+const gavhahRoot="Welcome to Gavhah. For advanced My Askanus keypad press 8 8 then pound. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
-const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the advanced My Askanus keypad, press eight eight followed by pound. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
+const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
@@ -367,6 +368,23 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let goToCampaignExtension=false;
   if(raw!==undefined&&raw!==null){
    const digit=String(raw).trim();
+   // My Askanus keypad is YEMOT-ONLY. SignalWire and campaign bridge never
+   // enter this workflow. The website member is authenticated via short-lived pairing.
+   const yemotEntry=!fromShared&&!from4444&&((path===""&&digit==="88")||(path==="12"&&digit==="7"));
+   const yemotInside=!fromShared&&!from4444&&path==="88";
+   if(yemotEntry||yemotInside){
+     const verified=await memberAllowed(client,{...s,member_id:userId});
+     const reply=await yemotAskanusKeypad(client,callHash,verified?userId:null,yemotEntry?undefined:digit,yemotEntry);
+     path=reply.exit?"12":"88";
+     page=0;confirmId=null;position=0;chunk=0;
+     step++;
+     await client.query("UPDATE public.gavhah_yemot_call_states SET step=$2,path=$3,phone_page=0,selected_item_id=NULL,updated_at=now() WHERE call_hash=$1",[callHash,step,path]);
+     await client.query("COMMIT");
+     const spoken=safeVoice(reply.message,650);
+     res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
+       .send("read=t-"+spoken+"=iv"+step+",no,"+reply.digits+",1,12,No,no");
+     return;
+   }
    // Existing Yemot management is usually extension /0 (admin_login).
    // Preserve it on root 0, and keep nested 0 returning to the API root.
    // Moving to /0 DOES NOT bypass the provider admin password.
