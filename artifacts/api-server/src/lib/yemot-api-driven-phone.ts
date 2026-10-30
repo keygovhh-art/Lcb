@@ -328,7 +328,70 @@ async function recordConfirmedManualResult(client:import("pg").PoolClient,p:Manu
   "No actual call was placed and no payment was collected.";
 }
 
+/**
+ * Fast, read-only Yemot root. Avoid eight serial Neon round trips before the
+ * caller even hears the greeting. Authentication, enabled state, installed
+ * callback digest and published root voice are verified in ONE query.
+ * No fake logged-in member or caller-ID trust. The FIRST digit 1 is also
+ * handled by a single guarded state upsert; everything else uses normal IVR.
+ */
+async function tryFastYemotRoot(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<boolean>{
+ if(!req.path.endsWith("/yemot/ivr"))return false;
+ const digit=req.body?.iv0??req.query.iv0;
+ if(digit!==undefined&&digit!==null&&String(digit)!=="1")return false;
+ const call=sourceCallId(req);
+ const supplied=String(req.body?.entryKey??req.query.entryKey??"");
+ if(!call||!/^[a-f0-9]{64}$/.test(supplied))return false;
+ const rows=await pool.query<{callback_hash:string;state:string;enabled:boolean;
+  last_verified_at:string|null;campaign_state:string|null;tts_text:string|null;published_path:string|null}>(
+  "SELECT i.callback_hash,i.state,g.enabled,g.last_verified_at,"+
+  "i.provider_summary #>> '{campaign4444,state}' AS campaign_state,"+
+  "v.tts_text,v.published_path FROM public.gavhah_yemot_ivr_install i "+
+  "JOIN public.gavhah_yemot_global g ON g.id=1 "+
+  "LEFT JOIN public.gavhah_yemot_voice_prompts v ON v.path='root' WHERE i.id=1"
+ );
+ const cfg=rows.rows[0];
+ const got=createHash("sha256").update(supplied).digest("hex");
+ if(!cfg||!cfg.enabled||!cfg.last_verified_at||
+  !["installing","live"].includes(cfg.state)||
+  !/^[a-f0-9]{64}$/.test(String(cfg.callback_hash||""))||
+  !timingSafeEqual(Buffer.from(cfg.callback_hash,"hex"),Buffer.from(got,"hex"))){
+  res.status(403).type("text/plain").send("Access denied");return true;
+ }
+ const ready=cfg.campaign_state==="live";
+ const audio=typeof cfg.published_path==="string"&&
+  /^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(cfg.published_path)?
+  cfg.published_path:null;
+ if(digit===undefined||digit===null){
+  const prompt=typeof cfg.tts_text==="string"&&cfg.tts_text.trim()?cfg.tts_text:
+   ready?gavhahRoot:root;
+  sendRead(res,prompt,0,ready?"root":"menu",audio,false);
+  return true;
+ }
+ // Never overwrite a call that has already advanced to a different step.
+ const callHash=createHmac("sha256",supplied).update(call).digest("hex");
+ const path=ready?"11":"1";
+ const updated=await pool.query<{step:number;tts_text:string|null;published_path:string|null}>(
+  "WITH next AS (INSERT INTO public.gavhah_yemot_call_states(call_hash,step,path) "+
+  "VALUES($1,1,$2) ON CONFLICT(call_hash) DO UPDATE SET step=EXCLUDED.step,"+
+  "path=EXCLUDED.path,updated_at=now() "+
+  "WHERE public.gavhah_yemot_call_states.step=0 "+
+  "AND public.gavhah_yemot_call_states.path='' RETURNING step) "+
+  "SELECT next.step,v.tts_text,v.published_path FROM next "+
+  "LEFT JOIN public.gavhah_yemot_voice_prompts v ON v.path=$2",[callHash,path]);
+ if(!updated.rows[0])return false;
+ const custom=updated.rows[0];
+ const prompt=typeof custom.tts_text==="string"&&custom.tts_text.trim()?custom.tts_text:
+  menuPrompt(path,tree,ready);
+ const media=typeof custom.published_path==="string"&&
+  /^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(custom.published_path)?
+  custom.published_path:null;
+ sendRead(res,prompt,1,"menu",media,false);
+ return true;
+}
+
 export async function handleYemotApp(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<void>{
+ if(await tryFastYemotRoot(req,res,tree))return;
  const from4444=req.path.endsWith("/4444");
  const fromShared=req.path.endsWith("/shared-ivr");
  const fromNext=req.path.endsWith("/next-ivr")||fromShared;
