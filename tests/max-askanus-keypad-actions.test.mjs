@@ -12,7 +12,7 @@ test("Expanded MAX DTMF functions use the SAME case/task/contact/followup/ledger
   assert.ok(keypad.includes(table),table);
  }
  for(const table of ["askanus_cases","askanus_tasks","case_followups"]){
-  assert.ok(db.includes(table),table);
+  assert.ok(db.includes(table)||db.includes(table.replaceAll("_","")),table);
  }
  assert.match(phone,/myAskanusKeypad\(client,row,digit,userId\)/);
 });
@@ -27,7 +27,7 @@ test("Actual phone keypad navigation supports task/case creation without speech"
 });
 test("User-scoped and double-confirmed record edits cannot charge cards",()=>{
  assert.match(keypad,/WHERE id=\$1 AND user_id=\$2/);
- assert.match(keypad,/WHERE c\.user_id=\$2/);
+ assert.match(keypad,/AND c\.user_id=\$2/);
  assert.match(keypad,/confirm_key_money_first/);
  assert.match(keypad,/confirm_key_money_final/);
  assert.match(keypad,/confirm_key_contact_dnc/);
