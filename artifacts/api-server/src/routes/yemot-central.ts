@@ -473,23 +473,57 @@ try{const r=await fetch(route,{method:'POST',credentials:'same-origin',headers:c
  res.set("Cache-Control","private, no-store").set("Content-Security-Policy","default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'");
  res.type("html").send(html);
 }));
+// Read-only owner verification must return actionable, sanitized diagnostics.
+// An API/decryption failure can NEVER be mistaken for authorization to cut over.
 router.get(cloudflareSwitchPath+"/verify",requireAuth,admin,wrap(async(_req,res)=>{
- const status=await getLiveCloudflareSwitchStatus();
- if(!status.ready){err(res,409,"Stored Yemot connection is not ready for an isolated cutover");return;}
- const row=await getRow();
- if(!row){err(res,409,"Provider token unavailable");return;}
- const token=decode(row);
- const root=await readProviderRoot(token);
- const c=await pool.query("SELECT callback_hash FROM public.gavhah_yemot_ivr_install WHERE id=1");
- const keyOk=verifiedProviderRoot(root,c.rows[0]?.callback_hash||"");
- const providerEndpoint=root.api_link||null;
- const safeToSwitch=keyOk&&providerEndpoint===previousIvrCallback&&
+ res.set("Cache-Control","private,no-store");
+ let stage="configuration";
+ try{
+  const status=await getLiveCloudflareSwitchStatus();
+  if(!status.ready){
+   res.status(409).json({safeToSwitch:false,code:"SAVED_CONNECTION_NOT_READY",
+    error:"דער אפגעהיטענער ימות־חשבון איז נישט גרייט פארן אריבערפיר. קיין ענדערונג געמאכט."});return;
+  }
+  stage="credentials";
+  const row=await getRow();
+  if(!row){
+   res.status(409).json({safeToSwitch:false,code:"NO_PROVIDER_CREDENTIALS",
+    error:"דער ימות־חשבון האט נישט קיין אפגעהיטענעם API־שליסל. קיין ענדערונג געמאכט."});return;
+  }
+  let token="";
+  try{token=decode(row);}
+  catch{
+   res.status(503).json({safeToSwitch:false,code:"ENCRYPTED_TOKEN_UNREADABLE",
+    error:"Cloudflare קען נישט אויפשליסן דעם ביז־איצטיגן ימות API־שליסל. דער YEMOT_ENCRYPTION_KEY מוז זיין דער זעלבער וואס האט פארשפארט דעם שליסל אין Render. קיין פארוואלטונגס־סודות נישט געענדערט."});return;
+  }
+  stage="provider_read";
+  let root:Record<string,string>;
+  try{root=await readProviderRoot(token);}
+  catch(e){
+   const kind=e instanceof Error?e.message:"";
+   const badResponse=kind.includes("did not accept");
+   const unreadable=kind.includes("Unrecognised")||kind.includes("Duplicate");
+   res.status(502).json({safeToSwitch:false,
+    code:badResponse?"PROVIDER_REJECTED_READ":unreadable?"PROVIDER_ROOT_UNRECOGNIZED":"PROVIDER_UNREACHABLE",
+    error:badResponse?"ימות האט נישט אנגענומען דעם זיכערהייט־דורכקוק. פרוביר דעם API־צוטריט, נישט טוישן דעם ליין.":
+     unreadable?"מען קען נישט זיכער ליינען דעם ימות הויפט־ext.ini. קיין ענדערונג געמאכט.":
+      "Cloudflare האט נישט געקענט דערגרייכן ימות פאר א ליינען־בלויז דורכקוק. קיין ענדערונג געמאכט."});return;
+  }finally{token="";}
+  stage="fingerprint";
+  const c=await pool.query("SELECT callback_hash FROM public.gavhah_yemot_ivr_install WHERE id=1");
+  const keyOk=verifiedProviderRoot(root,c.rows[0]?.callback_hash||"");
+  const providerEndpoint=root.api_link||null;
+  const safeToSwitch=keyOk&&providerEndpoint===previousIvrCallback&&
     status.configuredCallback===previousIvrCallback;
- res.set("Cache-Control","private, no-store");
- res.json({safeToSwitch,providerCallback:providerEndpoint,cloudflareCallback:cloudflareIvrCallback,
-  savedCallback:status.configuredCallback,credentialsMatch:keyOk,
-  message:safeToSwitch?"The current Yemot root and pairing key match; changing only api_link is permitted.":
-   "Provider settings have changed or are not verified. No modification is permitted."});
+  res.json({safeToSwitch,providerCallback:providerEndpoint,cloudflareCallback:cloudflareIvrCallback,
+   savedCallback:status.configuredCallback,credentialsMatch:keyOk,code:safeToSwitch?"VERIFIED":"PROVIDER_MISMATCH",
+   message:safeToSwitch?"די עכטע ימות־פארבינדונג איז באשטעטיגט. נאר דער API־Callback קען יעצט געטוישט ווערן.":
+   "דער Callback אדער דער באשיצטער שליסל שטימט נישט. עס איז גארנישט געטוישט געווארן."});
+ }catch{
+  console.warn(JSON.stringify({event:"gavhah.yemot.cloudflare.verify_failed",stage,secretLogged:false}));
+  res.status(503).json({safeToSwitch:false,code:"VERIFICATION_FAILED_"+stage.toUpperCase(),
+   error:"דער זיכערהייט־דורכקוק האט א סערווער־פעלער. דער ימות־ליין איז נישט געענדערט געווארן."});
+ }
 }));
 router.post(cloudflareSwitchPath,requireAuth,admin,wrap(async(req,res)=>{
  // This is an authenticated, explicit single-purpose owner action, not
