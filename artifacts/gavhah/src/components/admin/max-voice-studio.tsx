@@ -68,10 +68,16 @@ function encodedAudio(blob:Blob):Promise<string>{
   file.readAsDataURL(blob);
  });
 }
-export function MaxVoiceStudio({initialPath="root"}:{initialPath?:string}){
+export function MaxVoiceStudio({initialPath="root",initialVoice="original"}:{initialPath?:string;initialVoice?:string}){
  const [data,setData]=useState<ResponseData|null>(null);
  const [path,setPath]=useState(initialPath),[custom,setCustom]=useState("");
  useEffect(()=>{setPath(initialPath);},[initialPath]);
+ useEffect(()=>{
+  const preset=initialVoice==="deep"?"טיף":initialVoice==="bright"?"קלאר":
+   initialVoice==="radio"?"ראדיא":initialVoice==="warm"?"רעזאנאנץ":"נארמאל";
+  setFx(styles[preset]||plain);
+ },[initialVoice,initialPath]);
+
  const [yi,setYi]=useState(""),[en,setEn]=useState("");
  const [recorded,setRecorded]=useState<Blob|null>(null);
  const [preview,setPreview]=useState<Blob|null>(null);
