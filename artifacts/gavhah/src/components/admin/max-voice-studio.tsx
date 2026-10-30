@@ -80,6 +80,7 @@ export function MaxVoiceStudio(){
  const [busy,setBusy]=useState(false),[notice,setNotice]=useState(""),[error,setError]=useState("");
  const recorder=useRef<MediaRecorder|null>(null),stream=useRef<MediaStream|null>(null);
  const playback=useRef<HTMLAudioElement|null>(null),keepPosition=useRef(0);
+ const resumeAfterChange=useRef(false);
  const current=data?.drafts.find(x=>x.path===path),entry=data?.catalogue.find(x=>x.path===path);
  const reload=async()=>setData(await req("") as ResponseData);
  useEffect(()=>{void reload().catch(e=>setError(e.message));return ()=>{
@@ -93,7 +94,10 @@ export function MaxVoiceStudio(){
  useEffect(()=>{
   if(!recorded){setPreview(null);return;}
   let dead=false;
-  if(playback.current)keepPosition.current=playback.current.currentTime||0;
+  if(playback.current){
+   resumeAfterChange.current=!playback.current.paused;
+   keepPosition.current=playback.current.currentTime||0;
+  }
   void renderPreview(recorded,fx).then(b=>{if(!dead)setPreview(b);})
    .catch(e=>{if(!dead)setError(e.message);});
   return ()=>{dead=true;};
@@ -208,9 +212,13 @@ export function MaxVoiceStudio(){
     const a=e.currentTarget;if(keepPosition.current>0&&keepPosition.current<a.duration){
      a.currentTime=keepPosition.current;keepPosition.current=0;
     }
+    if(resumeAfterChange.current){resumeAfterChange.current=false;void a.play().catch(()=>{});}
    }}/>}
    {!previewUrl&&!!current?.audio_size&&<audio controls className="w-full" src={"/api/admin/max/voice-studio/"+encodeURIComponent(path)+"/audio"} preload="none"/>}
-   <Button onClick={saveAudio} disabled={!preview||busy}>היטן געענדערטן אודיא־טיוטע</Button>
+   <div className="flex flex-wrap items-center gap-2">
+    <Button onClick={saveAudio} disabled={!preview||busy}>היטן געענדערטן אודיא־טיוטע</Button>
+    {previewUrl&&<a href={previewUrl} download={"max-"+path+".wav"} className="inline-flex rounded border px-3 py-2 text-sm">⬇️ אודיא אראפנעמען</a>}
+   </div>
    <p className="text-xs text-muted-foreground">געזעיווט: {current?.audio_size?Math.ceil(current.audio_size/1024)+" KB":"נאך נישט"} · נאר פריוואטע טיוטע, נישט ארויסגעשפילט אויף דער ליניע.</p>
   </div>
   {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
