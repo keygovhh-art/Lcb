@@ -81,6 +81,8 @@ jobs:
         run: node --test tests/max-release-integrity.test.mjs
       - name: Verify protected MAX IVR builder and one-time phone editor safeguards
         run: node --test tests/max-ivr-editor-draft-safety.test.mjs
+      - name: Verify linked My Askanus phone source-of-truth and consent safety
+        run: node --test tests/max-askanus-phone-parity.test.mjs
       - name: Verify recurring follow-up calendar rules
         run: node --experimental-strip-types --test tests/max-recurring-followups.test.mjs
       - name: Verify timezone-accurate MAX reminder clock
