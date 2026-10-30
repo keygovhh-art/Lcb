@@ -66,7 +66,7 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  : mode==="news"
  ? [name,"no","1","0","7","No","no","no","","0123456789","1","Ok","None"]
  : mode==="root"
- ? [name,"no","4","1","8","No","no"]
+ ? [name,"no","4","1","2","No","no"]
  : [name,"no","1","1","8","No","no"];
  const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
   ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
