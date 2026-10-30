@@ -40,6 +40,7 @@ export function yemotEnglishSpeech(input:unknown,maxLength=720):string{
   const boundary=end.lastIndexOf(" ");
   raw=end.slice(0,boundary>cap/2?boundary:cap).replace(/[,\s]+$/,"");
  }
+ raw=raw.replace(/(?:,\s*)+$/,"").trim();
  return "t-"+(raw||"Please try again");
 }
 
