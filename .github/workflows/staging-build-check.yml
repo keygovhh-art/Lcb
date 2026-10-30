@@ -65,6 +65,8 @@ jobs:
         run: node --experimental-strip-types --test tests/yemot-section-batch1.test.mjs
       - name: Check male root voice and real same-website phone registration
         run: node --test tests/yemot-male-signup-contract.test.mjs
+      - name: Check natural English Yemot TTS pauses, brisk male voice, safe keypad syntax
+        run: node --experimental-strip-types --test tests/yemot-english-prosody.test.mjs
       - name: Verify staged charity scheduling, private queue and donation buttons
         run: node --experimental-strip-types --test tests/charity-publishing.test.mjs
       - name: Verify optional own donation safety gates, amounts and admin controls
