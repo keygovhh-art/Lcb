@@ -36,7 +36,7 @@ import { PrivateAssistanceManagement } from "@/components/admin/private-assistan
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 import { YemotCentralManagement } from "@/components/admin/yemot-central-management";
-import { MaxVoiceStudio } from "@/components/admin/max-voice-studio";
+import { MaxIvrBuilder } from "@/components/admin/max-ivr-builder";
 
 function reportContentPath(type: string, id: number) {
   if (type === "news") return `/news/${id}`;
@@ -529,7 +529,7 @@ export default function FounderDashboard() {
             <TabsContent value="yemot-global" className="space-y-6"><YemotCentralManagement /></TabsContent>
           )}
           {user?.role === "super_admin" && (
-            <TabsContent value="max-voice-studio" className="space-y-6"><MaxVoiceStudio /></TabsContent>
+            <TabsContent value="max-voice-studio" className="space-y-6"><MaxIvrBuilder /></TabsContent>
           )}
           <TabsContent value="welcome-pages" className="space-y-6">
             <MembershipGateManagement />
