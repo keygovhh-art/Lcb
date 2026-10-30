@@ -111,8 +111,8 @@ async function setStage(client:PoolClient,hash:string,stage:string,n=0,id:number
 const listKeys:Record<string,Kind>={"1":"tasks","2":"cases","3":"notes",
  "4":"followups","5":"contacts","6":"pledges"};
 const moreMenu="More actions. Press 1 to create a new case by English speech, 2 to create a note, "+
- "3 to reopen or close the currently selected case from cases list, "+
- "4 to set a reminder for the selected case, 5 to read call report count, "+
+ "3 to manage a case by its website record number, "+
+ "4 to make a nonrecurring followup on a case, 5 to read call report count, "+
  "6 to return. For all financial corrections and refunds use the authenticated website.";
 export async function advancedAskanusPhone(input:{
  callHash:string;digit?:string;speech?:string;actionUrl:string;
@@ -184,11 +184,117 @@ export async function advancedAskanusPhone(input:{
   if(row.stage==="more"){
    if(digit==="1"){await answer("capture_case","Speak the new case title in English. It will be repeated before saving.","speech");return true;}
    if(digit==="2"){await answer("capture_note","Speak a short note in English. It will appear in your website notes only after confirmation.","speech");return true;}
+   if(digit==="3"){await answer("case_id","Enter your case record number from the website or cases list, then pound.","id");return true;}
+   if(digit==="4"){await answer("followup_case_id","Enter the case number for a new nonrecurring followup, then pound.","id");return true;}
    if(digit==="5"){
     const q=await client.query<{n:number}>("SELECT count(*)::int AS n FROM public.fundraising_call_reports WHERE user_id=$1",[userId]);
     await answer("more",q.rows[0].n+" saved call reports. These are the same records as your website. "+moreMenu);return true;
    }
    await answer("main",menu);return true;
+  }
+
+  if(row.stage==="case_id"||row.stage==="followup_case_id"){
+   const id=Number(digit);
+   if(!digit||!/^[1-9][0-9]{0,8}$/.test(digit)||!Number.isSafeInteger(id)){
+    await answer(row.stage,"Please enter an existing case number, followed by pound.","id");return true;
+   }
+   const found=await client.query<{id:number;title:string;status:string}>(
+    "SELECT id,title,status FROM public.askanus_cases WHERE id=$1 AND user_id=$2",[id,userId]);
+   if(!found.rows[0]){
+    await answer(row.stage,"This case does not belong to your linked website account. Enter another case number.","id");return true;
+   }
+   const item=found.rows[0];
+   if(row.stage==="followup_case_id"){
+    await answer("capture_followup","Speak a short followup note in English for case "+
+     item.id+". The phone will read it back before saving.","speech",0,id);
+    return true;
+   }
+   await answer("case_options","Case "+id+". "+item.status+
+    ". Press 1 open, 2 in progress, 3 closed, 4 add a followup, 9 main menu.",
+    "menu",0,id);
+   return true;
+  }
+  if(row.stage==="case_options"){
+   if(digit==="9"){await answer("main",menu);return true;}
+   if(digit==="4"){
+    await answer("capture_followup","Speak a followup note in English. You will set the due date next.","speech",0,row.selected_id);
+    return true;
+   }
+   const choices:Record<string,string>={"1":"open","2":"in_progress","3":"closed"};
+   if(digit&&choices[digit]){
+    await answer("confirm_case_status","Confirm changing case "+row.selected_id+" to "+
+     choices[digit].replace("_"," ")+". Press 1 again to confirm. Press 2 to cancel.",
+     "menu",0,row.selected_id,"",choices[digit]);
+    return true;
+   }
+   await answer("main",menu);return true;
+  }
+  if(row.stage==="confirm_case_status"){
+   if(digit==="1"&&row.selected_id&&["open","in_progress","closed"].includes(row.pending_action)){
+    const updated=await client.query<{id:number;title:string}>(
+     "UPDATE public.askanus_cases SET status=$3::askanus_status,"+
+     "closed_at=CASE WHEN $3='closed' THEN coalesce(closed_at,now()) ELSE NULL END,last_updated=now() "+
+     "WHERE id=$1 AND user_id=$2 RETURNING id,title",
+     [row.selected_id,userId,row.pending_action]);
+    if(updated.rows[0]){
+     await client.query("INSERT INTO public.max_history_events"+
+      "(user_id,case_id,entity_type,entity_id,action,title,details) "+
+      "VALUES($1,$2,'case',$2,$3,$4,$5)",[
+       userId,row.selected_id,
+       row.pending_action==="closed"?"case_completed":row.pending_action==="open"?"case_reopened":"case_status_changed",
+       updated.rows[0].title,JSON.stringify({status:row.pending_action,source:"phone"})]);
+     await client.query("INSERT INTO public.case_activity_log(case_id,date,type,note) "+
+      "VALUES($1,$2,'status_change',$3)",[
+       row.selected_id,new Date().toISOString().slice(0,10),"Status changed by verified phone to "+row.pending_action]);
+    }
+    await answer("main","The case status is now updated on the website. "+menu);return true;
+   }
+   await answer("main","Cancelled without a change. "+menu);return true;
+  }
+  if(row.stage==="capture_followup"){
+   const note=cleanSpeech(speech);
+   if(!note){
+    await answer(row.stage,"Speak your followup note clearly in English. For Yiddish, enter text on the website.","speech",0,row.selected_id);
+    return true;
+   }
+   await answer("followup_date","Followup note: "+note+
+    ". Enter due date as eight digits: year, month, day. Or press zero to cancel.",
+    "id",0,row.selected_id,note);
+   return true;
+  }
+  if(row.stage==="followup_date"){
+   const raw=String(digit||"");
+   if(!/^(20[2-9]\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/.test(raw)||
+    !Number.isFinite(new Date(raw.slice(0,4)+"-"+raw.slice(4,6)+"-"+raw.slice(6)).getTime())||
+    new Date(raw.slice(0,4)+"-"+raw.slice(4,6)+"-"+raw.slice(6)).toISOString().slice(0,10)!==
+       raw.slice(0,4)+"-"+raw.slice(4,6)+"-"+raw.slice(6)){
+    await answer(row.stage,"Invalid date. Please enter a valid eight digit date, year month day, ending with pound.",
+     "id",0,row.selected_id,row.pending_title);return true;
+   }
+   const due=raw.slice(0,4)+"-"+raw.slice(4,6)+"-"+raw.slice(6);
+   await answer("confirm_followup","Create nonrecurring followup for case "+row.selected_id+
+    ", due "+due+", note "+row.pending_title+". Press 1 to confirm, or 2 to cancel.",
+    "menu",0,row.selected_id,row.pending_title,due);
+   return true;
+  }
+  if(row.stage==="confirm_followup"){
+   if(digit==="1"&&row.selected_id&&row.pending_title&&/^\d{4}-\d{2}-\d{2}$/.test(row.pending_action)){
+    const owned=await client.query("SELECT id FROM public.askanus_cases WHERE id=$1 AND user_id=$2",
+      [row.selected_id,userId]);
+    if(!owned.rowCount){await answer("main","Case no longer available. "+menu);return true;}
+    const due=row.pending_action;
+    const record=await client.query<{id:number}>(
+     "INSERT INTO public.case_followups(case_id,date,note,due_date,repeat_rule) "+
+     "VALUES($1,$2,$3,$4,'none') RETURNING id",
+     [row.selected_id,new Date().toISOString().slice(0,10),row.pending_title,due]);
+    await client.query("INSERT INTO public.max_history_events"+
+     "(user_id,case_id,entity_type,entity_id,action,title,details) "+
+     "VALUES($1,$2,'followup',$3,'followup_created',$4,$5)",[
+      userId,row.selected_id,record.rows[0].id,row.pending_title.slice(0,240),
+      JSON.stringify({source:"phone",note:row.pending_title,dueDate:due,repeatRule:"none"})]);
+    await answer("main","Followup saved to your case and the website. "+menu);return true;
+   }
+   await answer("main","Cancelled. No followup created. "+menu);return true;
   }
   if(["capture_task","capture_case","capture_note"].includes(row.stage)){
    const title=cleanSpeech(speech);
