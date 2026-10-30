@@ -28,7 +28,9 @@ export const phoneTree: Record<string,Item> = {
       "3":leaf("My private notes","/my"),
       "4":leaf("My personal dashboard","/my"),
       "5":leaf("Securely link my website account by eight-digit code","/my"),
-      "6":leaf("Log out of this phone session","/my")
+      "6":leaf("Log out of this phone session","/my"),
+      "7":leaf("Advanced My Askanus phone workspace: tasks, cases, notes, followups, contacts, and reports","/my",
+        "Requires a recently linked website identity. English speech recognition for new text is confirmed on the phone before saving. Yiddish phone voice-to-text requires an approved transcription provider.")
     }),
     "3":group("People and contacts",{
       "1":leaf("Donor 360","/communications"),"2":leaf("Contacts","/communications"),
