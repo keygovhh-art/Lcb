@@ -79,6 +79,8 @@ jobs:
         run: node --test tests/max-ledger-donor360.test.mjs
       - name: Verify MAX release safety regressions
         run: node --test tests/max-release-integrity.test.mjs
+      - name: Verify protected MAX IVR builder and one-time phone editor safeguards
+        run: node --test tests/max-ivr-editor-draft-safety.test.mjs
       - name: Verify recurring follow-up calendar rules
         run: node --experimental-strip-types --test tests/max-recurring-followups.test.mjs
       - name: Verify timezone-accurate MAX reminder clock
