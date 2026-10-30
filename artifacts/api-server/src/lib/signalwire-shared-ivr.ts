@@ -6,6 +6,7 @@ import {phoneTree} from "../routes/yemot-whole-platform-ivr";
 import {checkSignalWireSignature,convertGavhahReplyToCxml} from "./signalwire-next-hotline";
 import {normalizedSignalWireNumber} from "./signalwire-number-safety";
 import {tryMaxPhoneEditor} from "./max-ivr-phone-editor";
+import {advancedAskanusPhone} from "./max-askanus-phone";
 
 /**
  * STAGED ONLY: the provider-owned +1 (605) 655-8080 webhook is NOT changed
@@ -94,6 +95,11 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  if(digits!=="55555"){
   const state=(await pool.query<{path:string}>(
    "SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",[callHash])).rows[0];
+  const handledAskanus=await advancedAskanusPhone({
+   callHash,digit:digits,speech:String(form.SpeechResult||""),actionUrl:SHARED_SIGNALWIRE_URL,
+   atAskanusMenu:state?.path==="12",res
+  });
+  if(handledAskanus)return;
   const used=await tryMaxPhoneEditor({
    callHash,digit:digits,actionUrl:SHARED_SIGNALWIRE_URL,isAtRoot:!state||!state.path,res,
    recordingSid:String(form.RecordingSid||""),recordingDuration:String(form.RecordingDuration||"")
