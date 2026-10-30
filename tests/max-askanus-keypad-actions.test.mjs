@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const file=p=>readFileSync(p,"utf8");
 const keypad=file("artifacts/api-server/src/lib/max-askanus-keypad.ts");
-const phone=file("artifacts/api-server/src/lib/max-askanus-phone.ts");
+const phone=file("artifacts/api-server/src/lib/yemot-askanus-keypad.ts");
+const yemot=file("artifacts/api-server/src/lib/yemot-api-driven-phone.ts");
 const shared=file("artifacts/api-server/src/lib/signalwire-shared-ivr.ts");
 const db=file("artifacts/api-server/src/routes/askanus.ts");
 test("Expanded MAX DTMF functions use the SAME case/task/contact/followup/ledger tables as web",()=>{
@@ -22,8 +23,8 @@ test("Actual phone keypad navigation supports task/case creation without speech"
  assert.match(keypad,/confirm_key_new_task/);
  assert.match(keypad,/confirm_key_new_case/);
  assert.match(keypad,/if\(digit!=="1"\|\|!row\.pending_title\)/);
- assert.match(phone,/8 CREATE a task using the keypad/);
- assert.match(phone,/7 create a case entirely through the keypad/);
+ assert.match(phone,/8 new task on keypad/);
+ assert.match(phone,/7 create a case from phone keypad/);
 });
 test("User-scoped and double-confirmed record edits cannot charge cards",()=>{
  assert.match(keypad,/WHERE id=\$1 AND user_id=\$2/);
@@ -36,10 +37,13 @@ test("User-scoped and double-confirmed record edits cannot charge cards",()=>{
  assert.match(keypad,/manually_reported/);
  assert.match(keypad,/repeat_rule='none'/);
  assert.doesNotMatch(keypad,/stripe|chargeCard|PaymentIntent|processPayment/i);
- assert.match(shared,/checkSignalWireSignature/);
+ assert.match(yemot,/exactSecret\(req\)/);
+ assert.match(yemot,/!fromShared&&!from4444/);
+ assert.doesNotMatch(shared,/advancedAskanusPhone/);
 });
 test("Phone no-ID policy and historical audit trails",()=>{
- assert.match(phone,/linked_until>now\(\)/);
+ assert.match(yemot,/memberAllowed\(client/);
+ assert.match(phone,/if\(!userId\)/);
  assert.match(keypad,/source:"verified_phone_keypad"/);
  assert.match(keypad,/task_edited/);
  assert.match(keypad,/case_status_changed/);
