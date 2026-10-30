@@ -6,6 +6,7 @@ import {phoneTree} from "../routes/yemot-whole-platform-ivr";
 import {checkSignalWireSignature,convertGavhahReplyToCxml} from "./signalwire-next-hotline";
 import {normalizedSignalWireNumber} from "./signalwire-number-safety";
 import {tryMaxPhoneEditor} from "./max-ivr-phone-editor";
+import {olamVoiceProfile} from "./olam-signalwire-voice";
 
 /**
  * STAGED ONLY: the provider-owned +1 (605) 655-8080 webhook is NOT changed
@@ -141,5 +142,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  const root=reply.startsWith("read=t-Gavhah SignalWire main menu.");
  res.status(200).type("application/xml; charset=utf-8")
   .set("Cache-Control","no-store")
-  .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root));
+  .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root,
+    await olamVoiceProfile((await pool.query<{path:string}>(
+     "SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",[callHash])).rows[0]?.path||"root")));
 }
