@@ -40,6 +40,47 @@ async function history(client:PoolClient,userId:number,caseId:number|null,kind:s
 function moneySummary(cents:number){return (cents/100).toFixed(2)+" dollars";}
 export async function myAskanusKeypad(client:PoolClient,row:Row,digit:string|undefined,userId:number):Promise<Reply|null>{
  const stage=row.stage,id=row.selected_id,valid=idValid(id);
+ const templates={
+  task:["Call a contact back","Make a followup call","Prepare a letter","Visit a donor","Complete paperwork","Reach out for assistance","Schedule a meeting","Review an open case"],
+  case:["New assistance request","New Chesed project","Urgent help needed","Fundraising outreach","Visit and assistance","Case requiring followup"]
+ };
+ const phoneKind=(digit?:string,kind?:"task"|"case")=>{
+  const items=kind==="case"?templates.case:templates.task;
+  const i=Number(digit)-1;
+  return digit&&/^[1-9]$/.test(digit)&&i>=0&&i<items.length?items[i]:null;
+ };
+ if(stage==="main"&&digit==="8")
+  return result("key_new_task","Create a new task without voice recognition. 1 call back, 2 followup call, 3 letter, 4 donor visit, 5 paperwork, 6 assistance outreach, 7 meeting, 8 case review. 9 cancel.","menu",row);
+ if(stage==="more"&&digit==="7")
+  return result("key_new_case","Create a new case without voice recognition. 1 assistance request, 2 Chesed project, 3 urgent help, 4 fundraising outreach, 5 visit and help, 6 new followup case. 9 cancel.","menu",row);
+ if(stage==="key_new_task"||stage==="key_new_case"){
+  if(digit==="9")return end("Creation cancelled.");
+  const kind=stage==="key_new_task"?"task":"case";
+  const title=phoneKind(digit,kind);
+  if(!title)return result(stage,"Choose a listed task or case template from 1 to "+(kind==="task"?8:6)+".","menu",row);
+  return result("confirm_key_new_"+kind,"Create "+kind+" named "+title+
+   " in your website account? Press 1 to SAVE; 2 to cancel. You can edit this title from the website later.",
+   "menu",row,{title,action:kind});
+ }
+ if(stage==="confirm_key_new_task"||stage==="confirm_key_new_case"){
+  if(digit!=="1"||!row.pending_title)return end("Creation cancelled. No new record.");
+  if(stage==="confirm_key_new_task"){
+   const q=await client.query<{id:number}>(
+    "INSERT INTO public.askanus_tasks(user_id,title,priority) VALUES($1,$2,'medium') RETURNING id",
+    [userId,row.pending_title]);
+   await history(client,userId,null,"task",q.rows[0].id,"task_created",row.pending_title,{source:"phone_keypad_template"});
+   return end("New task "+q.rows[0].id+" is saved on your website.");
+  }
+  const q=await client.query<{id:number}>(
+   "INSERT INTO public.askanus_cases(user_id,title,urgency,category) "+
+   "VALUES($1,$2,'medium','General') RETURNING id",[userId,row.pending_title]);
+  await client.query("INSERT INTO public.case_activity_log(case_id,date,type,note) "+
+   "VALUES($1,$2,'status_change','Case opened through verified phone keypad')",
+   [q.rows[0].id,new Date().toISOString().slice(0,10)]);
+  await history(client,userId,q.rows[0].id,"case",q.rows[0].id,"case_created",row.pending_title,{source:"phone_keypad_template"});
+  return end("New case "+q.rows[0].id+" is saved on your website.");
+ }
+
  if(stage==="item_tasks"&&valid){
   if(digit==="2")return result("key_task_priority","Set priority for task "+id+". 1 low, 2 medium, 3 high, 9 cancel.","menu",row);
   if(digit==="3")return result("key_task_date","Enter task deadline as 8 digits YYYYMMDD ending with pound. 9 cancel.","id",row);
