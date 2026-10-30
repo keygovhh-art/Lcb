@@ -17,7 +17,7 @@ const styles:Record<string,Effect>={
  "ראדיא":{pitch:-2,speed:1,warmth:4,clarity:5,echo:0},
  "רעזאנאנץ":{pitch:-3,speed:.94,warmth:2,clarity:1,echo:4}
 };
-const valid=(p:string)=>p==="root"||/^[1-9][0-9]{0,15}$/.test(p);
+const valid=(p:string)=>p==="root"||(/^[1-9][0-9]{0,11}$/.test(p)&&!["55555","4444","8899"].some(x=>p===x||p.startsWith(x)));
 async function req(path:string,init?:RequestInit){
  const r=await fetch("/api/admin/max/voice-studio"+path,{
   credentials:"include",cache:"no-store",...init,
@@ -180,7 +180,7 @@ export function MaxVoiceStudio({initialPath="root",initialVoice="original"}:{ini
     <Input className="max-w-[180px]" value={custom} onChange={e=>setCustom(e.target.value)}
      placeholder="למשל 121" dir="ltr"/>
     <Button variant="outline" onClick={()=>{
-     if(!valid(custom)){setError("נאר ציפערן 1-9 אויפן אנהייב, ביז 16 ציפערן. 55555 איז באשיצט.");return;}
+     if(!valid(custom)){setError("נאר ציפערן 1-9 אויפן אנהייב, ביז 12 ציפערן. 4444, 55555 און 8899 זענען באשיצט.");return;}
      if(custom==="55555"){setError("55555 געהערט צום אלטן סיסטעם");return;}
      setPath(custom);setCustom("");
     }}>עפענען אן עקסטענשאן</Button>
