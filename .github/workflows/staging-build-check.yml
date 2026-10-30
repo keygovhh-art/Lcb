@@ -83,6 +83,8 @@ jobs:
         run: node --test tests/max-release-integrity.test.mjs
       - name: Verify protected MAX IVR builder and one-time phone editor safeguards
         run: node --test tests/max-ivr-editor-draft-safety.test.mjs
+      - name: Verify Olam SignalWire extension voice and strict Yemot separation
+        run: node --test tests/olam-signalwire-voice-separation.test.mjs
       - name: Verify linked My Askanus phone source-of-truth and consent safety
         run: node --test tests/max-askanus-phone-parity.test.mjs
       - name: Verify phone keypad editing, ownership, ledger and DNC protections
