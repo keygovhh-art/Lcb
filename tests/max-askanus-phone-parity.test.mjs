@@ -19,7 +19,7 @@ test("My Askanus advanced phone engine is available ONLY inside Yemot",()=>{
  assert.match(tree,/"7":leaf\("Advanced My Askanus phone workspace/);
 });
 test("Yemot sends provider-native keypad response, never SignalWire cXML",()=>{
- assert.match(yemot,/read=t-/);
+ assert.match(yemot,/yemotEnglishRead\(spoken,"iv"\+step,reply\.digits\)/);
  assert.match(yemot,/reply\.digits/);
  assert.match(yemot,/await client\.query\("COMMIT"\)/);
  assert.match(keypad,/gavhah_yemot_askanus_keypad_sessions/);
