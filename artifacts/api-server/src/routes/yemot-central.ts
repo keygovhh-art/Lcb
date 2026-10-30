@@ -380,16 +380,47 @@ const cloudflareIvrCallback="https://gavhah-cloudflare-native.keygovhh.workers.d
 const previousIvrCallback="https://gavhah.onrender.com/api/yemot/ivr";
 const cloudflareSwitchPath="/admin/yemot/cloudflare-switch";
 type ProviderText={responseStatus?:string;contents?:string;message?:string};
+type YemotProviderError=Error&{code:string;httpStatus?:number};
+const safeProviderError=(code:string,httpStatus?:number):YemotProviderError=>
+ Object.assign(new Error(code),{code,httpStatus});
 async function yemotProviderCall(token:string,action:"GetTextFile"|"UpdateExtension",params:Record<string,string>){
- const response=await fetch("https://www.call2all.co.il/ym/api/"+action,{
-  method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},
-  body:new URLSearchParams({token,...params}),cache:"no-store",redirect:"error",
-  signal:AbortSignal.timeout(18000)
- });
- if(!response.ok)throw Error("ימות provider request failed");
- const json=await response.json() as ProviderText;
- if(json?.responseStatus!=="OK")throw Error("ימות provider did not accept "+action);
- return json;
+ // Two official Yemot endpoints. Read-only calls alone can retry.
+ // NEVER retry UpdateExtension: an ambiguous outcome could mutate the line.
+ const bases=action==="GetTextFile"
+  ?["https://www.call2all.co.il","https://private.call2all.co.il"]
+  :["https://www.call2all.co.il"];
+ let last:YemotProviderError=safeProviderError("PROVIDER_NETWORK");
+ for(let i=0;i<bases.length;i++){
+  try{
+   const response=await fetch(bases[i]+"/ym/api/"+action,{
+    method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},
+    body:new URLSearchParams({token,...params}),cache:"no-store",redirect:"error",
+    signal:AbortSignal.timeout(14000)
+   });
+   if(!response.ok){
+    last=safeProviderError("PROVIDER_HTTP_"+response.status,response.status);
+    if(action==="GetTextFile"&&i<bases.length-1&&
+     (response.status===403||response.status===429||response.status>=500))continue;
+    throw last;
+   }
+   let json:ProviderText;
+   try{json=await response.json() as ProviderText;}
+   catch{throw safeProviderError("PROVIDER_NOT_JSON");}
+   if(json?.responseStatus!=="OK")
+    throw safeProviderError("PROVIDER_API_"+
+      (/^(?:ERROR|EXCEPTION|FAIL|INVALID)$/i.test(String(json?.responseStatus||""))?
+      String(json.responseStatus).toUpperCase():"REJECTED"));
+   return json;
+  }catch(e){
+   const x=e as Partial<YemotProviderError>;
+   last=x?.code?safeProviderError(x.code,x.httpStatus):
+    safeProviderError(e instanceof Error&&e.name==="TimeoutError"?"PROVIDER_TIMEOUT":"PROVIDER_NETWORK");
+   if(action!=="GetTextFile"||i===bases.length-1||
+      !["PROVIDER_NETWORK","PROVIDER_TIMEOUT","PROVIDER_HTTP_403","PROVIDER_HTTP_429"].includes(last.code)&&
+      !/^PROVIDER_HTTP_5\d\d$/.test(last.code))throw last;
+  }
+ }
+ throw last;
 }
 async function readProviderRoot(token:string){
  const result=await yemotProviderCall(token,"GetTextFile",{what:"ivr2:/ext.ini"});
@@ -501,13 +532,18 @@ router.get(cloudflareSwitchPath+"/verify",requireAuth,admin,wrap(async(_req,res)
   try{root=await readProviderRoot(token);}
   catch(e){
    const kind=e instanceof Error?e.message:"";
-   const badResponse=kind.includes("did not accept");
+   const providerCode=String((e as Partial<YemotProviderError>)?.code||"");
    const unreadable=kind.includes("Unrecognised")||kind.includes("Duplicate");
-   res.status(502).json({safeToSwitch:false,
-    code:badResponse?"PROVIDER_REJECTED_READ":unreadable?"PROVIDER_ROOT_UNRECOGNIZED":"PROVIDER_UNREACHABLE",
-    error:badResponse?"ימות האט נישט אנגענומען דעם זיכערהייט־דורכקוק. פרוביר דעם API־צוטריט, נישט טוישן דעם ליין.":
-     unreadable?"מען קען נישט זיכער ליינען דעם ימות הויפט־ext.ini. קיין ענדערונג געמאכט.":
-      "Cloudflare האט נישט געקענט דערגרייכן ימות פאר א ליינען־בלויז דורכקוק. קיין ענדערונג געמאכט."});return;
+   const coded=/^PROVIDER_(?:HTTP_\d{3}|API_[A-Z]+|NETWORK|TIMEOUT|NOT_JSON)$/.test(providerCode);
+   const code=unreadable?"PROVIDER_ROOT_UNRECOGNIZED":coded?providerCode:"PROVIDER_UNREACHABLE";
+   console.warn(JSON.stringify({event:"gavhah.yemot.preflight_read_failed",code,tokenLogged:false}));
+   res.status(502).json({safeToSwitch:false,code,
+    error:unreadable?"מען קען נישט זיכער ליינען דעם ימות הויפט־ext.ini. קיין ענדערונג געמאכט.":
+     code==="PROVIDER_HTTP_403"?"ימות האט אפגעוויזן דעם צוטריט (HTTP 403). קיין ענדערונג געמאכט.":
+     code==="PROVIDER_TIMEOUT"?"ימות ענטפערט נישט אין דער ערווארטעטער צייט. קיין ענדערונג געמאכט.":
+     code==="PROVIDER_NOT_JSON"?"דער ימות־פראוויידער האט נישט צוריקגעגעבן א גילטיגן API־ענטפער. קיין ענדערונג געמאכט.":
+     code.startsWith("PROVIDER_API_")?"ימות האט נישט אנגענומען דעם API־ליינען־דורכקוק. קיין ענדערונג געמאכט.":
+     "Cloudflare קען נישט מצליח ליינען דעם ימות־פראוויידער. קיין ענדערונג געמאכט."});return;
   }finally{token="";}
   stage="fingerprint";
   const c=await pool.query("SELECT callback_hash FROM public.gavhah_yemot_ivr_install WHERE id=1");
