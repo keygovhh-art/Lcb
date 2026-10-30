@@ -14,6 +14,7 @@
 import type {Response} from "express";
 import {pool} from "@workspace/db";
 import type {PoolClient} from "pg";
+import {myAskanusKeypad} from "./max-askanus-keypad";
 
 type S={
  call_hash:string;user_id:number;stage:string;index_no:number;
@@ -160,6 +161,16 @@ export async function advancedAskanusPhone(input:{
    await setStage(client,callHash,stage,offset,id,title,action);
    await client.query("COMMIT");respond(res,actionUrl,prompt,mode);
   };
+  // Dedicated numeric keypad controls. Every write remains inside the same
+  // member-scoped, FOR UPDATE locked transaction and requires confirmation.
+  if(digit!=="0"){
+   const keypad=await myAskanusKeypad(client,row,digit,userId);
+   if(keypad){
+    await answer(keypad.stage,keypad.prompt,keypad.mode||"menu",keypad.index??0,
+     keypad.id??null,keypad.title||"",keypad.action||"");
+    return true;
+   }
+  }
   if(digit==="0"){
    await client.query("DELETE FROM public.gavhah_my_askanus_ivr_session WHERE call_hash=$1",[callHash]);
    await client.query("COMMIT");
@@ -342,9 +353,11 @@ export async function advancedAskanusPhone(input:{
     if(!item){await answer(row.stage,"No record selected. Press 9 menu.", "menu",n);return true;}
     const id=Number(item.id);
     let actions="This record can be reviewed on your website. Press 9 to return.";
-    if(kind==="tasks")actions="Press 1 to complete or reopen this task. Press 9 to return to tasks.";
-    if(kind==="cases")actions="Press 1 to close or reopen this case. Press 9 to return to cases.";
-    if(kind==="followups")actions="Press 1 to complete or reopen this NON RECURRING followup. Press 9 to return.";
+    if(kind==="tasks")actions="1 complete or reopen task; 2 priority; 3 deadline; 9 return.";
+    if(kind==="cases")actions="1 close or reopen case; 2 choose status; 3 goal; 4 manually report a pledge or receipt; 9 return.";
+    if(kind==="followups")actions="1 complete or reopen NON RECURRING followup; 2 change due date; 9 return.";
+    if(kind==="contacts")actions="2 safely change Do Not Call protection; 9 return.";
+    if(kind==="pledges")actions="2 register a manually reported PARTIAL PAYMENT; no actual payment is collected; 9 return.";
     await answer("item_"+kind,recordSummary(kind,item,n)+" "+actions,"menu",n,id);
     return true;
    }
