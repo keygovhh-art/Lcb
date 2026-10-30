@@ -52,12 +52,22 @@ router.get("/admin/max/voice-studio",wrap(async (_req,res)=>{
  const q=await pool.query("SELECT path,yiddish_script,english_tts,mime_type,octet_length(draft_audio) AS audio_size,updated_at FROM "+table+" ORDER BY path");
  const route=await pool.query("SELECT audit_state,cutover_enabled,checked_at FROM public.gavhah_signalwire_shared_route WHERE id=1");
  const migration=await pool.query("SELECT stage,tested_calls,last_test_at FROM public.gavhah_hotline_migration WHERE id=1");
+ const diagnostic=await pool.query(
+  "SELECT (SELECT count(*)::int FROM public.askanus_cases) AS cases,"+
+  "(SELECT count(*)::int FROM public.askanus_tasks) AS tasks,"+
+  "(SELECT count(*)::int FROM public.case_followups) AS followups,"+
+  "(SELECT count(*)::int FROM public.fundraising_call_reports) AS call_reports,"+
+  "(SELECT count(*)::int FROM public.max_pledges) AS pledges,"+
+  "(SELECT count(*)::int FROM public.gavhah_phone_member_logins) AS linked_phone_members,"+
+  "(SELECT count(*)::int FROM public.gavhah_yemot_call_states) AS phone_session_states");
+
  res.setHeader("Cache-Control","private, no-store");
  res.json({
   catalogue:chapters, drafts:q.rows,
   line:{number:"+16056558080",legacyExtension:"55555",routeAudit:route.rows[0]?.audit_state||"not_checked",
    cutoverEnabled:route.rows[0]?.cutover_enabled===true,migrationStage:migration.rows[0]?.stage||"not_configured",
    recordedCallTests:migration.rows[0]?.tested_calls||0},
+  diagnostics:diagnostic.rows[0]||{},
   publicationEnabled:false,
   note:"Private drafts only. Saving cannot modify any existing call, voicemail, SMS, provider webhook, or 55555."
  });
