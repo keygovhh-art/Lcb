@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import {phonePromptOverride} from "../routes/yemot-voice-studio";
+import {yemotEnglishSpeech,yemotEnglishRead} from "./yemot-english-prosody";
 import {yemotAskanusKeypad} from "./yemot-askanus-keypad";
 import { logger } from "./logger";
 import type { Request, Response } from "express";
@@ -37,7 +38,7 @@ export function safeVoice(input:unknown,max=430){
  return plain.replace(/[&=,;#.\-]/g," ").replace(/[^\x20-\x7e]/g," ")
   .replace(/\s+/g," ").trim().slice(0,max);
 }
-function voice(s:string){return "t-"+safeVoice(s,430);}
+function voice(s:string){return yemotEnglishSpeech(s,430);}
 function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null){
  if(mode==="record"){
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
@@ -380,9 +381,9 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      step++;
      await client.query("UPDATE public.gavhah_yemot_call_states SET step=$2,path=$3,phone_page=0,selected_item_id=NULL,updated_at=now() WHERE call_hash=$1",[callHash,step,path]);
      await client.query("COMMIT");
-     const spoken=safeVoice(reply.message,650);
+     const spoken=reply.message;
      res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
-       .send("read=t-"+spoken+"=iv"+step+",no,"+reply.digits+",1,12,No,no");
+       .send(yemotEnglishRead(spoken,"iv"+step,reply.digits));
      return;
    }
    // Existing Yemot management is usually extension /0 (admin_login).
