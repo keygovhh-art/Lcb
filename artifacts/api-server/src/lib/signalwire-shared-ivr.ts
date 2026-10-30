@@ -97,7 +97,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
    "SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",[callHash])).rows[0];
   const handledAskanus=await advancedAskanusPhone({
    callHash,digit:digits,speech:String(form.SpeechResult||""),actionUrl:SHARED_SIGNALWIRE_URL,
-   atAskanusMenu:state?.path==="12",res
+   atAskanusMenu:!state||!state.path,res
   });
   if(handledAskanus)return;
   const used=await tryMaxPhoneEditor({
