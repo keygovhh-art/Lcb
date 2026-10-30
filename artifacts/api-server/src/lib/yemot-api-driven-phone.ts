@@ -41,11 +41,15 @@ export function safeVoice(input:unknown,max=430){
  return plain.replace(/[&=#\-]/g," ").replace(/[^\x20-\x7e]/g," ")
   .replace(/\s+/g," ").trim().slice(0,max);
 }
-function voice(s:string){return yemotEnglishSpeech(s,430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null){
+function voice(s:string,fromShared=false){
+ // Keep the existing SignalWire/Olam Hachesed conversion compatible.
+ // New prosody applies only to the actual Yemot hotline.
+ return fromShared?"t-"+safeVoice(s,430).replace(/[,.!?;:]/g," "):yemotEnglishSpeech(s,430);
+}
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null,fromShared=false){
  if(mode==="record"){
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
-   .send("read="+voice(prompt)+"=rr"+step+",,record");return;
+   .send("read="+voice(prompt,fromShared)+"=rr"+step+",,record");return;
  }
  const name=(mode==="code"?"ln":mode==="article"?"ar":mode==="registration"?"rg":"iv")+step;
  // Yehmot's documented read order is:
@@ -66,7 +70,7 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  : [name,"no","1","1","8","No","no"];
  const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
   ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
- const providerBody="read="+(audio||voice(prompt))+"="+opts.join(",");
+ const providerBody="read="+(audio||voice(prompt,fromShared))+"="+opts.join(",");
  if(step===0)logger.info({ivrResponse:"read",mode,step,promptCharacters:prompt.length,patternVersion:"basic-read-v2"},"Yemot welcome reply delivered");
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
 }
@@ -701,7 +705,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(goToCampaignExtension){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/4444");
   }else{
-   sendRead(res,spoken,step,mode,publishedAudio);
+   sendRead(res,spoken,step,mode,publishedAudio,fromShared);
   }
  }catch(err){await client.query("ROLLBACK").catch(()=>{});throw err;}
  finally{client.release();}
