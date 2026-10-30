@@ -1,53 +1,46 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-const file=p=>readFileSync(p,"utf8");
-const phone=file("artifacts/api-server/src/lib/max-askanus-phone.ts");
-const bridge=file("artifacts/api-server/src/lib/signalwire-shared-ivr.ts");
-const yemot=file("artifacts/api-server/src/lib/yemot-api-driven-phone.ts");
-const exclusive=file("artifacts/api-server/src/lib/yemot-askanus-keypad.ts");
-const tree=file("artifacts/api-server/src/routes/yemot-whole-platform-ivr.ts");
-const web=file("artifacts/api-server/src/routes/askanus.ts");
-test("Only paired linked website member can open the expanded personal IVR",()=>{
- assert.match(phone,/s\.linked_until>now\(\)/);
- assert.match(phone,/u\.status NOT IN \('banned','suspended'\)/);
- assert.match(phone,/member_id IS NOT NULL/);
- assert.match(phone,/row\.user_id!==userId/);
- assert.match(bridge,/checkSignalWireSignature/);
- assert.doesNotMatch(bridge,/advancedAskanusPhone|handledAskanus|yemotAskanusKeypad/);
- assert.match(yemot,/yemotAskanusKeypad\(client,callHash,verified\?userId:null/);
- assert.match(yemot,/!fromShared&&!from4444/);
- assert.match(exclusive,/gavhah_yemot_askanus_keypad_sessions/);
- assert.match(bridge,/if\(digits!=="55555"\)/);
+const read=p=>readFileSync(p,"utf8");
+const yemot=read("artifacts/api-server/src/lib/yemot-api-driven-phone.ts");
+const keypad=read("artifacts/api-server/src/lib/yemot-askanus-keypad.ts");
+const actions=read("artifacts/api-server/src/lib/max-askanus-keypad.ts");
+const signalwire=read("artifacts/api-server/src/lib/signalwire-shared-ivr.ts");
+const tree=read("artifacts/api-server/src/routes/yemot-whole-platform-ivr.ts");
+test("My Askanus advanced phone engine is available ONLY inside Yemot",()=>{
+ assert.match(yemot,/import \{yemotAskanusKeypad\}/);
+ assert.match(yemot,/yemotEntry=!fromShared&&!from4444/);
+ assert.match(yemot,/yemotInside=!fromShared&&!from4444/);
+ assert.match(yemot,/path===""&&digit==="88"/);
+ assert.match(yemot,/path==="12"&&digit==="7"/);
+ assert.match(yemot,/memberAllowed\(client,\{\.\.\.s,member_id:userId\}\)/);
+ assert.doesNotMatch(signalwire,/advancedAskanusPhone|handledAskanus|yemotAskanusKeypad/);
+ assert.doesNotMatch(yemot,/For the advanced My Askanus keypad, press eight eight followed by pound/);
  assert.match(tree,/"7":leaf\("Advanced My Askanus phone workspace/);
 });
-test("Same Neon source of truth as /my, no parallel records",()=>{
+test("Yemot sends provider-native keypad response, never SignalWire cXML",()=>{
+ assert.match(yemot,/read=t-/);
+ assert.match(yemot,/reply\.digits/);
+ assert.match(yemot,/await client\.query\("COMMIT"\)/);
+ assert.match(keypad,/gavhah_yemot_askanus_keypad_sessions/);
+ assert.match(keypad,/FOR UPDATE/);
+ assert.doesNotMatch(keypad,/<Gather|<Say|CallSid|SignalWire/i);
+});
+test("My Askanus shares website database without copying private records",()=>{
  for(const name of ["askanus_tasks","askanus_cases","askanus_notes","case_followups",
-  "communication_contacts","max_pledges","fundraising_call_reports"]){
-  assert.ok(phone.includes(name),name);
+   "communication_contacts","max_pledges"]){
+  assert.ok(keypad.includes(name),name);
  }
- for(const name of ["askanus_tasks","askanus_cases","askanus_notes"]){
-  assert.ok(web.includes(name)||web.includes(name.replaceAll("_","")),name);
- }
- assert.match(phone,/WHERE user_id=\$1/);
- assert.match(phone,/WHERE f\.id=\$1 AND c\.user_id=\$2/);
+ assert.match(keypad,/WHERE user_id=\$1/);
+ assert.match(keypad,/WHERE c\.user_id=\$1/);
+ assert.match(keypad,/if\(!userId\)/);
 });
-test("Sensitive write flows have explicit two-action confirmation",()=>{
- assert.match(phone,/confirm_create/);
- assert.match(phone,/Press 1 to SAVE/);
- assert.match(phone,/confirm_toggle/);
- assert.match(phone,/Press 1 AGAIN to confirm/);
- assert.match(phone,/if\(digit==="1"&&row\.pending_title\)/);
- assert.match(phone,/await client\.query\("BEGIN"\)/);
- assert.match(phone,/FOR UPDATE/);
- assert.match(phone,/ROLLBACK/);
- assert.match(phone,/Recurring followups require calendar logic/);
- assert.doesNotMatch(phone,/INSERT INTO public\.max_receipts/);
- assert.doesNotMatch(phone,/UPDATE public\.max_pledges/);
-});
-test("Speech is not published until readback and English constraint declared",()=>{
- assert.match(phone,/input="speech" language="en-US"/);
- assert.match(phone,/Speech was not understood/);
- assert.match(phone,/English speech recognition/);
- assert.match(phone,/cleanSpeech\(speech\)/);
+test("Yemot-only account link and two-step approvals",()=>{
+ assert.match(yemot,/exactSecret\(req\)/);
+ assert.match(yemot,/linked_until/);
+ assert.match(keypad,/Press 1 a SECOND TIME/);
+ assert.match(actions,/confirm_key_money_first/);
+ assert.match(actions,/confirm_key_money_final/);
+ assert.match(actions,/confirm_key_contact_dnc/);
+ assert.doesNotMatch(actions,/stripe|PaymentIntent|chargeCard/i);
 });
