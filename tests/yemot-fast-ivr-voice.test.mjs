@@ -1,0 +1,41 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const src=readFileSync("artifacts/api-server/src/lib/yemot-api-driven-phone.ts","utf8");
+const tts=readFileSync("artifacts/api-server/src/lib/yemot-english-prosody.ts","utf8");
+const route=readFileSync("artifacts/api-server/src/routes/yemot-whole-platform-ivr.ts","utf8");
+const start=src.indexOf("async function tryFastYemotRoot(");
+const end=src.indexOf("export async function handleYemotApp(",start);
+const fast=src.slice(start,end);
+test("Yemot new call reads authenticated provider+menu in one query",()=>{
+ assert.ok(start>0&&end>start);
+ assert.match(fast,/req\.path\.endsWith\("\/yemot\/ivr"\)/);
+ assert.match(fast,/!cfg\.enabled\|\|!cfg\.last_verified_at/);
+ assert.match(fast,/timingSafeEqual/);
+ assert.match(fast,/callback_hash/);
+ assert.match(fast,/published_path/);
+ assert.match(fast,/sendRead\(res,prompt,0/);
+ assert.doesNotMatch(fast,/getCurrentSessionUser|ApiPhone|callerId|SIGNALWIRE_SIGNING_KEY/);
+});
+test("Fast digit 1 keeps step state and does not destroy existing calls",()=>{
+ assert.match(fast,/ON CONFLICT\(call_hash\) DO UPDATE/);
+ assert.match(fast,/step=0/);
+ assert.match(fast,/path=''/);
+ assert.match(fast,/const path=ready\?"11":"1"/);
+ assert.match(fast,/sendRead\(res,prompt,1/);
+ assert.match(src,/if\(await tryFastYemotRoot\(req,res,tree\)\)return/);
+ assert.match(src,/const fromShared=req\.path\.endsWith\("\/shared-ivr"\)/);
+ assert.match(src,/path==="" && digit==="0"/);
+});
+test("All main options say their subject before the number without silent truncation",()=>{
+ const root=src.match(/const gavhahRoot="([^"]+)";/)?.[1];
+ assert.ok(root);
+ assert.ok(root.length<=430, "main menu must fit the existing voice budget");
+ for(let digit=1;digit<=9;digit++)assert.match(root,new RegExp("press "+digit+"\\b","i"));
+ assert.match(root,/For news and updates, press 1/);
+ assert.match(root,/For contacts, press 3/);
+ assert.match(src,/\.map\(\(\[n,item\]\)=>"For "\+item\.label\+", press "\+n/);
+ assert.match(tts,/return "t-"\+\(raw\|\|"Please try again"\)/);
+ assert.doesNotMatch(tts,/phrases\.slice\(0,8\)/);
+ assert.match(route,/router\.all\("\/yemot\/ivr"/);
+});
