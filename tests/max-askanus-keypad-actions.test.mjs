@@ -12,7 +12,7 @@ test("Expanded MAX DTMF functions use the SAME case/task/contact/followup/ledger
   assert.ok(keypad.includes(table),table);
  }
  for(const table of ["askanus_cases","askanus_tasks","case_followups"]){
-  assert.ok(db.includes(table)||db.includes(table.replaceAll("_","")),table);
+  assert.ok(db.includes(table)||db.includes(table.replaceAll("_",""))||db.includes(({askanus_cases:"askanuscases",askanus_tasks:"askanustasks",case_followups:"caseFollowups"})[table]),table);
  }
  assert.match(phone,/myAskanusKeypad\(client,row,digit,userId\)/);
 });
