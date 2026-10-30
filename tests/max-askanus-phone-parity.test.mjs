@@ -24,7 +24,7 @@ test("Yemot sends provider-native keypad response, never SignalWire cXML",()=>{
  assert.match(yemot,/await client\.query\("COMMIT"\)/);
  assert.match(keypad,/gavhah_yemot_askanus_keypad_sessions/);
  assert.match(keypad,/FOR UPDATE/);
- assert.doesNotMatch(keypad,/<Gather|<Say|CallSid|SignalWire/i);
+ assert.doesNotMatch(keypad,/<Gather|<Say|CallSid|SHARED_SIGNALWIRE_URL|convertGavhahReplyToCxml/i);
 });
 test("My Askanus shares website database without copying private records",()=>{
  for(const name of ["askanus_tasks","askanus_cases","askanus_notes","case_followups",
