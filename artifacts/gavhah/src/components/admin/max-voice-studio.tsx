@@ -68,9 +68,10 @@ function encodedAudio(blob:Blob):Promise<string>{
   file.readAsDataURL(blob);
  });
 }
-export function MaxVoiceStudio(){
+export function MaxVoiceStudio({initialPath="root"}:{initialPath?:string}){
  const [data,setData]=useState<ResponseData|null>(null);
- const [path,setPath]=useState("root"),[custom,setCustom]=useState("");
+ const [path,setPath]=useState(initialPath),[custom,setCustom]=useState("");
+ useEffect(()=>{setPath(initialPath);},[initialPath]);
  const [yi,setYi]=useState(""),[en,setEn]=useState("");
  const [recorded,setRecorded]=useState<Blob|null>(null);
  const [preview,setPreview]=useState<Blob|null>(null);
