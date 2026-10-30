@@ -177,6 +177,6 @@ export function MaxIvrBuilder(){
   </section>
   {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
   {msg&&<p role="status" className="text-sm">{msg}</p>}
-  <MaxVoiceStudio initialPath={selected}/>
+  <MaxVoiceStudio initialPath={selected} initialVoice={voice}/>
  </div>;
 }
