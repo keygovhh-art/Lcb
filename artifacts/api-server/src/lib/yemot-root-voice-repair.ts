@@ -58,7 +58,7 @@ export async function applyYemotVoiceRepair():Promise<void>{
    path:"ivr2:",language:"en",voice:"ymMale",tts_voice:"ymMale",
    // Professional English hotline pace: a modest lift from standard rate zero.
    // Both names are used by Yemot depending on the TTS module.
-   rate:"2",tts_rate:"2",
+   rate:"6",tts_rate:"6",
    api_log:"no",api_hangup_send:"no"
   });
   await pool.query(
