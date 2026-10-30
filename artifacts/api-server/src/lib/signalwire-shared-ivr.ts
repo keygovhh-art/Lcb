@@ -95,7 +95,8 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
   const state=(await pool.query<{path:string}>(
    "SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",[callHash])).rows[0];
   const used=await tryMaxPhoneEditor({
-   callHash,digit:digits,actionUrl:SHARED_SIGNALWIRE_URL,isAtRoot:!state||!state.path,res
+   callHash,digit:digits,actionUrl:SHARED_SIGNALWIRE_URL,isAtRoot:!state||!state.path,res,
+   recordingSid:String(form.RecordingSid||""),recordingDuration:String(form.RecordingDuration||"")
   });
   if(used)return;
  }
