@@ -32,6 +32,7 @@ import adminRouter from "./admin";
 import yemotCentralRouter from "./yemot-central";
 import yemotVoiceStudioRouter from "./yemot-voice-studio";
 import maxVoiceStudioRouter from "./max-voice-studio";
+import maxIvrEditorRouter from "./max-ivr-editor";
 import yemotWholePlatformIvr from "./yemot-whole-platform-ivr";
 import hotlineMigrationRouter from "./hotline-migration";
 import {signalWireNextHotline} from "../lib/signalwire-next-hotline";
@@ -106,6 +107,7 @@ router.use(adminRouter);
 router.use(yemotCentralRouter);
 router.use(yemotVoiceStudioRouter);
 router.use(maxVoiceStudioRouter);
+router.use(maxIvrEditorRouter);
 router.use(yemotWholePlatformIvr);
 router.use("/admin/hotline-migration",hotlineMigrationRouter);
 // Future SignalWire number: TEST ONLY, signed Compatibility cXML POST.
