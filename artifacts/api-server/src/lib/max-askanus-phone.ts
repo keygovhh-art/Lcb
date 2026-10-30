@@ -380,21 +380,46 @@ export async function advancedAskanusPhone(input:{
   if(row.stage==="confirm_toggle"){
    if(digit==="1"&&row.selected_id&&["tasks","cases","followups"].includes(row.pending_action)){
     const id=row.selected_id;
+    const today=new Date().toISOString().slice(0,10);
     if(row.pending_action==="tasks"){
-     await client.query("UPDATE public.askanus_tasks SET completed=NOT completed,"+
-      "completed_at=CASE WHEN NOT completed THEN now() ELSE NULL END WHERE id=$1 AND user_id=$2",[id,userId]);
+     const q=await client.query<{id:number;title:string;completed:boolean}>(
+      "UPDATE public.askanus_tasks SET completed=NOT completed,"+
+      "completed_at=CASE WHEN NOT completed THEN now() ELSE NULL END "+
+      "WHERE id=$1 AND user_id=$2 RETURNING id,title,completed",[id,userId]);
+     if(q.rows[0])await client.query("INSERT INTO public.max_history_events"+
+      "(user_id,case_id,entity_type,entity_id,action,title,details) "+
+      "VALUES($1,NULL,'task',$2,$3,$4,$5)",[
+       userId,id,q.rows[0].completed?"task_completed":"task_reopened",q.rows[0].title,
+       JSON.stringify({source:"phone",completed:q.rows[0].completed})]);
     }else if(row.pending_action==="cases"){
-     await client.query("UPDATE public.askanus_cases SET "+
+     const q=await client.query<{id:number;title:string;status:string}>(
+      "UPDATE public.askanus_cases SET "+
       "status=CASE WHEN status='closed' THEN 'open'::askanus_status ELSE 'closed'::askanus_status END,"+
       "closed_at=CASE WHEN status='closed' THEN NULL ELSE now() END,last_updated=now() "+
-      "WHERE id=$1 AND user_id=$2",[id,userId]);
+      "WHERE id=$1 AND user_id=$2 RETURNING id,title,status",[id,userId]);
+     if(q.rows[0]){
+      await client.query("INSERT INTO public.max_history_events"+
+       "(user_id,case_id,entity_type,entity_id,action,title,details) "+
+       "VALUES($1,$2,'case',$2,$3,$4,$5)",[
+        userId,id,q.rows[0].status==="closed"?"case_completed":"case_reopened",
+        q.rows[0].title,JSON.stringify({source:"phone",status:q.rows[0].status})]);
+      await client.query("INSERT INTO public.case_activity_log(case_id,date,type,note) "+
+       "VALUES($1,$2,'status_change',$3)",[id,today,"Case status changed by verified phone to "+q.rows[0].status]);
+     }
     }else{
-     await client.query("UPDATE public.case_followups SET completed=NOT completed,"+
+     const q=await client.query<{id:number;case_id:number;note:string;completed:boolean}>(
+      "UPDATE public.case_followups SET completed=NOT completed,"+
       "completed_at=CASE WHEN NOT completed THEN now() ELSE NULL END WHERE id=$1 "+
       "AND repeat_rule='none' AND case_id IN "+
-      "(SELECT id FROM public.askanus_cases WHERE user_id=$2)",[id,userId]);
+      "(SELECT id FROM public.askanus_cases WHERE user_id=$2) "+
+      "RETURNING id,case_id,note,completed",[id,userId]);
+     if(q.rows[0])await client.query("INSERT INTO public.max_history_events"+
+      "(user_id,case_id,entity_type,entity_id,action,title,details) "+
+      "VALUES($1,$2,'followup',$3,$4,$5,$6)",[
+       userId,q.rows[0].case_id,id,q.rows[0].completed?"followup_completed":"followup_reopened",
+       q.rows[0].note.slice(0,240),JSON.stringify({source:"phone",completed:q.rows[0].completed})]);
     }
-    await answer("main","Status saved on your website account. "+menu);return true;
+    await answer("main","Status and history saved on your website account. "+menu);return true;
    }
    await answer("main","No change made. "+menu);return true;
   }
