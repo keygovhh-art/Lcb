@@ -120,7 +120,7 @@ export async function advancedAskanusPhone(input:{
  atAskanusMenu:boolean;res:Response;
 }):Promise<boolean>{
  const {callHash,digit,speech,actionUrl,atAskanusMenu,res}=input;
- const entering=digit==="7"&&atAskanusMenu;
+ const entering=digit==="88"&&atAskanusMenu;
  if(!entering){
   try{
    const found=await pool.query(
