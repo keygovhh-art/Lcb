@@ -88,7 +88,7 @@ function recordSummary(kind:Kind,x:Record<string,unknown>,n:number){
  if(kind==="pledges")more=" Amount "+Number(x.amount||0)+" dollars. Paid "+Number(x.paid_amount||0)+" dollars.";
  return kind+" item "+(n+1)+", record "+x.id+". "+(title||"Title available on website")+". "+more+" ";
 }
-const menu="My Askanus advanced phone menu. 1 tasks, 2 cases, 3 notes, 4 followups, 5 contacts, 6 pledges, 7 overview, 8 create task by speech, 9 more actions. Press zero to leave.";
+const menu="My Askanus advanced phone menu. 1 tasks, 2 cases, 3 notes, 4 followups, 5 contacts, 6 pledges, 7 overview, 8 CREATE a task using the keypad, 9 more actions. Press zero to leave.";
 async function overview(client:PoolClient,userId:number){
  const q=await client.query<{cases:number;tasks:number;notes:number;followups:number;contacts:number;pledges:number;calls:number}>(
   "SELECT (SELECT count(*)::int FROM public.askanus_cases WHERE user_id=$1 AND status<>'closed') AS cases,"+
@@ -114,7 +114,7 @@ const listKeys:Record<string,Kind>={"1":"tasks","2":"cases","3":"notes",
 const moreMenu="More actions. Press 1 to create a new case by English speech, 2 to create a note, "+
  "3 to manage a case by its website record number, "+
  "4 to make a nonrecurring followup on a case, 5 to read call report count, "+
- "6 to return. For all financial corrections and refunds use the authenticated website.";
+ "6 to return, 7 create a case entirely through the keypad. For real payment processing and refunds use the authenticated website.";
 export async function advancedAskanusPhone(input:{
  callHash:string;digit?:string;speech?:string;actionUrl:string;
  atAskanusMenu:boolean;res:Response;
