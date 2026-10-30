@@ -35,7 +35,10 @@ export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
  // English only during testing; never pretend English TTS understands Yiddish.
  if(/[\u0590-\u05ff\u0600-\u06ff]/u.test(plain))return "";
- return plain.replace(/[&=,;#.\-]/g," ").replace(/[^\x20-\x7e]/g," ")
+ // Keep the speaker punctuation until the provider-safe speech formatter
+ // turns it into natural prosody. In particular, commas and periods must
+ // not disappear from the headline or the caller\'s next spoken sentence.
+ return plain.replace(/[&=#\-]/g," ").replace(/[^\x20-\x7e]/g," ")
   .replace(/\s+/g," ").trim().slice(0,max);
 }
 function voice(s:string){return yemotEnglishSpeech(s,430);}
