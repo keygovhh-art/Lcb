@@ -3,6 +3,7 @@ import {Router,type Request,type Response} from "express";
 import {getCurrentSessionUser,requireAuth} from "../middlewares/auth";
 import {listDraft,readDraft,saveNode,saveButton,removeDraftButton,issuePhoneCode,pathAllowed,digitAllowed,
  MAX_EDITOR_ACTIONS,BUILTINS,VOICES,ADMIN_EXTENSION} from "../lib/max-ivr-editor";
+import {getOlamVoiceProfiles,setOlamVoiceProfile} from "../lib/olam-signalwire-voice";
 const router=Router();
 const problem=(res:Response,status:number,error:string)=>res.status(status).json({error});
 function sameOrigin(req:Request){
@@ -31,6 +32,18 @@ router.get(prefix,wrap(async(_req,res)=>{
   actions:MAX_EDITOR_ACTIONS,builtins:BUILTINS,voices:VOICES,
   phoneEditorExtension:ADMIN_EXTENSION,
   notice:"No live IVR routing changes. Draft-only until signed real-call and protected 55555 checks pass."});
+}));
+// LIVE voice-only controls; never change CallSid routing or Yemot settings.
+router.get(prefix+"/voice-profiles",wrap(async(_req,res)=>{
+ res.setHeader("Cache-Control","private,no-store").json({
+  system:"Olam Hachesed Communication",provider:"SignalWire",
+  paths:await getOlamVoiceProfiles(),voice:"man"
+ });
+}));
+router.put(prefix+"/voice-profiles/:path",wrap(async(req,res)=>{
+ const result=await setOlamVoiceProfile(String(req.params.path||""),req.body);
+ if(!result.ok){problem(res,400,String(result.error));return;}
+ res.setHeader("Cache-Control","private,no-store").json(result);
 }));
 router.get(prefix+"/:path",wrap(async(req,res)=>{
  const path=String(req.params.path||"");
