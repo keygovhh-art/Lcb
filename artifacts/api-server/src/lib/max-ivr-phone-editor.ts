@@ -6,6 +6,7 @@
  */
 import type {Response} from "express";
 import {pool} from "@workspace/db";
+import {beginMaxRecording,privateMaxRecording} from "./max-ivr-phone-recording";
 import {ensureEditor,securityHash,ADMIN_EXTENSION,VOICES,BUILTINS,
  pathAllowed,digitAllowed,saveNode,saveButton,readDraft} from "./max-ivr-editor";
 
@@ -41,8 +42,9 @@ async function setState(callHash:string,stage:string,path:string,digit:string){
 }
 export async function tryMaxPhoneEditor(input:{
  callHash:string;digit:string|undefined;actionUrl:string;isAtRoot:boolean;res:Response;
+ recordingSid?:string;recordingDuration?:string;
 }):Promise<boolean>{
- const {callHash,digit,actionUrl,isAtRoot,res}=input;
+ const {callHash,digit,actionUrl,isAtRoot,res,recordingSid,recordingDuration}=input;
  // Never handle 55555. Never intercept normal existing calls.
  if(digit==="55555")return false;
  if(digit!==ADMIN_EXTENSION){
@@ -84,7 +86,8 @@ export async function tryMaxPhoneEditor(input:{
   else if(stage==="action")say(res,actionUrl,"Choose action. 1 nested menu, 2 announcement, 3 existing platform function, 4 repeat, 5 back, 6 hang up.",1);
   else if(stage==="builtin")say(res,actionUrl,"Choose existing website feature. 1 My Tishl, 2 Donor 360, 3 Call Reports, 4 Projects, 5 Finance, 6 Followups, 7 Account.",1);
   else if(stage==="voice")say(res,actionUrl,"Voice style. 1 original, 2 deep, 3 bright, 4 radio, 5 warm, 6 soft.",1);
-  else say(res,actionUrl,"MAX editor. 1 select extension, 2 edit a button, 3 change voice style, 4 hear the draft, 9 finish, zero close.",1);
+  else if(stage==="recording")beginMaxRecording(res,actionUrl);
+  else say(res,actionUrl,"MAX editor. 1 select extension, 2 edit a button, 3 change voice style, 4 hear the draft, 5 record announcement, 9 finish, zero close.",1);
   return true;
  }
  if(stage==="login"){
@@ -116,13 +119,26 @@ export async function tryMaxPhoneEditor(input:{
   }
   say(res,actionUrl,"Code invalid or expired. Enter the eight digit code from the website, then pound.",8);return true;
  }
+ if(stage==="recording"){
+  try{
+   if(!recordingSid)throw Error("No completed recording");
+   const result=await privateMaxRecording(path,recordingSid,Number(recordingDuration));
+   await setState(callHash,"menu",path,"");
+   say(res,actionUrl,"Recording saved privately. "+result.bytes+
+    " bytes. It has NOT been published on the live phone. Press 5 to record again, or zero to close.",1);
+  }catch{
+   await setState(callHash,"menu",path,"");
+   say(res,actionUrl,"The recording could not be verified. Existing audio was kept. You may record again with 5, or use the website.",1);
+  }
+  return true;
+ }
  if(digit==="0"||digit==="9"&&stage==="menu"){
   if(digit==="0"){
    await pool.query("DELETE FROM public.gavhah_max_ivr_editor_calls WHERE call_hash=$1",[callHash]);
    end(res,"Editor closed. Existing phone menus remain unchanged.");return true;
   }
   await setState(callHash,"menu",path,"");
-  say(res,actionUrl,"All settings are drafts. The live phone number was not changed. 1 extension, 2 button, 3 voice, 4 summary, zero exit.",1);
+  say(res,actionUrl,"All settings are drafts. The live phone number was not changed. 1 extension, 2 button, 3 voice, 4 summary, 5 record announcement, zero exit.",1);
   return true;
  }
  if(stage==="path"){
@@ -179,6 +195,7 @@ export async function tryMaxPhoneEditor(input:{
   if(digit==="1"){await setState(callHash,"path",path,"");say(res,actionUrl,"Enter the extension digits then pound. Protected 55555 and 4444 are unavailable.",12);return true;}
   if(digit==="2"){await setState(callHash,"button",path,"");say(res,actionUrl,"Enter button one through nine.",1);return true;}
   if(digit==="3"){await setState(callHash,"voice",path,"");say(res,actionUrl,"Voice draft. Press 1 original 2 deep 3 bright 4 radio 5 warm 6 soft.",1);return true;}
+  if(digit==="5"){await setState(callHash,"recording",path,"");beginMaxRecording(res,actionUrl);return true;}
   if(digit==="4"){
    const draft=await readDraft(path);
    const txt="Extension "+path+". "+(draft.node?.title||"No label")+". "+
@@ -186,6 +203,6 @@ export async function tryMaxPhoneEditor(input:{
    say(res,actionUrl,txt.slice(0,800)+" . 1 extension, 2 button, 3 voice, zero close.",1);return true;
   }
  }
- say(res,actionUrl,"Choose 1 extension, 2 button, 3 voice, 4 draft summary, zero exit.",1);
+ say(res,actionUrl,"Choose 1 extension, 2 button, 3 voice, 4 draft summary, 5 record announcement, zero exit.",1);
  return true;
 }
