@@ -44,7 +44,7 @@ export function safeVoice(input:unknown,max=430){
 function voice(s:string,fromShared=false){
  // Keep the existing SignalWire/Olam Hachesed conversion compatible.
  // New prosody applies only to the actual Yemot hotline.
- return fromShared?"t-"+safeVoice(s,430).replace(/[,.!?;:]/g," "):yemotEnglishSpeech(s,430);
+ return fromShared?"t-"+safeVoice(s,430):yemotEnglishSpeech(s,430);
 }
 function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null,fromShared=false){
  if(mode==="record"){
