@@ -13,7 +13,7 @@ test("Only paired linked website member can open the expanded personal IVR",()=>
  assert.match(phone,/row\.user_id!==userId/);
  assert.match(bridge,/checkSignalWireSignature/);
  assert.match(bridge,/advancedAskanusPhone/);
- assert.match(bridge,/atAskanusMenu:state\?\.path==="12"/);
+ assert.match(bridge,/atAskanusMenu:!state\|\|!state\.path/);
  assert.match(bridge,/if\(digits!=="55555"\)/);
  assert.match(tree,/"7":leaf\("Advanced My Askanus phone workspace/);
 });
