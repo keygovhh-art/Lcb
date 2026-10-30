@@ -8,7 +8,7 @@ type Entry={path:string;label:string;guide:string};
 type Draft={path:string;yiddish_script:string;english_tts:string;audio_size:number|null};
 type ResponseData={catalogue:Entry[];drafts:Draft[];
  line:{number:string;legacyExtension:string;routeAudit:string;cutoverEnabled:boolean;
- migrationStage:string;recordedCallTests:number};publicationEnabled:boolean;note:string};
+ migrationStage:string;recordedCallTests:number};diagnostics:Record<string,number>;publicationEnabled:boolean;note:string};
 type Effect={pitch:number;speed:number;warmth:number;clarity:number;echo:number};
 const plain:Effect={pitch:0,speed:1,warmth:0,clarity:0,echo:0};
 const styles:Record<string,Effect>={
@@ -151,6 +151,16 @@ export function MaxVoiceStudio(){
     <p>ליניע: <b dir="ltr">{data?.line.number||"+16056558080"}</b> · אפגעהיטענער אלטער עקסטענשאן: <b>55555</b></p>
     <p>לייוו־אודיא־פובליצירן: <b>אויסגעלאשן ביזן פולן SignalWire־קאל־טעסט</b>.</p>
     <p>רוטינג־איבערקוק: {data?.line.routeAudit||"..."}, פיזישע מיגראציע־טעסטן: {data?.line.recordedCallTests??"?"}</p>
+    <p>צוזאמענגעשטעלטע Neon־צאלן (נישט אליין א לייוו־קאל־באשטעטיגונג):</p>
+    <div className="grid grid-cols-2 gap-2">
+     {([["cases","עסקנות־פאלן"],["tasks","טאַסקס"],["followups","נאכפאלגן"],
+       ["call_reports","רוף־באריכטן"],["pledges","צוזאגן"],
+       ["linked_phone_members","פארבונדענע טעלעפאן־מיטגלידער"],
+       ["phone_session_states","טעלעפאן־סעסיעס"]] as const).map(([key,label])=>
+      <div key={key} className="rounded border px-2 py-1"><span>{label}: </span>
+       <b>{data?.diagnostics?.[key]??"?"}</b></div>)}
+    </div>
+    <Button size="sm" variant="outline" onClick={()=>void run(reload)} disabled={busy}>↻ נאכאמאל איבערקוקן</Button>
    </div>
   </div>
   <div className="space-y-2">
