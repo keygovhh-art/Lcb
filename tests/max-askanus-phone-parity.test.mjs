@@ -4,6 +4,8 @@ import {readFileSync} from "node:fs";
 const file=p=>readFileSync(p,"utf8");
 const phone=file("artifacts/api-server/src/lib/max-askanus-phone.ts");
 const bridge=file("artifacts/api-server/src/lib/signalwire-shared-ivr.ts");
+const yemot=file("artifacts/api-server/src/lib/yemot-api-driven-phone.ts");
+const exclusive=file("artifacts/api-server/src/lib/yemot-askanus-keypad.ts");
 const tree=file("artifacts/api-server/src/routes/yemot-whole-platform-ivr.ts");
 const web=file("artifacts/api-server/src/routes/askanus.ts");
 test("Only paired linked website member can open the expanded personal IVR",()=>{
@@ -12,8 +14,10 @@ test("Only paired linked website member can open the expanded personal IVR",()=>
  assert.match(phone,/member_id IS NOT NULL/);
  assert.match(phone,/row\.user_id!==userId/);
  assert.match(bridge,/checkSignalWireSignature/);
- assert.match(bridge,/advancedAskanusPhone/);
- assert.match(bridge,/atAskanusMenu:!state\|\|!state\.path/);
+ assert.doesNotMatch(bridge,/advancedAskanusPhone|handledAskanus|yemotAskanusKeypad/);
+ assert.match(yemot,/yemotAskanusKeypad\(client,callHash,verified\?userId:null/);
+ assert.match(yemot,/!fromShared&&!from4444/);
+ assert.match(exclusive,/gavhah_yemot_askanus_keypad_sessions/);
  assert.match(bridge,/if\(digits!=="55555"\)/);
  assert.match(tree,/"7":leaf\("Advanced My Askanus phone workspace/);
 });
