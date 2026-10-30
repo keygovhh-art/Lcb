@@ -62,7 +62,8 @@ export async function myAskanusKeypad(client:PoolClient,row:Row,digit:string|und
  if(digit==="9")return end("Cancelled. No change.");
  if(!valid)return end("Selected record is missing. No change.");
  const ownedTable=stage.includes("task")?"askanus_tasks":
-  stage.includes("case")?"askanus_cases":
+  (stage.includes("case")||(["funds_promised","funds_received"].includes(row.pending_action)
+    && stage.includes("money")))?"askanus_cases":
   stage.includes("followup")?"case_followups":
   stage.includes("contact")?"communication_contacts":"max_pledges";
  if(!await checkRecord(client,ownedTable,id!,userId))return end("This record is not available in your linked account.");
