@@ -36,7 +36,7 @@ export default function Register() {
     if (!form.nickname.trim()) e.nickname = "Nickname is required";
     if (method === "email" && !form.email.includes("@")) e.contact = "A valid email address is required";
     if (method === "phone" && form.phone.replace(/\D/g, "").length < 7) e.contact = "A valid phone number is required";
-    if (form.password.length < 8) e.password = "Password must be at least 8 characters";
+    if (!/^\d{6,12}$/.test(form.password)) e.password = "6–12 digits only";
     if (form.password !== form.confirm) e.confirm = "Passwords do not match";
     const hasAddress=Object.values(mailing).some((v,i)=>i!==6 && v.trim());
     if (hasAddress && (!mailing.recipient.trim() || !mailing.addressLine1.trim() || !mailing.city.trim() || !mailing.state.trim() || !mailing.postalCode.trim())) {
@@ -112,8 +112,8 @@ export default function Register() {
   };
 
   const strength = form.password.length === 0 ? 0
-    : form.password.length < 8 ? 1
-    : form.password.length < 12 ? 2 : 3;
+    : form.password.length < 6 ? 1
+    : form.password.length < 10 ? 2 : 3;
   const strengthLabel = ["", "Weak", "Good", "Strong"];
   const strengthColor = ["", "bg-destructive", "bg-accent", "bg-green-500"];
 
@@ -310,7 +310,7 @@ export default function Register() {
                     type="password"
                     value={form.confirm}
                     onChange={set("confirm")}
-                    placeholder="Repeat your password"
+                    placeholder="Repeat the same 6–12 digits"
                     className="h-12 pr-11"
                     autoComplete="new-password"
                   />
