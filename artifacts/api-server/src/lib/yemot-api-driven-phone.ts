@@ -446,6 +446,24 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     goToProviderManagement=true;
    }else if(from4444 && digit==="0"){
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
+   }else if(path==="159" && !fromShared && !from4444){
+    // Separate SignalWire permission: provider verification is NEVER inferred
+    // from caller ID or from an ordinary Gavhah/MAX account.
+    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    const row=verified?(await client.query<{status:string}>(
+     "SELECT status FROM public.gavhah_olam_chesed_access WHERE user_id=$1",[userId])).rows[0]:null;
+    if(!verified){
+     feedback="To request Olam Chesed access, securely link your website account under My Askanus option 5. ";
+    }else if(row?.status==="linked"){
+     if(/^[1-9]$/.test(digit))path="159"+digit;
+    }else if(digit==="1"){
+     if(!row){
+      await client.query(
+       "INSERT INTO public.gavhah_olam_chesed_access(user_id,reason) VALUES($1,$2) ON CONFLICT(user_id) DO NOTHING",
+       [userId,"Verified phone applicant requests separate Olam Chesed SignalWire account verification and access"]);
+      feedback="Your access request was saved for administration review. ";
+     }else feedback="Your access request is already on file. ";
+    }else feedback="Press 1 to request Olam Chesed SignalWire access. ";
    }else if(!from4444 && !fromNext && ready4444 && path==="" && digit==="4444"){
     goToCampaignExtension=true;
    }else if(!from4444 && directGavhah && path==="" && /^[1-9]$/.test(digit) && tree["1"]?.children?.[digit]){
@@ -684,6 +702,28 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(actionsOpen){
    const articleId=await currentNewsId(path,position,confirmId);
    spoken+=await actionsMenu(client,articleId,userId,await memberAllowed(client,{...s,member_id:userId}));
+  }else if(path==="159"||path.startsWith("159")){
+   const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+   const row=verified?(await client.query<{status:string}>(
+    "SELECT status FROM public.gavhah_olam_chesed_access WHERE user_id=$1",[userId])).rows[0]:null;
+   if(!verified){
+    path="159";
+    spoken="Olam Chesed Communication is a separate SignalWire service. To apply, securely link your Gavhah account under My Askanus option 2 then 5, or fill the website access request form. Press zero to go back.";
+   }else if(row?.status!=="linked"){
+    path="159";
+    spoken=feedback+(row
+     ?"Your Olam Chesed request is "+(row.status==="requested"?"awaiting administration":row.status==="reviewing"?"under review":"not approved")+". "
+     :"Your SignalWire Olam Chesed account is not linked. ");
+    spoken+="Press 1 to send an access request to administration. Press zero to go back.";
+   }else if(path==="159"){
+    spoken="Your separate Olam Chesed SignalWire account is marked linked. "+
+     "For Tishl and the calling desk press 1. Calls 2. Donor contacts 3. Pledges 4. "+
+     "Follow ups 5. Conferences 6. Team 7. Reports 8. Support 9. "+
+     "These functions are handled by SignalWire, not the Yemot keypad. Press zero to go back.";
+   }else{
+    spoken="This Olam Chesed function belongs to the separate SignalWire communication service. "+
+     "This Yemot menu cannot originate SignalWire calls. Open the Olam Chesed Communication website. Press zero to go back.";
+   }
   }else if(path==="185"){
    mode="registration";
    const pending=await pendingPhoneSignup(client,callHash);
