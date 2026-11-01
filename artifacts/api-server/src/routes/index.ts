@@ -32,6 +32,7 @@ import adminRouter from "./admin";
 import yemotCentralRouter from "./yemot-central";
 import yemotVoiceStudioRouter from "./yemot-voice-studio";
 import yemotWholePlatformIvr from "./yemot-whole-platform-ivr";
+import olamChesedKeypadRouter from "./olam-chesed-keypad";
 import hotlineMigrationRouter from "./hotline-migration";
 import {signalWireNextHotline} from "../lib/signalwire-next-hotline";
 import {signalWireSharedHotline} from "../lib/signalwire-shared-ivr";
@@ -105,6 +106,7 @@ router.use(adminRouter);
 router.use(yemotCentralRouter);
 router.use(yemotVoiceStudioRouter);
 router.use(yemotWholePlatformIvr);
+router.use(olamChesedKeypadRouter);
 router.use("/admin/hotline-migration",hotlineMigrationRouter);
 // Future SignalWire number: TEST ONLY, signed Compatibility cXML POST.
 // Existing Yemot root and Campaign Center 4444 remain on their old routes.
