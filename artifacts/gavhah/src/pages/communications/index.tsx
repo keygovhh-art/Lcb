@@ -15,7 +15,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Radio, Phone, MessageSquare, Voicemail, Users, Send, Megaphone, CheckCircle, AlertCircle } from "lucide-react";
 
 export default function Communications() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const [olamAccess,setOlamAccess]=useState("loading");
+  const [olamReason,setOlamReason]=useState("");
+  const [olamBusy,setOlamBusy]=useState(false);
+  const [olamError,setOlamError]=useState("");
+  useEffect(()=>{
+    if(!user){setOlamAccess("not_logged_in");return;}
+    void fetch("/api/olam-chesed/access",{credentials:"include",cache:"no-store"})
+      .then(async r=>{if(!r.ok)throw Error("Access status unavailable");return r.json()})
+      .then(x=>setOlamAccess(x.status||"not_requested"))
+      .catch(()=>setOlamAccess("unavailable"));
+  },[user?.id]);
+  const requestOlamAccess=async()=>{
+    if(olamBusy||olamReason.trim().length<6)return;
+    setOlamBusy(true);setOlamError("");
+    try{
+      const r=await fetch("/api/olam-chesed/access",{method:"POST",credentials:"include",
+        headers:{"Content-Type":"application/json"},body:JSON.stringify({reason:olamReason.trim()})});
+      const body=await r.json().catch(()=>({}));
+      if(!r.ok)throw Error(body.error||"פארלאנג נישט אריינגעשיקט");
+      setOlamAccess(body.status||"requested");
+    }catch(e){setOlamError(e instanceof Error?e.message:"נישט געלונגען")}
+    finally{setOlamBusy(false)}
+  };
   const { toast } = useToast();
   const [broadcastForm, setBroadcastForm] = useState({
     recipientGroup: "all",
@@ -91,6 +114,22 @@ export default function Communications() {
         </div>
       </div>
 
+      <section className="container mx-auto px-4 pt-6" dir="rtl" lang="yi">
+        <div className="rounded-2xl border bg-card p-5 sm:p-7 space-y-3">
+          <h2 className="text-xl font-bold">עולם החסד — SignalWire צוטריט</h2>
+          <p className="text-sm text-muted-foreground">די וועלט פון עולם החסד־קאמוניקאציע איז באזונדער פון גבהה־ימות. א גבהה־אקאונט אליין באשטעטיגט נישט צוטריט צו די SignalWire־פונקציעס, אריינגערעכנט טישל און MAX.</p>
+          {olamAccess==="not_logged_in"?<p className="text-sm">כדי צו בעטן צוטריט, <a className="underline text-primary" href="/login">לאג אריין אין דיין גבהה־אקאונט</a> און קום צוריק.</p>
+          :olamAccess==="linked"?<p className="text-sm font-semibold text-green-700">דיין וועלט פון עולם החסד־אקאונט איז דורך דער מערכת באשטעטיגט אלס פארבונדן. SignalWire בלייבט דער טעלעפאן־פראוויידער.</p>
+          :["requested","reviewing"].includes(olamAccess)?<p className="text-sm">דיין צוטריט־פארלאנג איז ביים מערכת. מצב: {olamAccess==="reviewing"?"מען באהאנדלט עס":"מען ווארט אויף איבערקוק"}.</p>
+          :olamAccess==="denied"?<p className="text-sm">די מערכת האט דערווייל נישט באשטעטיגט דעם צוטריט. פאר ווייטערדיגע הילף קענסטו זיך ווענדן צום מערכת.</p>
+          :olamAccess==="not_requested"?<div className="space-y-3">
+             <label className="block text-sm font-semibold" htmlFor="olam-request-reason">פארוואס דארפסטו צוטריט, אדער וועלכן עולם החסד־אקאונט ווילסטו פארבינדן?</label>
+             <Textarea id="olam-request-reason" value={olamReason} onChange={e=>setOlamReason(e.target.value)} placeholder="איך וויל בעטן צוטריט צו עולם החסד..." rows={3} maxLength={900}/>
+             <Button disabled={olamBusy||olamReason.trim().length<6} onClick={()=>void requestOlamAccess()}>{olamBusy?"שיקט אריין...":"שיק צוטריט־פארלאנג צום מערכת"}</Button>
+           </div>:<p className="text-sm text-muted-foreground">דער צוטריט־מצב איז נישט בנמצא. פרוביר נאכאמאל.</p>}
+          {olamError&&<p role="alert" className="text-sm text-red-700">{olamError}</p>}
+        </div>
+      </section>
       <MemberGate gate="communications" action="access the communications platform">
       <div className="container mx-auto px-4 py-10">
         {/* Stats Row */}
