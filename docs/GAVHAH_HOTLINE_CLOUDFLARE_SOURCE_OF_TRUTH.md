@@ -18,7 +18,7 @@ Updated: 2026-11-01. This is the project handoff for future ChatGPT conversation
 
 The user says they manually and successfully changed `ivr2:/ext.ini` in the Yemot provider to the **Cloudflare** callback around 2026-10-30 and then used the actual phone line. Treat this as the user's confirmed configuration and DO NOT initiate another migration/cutover from Render. A stale Neon provider_summary `apiEndpoint=https://gavhah.onrender.com/api/yemot/ivr` remains in the DB; that is **not authoritative evidence** of the live provider setting. The old `/api/admin/yemot/cloudflare-switch` verifier expects the previous Render callback and can fail on a provider already switched manually. Read the live provider ext.ini, if possible; do not forcibly rewrite the actual provider. A fresh authenticated physical call test is still needed for end-to-end confirmation after each rollout.
 
-2026-11-01 deployed Cloudflare Worker version **79**: `83bb8f50-dee6-4f32-9e98-6c03c57b3119`, 100% production traffic. Versions change on later deployment; always query currently deployed version before making changes.
+2026-11-01 deployed Cloudflare Worker version **80**: `dc6bf515-accd-421e-ade7-810c6eea9dc2`, 100% production traffic. **Version 80 fixes a real legacy fall-through bug that caused 0 in the Gavhah root menu to go back instead of reaching official registration. It also fixes spoken star=back guidance.** Versions change on later deployment; always query currently deployed version before making changes. The actual provider's callback was not changed in this deployment.
 
 ## Required hotline product rules (user explicitly approved)
 
