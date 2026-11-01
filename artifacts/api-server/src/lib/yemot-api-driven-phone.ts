@@ -61,7 +61,8 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  : [name,"no","1","1","8","No","no"];
  const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
   ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
- const providerBody="read="+(audio||voice(prompt))+"="+opts.join(",");
+ const backHint=step>0&&mode!=="root"&&!/press zero to (go back|return)/i.test(prompt)?" To go back one menu, press zero.":"";
+ const providerBody="read="+(audio||voice(prompt+backHint))+"="+opts.join(",");
  if(step===0)logger.info({ivrResponse:"read",mode,step,promptCharacters:prompt.length,patternVersion:"basic-read-v2"},"Yemot welcome reply delivered");
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
 }
@@ -72,7 +73,7 @@ function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fro
  if(!current?.children)return current?.details||"This option is not ready on the phone. Press zero to return to the main menu.";
  return current.label+". "+Object.entries(nodes)
   .map(([n,item])=>"Press "+n+" for "+item.label+".").join(" ")+
-  " Press zero to return to the main menu.";
+  " To go back one menu, press zero.";
 }
 // Only parent-navigation menus can be replaced with a recorded custom
 // greeting. Dynamic public and private content must NEVER be shadowed.
@@ -436,7 +437,12 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    // Existing Yemot management is usually extension /0 (admin_login).
    // Preserve it on root 0, and keep nested 0 returning to the API root.
    // Moving to /0 DOES NOT bypass the provider admin password.
-   if(path==="" && digit==="0" && !fromNext){
+   if(digit==="0" && path!=="" && !fromShared){
+    if(path==="185")await cancelPhoneSignup(client,callHash);
+    path=path.length>2?path.slice(0,-1):(from4444?"2":"");
+    position=0;chunk=0;page=0;confirmId=null;
+    actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";feedback="";
+   }else if(path==="" && digit==="0" && !fromNext){
     goToProviderManagement=true;
    }else if(from4444 && digit==="0"){
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
