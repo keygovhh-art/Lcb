@@ -202,8 +202,8 @@ router.post("/auth/change-password", requireAuth, async (req, res): Promise<void
     res.status(400).json({ error: "Current and new password are required" });
     return;
   }
-  if (newPassword.length < 8) {
-    res.status(400).json({ error: "New password must be at least 8 characters" });
+  if (!/^\d{6,12}$/.test(newPassword)) {
+    res.status(400).json({ error: "New password must contain 6 to 12 digits only" });
     return;
   }
   if (currentPassword === newPassword) {
