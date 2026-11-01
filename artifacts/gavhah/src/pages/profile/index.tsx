@@ -81,7 +81,7 @@ export default function ProfilePage() {
   };
 
   const changePassword = async () => {
-    if (!passwordForm.current || passwordForm.next.length < 8 || passwordForm.next !== passwordForm.confirm) {
+    if (!passwordForm.current || !/^\d{6,12}$/.test(passwordForm.next) || passwordForm.next !== passwordForm.confirm) {
       toast({
         title: "Check the password fields",
         description: passwordForm.next.length < 8 ? "New password must be at least 8 characters." : "New passwords do not match.",
@@ -196,7 +196,7 @@ export default function ProfilePage() {
                 value={passwordForm.next}
                 onChange={e => setPasswordForm(f => ({ ...f, next: e.target.value }))}
                 autoComplete="new-password"
-                placeholder="At least 8 characters"
+                placeholder="6–12 numbers only"
               />
             </div>
             <div>
@@ -270,7 +270,7 @@ export default function ProfilePage() {
               <Button variant="outline" className="gap-2" onClick={openProfileEdit}>
                 <Pencil className="h-4 w-4" /> Edit Profile
               </Button>
-              <Button variant="outline" className="gap-2" onClick={() => setPasswordOpen(true)}>
+              <a href="/api/me/security-center" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium"><LockKeyhole className="h-4 w-4" /> {yi ? "פעסווארד און צוגעלייגטע זיכערהייט" : "Login Security"}</a>\n              <Button variant="outline" className="gap-2" onClick={() => setPasswordOpen(true)}>
                 <LockKeyhole className="h-4 w-4" /> Change Password
               </Button>
             </div>
