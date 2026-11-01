@@ -57,7 +57,7 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  : mode==="news"
  ? [name,"no","1","0","7","No","no","no","","0123456789","1","Ok","None"]
  : mode==="root"
- ? [name,"no","4","1","8","No","no"]
+ ? [name,"no","4","1","2","No","no"]
  : [name,"no","1","1","8","No","no"];
  const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
   ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
@@ -319,7 +319,74 @@ async function recordConfirmedManualResult(client:import("pg").PoolClient,p:Manu
   "No actual call was placed and no payment was collected.";
 }
 
+
+/**
+ * Fast authenticated single-digit root navigation.
+ * Consolidates provider verification, state update, and menu prompt lookup into
+ * one PostgreSQL round trip, retaining the original 0/4444/legacy-8 routes.
+ */
+async function tryFastYemotRoot(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<boolean>{
+ if(!req.path.endsWith("/yemot/ivr"))return false;
+ const digit=req.body?.iv0??req.query.iv0;
+ const input=digit==null?null:String(digit);
+ if(input!==null&&!/^[1-9]$/.test(input))return false;
+ const call=sourceCallId(req);
+ const supplied=String(req.body?.entryKey??req.query.entryKey??"");
+ if(!call||!/^[a-f0-9]{64}$/.test(supplied))return false;
+ const got=createHash("sha256").update(supplied).digest("hex");
+ if(input===null){
+  const rows=await pool.query(
+   "SELECT i.callback_hash,i.state,g.enabled,g.last_verified_at,i.provider_summary #>> '{campaign4444,state}' AS campaign_state,v.tts_text,v.published_path "+
+   "FROM public.gavhah_yemot_ivr_install i JOIN public.gavhah_yemot_global g ON g.id=1 "+
+   "LEFT JOIN public.gavhah_yemot_voice_prompts v ON v.path='root' WHERE i.id=1");
+  const cfg=rows.rows[0];
+  if(!cfg||!cfg.enabled||!cfg.last_verified_at||!["installing","live"].includes(cfg.state)||
+     !/^[a-f0-9]{64}$/.test(String(cfg.callback_hash||""))||
+     !timingSafeEqual(Buffer.from(cfg.callback_hash,"hex"),Buffer.from(got,"hex"))){
+   res.status(403).type("text/plain").send("Access denied");return true;
+  }
+  const ready=cfg.campaign_state==="live";
+  const audio=typeof cfg.published_path==="string"&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(cfg.published_path)?cfg.published_path:null;
+  const prompt=typeof cfg.tts_text==="string"&&cfg.tts_text.trim()?cfg.tts_text:ready?gavhahRoot:root;
+  sendRead(res,prompt,0,ready?"root":"menu",audio);return true;
+ }
+ const callHash=createHmac("sha256",supplied).update(call).digest("hex");
+ const rows=await pool.query(
+  "WITH cfg AS ("+
+   "SELECT i.callback_hash,i.state,g.enabled,g.last_verified_at,i.provider_summary #>> '{campaign4444,state}' AS campaign_state "+
+   "FROM public.gavhah_yemot_ivr_install i JOIN public.gavhah_yemot_global g ON g.id=1 WHERE i.id=1"+
+  "), allowed AS ("+
+   "SELECT CASE WHEN campaign_state='live' THEN '1'||$2 ELSE $2 END AS target_path FROM cfg "+
+   "WHERE enabled=true AND last_verified_at IS NOT NULL AND state IN ('installing','live') AND callback_hash=$3 "+
+   "AND (CASE WHEN campaign_state='live' THEN $2=ANY(ARRAY['1','2','3','4','5','6','7','8','9']) ELSE $2=ANY(ARRAY['1','2']) END)"+
+  "), changed AS ("+
+   "INSERT INTO public.gavhah_yemot_call_states(call_hash,step,path) "+
+   "SELECT $1,1,target_path FROM allowed "+
+   "ON CONFLICT(call_hash) DO UPDATE SET step=EXCLUDED.step,path=EXCLUDED.path,updated_at=now() "+
+   "WHERE public.gavhah_yemot_call_states.step=0 AND public.gavhah_yemot_call_states.path='' "+
+   "RETURNING step,path"+
+  ") "+
+  "SELECT cfg.callback_hash,cfg.state,cfg.enabled,cfg.last_verified_at,cfg.campaign_state,"+
+  "changed.step,changed.path,v.tts_text,v.published_path FROM cfg LEFT JOIN changed ON TRUE "+
+  "LEFT JOIN public.gavhah_yemot_voice_prompts v ON v.path=changed.path",
+  [callHash,input,got]);
+ const cfg=rows.rows[0];
+ if(!cfg||!cfg.enabled||!cfg.last_verified_at||!["installing","live"].includes(cfg.state)||
+    !/^[a-f0-9]{64}$/.test(String(cfg.callback_hash||""))||
+    !timingSafeEqual(Buffer.from(cfg.callback_hash,"hex"),Buffer.from(got,"hex"))){
+  res.status(403).type("text/plain").send("Access denied");return true;
+ }
+ if(!cfg.path)return false;
+ const path=String(cfg.path);
+ if(!isNavigationalMenu(path,tree))return false;
+ const prompt=typeof cfg.tts_text==="string"&&cfg.tts_text.trim()?cfg.tts_text:menuPrompt(path,tree,cfg.campaign_state==="live");
+ const audio=typeof cfg.published_path==="string"&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(cfg.published_path)?cfg.published_path:null;
+ sendRead(res,prompt,1,"menu",audio);
+ return true;
+}
+
 export async function handleYemotApp(req:Request,res:Response,tree:Record<string,TreeNode>):Promise<void>{
+ if(await tryFastYemotRoot(req,res,tree))return;
  const from4444=req.path.endsWith("/4444");
  const fromShared=req.path.endsWith("/shared-ivr");
  const fromNext=req.path.endsWith("/next-ivr")||fromShared;
