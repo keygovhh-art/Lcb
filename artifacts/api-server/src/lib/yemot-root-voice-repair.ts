@@ -38,12 +38,12 @@ export async function applyYemotVoiceRepair():Promise<void>{
  let speedOnly=false;
  try{
   const selected=await pool.query(
-   "UPDATE public.gavhah_yemot_voice_repair SET state=CASE WHEN state='speed_queued' THEN 'speed_applying' ELSE 'applying' END,"+
-   "reason=CASE WHEN state='speed_queued' THEN 'Updating only Yemot root TTS speed keys' ELSE 'Configuring root male English text to speech without altering existing audio or directories' END,updated_at=now() "+
-   "WHERE id=1 AND state IN ('queued','speed_queued') RETURNING state");
+   "UPDATE public.gavhah_yemot_voice_repair SET state='applying',"+
+   "reason=CASE WHEN reason LIKE 'SPEED_ONLY:%' THEN reason ELSE 'Configuring root male English text to speech without altering existing audio or directories' END,updated_at=now() "+
+   "WHERE id=1 AND state='queued' RETURNING reason");
   if(!selected.rowCount)return;
   claimed=true;
-  speedOnly=selected.rows[0].state==="speed_applying";
+  speedOnly=String(selected.rows[0].reason||"").startsWith("SPEED_ONLY:");
   const rows=await pool.query<Stored>(
    "SELECT token_nonce,token_ciphertext,token_tag,line_number,last_verified_at "+
    "FROM public.gavhah_yemot_global WHERE id=1");
@@ -68,7 +68,7 @@ export async function applyYemotVoiceRepair():Promise<void>{
   await pool.query(
    "UPDATE public.gavhah_yemot_voice_repair SET state=$1,"+
    "provider_acknowledged=true,reason=$2,updated_at=now() WHERE id=1",
-   [speedOnly?"speed_applied":"applied",speedOnly?
+   ["applied",speedOnly?
     "Yemot accepted rate=6 and tts_rate=6; physical call test still needed":
     "Yemot accepted male voice settings; actual male audio requires a physical call test"]);
   logger.info({line:"***1286",kind:speedOnly?"tts-speed-only":"english-male-tts",callerVerified:false},"Yemot accepted root voice repair");
@@ -76,7 +76,7 @@ export async function applyYemotVoiceRepair():Promise<void>{
   const message=e instanceof Error?e.message:"Unknown provider error";
   if(claimed)await pool.query(
    "UPDATE public.gavhah_yemot_voice_repair SET state=$1,provider_acknowledged=false,reason=$2,updated_at=now() WHERE id=1",
-   [speedOnly?"speed_blocked":"blocked",(attempted?"Provider update uncertain: ":"") + message.slice(0,150)]).catch(()=>{});
+   ["blocked",(attempted?"Provider update uncertain: ":"") + message.slice(0,150)]).catch(()=>{});
   logger.warn({reason:message.slice(0,120),attempted},"Yemot voice repair failed");
  }finally{token="";}
 }
