@@ -41,7 +41,18 @@ export const phoneTree: Record<string,Item> = {
     "5":group("Kindness and help",{
       "1":leaf("Charity and campaigns","/charity"),"2":leaf("Ask for assistance","/united"),
       "3":leaf("Volunteer to help","/united"),"4":leaf("Community projects","/community-projects"),
-      "5":leaf("Read a public charity campaign by its website number","/charity/:id")
+      "5":leaf("Read a public charity campaign by its website number","/charity/:id"),
+      "9":group("Olam Chesed Communication — SignalWire account gateway",{
+        "1":leaf("Tishl — live calling desk","/communications"),
+        "2":leaf("Calls and call assignments","/communications"),
+        "3":leaf("Donor 360 and contacts","/communications"),
+        "4":leaf("Pledges and donation tracking","/communications"),
+        "5":leaf("Follow ups and callbacks","/communications"),
+        "6":leaf("Virtual fundraising floor and conferences","/communications"),
+        "7":leaf("Team, guidance and administration","/communications"),
+        "8":leaf("Reports and activity history","/communications"),
+        "9":leaf("Account support and access application","/communications")
+      })
     }),
     "6":group("Community",{
       "1":leaf("Groups","/groups"),"2":leaf("Discussion forum","/forum"),
