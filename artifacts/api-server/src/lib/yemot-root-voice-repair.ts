@@ -35,12 +35,15 @@ export async function applyYemotVoiceRepair():Promise<void>{
  let token="";
  let claimed=false;
  let attempted=false;
+ let speedOnly=false;
  try{
   const selected=await pool.query(
-   "UPDATE public.gavhah_yemot_voice_repair SET state='applying',reason='Configuring root male English text to speech without altering existing audio or directories',updated_at=now() "+
-   "WHERE id=1 AND state='queued' RETURNING id");
+   "UPDATE public.gavhah_yemot_voice_repair SET state=CASE WHEN state='speed_queued' THEN 'speed_applying' ELSE 'applying' END,"+
+   "reason=CASE WHEN state='speed_queued' THEN 'Updating only Yemot root TTS speed keys' ELSE 'Configuring root male English text to speech without altering existing audio or directories' END,updated_at=now() "+
+   "WHERE id=1 AND state IN ('queued','speed_queued') RETURNING state");
   if(!selected.rowCount)return;
   claimed=true;
+  speedOnly=selected.rows[0].state==="speed_applying";
   const rows=await pool.query<Stored>(
    "SELECT token_nonce,token_ciphertext,token_tag,line_number,last_verified_at "+
    "FROM public.gavhah_yemot_global WHERE id=1");
@@ -52,21 +55,28 @@ export async function applyYemotVoiceRepair():Promise<void>{
   if(install.rows[0]?.state!=="live"||!install.rows[0]?.callback_hash)
     throw Error("Root IVR was not successfully installed");
   attempted=true;
-  // Tested by Yemot users for English in API read=t- flow. Explicit
-  // fallback voices may be mapped by the provider to ymSimcha.
-  await request(token,"UpdateExtension",{
-   path:"ivr2:",language:"en",voice:"ymMale",tts_voice:"ymMale",
-   api_log:"no",api_hangup_send:"no"
-  });
+  if(speedOnly){
+   // Add-only root ext.ini patch: do not change language, voice, API, menus, or recordings.
+   await request(token,"UpdateExtension",{path:"ivr2:",rate:"6",tts_rate:"6"});
+  }else{
+   // Original voice-repair behavior remains unchanged.
+   await request(token,"UpdateExtension",{
+    path:"ivr2:",language:"en",voice:"ymMale",tts_voice:"ymMale",
+    api_log:"no",api_hangup_send:"no"
+   });
+  }
   await pool.query(
-   "UPDATE public.gavhah_yemot_voice_repair SET state='applied',"+
-   "provider_acknowledged=true,reason='Yemot accepted male voice settings; actual male audio requires a physical call test',updated_at=now() WHERE id=1");
-  logger.info({line:"***1286",kind:"english-male-tts",callerVerified:false},"Yemot accepted root voice repair");
+   "UPDATE public.gavhah_yemot_voice_repair SET state=$1,"+
+   "provider_acknowledged=true,reason=$2,updated_at=now() WHERE id=1",
+   [speedOnly?"speed_applied":"applied",speedOnly?
+    "Yemot accepted rate=6 and tts_rate=6; physical call test still needed":
+    "Yemot accepted male voice settings; actual male audio requires a physical call test"]);
+  logger.info({line:"***1286",kind:speedOnly?"tts-speed-only":"english-male-tts",callerVerified:false},"Yemot accepted root voice repair");
  }catch(e){
   const message=e instanceof Error?e.message:"Unknown provider error";
   if(claimed)await pool.query(
-   "UPDATE public.gavhah_yemot_voice_repair SET state='blocked',reason=$1,updated_at=now() WHERE id=1",
-   [(attempted?"Provider update uncertain: ":"") + message.slice(0,150)]).catch(()=>{});
+   "UPDATE public.gavhah_yemot_voice_repair SET state=$1,provider_acknowledged=false,reason=$2,updated_at=now() WHERE id=1",
+   [speedOnly?"speed_blocked":"blocked",(attempted?"Provider update uncertain: ":"") + message.slice(0,150)]).catch(()=>{});
   logger.warn({reason:message.slice(0,120),attempted},"Yemot voice repair failed");
  }finally{token="";}
 }
