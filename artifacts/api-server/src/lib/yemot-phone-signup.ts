@@ -11,13 +11,13 @@ export type PhoneEnrollmentResult = {
   completed: boolean;
   userId?: number;
 };
-const digits=/^\d{12,16}$/;
+const digits=/^\d{6,12}$/;
 function unacceptable(pin:string){
   if(!digits.test(pin))return true;
-  if(new Set(pin).size<5)return true;
+  if(new Set(pin).size<3)return true;
   if(/(\d)\1{5,}/.test(pin))return true;
   if("01234567890123456789".includes(pin)||"98765432109876543210".includes(pin))return true;
-  if(/^(19|20)\d{10,14}$/.test(pin)&&new Set(pin).size<7)return true;
+  if(/^(19|20)\d{4,10}$/.test(pin)&&new Set(pin).size<4)return true;
   return false;
 }
 async function signupRateGate(db:PoolClient,callHash:string):Promise<boolean>{
@@ -51,7 +51,7 @@ export async function enrollFromKeypad(db:PoolClient,callHash:string,entered:str
   " WHERE call_hash=$1 AND expires_at>now() AND attempts<3 FOR UPDATE",[callHash])).rows[0];
  if(!pending){
   if(unacceptable(entered))
-   return {completed:false,message:"Please choose a stronger twelve to sixteen digit password. Avoid repeated or consecutive digits. "};
+   return {completed:false,message:"Please choose a stronger six to twelve digit password. Avoid repeated or consecutive digits. "};
   // A distinct hashed challenge expires in 6 minutes. Not a website login.
   const secretHash=await hashPassword(entered);
   await db.query(
