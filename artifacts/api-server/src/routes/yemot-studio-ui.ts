@@ -72,7 +72,7 @@ function updateAudioControls(){
  el("upload").disabled=!blob||busy;el("record").disabled=busy;
  el("stop").disabled=!recorder||recorder.state!=="recording";el("saveTts").disabled=busy;
  el("resetTts").disabled=busy;el("muteTts").disabled=busy;
- el("publish").disabled=busy||!row?.audio_size;el("unpublish").disabled=busy||!row?.published_path;
+ el("publish").disabled=busy||!row?.audio_size||selected?.path==="1856";el("unpublish").disabled=busy||!row?.published_path;
  el("discardAudio").disabled=busy||!blob;el("deleteDraft").disabled=busy||!row?.audio_size;
  el("deletePublished").disabled=busy||!row?.published_path;
 }
@@ -153,6 +153,7 @@ function select(node){
  const saved=prompts.get(node.path);el("tts").value=saved?.tts_text?.trim()?saved.tts_text:(node.effectiveTts||node.suggestedEnglish||"");showCurrentSpeech();
  el("audioState").textContent=saved?.published_path?"אויפן האטליין פובליצירט: "+saved.published_path+(saved?.audio_size?" · אויך דא א פריוואטע רעקארדירונג.":""):saved?.audio_size?"א פריוואטע רעקארדירונג איז אפגעהיטן, אבער נאך נישט פובליצירט.":"נאך נישט דא קיין אפגעהיטענע רעקארדירונג.";
  setPreview(saved?.audio_size?selectedApi("/audio"):null);
+ if(node.path==="1856")el("audioState").textContent+=" דער 4־ציפערדיקער איי־די ווערט געשאפן פערזענליך ביים רוף. אויף דעם שריט נוצט דער האטליין TTS מיט {member_id}, נישט א סטאטישע רעקארדירונג.";
  message("אויסגעקליבן "+node.path+".");
  showOptions();updateAudioControls();
 }
