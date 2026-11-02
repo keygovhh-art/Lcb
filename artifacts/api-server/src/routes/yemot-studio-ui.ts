@@ -84,14 +84,25 @@ function showCurrentSpeech(){
  el("muteTts").textContent=muted?"צוריק אנצינדן דעם TTS":"אינגאנצן שטיל מאכן דעם TTS";
 }
 function rootChoices(){
- // On the phone, the main Gavhah menu offers 1-9. Internally this tree stores them under 1.
- const main=catalog.filter(n=>n.parent==="1").sort((a,b)=>Number(a.path)-Number(b.path));
- const choices=main.map(n=>({...n,displayDigit:n.path.slice(-1)}));
- const reg=catalog.find(n=>n.path==="185");
- if(reg)choices.unshift({...reg,displayDigit:"0",label:"אפיציעלע גבהה־מעמבער־רעגיסטראציע"});
- const campaign=catalog.find(n=>n.path==="2");
- if(campaign)choices.push({...campaign,displayDigit:"4444",label:"קאמפיין סענטער — 4444"});
- return choices;
+ const entry=[
+  ["1","11","צדקה־נייעס — Chesed News"],
+  ["2","9702","עסקנים־שמועסן — Discussion Center"],
+  ["3","9703","פריוואטע הילף־בקשות"],
+  ["4","9704","התקבצו לטובה — United in Kindness"],
+  ["5","159","עולם החסד קאמיוניקאציע"],
+  ["6","9706","היינטיגע צדקה"],
+  ["7","17","מנינים"],
+  ["8","9708","גרופעס"],
+  ["9","12","מיין עסקנות"],
+  ["77","9777","מער אפטיילונגען — 10, 11, 12 און אלע פריערדיגע פונקציעס"],
+  ["88","88","פארגעשריטענע מיין עסקנות־כלים"],
+  ["4444","2","קאמפיין סענטער"],
+  ["0","185","אויפשרייבן אלס גבהה־מעמבער"]
+ ];
+ return entry.map(([digit,path,label])=>{
+  const orig=catalog.find(x=>x.path===path);
+  return {...(orig||{path,kind:"menu",depth:1,parent:"root",suggestedEnglish:""}),displayDigit:digit,label};
+ });
 }
 function currentMenu(){return trail.length?trail[trail.length-1]:catalog.find(n=>n.path==="root")}
 function breadcrumbs(){
@@ -123,7 +134,7 @@ function showOptions(){
  let matches=search?
   catalog.filter(n=>(n.path+" "+n.label+" "+n.parent).toLowerCase().includes(search)):
   atRoot?rootChoices():catalog.filter(n=>n.parent===section.path).sort((a,b)=>Number(a.path)-Number(b.path));
- const names=search?"זוך־רעזולטאטן":atRoot?"הויפט־מעניו — קלייב 0–9 אדער 4444":section.label+" — אונטער־קנעפלעך";
+ const names=search?"זוך־רעזולטאטן":atRoot?"הויפט־מעניו — 1 ביז 9, מער 77, עסקנות 88, קאמפיין 4444, מעמבער 0":section.label+" — אונטער־קנעפלעך";
  el("branch-title").textContent=names;
  el("quantity").textContent=matches.length+(search?" געפונענע עקסטענשאנס":" קנעפלעך אין דעם מעניו");
  el("back").disabled=!trail.length;el("main").disabled=!trail.length;
