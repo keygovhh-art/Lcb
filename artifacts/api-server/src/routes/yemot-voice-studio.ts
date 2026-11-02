@@ -74,11 +74,17 @@ router.get("/admin/yemot/voice-studio",requireAuth,admin,wrap(async(_req,res)=>{
  }
  const [prompts,installation,voiceFolder]=await Promise.all([
   pool.query("SELECT path,tts_text,tts_muted,mime_type,octet_length(audio_data) AS audio_size,published_path,published_at,updated_at FROM "+dbTable+" ORDER BY path"),
-  pool.query("SELECT state,target_path,provider_summary->>'apiEndpoint' AS recorded_endpoint FROM public.gavhah_yemot_ivr_install WHERE id=1"),
+  pool.query("SELECT state,target_path,provider_summary->>'apiEndpoint' AS recorded_endpoint,provider_summary #>> '{campaign4444,state}' AS campaign_state FROM public.gavhah_yemot_ivr_install WHERE id=1"),
   pool.query("SELECT media_folder FROM public.gavhah_yemot_voice_storage WHERE id=1")
  ]);
  res.setHeader("Cache-Control","private, no-store");
- res.json({catalogue:catalogue(),prompts:prompts.rows,
+ const campaignReady=installation.rows[0]?.campaign_state==="live";
+ const gavhahMain="Welcome to Gavhah. For news and updates, press 1. For My Askanus, press 2. For contacts, press 3. For calling, press 4. For kindness, press 5. For community, press 6. For minyans, press 7. For messages or registration, press 8. For management, press 9. For advanced Askanus keypad, enter 88 then pound. For Campaign Center, enter 4444. For official Gavhah member registration, press 0. Press star to go back.";
+ const originalMain="Welcome to Gavhah and Campaign Center. For Gavhah, press 1. For Campaign Center, press 2. To create a website member account, press 8. For official Gavhah member registration, press 0. Press star to go back.";
+ const items=catalogue().map(item=>({...item,
+  effectiveTts:item.path==="root"?(campaignReady?gavhahMain:originalMain):item.kind==="menu"?phonePrompt(item.path).replace(/press zero to go back/gi,"press star to go back"):item.suggestedEnglish,
+  dynamic:item.kind!=="menu"}));
+ res.json({catalogue:items,prompts:prompts.rows,
   provider: {state:installation.rows[0]?.state||"not_configured",
     approvedFolder:voiceFolder.rows[0]?.media_folder||null,
     recordedCallback:installation.rows[0]?.recorded_endpoint||null,
