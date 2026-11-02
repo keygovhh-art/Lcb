@@ -14,7 +14,7 @@ textarea{min-height:140px;resize:vertical;direction:ltr;text-align:left}
 button{font:inherit;padding:10px 13px;border-radius:9px;background:#eaf2f8;border:1px solid #c2d4e4;color:#205477;cursor:pointer}button.primary{background:#175e91;color:white;border-color:#175e91}button:disabled{opacity:.48;cursor:not-allowed}
 button.danger{color:#993b3b;border-color:#e0bdbd;background:#fff8f8}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin:11px 0}
-#choices{max-height:67vh;overflow:auto;display:flex;flex-direction:column;gap:4px;margin-top:10px}
+#choices{display:flex;flex-direction:column;gap:6px;margin-top:10px}.crumbs{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:9px 0 12px}.crumb{padding:6px 9px;background:#edf4fa;border-color:#dae7f1;font-size:13px}.crumb.current{background:#d8e9f6;border-color:#91b9d6;font-weight:700}.child-note{font-size:13px;background:#f1f6fa;border-radius:8px;padding:9px;color:#55758b}.choice{min-height:46px}.choice .num{min-width:40px;text-align:center}.branch-header{margin:12px 0 4px;font-weight:700}
 .choice{width:100%;text-align:right;display:flex;gap:9px;align-items:center;justify-content:flex-start;background:#f7fafd;border-color:transparent;padding:9px;border-radius:8px}
 .choice.active{background:#e8f3fa;border:1px solid #75accf}
 .num{direction:ltr;font-size:12px;font-weight:700;white-space:nowrap;border-radius:6px;background:#e1edf6;padding:4px 7px;color:#144e77}
@@ -24,7 +24,7 @@ button.danger{color:#993b3b;border-color:#e0bdbd;background:#fff8f8}
 audio{width:100%;margin:11px 0}label{display:block;font-weight:650;margin:12px 0 5px}
 .divider{border:0;border-top:1px solid #e1e9f1;margin:17px 0}
 a{color:#175e91}#caption{font-weight:700}
-@media(max-width:650px){.grid{grid-template-columns:1fr}#choices{max-height:240px}header{padding:16px}h1{font-size:23px}}
+@media(max-width:650px){.grid{grid-template-columns:1fr}#choices{max-height:none}header{padding:16px}h1{font-size:23px}}
 </style></head><body>
 <main>
 <header><h1>גבהה — ימות האטליין־עדיטאר</h1>
@@ -34,8 +34,11 @@ a{color:#175e91}#caption{font-weight:700}
 <div class="actions"><a href="/api/admin/hotline-keypad-map">מעניו־מפתח</a> <a href="/api/admin/max/ivr-editor/voice-studio">עולם החסד SignalWire עדיטאר</a></div>
 </header>
 <div class="grid">
-<section class="panel"><h2>קלייב אן עקסטענשאן</h2>
-<input id="search" type="search" placeholder="זוך נומער אדער נאמען" aria-label="זוך עקסטענשאן">
+<section class="panel"><h2>דער מעניו־מפתח</h2><p class="hint">קלייב קודם א קנעפל פונעם הויפט־מעניו, דערנאך זיינע אונטער־קנעפלעך. <b>* = צוריק</b>.</p>
+<input id="search" type="search" placeholder="זוך אן עקסטענשאן אין אלע שטאפלען" aria-label="זוך עקסטענשאן">
+<div class="crumbs" id="crumbs" aria-label="מעניו־שטאפלען"></div>
+<div class="actions"><button id="back" type="button">* צוריק איין מעניו</button><button id="main" type="button">הויפט־מעניו</button></div>
+<div id="branch-title" class="branch-header">הויפט־מעניו</div>
 <div id="choices" role="list"></div><p class="hint" id="quantity">ליינט די מעניוס...</p></section>
 <section class="panel"><h2 id="heading">קלייב אן עקסטענשאן</h2>
 <p id="details" class="hint"></p>
@@ -59,23 +62,67 @@ a{color:#175e91}#caption{font-weight:700}
 <script>
 "use strict";
 const root="/api/admin/yemot/voice-studio",el=id=>document.getElementById(id);
-let catalog=[],prompts=new Map(),selected=null,blob=null,recorder=null,chunks=[],stream=null,objectUrl=null,busy=false,verifiedFolder=false;
+let catalog=[],prompts=new Map(),selected=null,trail=[],blob=null,recorder=null,chunks=[],stream=null,objectUrl=null,busy=false,verifiedFolder=false;
 const escapeNothing=s=>String(s||"");
 function message(t,bad=false){const p=el("status");p.textContent=t;p.className="status "+(bad?"error":"good")}
 function selectedApi(tail=""){return root+"/"+encodeURIComponent(selected.path)+tail}
 function updateAudioControls(){el("upload").disabled=!blob||busy;el("record").disabled=busy;el("stop").disabled=!recorder||recorder.state!=="recording";el("saveTts").disabled=busy;el("publish").disabled=busy;el("unpublish").disabled=busy}
+function rootChoices(){
+ // On the phone, the main Gavhah menu offers 1-9. Internally this tree stores them under 1.
+ const main=catalog.filter(n=>n.parent==="1").sort((a,b)=>Number(a.path)-Number(b.path));
+ const choices=main.map(n=>({...n,displayDigit:n.path.slice(-1)}));
+ const reg=catalog.find(n=>n.path==="185");
+ if(reg)choices.unshift({...reg,displayDigit:"0",label:"אפיציעלע גבהה־מעמבער־רעגיסטראציע"});
+ const campaign=catalog.find(n=>n.path==="2");
+ if(campaign)choices.push({...campaign,displayDigit:"4444",label:"קאמפיין סענטער — 4444"});
+ return choices;
+}
+function currentMenu(){return trail.length?trail[trail.length-1]:catalog.find(n=>n.path==="root")}
+function breadcrumbs(){
+ const elts=el("crumbs");elts.replaceChildren();
+ const base=document.createElement("button");base.className="crumb"+(!trail.length?" current":"");base.textContent="הויפט־מעניו";base.onclick=()=>navigateTo(-1);elts.append(base);
+ trail.forEach((n,i)=>{
+  const b=document.createElement("button");b.className="crumb"+(i===trail.length-1?" current":"");
+  b.textContent="← "+(n.displayDigit||n.path)+" "+n.label;b.onclick=()=>navigateTo(i);elts.append(b);
+ });
+}
+function navigateTo(index){
+ if(recorder&&recorder.state==="recording"){message("שטעל קודם אפ די רעקארדירונג.",true);return;}
+ if(index<0)trail=[];else trail=trail.slice(0,index+1);
+ el("search").value="";
+ select(currentMenu());
+}
+function openItem(node){
+ if(recorder&&recorder.state==="recording"){message("שטעל קודם אפ די רעקארדירונג.",true);return;}
+ // Search results can open a deep extension directly; the back button still returns to the main menu.
+ if(el("search").value.trim())trail=[];
+ trail.push(node);
+ el("search").value="";
+ select(node);
+}
 function showOptions(){
- const search=el("search").value.trim().toLowerCase(),choices=el("choices");choices.replaceChildren();
- const matches=catalog.filter(v=>(v.path+" "+v.label+" "+v.parent).toLowerCase().includes(search));
- el("quantity").textContent=matches.length+" עקסטענשאנס";
+ const search=el("search").value.trim().toLowerCase(),choices=el("choices");
+ choices.replaceChildren();breadcrumbs();
+ const atRoot=trail.length===0,section=currentMenu();
+ let matches=search?
+  catalog.filter(n=>(n.path+" "+n.label+" "+n.parent).toLowerCase().includes(search)):
+  atRoot?rootChoices():catalog.filter(n=>n.parent===section.path).sort((a,b)=>Number(a.path)-Number(b.path));
+ const names=search?"זוך־רעזולטאטן":atRoot?"הויפט־מעניו — קלייב 0–9 אדער 4444":section.label+" — אונטער־קנעפלעך";
+ el("branch-title").textContent=names;
+ el("quantity").textContent=matches.length+(search?" געפונענע עקסטענשאנס":" קנעפלעך אין דעם מעניו");
+ el("back").disabled=!trail.length;el("main").disabled=!trail.length;
+ if(!matches.length){const msg=document.createElement("p");msg.className="child-note";msg.textContent=search?"קיין פאסיגע עקסטענשאן נישט געפונען.":"דאס איז דער לעצטער קנעפל. זיינע אפציעס געפינען זיך אונטן אינעם עדיטאר.";choices.append(msg);return;}
  const fragment=document.createDocumentFragment();
  for(const node of matches){
   const button=document.createElement("button");button.type="button";button.className="choice"+(selected&&selected.path===node.path?" active":"");
-  const id=document.createElement("span");id.className="num";id.textContent=node.path;
-  const text=document.createElement("span");text.textContent=(node.depth>1?"· ":"")+node.label;
-  button.append(id,text);button.onclick=()=>select(node);fragment.append(button);
+  const id=document.createElement("span");id.className="num";id.textContent=search?node.path:(node.displayDigit||node.path.slice(-1));
+  const text=document.createElement("span");text.textContent=node.label;
+  const more=document.createElement("span");more.className="hint";more.textContent=catalog.some(k=>k.parent===node.path)?" ›":" ·";
+  button.append(id,text,more);button.onclick=()=>openItem(node);fragment.append(button);
  }choices.append(fragment);
 }
+el("back").onclick=()=>navigateTo(trail.length-2);
+el("main").onclick=()=>navigateTo(-1);
 function setPreview(src){
  if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=null}
  el("player").removeAttribute("src");
@@ -84,8 +131,8 @@ function setPreview(src){
 function select(node){
  if(recorder&&recorder.state==="recording"){message("שטעל קודם אפ די רעקארדירונג.",true);return}
  selected=node;blob=null;el("file").value="";el("editor").hidden=false;
- el("heading").textContent="עקסטענשאן "+node.path+" — "+node.label;
- el("details").textContent="טייל: "+node.parent+" · סארט: "+(node.kind==="menu"?"מעניו":"קנעפל");
+ el("heading").textContent=(node.path==="root"?"הויפט־מעניו":"קנעפל "+(trail[trail.length-1]?.displayDigit||node.path.slice(-1))+" — "+node.label);
+ el("details").textContent="טעכנישע עקסטענשאן: "+node.path+" · אונטער־מעניו: "+node.parent+" · "+(node.kind==="menu"?"אפטיילונג מיט קנעפלעך":"לעצטער קנעפל");
  const saved=prompts.get(node.path);el("tts").value=saved?.tts_text||"";
  el("audioState").textContent=saved?.published_path?"אויפן האטליין פובליצירט: "+saved.published_path:saved?.audio_size?"א פריוואטע רעקארדירונג איז אפגעהיטן, אבער נאך נישט פובליצירט.":"נאך נישט דא קיין אפגעהיטענע רעקארדירונג.";
  setPreview(saved?.audio_size?selectedApi("/audio"):null);
@@ -99,7 +146,8 @@ async function refresh(){
  if(!Array.isArray(data.catalogue))throw Error("דער סערווער האט נישט צוריקגעגעבן א מעניו־ליסטע");
  catalog=data.catalogue;prompts=new Map((data.prompts||[]).map(v=>[v.path,v]));
  verifiedFolder=!!data.provider?.approvedFolder;el("provider").textContent="ימות־מעדיע־פאלדער: "+(data.provider?.approvedFolder||"נאך נישט איינגעשטעלט. פובליצירן פאדערט דעם באשטעטיגטן מידיע־פאלדער.");
- if(selected)selected=catalog.find(v=>v.path===selected.path)||catalog[0];else selected=catalog.find(v=>v.path==="root")||catalog[0];
+ trail=trail.map(node=>catalog.find(v=>v.path===node.path)?{...catalog.find(v=>v.path===node.path),displayDigit:node.displayDigit}:null).filter(Boolean);
+ selected=currentMenu();
  showOptions();if(selected)select(selected);
 }
 async function request(url,method,body){
