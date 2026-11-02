@@ -66,7 +66,22 @@ let catalog=[],prompts=new Map(),selected=null,trail=[],blob=null,recorder=null,
 const escapeNothing=s=>String(s||"");
 function message(t,bad=false){const p=el("status");p.textContent=t;p.className="status "+(bad?"error":"good")}
 function selectedApi(tail=""){return root+"/"+encodeURIComponent(selected.path)+tail}
-function updateAudioControls(){el("upload").disabled=!blob||busy;el("record").disabled=busy;el("stop").disabled=!recorder||recorder.state!=="recording";el("saveTts").disabled=busy;el("publish").disabled=busy;el("unpublish").disabled=busy}
+function updateAudioControls(){
+ const row=selected?prompts.get(selected.path):null;
+ el("upload").disabled=!blob||busy;el("record").disabled=busy;
+ el("stop").disabled=!recorder||recorder.state!=="recording";el("saveTts").disabled=busy;
+ el("resetTts").disabled=busy;el("muteTts").disabled=busy;
+ el("publish").disabled=busy||!row?.audio_size;el("unpublish").disabled=busy||!row?.published_path;
+ el("discardAudio").disabled=busy||!blob;el("deleteDraft").disabled=busy||!row?.audio_size;
+ el("deletePublished").disabled=busy||!row?.published_path;
+}
+function showCurrentSpeech(){
+ if(!selected)return;const row=prompts.get(selected.path);
+ const own=typeof row?.tts_text==="string"&&row.tts_text.trim(),muted=!!row?.tts_muted,published=!!row?.published_path;
+ el("nowText").textContent=muted?"דער TTS איז יעצט שטילגעמאכט.":own?row.tts_text:selected.effectiveTts||selected.suggestedEnglish||"עס איז נישטא קיין איינגעבויטער נוסח.";
+ el("ttsOrigin").textContent=published?"דער האטליין שפילט יעצט א פובליצירטע רעקארדירונג. דא איז דער TTS־פאלבאק:":muted?"TTS־אויסזאג איז אפגעשטעלט.":own?"דער אייגענער TTS־נוסח איז אקטיוו:":"דער איינגעבויטער מעניו־נוסח איז אקטיוו:";
+ el("muteTts").textContent=muted?"צוריק אנצינדן דעם TTS":"אינגאנצן שטיל מאכן דעם TTS";
+}
 function rootChoices(){
  // On the phone, the main Gavhah menu offers 1-9. Internally this tree stores them under 1.
  const main=catalog.filter(n=>n.parent==="1").sort((a,b)=>Number(a.path)-Number(b.path));
@@ -133,8 +148,8 @@ function select(node){
  selected=node;blob=null;el("file").value="";el("editor").hidden=false;
  el("heading").textContent=(node.path==="root"?"הויפט־מעניו":"קנעפל "+(trail[trail.length-1]?.displayDigit||node.path.slice(-1))+" — "+node.label);
  el("details").textContent="טעכנישע עקסטענשאן: "+node.path+" · אונטער־מעניו: "+node.parent+" · "+(node.kind==="menu"?"אפטיילונג מיט קנעפלעך":"לעצטער קנעפל");
- const saved=prompts.get(node.path);el("tts").value=saved?.tts_text||"";
- el("audioState").textContent=saved?.published_path?"אויפן האטליין פובליצירט: "+saved.published_path:saved?.audio_size?"א פריוואטע רעקארדירונג איז אפגעהיטן, אבער נאך נישט פובליצירט.":"נאך נישט דא קיין אפגעהיטענע רעקארדירונג.";
+ const saved=prompts.get(node.path);el("tts").value=saved?.tts_text?.trim()?saved.tts_text:(node.effectiveTts||node.suggestedEnglish||"");showCurrentSpeech();
+ el("audioState").textContent=saved?.published_path?"אויפן האטליין פובליצירט: "+saved.published_path+(saved?.audio_size?" · אויך דא א פריוואטע רעקארדירונג.":""):saved?.audio_size?"א פריוואטע רעקארדירונג איז אפגעהיטן, אבער נאך נישט פובליצירט.":"נאך נישט דא קיין אפגעהיטענע רעקארדירונג.";
  setPreview(saved?.audio_size?selectedApi("/audio"):null);
  message("אויסגעקליבן "+node.path+".");
  showOptions();updateAudioControls();
@@ -163,8 +178,42 @@ async function execute(task,success){
  finally{busy=false;updateAudioControls()}
 }
 el("search").oninput=showOptions;
-el("saveTts").onclick=async()=>{const n=selected;if(!n)return;const result=await execute(()=>request(selectedApi(),"PUT",{ttsText:el("tts").value}),"דער נוסח איז אפגעהיטן.");if(result)prompts.set(n.path,{...prompts.get(n.path),tts_text:el("tts").value})};
-el("suggest").onclick=()=>{if(selected)el("tts").value=selected.suggestedEnglish||""};
+el("saveTts").onclick=async()=>{
+ const n=selected;if(!n)return;const value=el("tts").value;
+ if(!value.trim()){message("א ליידיגער נוסח? נוצ דעם שטיל־מאכן אדער צוריקשטעלן קנעפל.",true);return}
+ const saved=await execute(()=>request(selectedApi(),"PUT",{ttsText:value}),"דער נוסח איז אפגעהיטן.");
+ if(saved){prompts.set(n.path,{...prompts.get(n.path),tts_text:value,tts_muted:false});showCurrentSpeech();updateAudioControls();}
+};
+el("resetTts").onclick=async()=>{
+ if(!selected||!confirm("אויסמעקן דיין אייגענעם טעקסט און צוריקשטעלן דעם איינגעבויטן נוסח?"))return;
+ const path=selected.path;const result=await execute(()=>request(root+"/"+encodeURIComponent(path)+"/tts","DELETE",{confirm:"RESET_CUSTOM_TTS"}),"דער אייגענער נוסח איז אויסגעמעקט.");
+ if(result)await refresh();
+};
+el("muteTts").onclick=async()=>{
+ if(!selected)return;const muted=!!prompts.get(selected.path)?.tts_muted;
+ if(!confirm(muted?"צוריק אנצינדן דעם TTS?":"גאר שטיל מאכן דעם TTS אין דעם עקסטענשאן?"))return;
+ const path=selected.path;const result=await execute(()=>request(root+"/"+encodeURIComponent(path)+"/tts-muted","PUT",{muted:!muted,confirm:"SET_TTS_SILENCE"}),muted?"דער TTS איז צוריק אנגעצינדן.":"דער TTS איז שטילגעמאכט.");
+ if(result)await refresh();
+};
+el("suggest").onclick=()=>{if(selected)el("tts").value=selected.effectiveTts||selected.suggestedEnglish||""};
+el("discardAudio").onclick=()=>{
+ if(!blob)return;blob=null;el("file").value="";const saved=selected?prompts.get(selected.path):null;
+ setPreview(saved?.audio_size?selectedApi("/audio"):null);
+ el("audioState").textContent="די יעצטיגע רעקארדירונג איז אוועקגעווארפן. דער אפגעהיטענער פייל בלייבט.";
+ updateAudioControls();
+};
+el("deleteDraft").onclick=async()=>{
+ if(!selected||!prompts.get(selected.path)?.audio_size)return;
+ if(!confirm("אויסמעקן די אפגעהיטענע רעקארדירונג? א פובליצירטער פייל אויף ימות בלייבט פאר דערווייל."))return;
+ const path=selected.path;const result=await execute(()=>request(root+"/"+encodeURIComponent(path)+"/audio","DELETE",{confirm:"DELETE_SAVED_DRAFT_AUDIO"}),"די אפגעהיטענע רעקארדירונג איז אויסגעמעקט.");
+ if(result)await refresh();
+};
+el("deletePublished").onclick=async()=>{
+ if(!selected||!prompts.get(selected.path)?.published_path)return;
+ if(!confirm("אויסמעקן די פובליצירטע רעקארדירונג אויך פיזיש ביי ימות? דאס קען מען נישט צוריקדרייען."))return;
+ const path=selected.path;const result=await execute(()=>request(root+"/"+encodeURIComponent(path)+"/delete-published","POST",{confirm:"DELETE_PUBLISHED_GAVHAH_AUDIO"}),"די פובליצירטע רעקארדירונג איז אויסגעמעקט ביי ימות.");
+ if(result)await refresh();
+};
 el("file").onchange=()=>{const f=el("file").files[0];if(!f)return;if(f.size>3900000){message("די פייל איז צו גרויס. מאַקסימום בערך 4 MB.",true);return}blob=f;setPreview(URL.createObjectURL(blob));objectUrl=el("player").src;el("audioState").textContent="אויסגעקליבן: "+f.name+". דרוק אפהיטן כדי צו שיקן צום סערווער.";updateAudioControls()};
 el("record").onclick=async()=>{if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){message("דער בראוזער שטיצט נישט מייקראפאן־רעקארדירונג. קלייב אן א פייל.",true);return}
  try{
