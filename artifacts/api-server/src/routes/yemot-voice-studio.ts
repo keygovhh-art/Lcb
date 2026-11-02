@@ -5,6 +5,7 @@ import {requireAuth, getCurrentSessionUser} from "../middlewares/auth";
 import {phoneTree,phonePrompt} from "./yemot-whole-platform-ivr";
 import {sectionPaths} from "../lib/yemot-section-batch1";
 import {yemotStudioUI} from "./yemot-studio-ui";
+import {sharedVoiceChangerBrowserSource} from "./voice-changer-browser";
 
 // Only the already approved Gavhah/Yemot connection is used. Never change
 // the root extension, switch numbers, or use SignalWire for this feature.
@@ -66,6 +67,11 @@ function checkAudio(bytes:Buffer,mime:string){
   return bytes.toString("ascii",0,3)==="ID3"||(bytes[0]===0xff&&(bytes[1]&0xe0)===0xe0);
  return false;
 }
+router.get("/admin/voice-changer.js",requireAuth,admin,(_req,res)=>{
+ res.setHeader("Cache-Control","private, no-store");
+ res.setHeader("X-Content-Type-Options","nosniff");
+ res.type("application/javascript; charset=utf-8").send(sharedVoiceChangerBrowserSource);
+});
 router.get("/admin/yemot/voice-studio",requireAuth,admin,wrap(async(_req,res)=>{
  if(String(_req.query.data||"")!=="1"){
   res.setHeader("Cache-Control","private, no-store");
