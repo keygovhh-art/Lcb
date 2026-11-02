@@ -4,6 +4,7 @@ import {pool} from "@workspace/db";
 import {requireAuth, getCurrentSessionUser} from "../middlewares/auth";
 import {phoneTree,phonePrompt} from "./yemot-whole-platform-ivr";
 import {sectionPaths} from "../lib/yemot-section-batch1";
+import {gavhahPhoneStageVoices} from "../lib/gavhah-phone-voice-stages";
 import {yemotStudioUI} from "./yemot-studio-ui";
 import {sharedVoiceChangerBrowserSource} from "./voice-changer-browser";
 
@@ -49,9 +50,10 @@ function catalogue(){
  visit(phoneTree as Record<string,TreeItem>,"");
  // Implementation != verified phone functionality: label honestly.
  const known=new Set([...sectionPaths,"155","166","167","173","111","1121","1122","1123","1124","1125","1126","1127","1128","1129","113","114","115","121","122","123","124","125","126","185"]);
+ items.push(...Object.entries(gavhahPhoneStageVoices).map(([path,item])=>({path,label:item.label,kind:"button",depth:4,parent:path.slice(0,3)})));
  return items.map(item=>({...item,
-  suggestedEnglish:item.kind==="menu"?phonePrompt(item.path==="root"?"":item.path):
-   "You selected "+item.label+". Press star to go back.",
+  suggestedEnglish:gavhahPhoneStageVoices[item.path]?.text || (item.kind==="menu"?phonePrompt(item.path==="root"?"":item.path):
+   "You selected "+item.label+". Press star to go back."),
   capability:item.kind==="menu"?"navigation":
   known.has(item.path)?"api_implemented_not_phone_verified":"roadmap_only"}));
 }
@@ -88,7 +90,7 @@ router.get("/admin/yemot/voice-studio",requireAuth,admin,wrap(async(_req,res)=>{
  const gavhahMain="Welcome to Gavhah. For news and updates, press 1. For My Askanus, press 2. For contacts, press 3. For calling, press 4. For kindness, press 5. For community, press 6. For minyans, press 7. For messages or registration, press 8. For management, press 9. For advanced Askanus keypad, enter 88 then pound. For Campaign Center, enter 4444. For official Gavhah member registration, press 0. Press star to go back.";
  const originalMain="Welcome to Gavhah and Campaign Center. For Gavhah, press 1. For Campaign Center, press 2. To create a website member account, press 8. For official Gavhah member registration, press 0. Press star to go back.";
  const items=catalogue().map(item=>({...item,
-  effectiveTts:item.path==="root"?(campaignReady?gavhahMain:originalMain):item.kind==="menu"?phonePrompt(item.path).replace(/press zero to go back/gi,"press star to go back"):item.suggestedEnglish,
+  effectiveTts:gavhahPhoneStageVoices[item.path]?.text || (item.path==="root"?(campaignReady?gavhahMain:originalMain):item.kind==="menu"?phonePrompt(item.path).replace(/press zero to go back/gi,"press star to go back"):item.suggestedEnglish),
   dynamic:item.kind!=="menu"}));
  res.json({catalogue:items,prompts:prompts.rows,
   provider: {state:installation.rows[0]?.state||"not_configured",
@@ -237,6 +239,7 @@ router.post("/admin/yemot/voice-studio/prepare-folder",requireAuth,admin,wrap(as
 
 router.post("/admin/yemot/voice-studio/:path/publish",requireAuth,admin,wrap(async(req,res)=>{
  const path=getName(req);
+ if(path==="1856"){problem(res,409,"The member ID changes for each registrant; edit this stage with dynamic {member_id} TTS instead of a static recording.");return;}
  if(!safePath(path)||!knownPath(path)){problem(res,400,"Unknown menu path");return;}
  if(req.body?.confirm!=="PUBLISH_TO_APPROVED_YEMOT_FOLDER"){
   problem(res,400,"Explicit publishing confirmation is required");return;
