@@ -31,7 +31,7 @@ a{color:#175e91}#caption{font-weight:700}.current-message{padding:14px;margin:10
 <p>אויסקלייבן אן עקסטענשאן, שרייבן דעם נוסח אדער אריינרעקארדירן א שטימע. יעדע עקסטענשאן ווערט באזונדער אפגעהיטן.</p>
 <div class="info">די פונקציעס פון די קנעפלעך בלייבן אומגעענדערט. דער עדיטאר איז פאר <b>מעניו־נוסחאות און רעקארדירונגען</b>. א רעקארדירונג ווערט נישט לייוו ביז מ'דרוקט באזונדער „פובליצירן“.</div>
 <p class="hint" id="provider"></p>
-<div class="actions"><a href="/api/admin/hotline-keypad-map">מעניו־מפתח</a> <a href="/api/admin/max/ivr-editor/voice-studio">עולם החסד SignalWire עדיטאר</a></div>
+<div class="actions"><a href="/api/admin/hotline/speech-library">אלע גערעדטע מעלדונגען — רעדאקטירן</a> <a href="/api/admin/hotline-keypad-map">מעניו־מפתח</a> <a href="/api/admin/max/ivr-editor/voice-studio">עולם החסד SignalWire עדיטאר</a></div>
 </header>
 <div class="grid">
 <section class="panel"><h2>דער מעניו־מפתח</h2><p class="hint">קלייב קודם א קנעפל פונעם הויפט־מעניו, דערנאך זיינע אונטער־קנעפלעך. <b>* = צוריק</b>.</p>
