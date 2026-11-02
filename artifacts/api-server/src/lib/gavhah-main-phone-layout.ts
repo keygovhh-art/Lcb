@@ -39,3 +39,29 @@ export const gavhahWebsitePhoneVirtualMenus = {
 } as const;
 // In the live Worker, the new main keypad maps to existing backend paths;
 // this does not delete or rename source feature routes, plans, or data.
+
+// 2026-11-02 Cloudflare v108: system center phone notifications route, shared
+// with /api/notifications and the existing public.notifications table.
+// Opening from main keypad: 77 -> 2 -> 1. No caller-ID-based authentication.
+export const gavhahTelephoneNotifications = {
+  access: ["77","2","1"],
+  centerPath:"97181",
+  menu:{
+    "1":"971811", // unread
+    "2":"971812", // all
+    "3":"971813", // mark all read, press 1 twice to confirm
+    "4":"971814", // categories 1-5
+    "5":"182", // account / profile
+    "9":"181", // original notification reader (preserved)
+  },
+  types:{
+    "1":["comment","reply"],
+    "2":["cause_support","charity_update"],
+    "3":["group_activity","project_join","volunteer_match"],
+    "4":["announcement"],
+    "5":["help_response"]
+  },
+  listKeys:{next:"1",previous:"2",relatedItem:"3",markReadDoubleConfirm:"5",center:"9",back:"*"},
+  requireVerifiedGavhahMember:true,
+  sourceOfTruth:"public.notifications",
+} as const;
