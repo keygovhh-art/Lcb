@@ -1,0 +1,41 @@
+// Gavhah homepage department order (2026-11-02).
+// The live Cloudflare Worker v104 uses these keypad aliases. Never renumber the
+// retained old submenu paths or the Olam Hachesed SignalWire hotline.
+export const gavhahHomepageHotlineDivisions = [
+ {number:1,name:"Chesed News Center",website:"/news",phonePath:"11"},
+ {number:2,name:"Askanim Discussion Center",website:"/forum",phonePath:"9702"},
+ {number:3,name:"Private Assistance",website:"/directory",phonePath:"9703"},
+ {number:4,name:"United In Kindness",website:"/united",phonePath:"9704"},
+ {number:5,name:"Olam Hachesed Communications",website:"/communications",phonePath:"159"},
+ {number:6,name:"Today's Cause",website:"/charity",phonePath:"9706"},
+ {number:7,name:"Minyan Directory",website:"/minyans",phonePath:"17"},
+ {number:8,name:"Group Center",website:"/groups",phonePath:"9708"},
+ {number:9,name:"My Askanus",website:"/my",phonePath:"12"},
+ {number:10,name:"Office Reservations",website:"/reservations",phonePath:"172",via:"77 then 1"},
+ {number:11,name:"System Center",website:"/system",phonePath:"18",via:"77 then 2"},
+ {number:12,name:"Koach Harabim",website:"/dashboard",phonePath:"19",via:"77 then 3"}
+] as const;
+export const gavhahMainPhoneShortcuts = {
+ "0": "official Gavhah member registration (old internal path 185)",
+ "77": "More departments, all remaining older contact/call/community tools",
+ "88": "advanced My Askanus keypad on Yemot only",
+ "4444": "Campaign Center, separate protected menu",
+ "*": "back"
+} as const;
+// These existing legacy paths remain reachable through the More submenu 77:
+// 77->4=13 contacts, 77->5=14 calling, 77->6=15 kindness,
+// 77->7=16 community, 77->8=17 minyans, 77->9=12 My Askanus.
+export const gavhahMorePhoneAliases = {
+ "1":"172","2":"18","3":"19","4":"13","5":"14",
+ "6":"15","7":"16","8":"17","9":"12"
+} as const;
+export const gavhahWebsitePhoneVirtualMenus = {
+ "9702":{"1":"162","2":"165","3":"166","4":"163","5":"164"},
+ "9703":{"1":"152","2":"153","3":"154","4":"151"},
+ "9704":{"1":"154","2":"152","3":"153","4":"164","5":"161"},
+ "9706":{"1":"151","2":"155","3":"154"},
+ "9708":{"1":"161","2":"167","3":"164","4":"162"},
+ "9777":gavhahMorePhoneAliases
+} as const;
+// In the live Worker, the new main keypad maps to existing backend paths;
+// this does not delete or rename source feature routes, plans, or data.
