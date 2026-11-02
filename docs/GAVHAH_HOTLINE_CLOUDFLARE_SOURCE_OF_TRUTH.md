@@ -14,7 +14,28 @@ Updated: 2026-11-02. This is the project handoff for future ChatGPT conversation
 - Neon project ID **`falling-wildflower-17519958`** (existing project/database). Do not migrate/replace it.
 - Render **is not the target**, and should remain untouched/mirror unless separately requested.
 
-## 2026-11-02 — CURRENT LIVE, Cloudflare v100: searchable spoken-message library
+## 2026-11-02 — CURRENT LIVE: Cloudflare version 104, website-ordered main menu
+
+- **Live deployed version verified**: `104`, exact ID `b883737a-663c-42c3-96ab-ec262f4f07b2`, **100%** Cloudflare Worker `gavhah-cloudflare-native` in account `b80a85f1f51f8dd32842e82afc089806`. The previous v100 is superseded, not deleted. The Neon `gavhah_yemot_call_states` table gained `gv_menu_origin` and `gv_menu_target` columns to track return from new website-order submenu aliases. **Do not redeploy older Worker build or remove these columns.**
+- **Website homepage 12 departments and main Yemot keypad** (authoritative source `artifacts/gavhah/src/pages/home.tsx`):
+  1. News / Chesed News Center — key 1 → existing original path `11`
+  2. Askanim Discussion Center — key 2 → virtual menu `9702` (original forum/creation/topic/directory paths)
+  3. Private Assistance — key 3 → virtual menu `9703` (original help request/volunteer/projects paths)
+  4. United in Kindness — key 4 → virtual menu `9704` (original projects/help/connection options)
+  5. Olam Hachesed Communications — key 5 → existing protected access gateway `159`; **Olam Chesed voice service itself remains SignalWire, not Yemot**
+  6. Today's Cause — key 6 → virtual menu `9706` (original cause/campaign paths)
+  7. Minyan Directory — key 7 → existing path `17`
+  8. Groups — key 8 → virtual menu `9708`
+  9. My Askanus — **key 9**, existing path `12` (NOT 2; belongs to Gavhah / Yemot ONLY)
+  10. Office Reservations — **77 → 1**, original path `172`
+  11. System Center — **77 → 2**, original path `18`
+  12. Koach Harabim — **77 → 3**, original path `19`
+- **No old option, plan or upgrade removed**: Extra menu `77` also exposes prior paths: `77→4` contacts `13`; `77→5` calling `14`; `77→6` kindness `15`; `77→7` community `16`; `77→8` minyans/appointments `17`; `77→9` older My Askanus `12`. The original complete `phoneTree` and Campaign Center menu are retained and not rewritten. Root shortcuts preserved: `0` official Gavhah phone member registration, `88` advanced My Askanus tools on Yemot, `4444` separate Campaign Center, `*` previous menu.
+- **Routing**: Legacy phone-tree paths are only aliased from the new top website menu; existing submenu logic and user data unchanged. The full callback now handles root digits instead of the old accelerated root selection path. The virtual submenu catalog is browsable in `/api/admin/yemot/voice-studio`. Calls that select a virtual submenu can press `*` and return to its website-order parent using `gv_menu_origin/gv_menu_target`. The old SignalWire Olam shared-IVR menu, password gate, security settings, scripts, all previous speech library, and audio functions remain present. Provider callbacks/numbers and Render unchanged.
+- **GitHub mirror**: `artifacts/api-server/src/lib/gavhah-main-phone-layout.ts` documents the mapping and retained links; `artifacts/api-server/src/routes/yemot-studio-ui.ts` now displays website-order root with 0/77/88/4444. The **full old GitHub callback source still needs to be reconciled** with the independently deployed Worker before any from-source rebuild; otherwise a rebuild could undo direct Cloudflare v104 changes.
+- **Verification limits**: Cloudflare 100% deployment and static map/route/binding checks succeeded, along with Neon schema verification. **No real complete phone call test was performed**, so do not represent 1→9/77 navigation or voice recording flows as physically tested. The virtual categories preserve old feature behaviors, including features previously identified as placeholders/roadmap; menu relabeling does not itself implement those features.
+
+## 2026-11-02 — PREVIOUS live, Cloudflare v100: searchable spoken-message library (superseded by v104)
 
 - Verified Cloudflare production Worker **version 100**, ID `1da0481c-5d78-4103-87f8-7866b42e918d`, at **100%**. Correct account `b80a85f1f51f8dd32842e82afc089806`, Worker `gavhah-cloudflare-native`.
 - New mobile administrator page: **https://gavhah-cloudflare-native.keygovhh.workers.dev/api/admin/hotline/speech-library**. It is linked from the **Yemot Voice Studio** and **Olam Chesed SignalWire Voice Studio**. Access requires authenticated `super_admin`. Its JSON list is GET `/api/admin/hotline/speech-library?data=1`; each phrase is edited with confirmed same-origin PUT `/api/admin/hotline/speech-library/:id`. The library has **168 distinct fixed source phrases**, **155 Yemot** and **13 SignalWire**, seeded in `public.gavhah_hotline_spoken_phrases`. Every phrase has independent override, activate/reset, search, provider filter and browser voice preview. The library is not a dump of phone calls and intentionally stores no per-caller transcripts, passwords, PINs, donor names, or member IDs.
