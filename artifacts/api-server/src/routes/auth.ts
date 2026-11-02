@@ -40,14 +40,14 @@ async function verifyAccount(identifier: unknown,password: unknown) {
      !identifier.trim() || !password || identifier.length>320) {
     return {error:"An account identifier and password are required",status:400 as const};
   }
-  // Real phone-registered members can enter M + the 10-digit ID
+  // Real phone-registered members can enter M + the 4-digit ID (legacy 10-digit IDs still accepted)
   // received after double-confirming their private keypad password.
   // Caller ID is not a login identity; this is the same website users table.
-  const memberNumber=/^M([0-9]{10})$/i.exec(identifier.trim());
+  const memberNumber=/^M([0-9]{4}|[0-9]{10})$/i.exec(identifier.trim());
   let user;
   if(memberNumber){
     const linked=await pool.query<{user_id:number}>(
-      "SELECT user_id FROM public.gavhah_phone_member_logins WHERE member_no=$1",
+      "SELECT user_id FROM public.gavhah_phone_member_logins WHERE member_no=$1 OR short_member_no=$1",
       [memberNumber[1]]);
     if(linked.rows[0]){
       [user]=await db.select().from(usersTable).where(eq(usersTable.id,linked.rows[0].user_id));
