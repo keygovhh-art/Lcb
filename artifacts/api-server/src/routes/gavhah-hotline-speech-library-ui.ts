@@ -30,5 +30,5 @@ $("save").onclick=()=>update(true);$("reset").onclick=()=>update(false);
 $("preview").onclick=()=>{if(!window.speechSynthesis)return showError("די נאטיווע בראַוזער־שטימע איז נישט דא.");speechSynthesis.cancel();const u=new SpeechSynthesisUtterance($("replacement").value||selected?.source_text||"");u.lang="en-US";u.rate=.9;speechSynthesis.speak(u);showError("פריוויו פונעם Android־בראוזער. די אמתע האטליין־שטימע קען אנדערש קלינגען.")};
 $("stop").onclick=()=>{if(window.speechSynthesis)speechSynthesis.cancel()};
 $("search").oninput=redraw;$("provider").onchange=redraw;
-api(endpoint).then(d=>{catalog=d.messages||[];redraw()}).catch(e=>{$("counts").textContent="די ביבליאטעק קען נישט ווערן געלאדן: "+e.message});
+api(endpoint+"?data=1").then(d=>{catalog=d.messages||[];redraw()}).catch(e=>{$("counts").textContent="די ביבליאטעק קען נישט ווערן געלאדן: "+e.message});
 </script></body></html>`;
