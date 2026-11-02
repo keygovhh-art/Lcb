@@ -91,8 +91,8 @@ export async function enrollFromKeypad(db:PoolClient,callHash:string,entered:str
  return {
   completed:true,
   userId,
-  message:"Your Gavhah membership is ready. Your four digit Gavhah ID is M "+spokenNumber(memberNo)+
-   " Write it down. I repeat it slowly, M "+spokenNumber(memberNo)+
+  message:"Your Gavhah membership is ready. Your four digit Gavhah ID is "+spokenNumber(memberNo)+
+   " Write it down. I repeat it slowly, "+spokenNumber(memberNo)+
    " Sign in with your private password. Olam Hachesed Communication requires separate approval. "
  };
 }
