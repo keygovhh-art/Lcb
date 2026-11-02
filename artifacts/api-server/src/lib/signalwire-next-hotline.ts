@@ -36,7 +36,7 @@ function responseXml(body:string){
 }
 const speak=(text:string)=>'<Say voice="man" language="en-US">'+
  xml(text.replace(/[\u0590-\u05ff\u0600-\u06ff]/g," ").slice(0,3200))+'</Say>';
-export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,sharedRootMode=false):string{
+export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,sharedRootMode=false,menuAudioUrl:string|null=null):string{
  const found=/^read=t-([\s\S]*)=(iv|ln|ar|rg)(\d+),no,(\d+),(\d+),(\d+),No,no(?:,.*)?$/.exec(reply);
  if(found){
   const [,prompt,mode,,maxDigits,,timeout]=found;
@@ -47,7 +47,7 @@ export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,s
   const seconds=Math.min(18,Math.max(5,Number(timeout)||8));
   const gather='<Gather input="dtmf" action="'+xml(actionUrl)+'" method="POST" '+
    'numDigits="'+digits+'" finishOnKey="#" timeout="'+seconds+'">'+
-   speak(prompt)+'</Gather>';
+   (menuAudioUrl&&mode==="iv"?'<Play>'+xml(menuAudioUrl)+'</Play>':speak(prompt))+'</Gather>';
   return responseXml(gather+speak("No selection received. Please call again.")+"<Hangup/>");
  }
  if(/^read=t-[\s\S]*=rr\d+,,record$/.test(reply)){
