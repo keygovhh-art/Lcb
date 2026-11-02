@@ -4,6 +4,7 @@ import {pool} from "@workspace/db";
 import {requireAuth, getCurrentSessionUser} from "../middlewares/auth";
 import {phoneTree,phonePrompt} from "./yemot-whole-platform-ivr";
 import {sectionPaths} from "../lib/yemot-section-batch1";
+import {yemotStudioUI} from "./yemot-studio-ui";
 
 // Only the already approved Gavhah/Yemot connection is used. Never change
 // the root extension, switch numbers, or use SignalWire for this feature.
@@ -66,6 +67,11 @@ function checkAudio(bytes:Buffer,mime:string){
  return false;
 }
 router.get("/admin/yemot/voice-studio",requireAuth,admin,wrap(async(_req,res)=>{
+ if(String(_req.query.data||"")!=="1"){
+  res.setHeader("Cache-Control","private, no-store");
+  res.type("text/html; charset=utf-8").send(yemotStudioUI);
+  return;
+ }
  const [prompts,installation,voiceFolder]=await Promise.all([
   pool.query("SELECT path,tts_text,mime_type,octet_length(audio_data) AS audio_size,published_path,published_at,updated_at FROM "+dbTable+" ORDER BY path"),
   pool.query("SELECT state,target_path,provider_summary->>'apiEndpoint' AS recorded_endpoint FROM public.gavhah_yemot_ivr_install WHERE id=1"),
