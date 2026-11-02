@@ -52,17 +52,18 @@ a{color:#175e91}#caption{font-weight:700}.current-message{padding:14px;margin:10
 <label for="file">ארויפלייגן א רעקארדירונג (WAV, WEBM, OGG, MP3)</label>
 <input id="file" type="file" accept="audio/wav,audio/wave,audio/webm,audio/ogg,audio/mpeg,audio/mp3">
 <div class="actions"><button id="record" type="button">רעקארדירן פונעם מייקראפאן</button><button id="stop" type="button" disabled>אפשטעלן רעקארדירונג</button></div>
-<audio controls id="player"></audio>
+<audio controls id="player"></audio><div id="voiceLabSlot"></div><div class="actions"><button id="voiceLoadSaved" type="button">עפענען די אפגעהיטענע רעקארדירונג אינעם Voice Changer</button></div>
 <div class="actions"><button class="primary" id="upload" type="button" disabled>אפהיטן רעקארדירונג אלס פריוואטע פארשלאג</button></div>
 <div id="audioState" class="info">נאך נישט אויסגעקליבן קיין רעקארדירונג.</div><div class="actions"><button id="discardAudio" class="danger" type="button">אוועקווארפן די יעצטיגע רעקארדירונג</button><button id="deleteDraft" class="danger" type="button">אויסמעקן די אפגעהיטענע רעקארדירונג</button></div>
 <div class="actions"><button id="publish" type="button" class="primary">פובליצירן די רעקארדירונג אויף ימות</button><button id="unpublish" type="button" class="danger">אראפנעמען די לייווע רעקארדירונג</button></div><div class="actions"><button id="deletePublished" class="danger" type="button">אויסמעקן דעם פובליצירטן פייל אויך ביי ימות</button></div>
 <p class="hint">„אויסמעקן אויך ביי ימות“ מעקט בלויז דעם פייל פונעם אויסגעקליבענעם קנעפל אינעם באשטעטיגטן גבהה־מידיע־פאלדער. אנדערע רעקארדירונגען און דער הויפט־Callback ווערן נישט אנגערירט.</p>
 </div><div id="status" class="status" role="status">די סיסטעם ליינט די מעניו־אינפארמאציע.</div>
 </section></div></main>
+<script src="/api/admin/voice-changer.js"></script>
 <script>
 "use strict";
 const root="/api/admin/yemot/voice-studio",el=id=>document.getElementById(id);
-let catalog=[],prompts=new Map(),selected=null,trail=[],blob=null,recorder=null,chunks=[],stream=null,objectUrl=null,busy=false,verifiedFolder=false;
+let catalog=[],prompts=new Map(),selected=null,trail=[],blob=null,recorder=null,chunks=[],stream=null,objectUrl=null,busy=false,verifiedFolder=false,voiceLab=null,voiceLabPath=null;
 const escapeNothing=s=>String(s||"");
 function message(t,bad=false){const p=el("status");p.textContent=t;p.className="status "+(bad?"error":"good")}
 function selectedApi(tail=""){return root+"/"+encodeURIComponent(selected.path)+tail}
@@ -144,6 +145,7 @@ function setPreview(src){
  if(src){el("player").src=src;el("player").load()}
 }
 function select(node){
+ if(voiceLab&&voiceLabPath!==node.path){voiceLab.clear();voiceLabPath=node.path;}
  if(recorder&&recorder.state==="recording"){message("שטעל קודם אפ די רעקארדירונג.",true);return}
  selected=node;blob=null;el("file").value="";el("editor").hidden=false;
  el("heading").textContent=(node.path==="root"?"הויפט־מעניו":"קנעפל "+(trail[trail.length-1]?.displayDigit||node.path.slice(-1))+" — "+node.label);
@@ -214,14 +216,14 @@ el("deletePublished").onclick=async()=>{
  const path=selected.path;const result=await execute(()=>request(root+"/"+encodeURIComponent(path)+"/delete-published","POST",{confirm:"DELETE_PUBLISHED_GAVHAH_AUDIO"}),"די פובליצירטע רעקארדירונג איז אויסגעמעקט ביי ימות.");
  if(result)await refresh();
 };
-el("file").onchange=()=>{const f=el("file").files[0];if(!f)return;if(f.size>3900000){message("די פייל איז צו גרויס. מאַקסימום בערך 4 MB.",true);return}blob=f;setPreview(URL.createObjectURL(blob));objectUrl=el("player").src;el("audioState").textContent="אויסגעקליבן: "+f.name+". דרוק אפהיטן כדי צו שיקן צום סערווער.";updateAudioControls()};
+el("file").onchange=()=>{const f=el("file").files[0];if(!f)return;if(f.size>3900000){message("די פייל איז צו גרויס. מאַקסימום בערך 4 MB.",true);return}blob=f;voiceLab?.setSource(blob);setPreview(URL.createObjectURL(blob));objectUrl=el("player").src;el("audioState").textContent="אויסגעקליבן: "+f.name+". דרוק אפהיטן כדי צו שיקן צום סערווער.";updateAudioControls()};
 el("record").onclick=async()=>{if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){message("דער בראוזער שטיצט נישט מייקראפאן־רעקארדירונג. קלייב אן א פייל.",true);return}
  try{
   stream=await navigator.mediaDevices.getUserMedia({audio:true});
   const type=["audio/webm;codecs=opus","audio/webm","audio/ogg"].find(x=>MediaRecorder.isTypeSupported(x));
   recorder=new MediaRecorder(stream,type?{mimeType:type}:undefined);chunks=[];
   recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
-  recorder.onstop=()=>{blob=new Blob(chunks,{type:recorder.mimeType||"audio/webm"});stream?.getTracks().forEach(t=>t.stop());stream=null;setPreview(URL.createObjectURL(blob));objectUrl=el("player").src;el("audioState").textContent="רעקארדירונג גרייט צום אפהיטן ("+Math.round(blob.size/1024)+" KB).";updateAudioControls()};
+  recorder.onstop=()=>{blob=new Blob(chunks,{type:recorder.mimeType||"audio/webm"});voiceLab?.setSource(blob);stream?.getTracks().forEach(t=>t.stop());stream=null;setPreview(URL.createObjectURL(blob));objectUrl=el("player").src;el("audioState").textContent="רעקארדירונג גרייט צום אפהיטן ("+Math.round(blob.size/1024)+" KB).";updateAudioControls()};
   recorder.start();message("דער מייקראפאן רעקארדירט יעצט.");updateAudioControls();
  }catch(e){stream?.getTracks().forEach(t=>t.stop());message("מייקראפאן נישט צוטריטליך: "+e.message,true)}
 };
@@ -242,6 +244,20 @@ el("unpublish").onclick=async()=>{
  if(!confirm("צוריקשטעלן TTS פאר דער עקסטענשאן? די אלטע רעקארדירונג ווערט נישט אויסגעמעקט."))return;
  const path=selected.path;const result=await execute(()=>request(root+"/"+encodeURIComponent(path)+"/published","DELETE",{confirm:"USE_TTS_INSTEAD_OF_AUDIO"}),"TTS איז ווידער אקטיוו. די רעקארדירונג איז נישט אויסגעמעקט.");
  if(result)await refresh();
+};
+voiceLab=window.GavhahVoiceChanger?.mount(el("voiceLabSlot"),{
+ getPath:()=>selected?.path||"root",
+ save:async function(file){
+  if(!selected)throw Error("קלייב אן עקסטענשאן");
+  const path=selected.path;
+  const response=await request(root+"/"+encodeURIComponent(path)+"/audio","POST",{mime:"audio/wav",base64:await asBase64(file)});
+  if(response?.ok){await refresh();return true}
+  return false;
+ }
+});
+el("voiceLoadSaved").onclick=async()=>{
+ if(!selected||!prompts.get(selected.path)?.audio_size)return message("פאר דעם קנעפל איז נישטא קיין אפגעהיטענע רעקארדירונג.",true);
+ try{const response=await fetch(selectedApi("/audio"),{credentials:"same-origin"});if(!response.ok)throw Error("נישט צוטריטליך");voiceLab?.setSource(await response.blob());message("די אפגעהיטענע רעקארדירונג איז גרייט פאר קול־פארענדערונג.")}catch(e){message(e.message,true)}
 };
 refresh().then(()=>message("קלייב אן עקסטענשאן און עדיטיר די נוסחאות אדער רעקארדירונגען.")).catch(e=>message(e.message,true));
 </script></body></html>`;
