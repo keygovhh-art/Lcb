@@ -2,9 +2,9 @@ import { randomInt } from "node:crypto";
 import type { PoolClient } from "pg";
 import { hashPassword, verifyPassword } from "./crypto";
 
-// Gavhah website member self-enrollment through keypad only.
-// Account uses SAME public.users as the website and gets a separate
-// M + 10-digit login identifier, never a trusted caller ID.
+// Gavhah member self-enrollment through keypad only.
+// Account uses SAME public.users as the other Gavhah sign-in systems and gets a
+// public four-digit member ID; caller ID is not trusted authentication.
 // Never log, echo, email or save the raw numeric password.
 export type PhoneEnrollmentResult = {
   message: string;
@@ -32,8 +32,8 @@ async function signupRateGate(db:PoolClient,callHash:string):Promise<boolean>{
   return r.rows[0].one_hour<200 && r.rows[0].one_day<1500 && r.rows[0].this_call<1;
 }
 function spokenNumber(id:string){
-  const spaced=id.split("").join(" ");
-  return "M "+spaced+". I repeat. M "+spaced+".";
+  const spaced=id.split("").join(". ");
+  return spaced+".";
 }
 export async function pendingPhoneSignup(db:PoolClient,callHash:string){
  const r=await db.query(
@@ -71,12 +71,12 @@ export async function enrollFromKeypad(db:PoolClient,callHash:string,entered:str
  }
  if(!await signupRateGate(db,callHash)){
   await cancelPhoneSignup(db,callHash);
-  return {completed:false,message:"Phone registration is temporarily busy. Please try again later or register on the website. "};
+  return {completed:false,message:"Phone registration is temporarily busy. Please try again later. "};
  }
  let memberNo="";
  for(let i=0;i<6;i++){
-  const candidate=String(randomInt(1000000000,10000000000));
-  const exists=await db.query("SELECT 1 FROM public.gavhah_phone_member_logins WHERE member_no=$1",[candidate]);
+  const candidate=String(randomInt(1000,10000));
+  const exists=await db.query("SELECT 1 FROM public.gavhah_phone_member_logins WHERE member_no=$1 OR short_member_no=$1",[candidate]);
   if(!exists.rowCount){memberNo=candidate;break;}
  }
  if(!memberNo)throw new Error("Cannot allocate new phone member number");
@@ -85,14 +85,14 @@ export async function enrollFromKeypad(db:PoolClient,callHash:string,entered:str
   " VALUES($1,$2,NULL,NULL,$3,'member','active','en') RETURNING id",
   ["Gavhah Phone Member "+memberNo.slice(-4),"Member "+memberNo,pending.password_hash]);
  const userId=created.rows[0].id;
- await db.query("INSERT INTO public.gavhah_phone_member_logins(member_no,user_id) VALUES($1,$2)",[memberNo,userId]);
+ await db.query("INSERT INTO public.gavhah_phone_member_logins(member_no,user_id,short_member_no) VALUES($1,$2,$1)",[memberNo,userId]);
  await db.query("INSERT INTO public.gavhah_phone_signup_events(call_hash,user_id) VALUES($1,$2)",[callHash,userId]);
  await cancelPhoneSignup(db,callHash);
  return {
   completed:true,
   userId,
-  message:"Your Gavhah website member account is created. Your website login ID is "+spokenNumber(memberNo)+
-   " Write it down. On the website choose Login and enter your member ID beginning with M and the private password you selected. "+
-   "You can edit your account name on the website. This is a Gavhah account. Campaign Center requires its own separate verified signup. "
+  message:"Your Gavhah membership is ready. Your four digit Gavhah ID is M "+spokenNumber(memberNo)+
+   " Write it down. I repeat it slowly, M "+spokenNumber(memberNo)+
+   " Sign in with your private password. Olam Hachesed Communication requires separate approval. "
  };
 }
