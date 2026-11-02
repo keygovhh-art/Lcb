@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "@workspace/db";
 import {phonePromptOverride} from "../routes/yemot-voice-studio";
+import {applyFixedPhonePhraseEdits} from "../routes/gavhah-hotline-speech-library";
 import { logger } from "./logger";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
@@ -785,6 +786,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     if(custom.ttsText)spoken=custom.ttsText;
     publishedAudio=custom.audioPath;
   }
+  spoken=await applyFixedPhonePhraseEdits(client,fromShared?"signalwire":"yemot",spoken);
   await client.query("COMMIT");
   if(goToProviderManagement){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/0");
