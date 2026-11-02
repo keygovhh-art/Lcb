@@ -50,7 +50,7 @@ function catalogue(){
  const known=new Set([...sectionPaths,"155","166","167","173","111","1121","1122","1123","1124","1125","1126","1127","1128","1129","113","114","115","121","122","123","124","125","126","185"]);
  return items.map(item=>({...item,
   suggestedEnglish:item.kind==="menu"?phonePrompt(item.path==="root"?"":item.path):
-   "You selected "+item.label+". Press zero to go back.",
+   "You selected "+item.label+". Press star to go back.",
   capability:item.kind==="menu"?"navigation":
   known.has(item.path)?"api_implemented_not_phone_verified":"roadmap_only"}));
 }
@@ -73,7 +73,7 @@ router.get("/admin/yemot/voice-studio",requireAuth,admin,wrap(async(_req,res)=>{
   return;
  }
  const [prompts,installation,voiceFolder]=await Promise.all([
-  pool.query("SELECT path,tts_text,mime_type,octet_length(audio_data) AS audio_size,published_path,published_at,updated_at FROM "+dbTable+" ORDER BY path"),
+  pool.query("SELECT path,tts_text,tts_muted,mime_type,octet_length(audio_data) AS audio_size,published_path,published_at,updated_at FROM "+dbTable+" ORDER BY path"),
   pool.query("SELECT state,target_path,provider_summary->>'apiEndpoint' AS recorded_endpoint FROM public.gavhah_yemot_ivr_install WHERE id=1"),
   pool.query("SELECT media_folder FROM public.gavhah_yemot_voice_storage WHERE id=1")
  ]);
@@ -99,7 +99,24 @@ router.put("/admin/yemot/voice-studio/:path",requireAuth,admin,wrap(async(req,re
  const q=await pool.query(
   "INSERT INTO "+dbTable+"(path,tts_text) VALUES($1,$2) ON CONFLICT(path) DO UPDATE SET tts_text=EXCLUDED.tts_text,updated_at=now() RETURNING path,tts_text,updated_at",
   [path,normalized]);
+ await pool.query("UPDATE "+dbTable+" SET tts_muted=false WHERE path=$1",[path]);
  res.json({ok:true,prompt:q.rows[0],note:"TTS applies on the connected Yemot API callback; no provider menu has been altered."});
+}));
+// Reset only a custom TTS override. The automatic menu text becomes active again.
+router.delete("/admin/yemot/voice-studio/:path/tts",requireAuth,admin,wrap(async(req,res)=>{
+ const path=getName(req);
+ if(!safePath(path)||!knownPath(path)){problem(res,400,"Unknown telephone menu path");return;}
+ if(req.body?.confirm!=="RESET_CUSTOM_TTS"){problem(res,400,"Confirm TTS reset");return;}
+ await pool.query("UPDATE "+dbTable+" SET tts_text='',tts_muted=false,updated_at=now() WHERE path=$1",[path]);
+ res.json({ok:true,defaultRestored:true});
+}));
+// Explicitly silence the spoken TTS of one extension, preserving its recordings.
+router.put("/admin/yemot/voice-studio/:path/tts-muted",requireAuth,admin,wrap(async(req,res)=>{
+ const path=getName(req);
+ if(!safePath(path)||!knownPath(path)){problem(res,400,"Unknown telephone menu path");return;}
+ if(typeof req.body?.muted!=="boolean"||req.body?.confirm!=="SET_TTS_SILENCE"){problem(res,400,"Explicit TTS confirmation required");return;}
+ await pool.query("INSERT INTO "+dbTable+"(path,tts_muted) VALUES($1,$2) ON CONFLICT(path) DO UPDATE SET tts_muted=EXCLUDED.tts_muted,updated_at=now()",[path,req.body.muted]);
+ res.json({ok:true,ttsMuted:req.body.muted,recordingsUnchanged:true});
 }));
 router.post("/admin/yemot/voice-studio/:path/audio",requireAuth,admin,wrap(async(req,res)=>{
  const path=getName(req);
@@ -128,6 +145,14 @@ router.get("/admin/yemot/voice-studio/:path/audio",requireAuth,admin,wrap(async(
  res.setHeader("Cache-Control","private, no-store");
  res.setHeader("X-Content-Type-Options","nosniff");
  res.end(item.audio_data);
+}));
+// Permanently delete only the stored draft in Neon. Published audio remains untouched.
+router.delete("/admin/yemot/voice-studio/:path/audio",requireAuth,admin,wrap(async(req,res)=>{
+ const path=getName(req);
+ if(!safePath(path)||!knownPath(path)){problem(res,400,"Unknown telephone menu path");return;}
+ if(req.body?.confirm!=="DELETE_SAVED_DRAFT_AUDIO"){problem(res,400,"Confirm draft audio deletion");return;}
+ const q=await pool.query("UPDATE "+dbTable+" SET audio_data=NULL,mime_type=NULL,updated_at=now() WHERE path=$1 AND audio_data IS NOT NULL RETURNING path",[path]);
+ res.json({ok:true,draftDeleted:!!q.rowCount,publishedAudioUnchanged:true});
 }));
 const providerRequest=async(token:string,operation:string,values:Record<string,string>)=>{
  const body=new URLSearchParams({token,...values});
@@ -260,17 +285,52 @@ router.delete("/admin/yemot/voice-studio/:path/published",requireAuth,admin,wrap
  res.json({ok:true,ttsFallback:true,providerFilesPreserved:true});
 }));
 
-export async function phonePromptOverride(path:string):Promise<{ttsText:string|null;audioPath:string|null}>{
- const key=path||"root";
- if(!safePath(key))return {ttsText:null,audioPath:null};
+
+// Physically delete a recorded WAV only if it is one of our own generated
+// recordings inside our separately approved Yemot media-only folder.
+router.post("/admin/yemot/voice-studio/:path/delete-published",requireAuth,admin,wrap(async(req,res)=>{
+ const path=getName(req);
+ if(!safePath(path)||!knownPath(path)){problem(res,400,"Unknown menu path");return;}
+ if(req.body?.confirm!=="DELETE_PUBLISHED_GAVHAH_AUDIO"){problem(res,400,"Confirm deletion of published recording");return;}
+ const [q,folder,global]=await Promise.all([
+  pool.query("SELECT published_path FROM "+dbTable+" WHERE path=$1",[path]),
+  pool.query("SELECT media_folder FROM public.gavhah_yemot_voice_storage WHERE id=1"),
+  pool.query("SELECT token_nonce,token_ciphertext,token_tag,enabled,last_verified_at FROM public.gavhah_yemot_global WHERE id=1")
+ ]);
+ const published=String(q.rows[0]?.published_path||"");
+ const dir=String(folder.rows[0]?.media_folder||"");
+ if(!/^\/[0-9]{2,3}$/.test(dir) || !/^ivr2:\/[0-9]{2,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(published) || !published.startsWith("ivr2:"+dir+"/")){
+  problem(res,409,"Only explicitly published Gavhah-generated media in the approved folder can be deleted");return;
+ }
+ if(!global.rows[0]?.enabled||!global.rows[0]?.last_verified_at){problem(res,409,"Yemot central connection unavailable");return;}
+ // Re-check recorded path and disconnect it from any callers before deleting the file.
+ const saved=await pool.query("UPDATE "+dbTable+" SET published_path=NULL,published_at=NULL,updated_at=now() WHERE path=$1 AND published_path=$2 RETURNING path",[path,published]);
+ if(!saved.rowCount){problem(res,409,"Published recording changed; nothing deleted");return;}
  try{
-  const q=await pool.query("SELECT tts_text,published_path FROM "+dbTable+" WHERE path=$1",[key]);
+  const token=decrypt(global.rows[0]);
+  const result=await providerRequest(token,"FileAction",{action:"delete",what:published});
+  const remaining=await providerRequest(token,"GetIVR2Dir",{path:"ivr2:"+dir});
+  const files=Array.isArray(remaining.files)?remaining.files:null;
+  const found=files?.some(x=>String(typeof x==="string"?x:(x as {name?:string;path?:string;fileName?:string}).name||(x as {path?:string}).path||(x as {fileName?:string}).fileName||"").includes(published.split("/").pop()||""));
+  if(!files||found)throw Error("The provider did not independently verify the file is gone");
+  res.json({ok:true,deletedFromYemot:true,noLongerActive:true});
+ }catch(e){
+  // Never advertise deletion on an unverifiable provider operation.
+  res.status(502).json({ok:false,noLongerActive:true,deletedFromYemotUnconfirmed:true,
+   error:"The active recording was disabled, but deleting the provider file could not be verified. The extension and other recordings were not touched."});
+ }
+}));
+export async function phonePromptOverride(path:string):Promise<{ttsText:string|null;audioPath:string|null;ttsMuted:boolean}>{
+ const key=path||"root";
+ if(!safePath(key))return {ttsText:null,audioPath:null,ttsMuted:false};
+ try{
+  const q=await pool.query("SELECT tts_text,tts_muted,published_path FROM "+dbTable+" WHERE path=$1",[key]);
   const row=q.rows[0];
   const audioPath=String(row?.published_path||"");
-  return {ttsText:typeof row?.tts_text==="string"&&row.tts_text.trim()?row.tts_text:null,
+  return {ttsText:typeof row?.tts_text==="string"&&row.tts_text.trim()?row.tts_text:null,ttsMuted:row?.tts_muted===true,
    audioPath:/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)?audioPath:null};
  }catch(e){
-  if((e as {code?:string})?.code==="42P01")return {ttsText:null,audioPath:null};
+  if((e as {code?:string})?.code==="42P01")return {ttsText:null,audioPath:null,ttsMuted:false};
   throw e;
  }
 }
