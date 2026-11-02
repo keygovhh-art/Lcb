@@ -23,7 +23,7 @@ button.danger{color:#993b3b;border-color:#e0bdbd;background:#fff8f8}
 .good{background:#edf8f1;color:#176237}.error{background:#fff0f0;color:#a22929}
 audio{width:100%;margin:11px 0}label{display:block;font-weight:650;margin:12px 0 5px}
 .divider{border:0;border-top:1px solid #e1e9f1;margin:17px 0}
-a{color:#175e91}#caption{font-weight:700}
+a{color:#175e91}#caption{font-weight:700}.current-message{padding:14px;margin:10px 0;border:1px solid #c2d4e5;background:#f8fbfe;border-radius:11px;font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;direction:ltr;text-align:left;min-height:52px}
 @media(max-width:650px){.grid{grid-template-columns:1fr}#choices{max-height:none}header{padding:16px}h1{font-size:23px}}
 </style></head><body>
 <main>
@@ -43,10 +43,10 @@ a{color:#175e91}#caption{font-weight:700}
 <section class="panel"><h2 id="heading">קלייב אן עקסטענשאן</h2>
 <p id="details" class="hint"></p>
 <div id="editor" hidden>
-<label for="tts">נוסח וואס דער האטליין זאל זאגן</label>
+<h2>וואס דער האטליין זאגט יעצט</h2><div id="ttsOrigin" class="info">ליינט דעם יעצטיגן נוסח...</div><div id="nowText" class="current-message" dir="auto"></div><p class="hint">דינאמישע מעלדונגען קענען זיך טוישן לויטן רופער. דא זעסטו דעם מעניו־נוסח אדער דעם אייגענעם טעקסט.</p><label for="tts">רעדאקטיר דעם TTS־נוסח</label>
 <textarea id="tts" maxlength="950" spellcheck="true" placeholder="Write the English telephone announcement here."></textarea>
 <p class="hint">דער יעצטיגער TTS־מאָטאר פון ימות שטיצט אין דעם עדיטאר דערווייל נאר ענגלישע נוסחאות. דעם אידישן טעקסט אין די מעניו־קעפלעך קען מען זען, אבער דער TTS־אפלאוד וואלט נישט אנגענומען אידיש.</p>
-<div class="actions"><button class="primary" id="saveTts" type="button">אפהיטן דעם נוסח</button><button id="suggest" type="button">ניצן דעם פארגעשלאגענעם נוסח</button></div>
+<div class="actions"><button class="primary" id="saveTts" type="button">אפהיטן דעם נוסח</button><button id="suggest" type="button">לייג אריין דעם איינגעבויטן נוסח</button></div><div class="actions"><button id="resetTts" class="danger" type="button">אויסמעקן מיין נוסח — צוריק צום איינגעבויטן</button><button id="muteTts" class="danger" type="button">אינגאנצן שטיל מאכן דעם TTS</button></div><p class="hint">אויסמעקן דעם אייגענעם נוסח שטעלט צוריק דעם איינגעבויטן. שטיל מאכן גיט גאר קיין TTS; א לייווע רעקארדירונג דארף מען באזונדער אראפנעמען.</p>
 <hr class="divider">
 <h2>רעקארדירונג פאר דער עקסטענשאן</h2>
 <label for="file">ארויפלייגן א רעקארדירונג (WAV, WEBM, OGG, MP3)</label>
@@ -54,9 +54,9 @@ a{color:#175e91}#caption{font-weight:700}
 <div class="actions"><button id="record" type="button">רעקארדירן פונעם מייקראפאן</button><button id="stop" type="button" disabled>אפשטעלן רעקארדירונג</button></div>
 <audio controls id="player"></audio>
 <div class="actions"><button class="primary" id="upload" type="button" disabled>אפהיטן רעקארדירונג אלס פריוואטע פארשלאג</button></div>
-<div id="audioState" class="info">נאך נישט אויסגעקליבן קיין רעקארדירונג.</div>
-<div class="actions"><button id="publish" type="button" class="primary">פובליצירן די רעקארדירונג אויף ימות</button><button id="unpublish" type="button" class="danger">צוריקשטעלן TTS אנשטאט רעקארדירונג</button></div>
-<p class="hint">אויפן אמתן ימות ווערט נאר פובליצירט נאכן פארזיכטיגן באשטעטיגונג. די סיסטעם טאר נישט אויסמעקן אלטע רעקארדירונגען אדער ענדערן דעם הויפט־Callback.</p>
+<div id="audioState" class="info">נאך נישט אויסגעקליבן קיין רעקארדירונג.</div><div class="actions"><button id="discardAudio" class="danger" type="button">אוועקווארפן די יעצטיגע רעקארדירונג</button><button id="deleteDraft" class="danger" type="button">אויסמעקן די אפגעהיטענע רעקארדירונג</button></div>
+<div class="actions"><button id="publish" type="button" class="primary">פובליצירן די רעקארדירונג אויף ימות</button><button id="unpublish" type="button" class="danger">אראפנעמען די לייווע רעקארדירונג</button></div><div class="actions"><button id="deletePublished" class="danger" type="button">אויסמעקן דעם פובליצירטן פייל אויך ביי ימות</button></div>
+<p class="hint">„אויסמעקן אויך ביי ימות“ מעקט בלויז דעם פייל פונעם אויסגעקליבענעם קנעפל אינעם באשטעטיגטן גבהה־מידיע־פאלדער. אנדערע רעקארדירונגען און דער הויפט־Callback ווערן נישט אנגערירט.</p>
 </div><div id="status" class="status" role="status">די סיסטעם ליינט די מעניו־אינפארמאציע.</div>
 </section></div></main>
 <script>
