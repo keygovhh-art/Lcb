@@ -26,7 +26,7 @@ const categories:Record<string,string>={
 };
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124"]);
-const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for hotline management";
+const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press zero for official Gavhah member registration. Press star to return.";
 const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
 const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
@@ -37,7 +37,15 @@ export function safeVoice(input:unknown,max=430){
  return plain.replace(/[&=,;#.\-]/g," ").replace(/[^\x20-\x7e]/g," ")
   .replace(/\s+/g," ").trim().slice(0,max);
 }
-function voice(s:string){return "t-"+safeVoice(s,430);}
+function gvPhoneSpokenWording(text:string):string{
+ return text.replace(/\b(?:website|web[- ]?site)\s+(?:hotline\s+)?(?:configuration|config|settings)\b/gi,"Gavhah hotline")
+  .replace(/\bon\s+the\s+(?:website|web[- ]?site)\b/gi,"in your Gavhah account")
+  .replace(/\bweb[\s-]?(?:sites?|pages?)\b/gi,"Gavhah account")
+  .replace(/\b(?:Cloudflare|SignalWire|Yemot|Render|API|callback|configuration)\b/gi,"the hotline")
+  .replace(/\bpress\s+(?:zero|0)\s+to\s+(?:go\s+back|return)\b/gi,"press star to go back")
+  .replace(/\s{2,}/g," ").trim();
+}
+function voice(s:string){return "t-"+safeVoice(gvPhoneSpokenWording(s),430);}
 function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null){
  if(mode==="record"){
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
