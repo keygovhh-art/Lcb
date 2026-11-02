@@ -21,20 +21,24 @@ function gvNotificationFilter2026(path){
 }
 function gvNotificationHelp2026(path){
  if(gvNotificationSubmenus2026[path])return gvNotificationSubmenus2026[path];
- if(gvNotificationIsList2026(path))return "Press 1 for the next notification. Press 2 for the previous. Press 5 twice to mark the current notification read. Press 9 for the notifications center. Press star to go back.";
+ if(gvNotificationIsList2026(path))return "Press 1 for the next notification. Press 2 for the previous. Press 3 to hear the related Gavhah item. Press 5 twice to mark the current notification read. Press 9 for the notifications center. Press star to go back.";
  return "Press star to return.";
+}
+async function gvNotificationMenuCustom2026(path){
+ const custom=await phonePromptOverride(path);
+ return custom.ttsMuted?"":(custom.ttsText||gvNotificationHelp2026(path));
 }
 async function gvNotificationRead2026(client,path,userId,page,confirmId){
  if(path==="97181"){
   const r=await client.query("SELECT count(*)::int AS total,count(*) FILTER(WHERE NOT is_read)::int AS unread FROM public.notifications WHERE user_id=$1",[userId]);
   const {total=0,unread=0}=r.rows[0]||{};
-  return "Your Gavhah notifications. "+unread+" unread and "+total+" total. "+gvNotificationHelp2026(path);
+  return "Your Gavhah notifications. "+unread+" unread and "+total+" total. "+await gvNotificationMenuCustom2026(path);
  }
  if(path==="971813"){
   const r=await client.query("SELECT count(*)::int AS unread FROM public.notifications WHERE user_id=$1 AND is_read=false",[userId]);
-  return (r.rows[0]?.unread||0)+" unread notifications. "+(confirmId===-99?"Confirmation pending. Press 1 again to mark all as read. ":"")+gvNotificationHelp2026(path);
+  return (r.rows[0]?.unread||0)+" unread notifications. "+(confirmId===-99?"Confirmation pending. Press 1 again to mark all as read. ":"")+await gvNotificationMenuCustom2026(path);
  }
- if(path==="971814")return gvNotificationHelp2026(path);
+ if(path==="971814")return await gvNotificationMenuCustom2026(path);
  if(!gvNotificationIsList2026(path))return "Choose an available notifications option. Press star to go back.";
  const filter=gvNotificationFilter2026(path);
  const pageNo=Math.max(0,Math.min(99,Number(page)||0));
@@ -44,7 +48,8 @@ async function gvNotificationRead2026(client,path,userId,page,confirmId){
  if(!row)return "There are no more notifications in this list. Press 2 for previous. Press 9 for notifications center.";
  const readable=gvPhoneNoSiteWords2026(String(row.message||"").replace(/<[^>]*>/g," ").replace(/https?:\/\/\S+/g," ").slice(0,320));
  const date=row.created_at?new Date(row.created_at).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}):"";
- const prompt="Notification "+(pageNo+1)+". "+(row.is_read?"Already read. ":"Unread. ")+(date?"Date "+date+". ":"")+(readable||"An activity notice is available.")+". ";
+ const safeReadable=/[\u0590-\u05ff]/u.test(readable)?"A notification with Yiddish text is available in Gavhah.":readable;
+ const prompt="Notification "+(pageNo+1)+". "+(row.is_read?"Already read. ":"Unread. ")+(date?"Date "+date+". ":"")+(safeReadable||"An activity notice is available.")+". ";
  const linked= typeof row.link_url==="string" && row.link_url.startsWith("/") ? " This notice has a related Gavhah item. " : "";
- return prompt+linked+(confirmId===row.id?"Press 5 once more to confirm marking this notification read. ":"")+gvNotificationHelp2026(path);
+ return prompt+linked+(confirmId===row.id?"Press 5 once more to confirm marking this notification read. ":"")+await gvNotificationMenuCustom2026(path);
 }
