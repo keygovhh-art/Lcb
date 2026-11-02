@@ -10,7 +10,7 @@ const presets=[
 {id:"deep",name:"טיפער, רואיגער קול",pitch:.90,hp:76,lp:4900,bass:2,mid:1,output:.90},
 {id:"warm",name:"ווארעמער און נאטירליך",pitch:.96,hp:78,lp:5400,bass:2.5,mid:-.5,output:.94},
 {id:"broadcast",name:"ראדיא־פראפעסיאנעל",pitch:.94,hp:100,lp:6200,bass:1.2,mid:2.3,output:.89},
-{id:"clear",name:"קלאר און פארזיכערט",pitch:1.04,hp:120,lp:6900,bass:-1,mid:3,output:.87},
+{id:"clear",name:"קלאר און פארזיכערט — בעזר ה׳",pitch:1.04,hp:120,lp:6900,bass:-1,mid:3,output:.87},
 {id:"different",name:"באדייטנד אנדערער קלאנג",pitch:.84,hp:92,lp:4400,bass:-.5,mid:1.5,output:.88}
 ];
 const style="margin:12px 0;padding:14px;background:#f4f9fc;border:1px solid #c7d8e7;border-radius:12px";
