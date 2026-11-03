@@ -1,7 +1,7 @@
 import {Router} from "express";
 import {pool} from "@workspace/db";
 import {getSessionUserId,requireAuth,requireAdmin,getCurrentSessionUser} from "../middlewares/auth";
-import {placeOlamMaxOutboundCall,signalwireMaxReadyForUser,endOlamMaxOutboundCall} from "../lib/signalwire-max-outbound";
+import {placeOlamMaxOutboundCall,signalwireMaxReadyForUser,signalwireAlreadyConnected,endOlamMaxOutboundCall} from "../lib/signalwire-max-outbound";
 import {verifyMaxCampaignDialClaim} from "./communications-connect";
 
 const router=Router();
@@ -44,7 +44,7 @@ router.get("/askanus/max/calling/preferences",async(req,res,next)=>{
   res.set("Cache-Control","private,no-store").json({
    lastCaseId:r?.last_case_id??null,holdMode:r?.hold_mode??"gavhah",
    holdMessage:r?.hold_message??"",holdAudioPath:r?.hold_audio_path??"",
-   providerReady:await signalwireMaxReadyForUser(userId),recordingEnabled:false,maxParticipants:3,
+   signalwireConnected:await signalwireAlreadyConnected(),providerReady:await signalwireMaxReadyForUser(userId),recordingEnabled:false,maxParticipants:3,
    keypad:{beforeCall:"1 אויסקלייבן; 2 סקיפן; 3 אפציעס",
     duringCall:"1 ענטפערן; 2 האלטן/צוריק; 3 העכער; 4 שטילער; 5 מעניו; 6 דריי־וועג; 0 הילף",
     fiveMenu:"1 אראפהאקן; 2 רופן נאך איינעם"}
@@ -246,6 +246,7 @@ router.get("/askanus/max/calling/agent-status",requireAuth,async(req,res,next)=>
   res.set("Cache-Control","private,no-store").json({
    callbackVerified:!!row?.verified_at&&!row?.revoked_at,
    phoneEnding:row?.revoked_at?null:row?.ending??null,
+   signalwireConnected:await signalwireAlreadyConnected(),
    signalwireReady:await signalwireMaxReadyForUser(uid)
   });
  }catch(e){next(e)}
