@@ -6,7 +6,7 @@ const router=Router();
 router.use("/askanus/max/calling",requireAuth);
 const idok=(v:unknown)=>Number.isSafeInteger(Number(v))&&Number(v)>0;
 const str=(v:unknown,max:number)=>String(v??"").trim().slice(0,max);
-const outcomes=new Set(["","spoke","no_answer","callback","not_interested","do_not_call","other"]);
+const outcomes=new Set(["","spoke","donation","no_answer","callback","not_interested","do_not_call","other"]);
 const moods=new Set(["","friendly","neutral","busy","uncomfortable","uninterested","other"]);
 function normalizeNanp(value:unknown):string|null{
  const raw=String(value??"");
@@ -95,6 +95,12 @@ router.post("/askanus/max/calling/sessions",async(req,res,next)=>{
   if(caseId!==null&&!await ownedCase(userId,caseId)){
    res.status(404).json({error:"Project not found"});return;
   }
+  // The number must be blocked even if the caller typed it manually without selecting a contact.
+  const blocked=await pool.query(
+   "SELECT 1 FROM public.communication_contacts WHERE user_id=$1 AND do_not_call=true "+
+   "AND right(regexp_replace(phone,'[^0-9]','','g'),10)=$2 LIMIT 1",
+   [userId,number.slice(-10)]);
+  if(blocked.rowCount){res.status(409).json({error:"Number is on your Do Not Call list"});return;}
   if(contactId!==null){
    const c=await ownedContact(userId,contactId);
    if(!c){res.status(404).json({error:"Contact not found"});return;}
@@ -137,6 +143,11 @@ router.patch("/askanus/max/calling/sessions/:id",async(req,res,next)=>{
    await pool.query("INSERT INTO public.max_call_preferences(user_id,last_case_id) VALUES($1,$2) "+
     "ON CONFLICT(user_id) DO UPDATE SET last_case_id=EXCLUDED.last_case_id,updated_at=now()",
     [userId,Number(caseId)]);
+  }
+  if(outcome==="do_not_call"&&old.contact_id){
+   await pool.query(
+    "UPDATE public.communication_contacts SET do_not_call=true,opt_out_reason=$1,updated_at=now() "+
+    "WHERE id=$2 AND user_id=$3",[note||"Asked not to be called",old.contact_id,userId]);
   }
   res.json(map(r.rows[0]));
  }catch(e){next(e);}
