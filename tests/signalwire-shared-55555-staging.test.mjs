@@ -9,11 +9,11 @@ const routes=read('artifacts/api-server/src/routes/index.ts');
 const settings=read('artifacts/api-server/src/routes/signalwire-credentials.ts');
 const page=read('artifacts/gavhah/src/pages/admin/signalwire.tsx');
 
-test('New staged shared handler never modifies SignalWire number or the existing route',()=>{
+test('Verified live handler never modifies SignalWire number or the existing route',()=>{
  assert.match(shared,/SHARED_E164="\+16056558080"/);
  assert.match(shared,/SHARED_SIGNALWIRE_URL=/);
  assert.match(shared,/sharedRouteReady\(route\)/);
- assert.match(shared,/cutover_enabled!==false/);
+ assert.match(shared,/cutover_enabled!==true/);
  assert.match(shared,/original_voice_url/);
  assert.match(shared,/originalSystemRedirectXml/);
  assert.match(shared,/SHARED_SIGNALWIRE_URL/);
