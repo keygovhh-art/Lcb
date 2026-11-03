@@ -6,6 +6,7 @@ import { logger } from "./logger";
 import {noteYemotReturnCalls} from "./signalwire-max-return-calls";
 import {nextAskanimPhoneState,askanimPhoneSpeech} from "./gavhah-askanim-phone-flow";
 import {readForumVoiceDraft} from "./yemot-forum-voice";
+import {nextPhone3State,phone3WantsRecording,phone3Speech} from "./gavhah-phone3-community-flow";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
@@ -350,7 +351,7 @@ async function tryFastYemotRoot(req:Request,res:Response,tree:Record<string,Tree
  if(!req.path.endsWith("/yemot/ivr"))return false;
  const digit=req.body?.iv0??req.query.iv0;
  const input=digit==null?null:String(digit);
- if(input==="2")return false; // Forum needs dynamic state, not static MAX menu.
+ if(input==="2"||input==="3")return false; // Virtual menus 2 and 3 use dynamic validated state.
   if(input!==null&&!/^[1-9]$/.test(input))return false;
  const call=sourceCallId(req);
  const supplied=String(req.body?.entryKey??req.query.entryKey??"");
@@ -448,7 +449,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   let manualFlash=s.action_flash||"";
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";}
-  const inputName=(replyMode||path==="970211"&&readForumVoiceDraft(manualFlash)?.stage==="record"?"rr":path==="125"?"ln":path==="185"?"rg":(path==="115"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(replyMode||path==="970211"&&readForumVoiceDraft(manualFlash)?.stage==="record"||phone3WantsRecording(path,manualFlash)?"rr":path==="125"?"ln":path==="185"?"rg":(path==="115"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
   let goToProviderManagement=false;
@@ -458,7 +459,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    // Existing Yemot management is usually extension /0 (admin_login).
    // Preserve it on root 0, and keep nested 0 returning to the API root.
    // Moving to /0 DOES NOT bypass the provider admin password.
-   if(digit==="0" && path!=="" && !fromShared){
+   if((digit==="0"||digit==="*") && path.startsWith("9703") && !fromShared){
+    // Correct virtual-menu ancestry (9703 -> root, 97031 -> 9703, 970311/312 -> 97031).
+    path=path==="9703"?"":path==="97031"?"9703":"97031";
+    manualFlash="";page=0;position=0;chunk=0;confirmId=null;feedback="";
+   }else if(digit==="0" && path!=="" && !fromShared){
     if(path==="185")await cancelPhoneSignup(client,callHash);
     path=path.length>2?path.slice(0,-1):(from4444?"2":"");
     position=0;chunk=0;page=0;confirmId=null;
@@ -487,6 +492,12 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     }else feedback="Press 1 to request Olam Chesed SignalWire access. ";
    }else if(!from4444 && !fromNext && ready4444 && path==="" && digit==="4444"){
     goToCampaignExtension=true;
+   }else if(!from4444 && directGavhah && path==="" && digit==="3"){
+    path="9703";page=0;manualFlash="";
+   }else if(path.startsWith("9703")){
+    const next=await nextPhone3State(client,{path,page,flash:manualFlash,feedback},digit,userId,
+       !!userId&&await memberAllowed(client,{...s,member_id:userId}),callHash);
+    path=next.path;page=next.page;manualFlash=next.flash;feedback=next.feedback;
    }else if(!from4444 && directGavhah && path==="" && digit==="2"){
     path="9702";page=0;manualFlash="";
    }else if(path.startsWith("9702")){
@@ -742,6 +753,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }
   let mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",spoken=feedback;
   let askanimMedia:string[]=[];let askanimActive=false;
+  let projectMenuMedia:string[]=[];let projectMenuActive=false;
   if(reportMode){
    spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
   }else if(replyMode){
@@ -749,6 +761,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(actionsOpen){
    const articleId=await currentNewsId(path,position,confirmId);
    spoken+=await actionsMenu(client,articleId,userId,await memberAllowed(client,{...s,member_id:userId}));
+  }else if(path.startsWith("9703")){
+   const projectMenu=await phone3Speech(client,path,page,manualFlash,feedback);
+   projectMenuActive=true;projectMenuMedia=projectMenu.audio;spoken=projectMenu.spoken;
+   mode=projectMenu.mode==="record"?"record":projectMenu.mode==="listen"?"news":"menu";
   }else if(path.startsWith("9702")){
    const forum=await askanimPhoneSpeech(client,path,page,manualFlash,feedback);
    askanimActive=true;askanimMedia=forum.media;spoken=forum.message;
@@ -844,7 +860,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    if(!path && directGavhah && !from4444)mode="root";
    spoken+=menuPrompt(path,tree,ready4444,fromNext,fromShared);
   }
-  if(path!=="141"&&!path.startsWith("9702"))manualFlash="";
+  if(path!=="141"&&!path.startsWith("9702")&&!path.startsWith("9703"))manualFlash="";
   await client.query("UPDATE public.gavhah_yemot_call_states "+
    "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,action_flash=$15,updated_at=now() "+
    "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,manualFlash]);
@@ -875,7 +891,9 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(goToCampaignExtension){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/4444");
   }else{
-   if(askanimActive&&mode!=="record")sendAskanimRead(res,step,askanimMedia,spoken,mode==="news");
+   if(projectMenuActive&&mode!=="record")
+     sendAskanimRead(res,step,projectMenuMedia,spoken,mode==="news");
+   else if(askanimActive&&mode!=="record")sendAskanimRead(res,step,askanimMedia,spoken,mode==="news");
    else sendRead(res,spoken,step,mode,publishedAudio);
   }
  }catch(err){await client.query("ROLLBACK").catch(()=>{});throw err;}
