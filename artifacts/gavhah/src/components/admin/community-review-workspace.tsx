@@ -40,7 +40,7 @@ export function CommunityReviewWorkspace(){
  },[]);
  useEffect(()=>{void refresh()},[refresh]);
  const setField=(id:number,name:"title"|"description"|"note",v:string)=>
-  setEntry(old=>({...old,[id]:{...{title:"",description:"",note:"",...old[id]},[name]:v}}));
+  setEntry(old=>({...old,[id]:{title:old[id]?.title||"",description:old[id]?.description||"",note:old[id]?.note||"",[name]:v}}));
  async function reviewProject(p:Project,decision:"approved"|"rejected"){
   const field=entry[p.id]||{title:"",description:"",note:""};
   if(!window.confirm(decision==="approved"?"באשטעטיגן און פובליצירן דעם פראיעקט?":"אפווארפן דעם פראיעקט?"))return;
