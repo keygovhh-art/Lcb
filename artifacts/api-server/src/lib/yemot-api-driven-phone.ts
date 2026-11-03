@@ -9,7 +9,7 @@ import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } fro
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
 import {sectionPaths,sectionRequiresLogin,pagedSections,readPhoneSection,currentPhoneActionId,confirmPhoneAction,publicIdSections,readPhonePublicById} from "./yemot-section-batch1";
 import {validRecordedPath} from "./yemot-news-engagement";
-import {forumDialPath,forumOptionsPath,forumRecordPath,forumVoiceIntro,forumVoiceOptions,forumVoiceReview,phoneForumItem,publishPhoneForumRecording} from "./gavhah-forum-phone-voice";
+import {forumDialPath,forumOptionsPath,forumRecordPath,forumVoiceIntro,forumVoiceOptions,forumVoiceReview,phoneForumItem,publishPhoneForumRecording,forumRecordTarget,isOwnedForumRecording,isForumRecordingFile} from "./gavhah-forum-phone-voice";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -49,10 +49,15 @@ function gvPhoneSpokenWording(text:string):string{
   .replace(/\s{2,}/g," ").trim();
 }
 function voice(s:string){return "t-"+safeVoice(gvPhoneSpokenWording(s),430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"forum"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null){
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"forum"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null,appendRecording=false){
  if(mode==="record"){
+  // For forum posts: unique caller-bound Yemot WAV, optional supported append.
+  // Other recording flows keep their old provider parameters untouched.
+  const forumPath=audioPath&&isForumRecordingFile(audioPath)?audioPath:null;
+  const config=forumPath?",/GavhahForumVoice,"+forumPath.split("/").pop()!.replace(/\\.wav$/,"")+
+   ",no,yes,"+(appendRecording?"yes":"no")+",1,300":"";
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
-   .send("read="+voice(prompt)+"=rr"+step+",,record");return;
+   .send("read="+voice(prompt)+"=rr"+step+",,record"+config);return;
  }
  const name=(mode==="code"?"ln":mode==="article"?"ar":mode==="registration"?"rg":"iv")+step;
  // Yehmot's documented read order is:
@@ -480,10 +485,16 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     else feedback="To record a message, press 1. ";
    }else if(!fromShared&&path===forumRecordPath){
     const draft=manualFlash.startsWith("forum-draft:")?validRecordedPath(manualFlash.slice(12)):null;
-    if(!draft){
+    const appending=manualFlash.startsWith("forum-append:")?validRecordedPath(manualFlash.slice(13)):null;
+    if(appending){
+     manualFlash="forum-draft:"+appending;
+     feedback=digit===appending?"Your additional recording was saved. ":"The additional recording was not confirmed; your previous take remains. ";
+    }else if(!draft){
      const pathFromProvider=validRecordedPath(digit);
-     if(pathFromProvider){manualFlash="forum-draft:"+pathFromProvider;feedback="Your recording was received. ";}
-     else feedback="The recording was not completed. Please record after the beep and press pound. ";
+     if(pathFromProvider&&isOwnedForumRecording(pathFromProvider,callHash,step)){
+      manualFlash="forum-draft:"+pathFromProvider;
+      feedback="Your recording was received. ";
+     }else feedback="The recording was not completed. Please record after the beep and press pound. ";
     }else if(digit==="1"){previewForumRecording=draft;}
     else if(digit==="2"){manualFlash="";feedback="Record your message again. ";}
     else if(digit==="3"){manualFlash="";path=forumOptionsPath;feedback="The draft was cancelled and was not published. ";}
@@ -495,7 +506,9 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
       feedback=published.message+" ";
       if(published.ok){manualFlash="";path=forumDialPath;page=0;}
      }
-    }else feedback="Choose 1 to listen, 2 to record again, 3 to cancel, or 4 to publish. ";
+    }else if(digit==="5"){
+     manualFlash="forum-append:"+draft;feedback="Continue recording after the beep and press pound when finished. ";
+    }else feedback="Choose 1 to listen, 2 to record again, 3 to cancel, 4 to publish, or 5 to continue recording. ";
    }else if(path==="159" && !fromShared && !from4444){
     // Separate SignalWire permission: provider verification is NEVER inferred
     // from caller ID or from an ordinary Gavhah/MAX account.
@@ -773,7 +786,9 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    spoken+=forumVoiceOptions;
   }else if(path===forumRecordPath&&!fromShared){
    const hasDraft=manualFlash.startsWith("forum-draft:")&&!!validRecordedPath(manualFlash.slice(12));
-   if(!hasDraft){mode="record";spoken+="Record your message after the beep. Press pound when finished. ";}
+   const appending=manualFlash.startsWith("forum-append:")&&!!validRecordedPath(manualFlash.slice(13));
+   if(appending){mode="record";spoken+="Continue recording after the beep. Press pound when finished. ";}
+   else if(!hasDraft){mode="record";spoken+="Record your message after the beep. Press pound when finished. ";}
    else {spoken+=forumVoiceReview; if(previewForumRecording)mode="forum";}
   }else if(reportMode){
    spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
@@ -904,7 +919,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(goToCampaignExtension){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/4444");
   }else{
-   sendRead(res,spoken,step,mode,previewForumRecording||publishedAudio);
+   const appending=path===forumRecordPath&&manualFlash.startsWith("forum-append:");
+   const activeTarget=path===forumRecordPath&&mode==="record"
+    ?(appending?manualFlash.slice(13):forumRecordTarget(callHash,step)):null;
+   sendRead(res,spoken,step,mode,activeTarget||previewForumRecording||publishedAudio,appending);
   }
  }catch(err){await client.query("ROLLBACK").catch(()=>{});throw err;}
  finally{client.release();}
