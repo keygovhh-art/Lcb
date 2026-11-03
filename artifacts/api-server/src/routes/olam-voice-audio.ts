@@ -6,8 +6,7 @@ import {getCurrentSessionUser} from "../middlewares/auth";
 const router=Router();
 const table="public.gavhah_olam_voice_recordings";
 const root="https://gavhah-cloudflare-native.keygovhh.workers.dev";
-const routePath=(v:string|string[])=>Array.isArray(v)?(v.length===1?v[0]:""):v;
-const validPath=(p:string)=>(p==="root"||p==="retry")||/^[1-9][0-9]{0,11}$/.test(p);
+const validPath=(p:string)=>p==="root"||p==="retry"||/^[1-9][0-9]{0,11}$/.test(p);
 const urlSign=(path:string,version:string)=>{
  const secret=process.env.SIGNALWIRE_SIGNING_KEY||"";
  if(secret.length<24)throw Error("SignalWire voice signing key unavailable");
@@ -37,7 +36,7 @@ async function requireVoiceAdmin(req:Request,res:Response,next:NextFunction){
  }catch(e){next(e)}
 }
 function check(req:Request,res:Response):boolean{
- if(validPath(routePath(req.params.path)))return true;
+ if(typeof req.params.path==="string"&&validPath(req.params.path))return true;
  res.status(404).json({error:"Invalid extension"});return false;
 }
 function wrap(f:(req:Request,res:Response)=>Promise<void>){
@@ -79,7 +78,9 @@ router.delete("/admin/max/ivr-editor/voice-audio/:path",requireVoiceAdmin,wrap(a
  await pool.query("DELETE FROM "+table+" WHERE path=$1",[req.params.path]);res.json({ok:true,deleted:true});
 }));
 router.get("/signalwire/olam-voice/:path/:version",wrap(async(req,res)=>{
- const path=routePath(req.params.path),version=routePath(req.params.version),sig=String(req.query.sig||"");
+ const path=typeof req.params.path==="string"?req.params.path:"";
+ const version=typeof req.params.version==="string"?req.params.version:"";
+ const sig=String(req.query.sig||"");
  if(!validPath(path)||!/^[1-9][0-9]{0,18}$/.test(version)||!/^[a-f0-9]{64}$/.test(sig)){res.sendStatus(404);return;}
  const expected=urlSign(path,version);
  if(!timingSafeEqual(Buffer.from(sig,"hex"),Buffer.from(expected,"hex"))){res.sendStatus(404);return;}
