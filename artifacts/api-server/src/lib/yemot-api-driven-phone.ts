@@ -3,6 +3,7 @@ import { pool } from "@workspace/db";
 import {phonePromptOverride} from "../routes/yemot-voice-studio";
 import {applyFixedPhonePhraseEdits} from "../routes/gavhah-hotline-speech-library";
 import { logger } from "./logger";
+import {noteYemotReturnCalls} from "./signalwire-max-return-calls";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
@@ -814,6 +815,17 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     const custom=await phonePromptOverride(path);
     if(custom.ttsText)spoken=custom.ttsText;
     publishedAudio=custom.audioPath;
+  }
+  if(process.env.OLAM_RETURN_CALL_ROUTING_ENABLED==="true"&&
+     (fromShared||!fromNext)&&userId&&
+     await memberAllowed(client,{...s,member_id:userId})){
+   await client.query(
+    "INSERT INTO public.max_agent_activity(user_id,channel,last_seen_at) "+
+    "VALUES($1,$2,now()) ON CONFLICT(user_id) DO UPDATE SET "+
+    "channel=EXCLUDED.channel,last_seen_at=now()",
+    [userId,fromShared?"olam":"yemot"]);
+   // A verified Yemot member hears a single notice on their next menu response.
+   if(!fromShared&&mode!=="record")spoken=(await noteYemotReturnCalls(client,userId))+spoken;
   }
   spoken=await applyFixedPhonePhraseEdits(client,fromShared?"signalwire":"yemot",spoken);
   await client.query("COMMIT");
