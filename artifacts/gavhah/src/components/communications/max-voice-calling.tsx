@@ -4,6 +4,7 @@ import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Textarea} from "@/components/ui/textarea";
 import {MaxCampaignAssignments,type PreparedCampaignCall} from "@/components/communications/max-campaign-assignments";
+import {MaxReturnCallsPanel} from "@/components/communications/max-return-calls-panel";
 
 type Project={id:number;title:string};
 type Person={id:number;name:string;phone:string;doNotCall:boolean};
@@ -185,6 +186,7 @@ export function MaxVoiceCalling({cases,selectedContact}:{
   {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
   {message&&<p role="status" className="text-sm font-semibold">{message}</p>}
   <MaxCampaignAssignments onPrepared={p=>{void selectAssignedCall(p)}}/>
+  <MaxReturnCallsPanel/>
   {callingMode&&<div className="rounded-lg border p-3 space-y-2">
    <strong>Calling Mode — {callingMode.campaignTitle}</strong>
    <p>{callingMode.lead.displayName}: <span dir="ltr">{callingMode.lead.phone}</span></p>
