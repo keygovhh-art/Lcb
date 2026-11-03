@@ -73,6 +73,28 @@ async function cfg():Promise<Config|null>{
   return {space,project,token,from:source,signingKey,publicBase:base};
  }catch{return null}
 }
+/** Read one previously owner-authorized voicemail only; never expose bearer token. */
+export async function fetchOlamVoicemailAudio(recordingId:string):Promise<Buffer>{
+ if(!/^[a-zA-Z0-9_.:-]{8,160}$/.test(recordingId))
+  throw Object.assign(Error("Invalid voicemail identifier"),{status:400});
+ const row=await storedConnection();
+ if(!row?.verified_at)throw Object.assign(Error("SignalWire disconnected"),{status:503});
+ const space=row.space_hostname,project=row.project_id;
+ if(!/^[a-z0-9-]+\.signalwire\.com$/.test(space)||!uuid.test(project))
+  throw Object.assign(Error("Invalid saved project"),{status:503});
+ const url="https://"+space+"/api/laml/2010-04-01/Accounts/"+project+
+  "/Recordings/"+encodeURIComponent(recordingId)+".wav";
+ const response=await fetch(url,{headers:{Authorization:"Basic "+
+  Buffer.from(project+":"+unseal(row)).toString("base64")},
+  redirect:"error",cache:"no-store",signal:AbortSignal.timeout(10000)});
+ if(!response.ok)throw Object.assign(Error("Voicemail unavailable from SignalWire"),{status:502});
+ if(Number(response.headers.get("content-length")||0)>12000000)
+  throw Object.assign(Error("Voicemail too large"),{status:413});
+ const data=Buffer.from(await response.arrayBuffer());
+ if(data.length>12000000||data.length<44||data.toString("ascii",0,4)!=="RIFF")
+  throw Object.assign(Error("Invalid voice message from provider"),{status:502});
+ return data;
+}
 function callUrl(c:Config,path:string){
  return "https://"+c.space+"/api/laml/2010-04-01/Accounts/"+encodeURIComponent(c.project)+path;
 }
