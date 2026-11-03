@@ -8,6 +8,19 @@ export const forumRecordPath="970211";
 export const forumVoiceIntro="To hear discussions, stay on the line. For other options, press 1.";
 export const forumVoiceOptions="To record a message, press 1.";
 export const forumVoiceReview="Press 1 to listen to your recording, 2 to record it again, 3 to cancel, or 4 to publish immediately. Press zero to go back.";
+// Dedicated, per-call private capture name. Prevents one caller publishing a
+// guessed WAV from another Yemot folder or member's session.
+const forumRecordingDirectory="/GavhahForumVoice";
+export function forumRecordTarget(callHash:string,step:number):string{
+ const h=createHash("sha256").update("gavhah-forum-voice-v1|"+callHash+"|"+step).digest("hex").slice(0,32);
+ return "ivr2:"+forumRecordingDirectory+"/gvf_"+h+".wav";
+}
+export function isOwnedForumRecording(path:string,callHash:string,step:number):boolean{
+ return path===forumRecordTarget(callHash,step);
+}
+export function isForumRecordingFile(path:string):boolean{
+ return /^ivr2:\/GavhahForumVoice\/gvf_[a-f0-9]{32}\.wav$/.test(path);
+}
 export const forumVoiceTitle="שמועס פונעם גבהה־ליין";
 export const forumVoiceContent="🎙️ שמועס אויפן ליין — דרוקט שפילן כדי צו הערן די רעקארדירונג.";
 
@@ -36,7 +49,7 @@ export async function publishPhoneForumRecording(client:PoolClient,opts:{
  memberId:number;callHash:string;recordingPath:string;
 }):Promise<{ok:boolean;message:string;discussionId?:number}>{
  const valid=validRecordedPath(opts.recordingPath);
- if(!valid)return {ok:false,message:"The recording could not be verified. Please record it again."};
+ if(!valid||!isForumRecordingFile(valid))return {ok:false,message:"The recording could not be verified. Please record it again."};
  const verified=await client.query<{id:number}>(
   "SELECT id FROM public.users WHERE id=$1 AND status='active'",[opts.memberId]);
  if(!verified.rowCount)return {ok:false,message:"Sign in to your own Gavhah account before publishing."};
