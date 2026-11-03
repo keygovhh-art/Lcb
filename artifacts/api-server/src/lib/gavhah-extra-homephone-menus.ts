@@ -5,12 +5,13 @@ const gvDirectExtraMenu2026={
 };
 async function gvMyConnectionCases2026(client,userId,onlyPending,page){
  const r=await client.query(
-  "SELECT id,message::jsonb->>'stage' AS stage,message::jsonb->'approvals' AS approvals,message::jsonb->>'requesterUserId' AS requester_id,message::jsonb->>'volunteerUserId' AS volunteer_id FROM public.support_messages "+
+  "SELECT id,subject,message::jsonb->>'stage' AS stage,message::jsonb->'approvals' AS approvals,message::jsonb->>'requesterUserId' AS requester_id,message::jsonb->>'volunteerUserId' AS volunteer_id FROM public.support_messages "+
   "WHERE type='__member_connection_meta__' AND (message::jsonb->>'requesterUserId'=$1 OR message::jsonb->>'volunteerUserId'=$1) "+
   "ORDER BY id DESC LIMIT 150",[String(userId)]);
  const seen=new Set(),items=[];
  for(const x of r.rows){
-  let caseNo=Number(String((await Promise.resolve(x.id)))); // display record index only; not secret
+  const caseNo=Number(String(x.subject||'').match(/^support:(\d+)$/)?.[1]);
+  if(!Number.isSafeInteger(caseNo)||caseNo<=0)continue;
   const k=x.requester_id===String(userId)?"requester":"volunteer";
   if(seen.has(caseNo))continue;seen.add(caseNo);
   const status=String(x.stage||"pending").replace(/_/g," ");
