@@ -32,3 +32,7 @@ CREATE TABLE IF NOT EXISTS public.max_call_sessions(
 CREATE INDEX IF NOT EXISTS max_call_sessions_owner_created_idx ON public.max_call_sessions(user_id,created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS max_call_sessions_provider_id_unique ON public.max_call_sessions(provider,provider_call_id) WHERE provider_call_id IS NOT NULL;
 COMMENT ON TABLE public.max_call_sessions IS 'Status prepared means call intent only, not an actual telephone call. Real duration/direction require verified provider callbacks.';
+-- Hard prevent two simultaneous billable calls from one verified agent account.
+CREATE UNIQUE INDEX IF NOT EXISTS max_call_sessions_one_live_per_agent_idx
+ ON public.max_call_sessions(user_id)
+ WHERE status IN ('initiating','ringing','in_progress');
