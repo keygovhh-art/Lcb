@@ -12,7 +12,6 @@ export const phoneTree: Record<string,Item> = {
     "1":group("News and updates — wait for all updates, press 1 for options",{
       "1":leaf("All updates, newest first","/news"),
       "3":leaf("Important and critical news","/news"),
-      "4":leaf("Featured updates","/news"),
       "5":leaf("Read an update by its article number","/news/:id")
     }),
     "2":group("My Askanus and MAX",{
