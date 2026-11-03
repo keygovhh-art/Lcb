@@ -52,6 +52,7 @@ export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,s
   const first=(menuAudioUrl&&mode==="iv"?'<Play>'+xml(menuAudioUrl)+'</Play>':speak(prompt));
   if(olamFourSecondRetries){
    const retry=retryAudioUrl?'<Play>'+xml(retryAudioUrl)+'</Play>':
+     menuAudioUrl&&mode==="iv"?'<Play>'+xml(menuAudioUrl)+'</Play>':
      speak("Please enter your selection again.");
    return responseXml(buildOlamTwoAttemptGather(actionUrl,digits,first,retry));
   }
