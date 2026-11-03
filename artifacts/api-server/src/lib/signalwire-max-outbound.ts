@@ -1,11 +1,12 @@
-import {createHmac,timingSafeEqual} from "node:crypto";
+import {createHmac,createDecipheriv,timingSafeEqual} from "node:crypto";
 import type {Request,Response} from "express";
 import {pool} from "@workspace/db";
 import {checkSignalWireSignature} from "./signalwire-next-hotline";
 
 /**
- * Olam Chesed Communication ONLY. This does not reuse the Gavhah replacement
- * telephone project's verified API key and does not touch Yemot or 4444.
+ * Olam Chesed Communication ONLY. Uses the owner's already verified and
+ * encrypted SignalWire project stored in Neon, rather than asking for a new
+ * SignalWire connection. Does not change Yemot, 4444, or live provider routes.
  * All billable calls require explicit provider credentials, verified agent
  * callback numbers and a live membership / opt-out / country check.
  * Telephone flow: desk click -> verified agent's phone rings -> on pickup,
@@ -21,22 +22,56 @@ const e164=/^\+1[2-9]\d{2}[2-9]\d{6}$/;
 const sid=/^[a-zA-Z0-9_.:-]{8,160}$/;
 const esc=(s:string)=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;")
  .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
-function cfg():Config|null{
+type SavedSignalWire={
+ space_hostname:string;project_id:string;token_nonce:string;
+ token_ciphertext:string;token_tag:string;verified_at:Date|null;
+ requested_number:string|null;audit_state:string|null;
+};
+const storedAAD=Buffer.from("gavhah:signalwire:replacement:v1");
+async function storedConnection():Promise<SavedSignalWire|null>{
+ const r=await pool.query<SavedSignalWire>(
+  "SELECT c.space_hostname,c.project_id,c.token_nonce,c.token_ciphertext,"+
+  "c.token_tag,c.verified_at,rt.requested_number,rt.audit_state "+
+  "FROM public.gavhah_signalwire_credentials c "+
+  "LEFT JOIN public.gavhah_signalwire_shared_route rt ON rt.id=1 "+
+  "WHERE c.id=1"
+ );
+ return r.rows[0]||null;
+}
+/** Connected to SignalWire ≠ outbound dialing fully enabled. */
+export async function signalwireAlreadyConnected():Promise<boolean>{
+ try{return !!(await storedConnection())?.verified_at}catch{return false}
+}
+function unseal(row:SavedSignalWire){
+ const raw=String(process.env.YEMOT_ENCRYPTION_KEY||"");
+ const key=Buffer.from(raw,"base64");
+ if(key.length!==32||key.toString("base64")!==raw)throw Error("Existing SignalWire encryption key missing");
+ const decipher=createDecipheriv("aes-256-gcm",key,Buffer.from(row.token_nonce,"base64"));
+ decipher.setAAD(storedAAD);
+ decipher.setAuthTag(Buffer.from(row.token_tag,"base64"));
+ return Buffer.concat([decipher.update(Buffer.from(row.token_ciphertext,"base64")),decipher.final()]).toString("utf8");
+}
+async function cfg():Promise<Config|null>{
+ // This is a NEW OUTBOUND BILLING activation switch, NOT a request to
+ // reconnect SignalWire. Connection and verified credentials already exist.
  if(process.env.OLAM_SIGNALWIRE_CALLING_ENABLED!=="true")return null;
- const space=String(process.env.OLAM_SIGNALWIRE_SPACE||"").toLowerCase();
- const project=String(process.env.OLAM_SIGNALWIRE_PROJECT_ID||"");
- const token=String(process.env.OLAM_SIGNALWIRE_API_TOKEN||"");
- const from=String(process.env.OLAM_SIGNALWIRE_FROM||"");
- const signingKey=String(process.env.OLAM_SIGNALWIRE_SIGNING_KEY||"");
- const base=String(process.env.OLAM_SIGNALWIRE_CALLBACK_BASE||"");
+ const row=await storedConnection();
+ if(!row?.verified_at||row.audit_state!=="verified_compatibility_voice_url")return null;
+ const space=String(row.space_hostname||"").toLowerCase();
+ const project=String(row.project_id||"");
+ const from=String(row.requested_number||"").replace(/\D/g,"");
+ const source=from.length===11&&from[0]==="1"?"+"+from:"+1"+from;
+ const signingKey=String(process.env.SIGNALWIRE_SIGNING_KEY||"");
+ const base=process.env.CF_WORKER_RUNTIME==="1"
+   ?"https://gavhah-cloudflare-native.keygovhh.workers.dev"
+   :"https://gavhah.onrender.com";
  if(!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.signalwire\.com$/.test(space)||
-    !uuid.test(project)||token.length<24||!e164.test(from)||signingKey.length<32)return null;
+    !uuid.test(project)||!e164.test(source)||signingKey.length<32)return null;
  try{
-  const u=new URL(base);
-  if(u.protocol!=="https:"||u.username||u.password||u.search||u.hash||
-     !["gavhah-cloudflare-native.keygovhh.workers.dev","gavhah.onrender.com"].includes(u.hostname))return null;
-  return {space,project,token,from,signingKey,publicBase:u.origin};
- }catch{return null;}
+  const token=unseal(row);
+  if(token.length<12)return null;
+  return {space,project,token,from:source,signingKey,publicBase:base};
+ }catch{return null}
 }
 function callUrl(c:Config,path:string){
  return "https://"+c.space+"/api/laml/2010-04-01/Accounts/"+encodeURIComponent(c.project)+path;
@@ -72,7 +107,7 @@ async function agent(userId:number){
  return r.rows[0]?.phone_e164||null;
 }
 export async function signalwireMaxReadyForUser(userId:number):Promise<boolean>{
- if(!cfg())return false;
+ if(!await cfg())return false;
  try{return !!await agent(userId)}catch{return false}
 }
 type CallRow={
@@ -82,7 +117,7 @@ type CallRow={
 };
 export async function placeOlamMaxOutboundCall(userId:number,sessionId:string,
  authorizeCampaign:(uid:number,cid:string,contact:string)=>Promise<{phone:string;authorized:boolean}>){
- const c=cfg();
+ const c=await cfg();
  if(!c)throw Object.assign(Error("The dedicated Olam SignalWire calling account is not active"),{status:503});
  if(!/^\d{1,18}$/.test(sessionId))throw Object.assign(Error("Invalid prepared call"),{status:400});
  const target=await pool.query<CallRow>(
@@ -155,7 +190,7 @@ export async function placeOlamMaxOutboundCall(userId:number,sessionId:string,
   recordingEnabled:false,message:"SignalWire is calling your verified phone. The donor will dial when you answer."};
 }
 export async function endOlamMaxOutboundCall(userId:number,sessionId:string){
- const c=cfg();
+ const c=await cfg();
  if(!c)throw Object.assign(Error("SignalWire MAX calling is not active"),{status:503});
  if(!/^\d{1,18}$/.test(sessionId))throw Object.assign(Error("Invalid session"),{status:400});
  const r=await pool.query<{status:string;provider_call_id:string|null}>(
@@ -184,7 +219,7 @@ export async function endOlamMaxOutboundCall(userId:number,sessionId:string){
  return {hangupRequested:true,confirmedByProvider:true,recordingEnabled:false};
 }
 async function verifiedWebhook(req:Request,res:Response,part:"bridge"|"agent"|"donor"){
- const c=cfg();
+ const c=await cfg();
  if(!c){res.sendStatus(503);return null;}
  const id=String(req.params.id||"");
  const mac=String(req.query.mac||"");
