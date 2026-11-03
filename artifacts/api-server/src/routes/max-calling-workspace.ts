@@ -1,7 +1,7 @@
 import {Router} from "express";
 import {pool} from "@workspace/db";
 import {getSessionUserId,requireAuth,requireAdmin,getCurrentSessionUser} from "../middlewares/auth";
-import {placeOlamMaxOutboundCall,signalwireMaxReadyForUser} from "../lib/signalwire-max-outbound";
+import {placeOlamMaxOutboundCall,signalwireMaxReadyForUser,endOlamMaxOutboundCall} from "../lib/signalwire-max-outbound";
 import {verifyMaxCampaignDialClaim} from "./communications-connect";
 
 const router=Router();
@@ -178,8 +178,20 @@ router.post("/askanus/max/calling/sessions/:id/dial",requireAuth,async(req,res,n
   next(e);
  }
 });
-router.post("/askanus/max/calling/sessions/:id/control",requireAuth,(_req,res)=>{
- res.status(503).json({error:"Live hold, incoming waiting and conference control require a real verified active call.",maxParticipants:3});
+router.post("/askanus/max/calling/sessions/:id/control",requireAuth,async(req,res,next)=>{
+ try{
+  if(req.body?.action!=="hangup"){
+   res.status(503).json({error:"Live hold, waiting call and conference controls are not activated.",maxParticipants:3});return;
+  }
+  const result=await endOlamMaxOutboundCall(getSessionUserId(req)!,String(req.params.id||""));
+  res.set("Cache-Control","private,no-store").json(result);
+ }catch(e){
+  const code=(e as any)?.status;
+  if(typeof code==="number"&&code>=400&&code<=503){
+   res.status(code).json({error:(e as Error).message});return;
+  }
+  next(e);
+ }
 });
 
 // Superadmin attests the callback phone has been independently verified.
