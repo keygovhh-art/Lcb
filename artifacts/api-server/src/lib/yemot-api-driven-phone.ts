@@ -8,6 +8,8 @@ import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
 import {sectionPaths,sectionRequiresLogin,pagedSections,readPhoneSection,currentPhoneActionId,confirmPhoneAction,publicIdSections,readPhonePublicById} from "./yemot-section-batch1";
+import {validRecordedPath} from "./yemot-news-engagement";
+import {forumDialPath,forumOptionsPath,forumRecordPath,forumVoiceIntro,forumVoiceOptions,forumVoiceReview,phoneForumItem,publishPhoneForumRecording} from "./gavhah-forum-phone-voice";
 
 // ONE provider API bridge. All IVR paths, identities, and records are owned by
 // Gavhah and Neon. No separate provider-side submenus, caller-ID login or
@@ -47,7 +49,7 @@ function gvPhoneSpokenWording(text:string):string{
   .replace(/\s{2,}/g," ").trim();
 }
 function voice(s:string){return "t-"+safeVoice(gvPhoneSpokenWording(s),430);}
-function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null){
+function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"news"|"forum"|"code"|"article"|"record"|"registration"="menu",audioPath:string|null=null){
  if(mode==="record"){
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
    .send("read="+voice(prompt)+"=rr"+step+",,record");return;
@@ -64,11 +66,18 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  ? [name,"no","16","1","18","No","no"]
  : mode==="article"
  ? [name,"no","8","1","8","No","no"]
- : mode==="news"
+ : mode==="news"||mode==="forum"
  ? [name,"no","1","0","7","No","no","no","","0123456789","1","Ok","None"]
  : mode==="root"
  ? [name,"no","4","1","8","No","no"]
  : [name,"no","1","1","8","No","no"];
+ if(mode==="forum"&&audioPath&&validRecordedPath(audioPath)){
+  // In Yemot, id_list_message plays the saved WAV before the following keypad read.
+  const source="f-"+audioPath.slice(5).replace(/\.wav$/i,"");
+  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
+   .send("id_list_message="+source+"&read="+voice(prompt)+"="+opts.join(","));
+  return;
+ }
  const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
   ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
  const backHint=step>0&&mode!=="root"&&!/press zero to (go back|return)/i.test(prompt)?" To go back one menu, press zero.":"";
@@ -77,6 +86,9 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
 }
 function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fromNext=false,fromShared=false){
+ if(path===forumDialPath)return forumVoiceIntro;
+ if(path===forumOptionsPath)return forumVoiceOptions;
+ if(path===forumRecordPath)return forumVoiceReview;
  let nodes=tree,current:TreeNode|undefined;
  for(const d of path){current=nodes[d];if(!current)return root;nodes=current.children||{};}
  if(!path)return fromShared?sharedSignalwireRoot:fromNext?nextHotlineRoot:ready4444?gavhahRoot:root;
@@ -367,7 +379,7 @@ async function tryFastYemotRoot(req:Request,res:Response,tree:Record<string,Tree
    "SELECT i.callback_hash,i.state,g.enabled,g.last_verified_at,i.provider_summary #>> '{campaign4444,state}' AS campaign_state "+
    "FROM public.gavhah_yemot_ivr_install i JOIN public.gavhah_yemot_global g ON g.id=1 WHERE i.id=1"+
   "), allowed AS ("+
-   "SELECT CASE WHEN campaign_state='live' THEN '1'||$2 ELSE $2 END AS target_path FROM cfg "+
+   "SELECT CASE WHEN campaign_state='live' AND $2='2' THEN '9702' WHEN campaign_state='live' THEN '1'||$2 ELSE $2 END AS target_path FROM cfg "+
    "WHERE enabled=true AND last_verified_at IS NOT NULL AND state IN ('installing','live') AND callback_hash=$3 "+
    "AND (CASE WHEN campaign_state='live' THEN $2=ANY(ARRAY['1','2','3','4','5','6','7','8','9']) ELSE $2=ANY(ARRAY['1','2']) END)"+
   "), changed AS ("+
@@ -437,9 +449,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   let manualFlash=s.action_flash||"";
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";}
-  const inputName=(replyMode?"rr":path==="125"?"ln":path==="185"?"rg":(path==="115"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const pendingForumVoice=manualFlash.startsWith("forum-draft:")?validRecordedPath(manualFlash.slice("forum-draft:".length)):null;
+  const inputName=(replyMode?"rr":path===forumRecordPath&&!pendingForumVoice?"rr":path==="125"?"ln":path==="185"?"rg":(path==="115"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
+  let previewForumRecording:string|null=null;
   let goToProviderManagement=false;
   let goToCampaignExtension=false;
   if(raw!==undefined&&raw!==null){
@@ -449,13 +463,39 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    // Moving to /0 DOES NOT bypass the provider admin password.
    if(digit==="0" && path!=="" && !fromShared){
     if(path==="185")await cancelPhoneSignup(client,callHash);
-    path=path.length>2?path.slice(0,-1):(from4444?"2":"");
+    path=path===forumRecordPath?forumOptionsPath:path===forumOptionsPath?forumDialPath:path===forumDialPath?"":path.length>2?path.slice(0,-1):(from4444?"2":"");
     position=0;chunk=0;page=0;confirmId=null;
     actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";feedback="";
    }else if(path==="" && digit==="0" && !fromNext){
     goToProviderManagement=true;
    }else if(from4444 && digit==="0"){
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
+   }else if(!fromShared&&path===forumDialPath){
+    if(digit==="1"){path=forumOptionsPath;page=0;}
+    else if(digit==="2"){page=0;}
+    else if(digit==="None"||digit===""){page=Math.min(page+1,300);}
+    else feedback="To hear discussions, stay on the line. For options press 1. ";
+   }else if(!fromShared&&path===forumOptionsPath){
+    if(digit==="1"){path=forumRecordPath;manualFlash="";page=0;}
+    else feedback="To record a message, press 1. ";
+   }else if(!fromShared&&path===forumRecordPath){
+    const draft=manualFlash.startsWith("forum-draft:")?validRecordedPath(manualFlash.slice(12)):null;
+    if(!draft){
+     const pathFromProvider=validRecordedPath(digit);
+     if(pathFromProvider){manualFlash="forum-draft:"+pathFromProvider;feedback="Your recording was received. ";}
+     else feedback="The recording was not completed. Please record after the beep and press pound. ";
+    }else if(digit==="1"){previewForumRecording=draft;}
+    else if(digit==="2"){manualFlash="";feedback="Record your message again. ";}
+    else if(digit==="3"){manualFlash="";path=forumOptionsPath;feedback="The draft was cancelled and was not published. ";}
+    else if(digit==="4"){
+     if(!userId||!await memberAllowed(client,{...s,member_id:userId})){
+      feedback="For your safety, first sign in to your Gavhah account using the one-time code. Your draft remains private. ";
+     }else{
+      const published=await publishPhoneForumRecording(client,{memberId:userId,callHash,recordingPath:draft});
+      feedback=published.message+" ";
+      if(published.ok){manualFlash="";path=forumDialPath;page=0;}
+     }
+    }else feedback="Choose 1 to listen, 2 to record again, 3 to cancel, or 4 to publish. ";
    }else if(path==="159" && !fromShared && !from4444){
     // Separate SignalWire permission: provider verification is NEVER inferred
     // from caller ID or from an ordinary Gavhah/MAX account.
@@ -723,8 +763,19 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
    step++;
   }
-  let mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",spoken=feedback;
-  if(reportMode){
+  let mode:"menu"|"root"|"news"|"forum"|"code"|"article"|"record"|"registration"="menu",spoken=feedback;
+  if(path===forumDialPath&&!fromShared){
+   mode="forum";
+   const p=await phoneForumItem(client,page);
+   spoken+=p.prompt;
+   previewForumRecording=p.audioPath;
+  }else if(path===forumOptionsPath&&!fromShared){
+   spoken+=forumVoiceOptions;
+  }else if(path===forumRecordPath&&!fromShared){
+   const hasDraft=manualFlash.startsWith("forum-draft:")&&!!validRecordedPath(manualFlash.slice(12));
+   if(!hasDraft){mode="record";spoken+="Record your message after the beep. Press pound when finished. ";}
+   else {spoken+=forumVoiceReview; if(previewForumRecording)mode="forum";}
+  }else if(reportMode){
    spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
   }else if(replyMode){
    mode="record";spoken+="Record your reply after the beep and press pound when finished. You may cancel by hanging up.";
@@ -822,7 +873,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    if(!path && directGavhah && !from4444)mode="root";
    spoken+=menuPrompt(path,tree,ready4444,fromNext,fromShared);
   }
-  if(path!=="141")manualFlash="";
+  if(path!=="141"&&path!==forumRecordPath)manualFlash="";
   await client.query("UPDATE public.gavhah_yemot_call_states "+
    "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,action_flash=$15,updated_at=now() "+
    "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,manualFlash]);
@@ -853,7 +904,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(goToCampaignExtension){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/4444");
   }else{
-   sendRead(res,spoken,step,mode,publishedAudio);
+   sendRead(res,spoken,step,mode,previewForumRecording||publishedAudio);
   }
  }catch(err){await client.query("ROLLBACK").catch(()=>{});throw err;}
  finally{client.release();}
