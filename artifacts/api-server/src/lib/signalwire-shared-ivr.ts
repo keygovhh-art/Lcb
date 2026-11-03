@@ -6,6 +6,7 @@ import {phoneTree} from "../routes/yemot-whole-platform-ivr";
 import {checkSignalWireSignature,convertGavhahReplyToCxml} from "./signalwire-next-hotline";
 import {normalizedSignalWireNumber} from "./signalwire-number-safety";
 import {olamMenuAudioUrl} from "../routes/olam-voice-audio";
+import {maybeHandleOlamReturnCall} from "./signalwire-max-return-calls";
 
 /**
  * STAGED ONLY: the provider-owned +1 (605) 655-8080 webhook is NOT changed
@@ -74,6 +75,10 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
   res.status(400).type("text/plain").send("Invalid SignalWire call or keypad input");
   return;
  }
+ // Only when explicitly enabled and a signed provider inbound CallSid matches
+ // a previously PLACED MAX outbound call. Other shared-number calls stay in
+ // the existing hotline with unchanged menus and 55555 legacy redirection.
+ if(await maybeHandleOlamReturnCall(req,res))return;
  const route=(await pool.query<SharedRoute>(
   "SELECT requested_number,old_extension,audit_state,original_voice_url,"+
   "original_voice_method,original_call_handler,route_fingerprint,cutover_enabled "+
