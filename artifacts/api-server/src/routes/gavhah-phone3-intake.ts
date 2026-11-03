@@ -59,9 +59,9 @@ router.post("/admin/gavhah-phone3/:id/review",requireAdmin,async(req,res,next)=>
    if(!row.rows[0]||!["pending","reviewing"].includes(row.rows[0].status)){
     await client.query("ROLLBACK");res.status(409).json({error:"Intake no longer pending"});return;
    }
-   if(row.rows[0].kind==="project"&&decision==="completed"){
+   if(row.rows[0].kind==="project"&&decision!=="reviewing"){
     await client.query("ROLLBACK");
-    res.status(409).json({error:"Use project staff-approval after transcribing the recordings; no automatic approval"});return;
+    res.status(409).json({error:"Use the project team-review panel to approve or reject this project, after checking the voice recordings"});return;
    }
    const changed=await client.query<{member_id:number;status:string}>(
     "UPDATE public.gavhah_phone3_intake SET status=$2,staff_notes=$3,reviewed_by=$4,"+
