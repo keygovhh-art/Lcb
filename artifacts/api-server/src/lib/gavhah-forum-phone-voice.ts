@@ -7,7 +7,7 @@ export const forumOptionsPath="97021";
 export const forumRecordPath="970211";
 export const forumVoiceIntro="To hear discussions, stay on the line. For other options, press 1.";
 export const forumVoiceOptions="To record a message, press 1.";
-export const forumVoiceReview="Press 1 to listen to your recording, 2 to record it again, 3 to cancel, or 4 to publish immediately. Press zero to go back.";
+export const forumVoiceReview="Press 1 to listen to your recording, 2 to record it again, 3 to cancel and discard, 4 to publish immediately, or 5 to continue the recording. Press zero to go back.";
 // Dedicated, per-call private capture name. Prevents one caller publishing a
 // guessed WAV from another Yemot folder or member's session.
 const forumRecordingDirectory="/GavhahForumVoice";
