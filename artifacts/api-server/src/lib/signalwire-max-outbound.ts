@@ -66,7 +66,7 @@ async function cfg():Promise<Config|null>{
    ?"https://gavhah-cloudflare-native.keygovhh.workers.dev"
    :"https://gavhah.onrender.com";
  if(!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.signalwire\.com$/.test(space)||
-    !uuid.test(project)||!e164.test(source)||signingKey.length<32)return null;
+    !uuid.test(project)||!e164.test(source)||signingKey.length<24)return null;
  try{
   const token=unseal(row);
   if(token.length<12)return null;
