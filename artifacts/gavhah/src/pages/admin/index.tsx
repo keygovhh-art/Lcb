@@ -361,7 +361,7 @@ export default function FounderDashboard() {
             <TabsTrigger value="welcome-pages" className="gap-2">
               <Edit3 className="h-4 w-4" /> {yi ? "ברוכים־הבאים־בלעטער" : "Welcome Page Designer"}
             </TabsTrigger>
-            <TabsTrigger value="keypad" className="gap-2"><Globe className="h-4 w-4" /> {yi ? "האטליין־מפתח און עדיטער" : "Hotline Index & Editor"}</TabsTrigger>
+            <TabsTrigger value="keypad" className="gap-2" onClick={() => window.location.assign("https://gavhah-cloudflare-native.keygovhh.workers.dev/api/admin/yemot/voice-studio")}><Edit3 className="h-4 w-4" /> {yi ? "מפתח און עדיט" : "Hotline Menu & Editor"}</TabsTrigger>
             {user?.role === "super_admin" && (
               <TabsTrigger value="yemot-global" className="gap-2"><Globe className="h-4 w-4" /> ימות API — צענטראל</TabsTrigger>
             )}
