@@ -249,6 +249,11 @@ router.post("/askanus/connect/call-queue/:id/release",requireAuth,endpoint(async
  if(!/^[0-9a-f-]{36}$/i.test(req.params.id)||!/^[0-9a-f-]{36}$/i.test(campaignId)){
   res.status(400).json({error:"Invalid campaign/lead ID"});return;
  }
+ const running=await pool.query(
+  "SELECT 1 FROM public.max_call_sessions WHERE user_id=$1 AND cc_contact_id=$2 "+
+  "AND cc_campaign_id=$3 AND status IN ('initiating','ringing','in_progress') LIMIT 1",
+  [uid,req.params.id,campaignId]);
+ if(running.rowCount){res.status(409).json({error:"Finish or hang up your active call before releasing the campaign claim"});return;}
  const data=await remote("/call-queue/"+encodeURIComponent(req.params.id)+"/release","POST",{gavhahUserId:uid,campaignId});
  // Preserve call history; a cancelled PREPARED call does not become a recorded call.
  await pool.query(
@@ -266,6 +271,11 @@ router.post("/askanus/connect/call-queue/:id/result",requireAuth,endpoint(async(
     !["no_answer","spoke","callback","pledged","paid","not_interested","do_not_call"].includes(outcome)){
   res.status(400).json({error:"Invalid call outcome"});return;
  }
+ const running=await pool.query(
+  "SELECT 1 FROM public.max_call_sessions WHERE user_id=$1 AND cc_contact_id=$2 "+
+  "AND cc_campaign_id=$3 AND status IN ('initiating','ringing','in_progress') LIMIT 1",
+  [uid,req.params.id,campaignId]);
+ if(running.rowCount){res.status(409).json({error:"Hang up the active SignalWire call before recording the outcome"});return;}
  // Save manual outcome in CC's canonical database; never imply a completed provider call.
  const data=await remote("/call-queue/"+encodeURIComponent(req.params.id)+"/result","POST",
   {gavhahUserId:uid,campaignId,outcome,note});
