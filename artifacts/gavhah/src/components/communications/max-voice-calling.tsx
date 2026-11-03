@@ -14,6 +14,7 @@ type Prefs={lastCaseId:number|null;holdMode:"gavhah"|"message"|"audio";
 const outcomes=[
  {value:"",label:"אויסגאנג נישט אריינגעלייגט"},{value:"donation",label:"געגעבן א נדבה (צולייגן סכום אין נדבות־באריכט)"},
  {value:"no_answer",label:"נישט אויפגעהויבן"},{value:"callback",label:"צוריקרופן"},
+ {value:"asked_no_more",label:"בעט נישט מער צו רופן — פרעגן ביים קומענדיגן רוף"},
  {value:"not_interested",label:"נישט אינטערעסירט"},{value:"do_not_call",label:"נישט מער רופן"},
  {value:"other",label:"אנדערש"}];
 const ask=async<T,>(url:string,init?:RequestInit):Promise<T>=>{
@@ -71,10 +72,23 @@ export function MaxVoiceCalling({cases,selectedContact}:{
   if(!skip&&!caseId){setError("ביטע וועל אויס א קאמפיין, אדער דרוק סקיפן.");return;}
   setBusy(true);setError("");setMessage("");
   try{
-   const call=await ask<Call&{message:string;callInitiated:false}>(
-    "/api/askanus/max/calling/sessions",put({
-     number,country,caseId:skip?null:caseId,contactId:selectedContact?.id??null
-    },"POST"));
+   const attempt=async(confirmed:boolean)=>{
+    const response=await fetch("/api/askanus/max/calling/sessions",{
+     ...put({number,country,caseId:skip?null:caseId,
+       contactId:selectedContact?.id??null,confirmAskAgain:confirmed},"POST"),
+     credentials:"include",cache:"no-store"});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok){
+     if(response.status===409&&data.requiresConfirmation&&!confirmed){
+      if(window.confirm("דער מענטש האט פריער געבעטן נישט מער צו רופן. ביסטו זיכער אז דו ווילסט ווייטער גיין?"))
+       return attempt(true);
+      throw Error("דער רוף איז נישט צוגעגרייט.");
+     }
+     throw Error(data.error||"נישט געלונגען");
+    }
+    return data as Call&{message:string;callInitiated:false};
+   };
+   const call=await attempt(false);
    setHistory(list=>[call,...list]);setMessage(call.message);
    if(!skip&&caseId)await savePreference(caseId);
   }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען")}
