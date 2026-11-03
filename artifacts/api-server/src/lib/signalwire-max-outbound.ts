@@ -154,6 +154,35 @@ export async function placeOlamMaxOutboundCall(userId:number,sessionId:string,
  return {dialInitiated:true,providerReady:true,callIdPresent:true,agentPhoneEnding:callbackPhone.slice(-4),
   recordingEnabled:false,message:"SignalWire is calling your verified phone. The donor will dial when you answer."};
 }
+export async function endOlamMaxOutboundCall(userId:number,sessionId:string){
+ const c=cfg();
+ if(!c)throw Object.assign(Error("SignalWire MAX calling is not active"),{status:503});
+ if(!/^\d{1,18}$/.test(sessionId))throw Object.assign(Error("Invalid session"),{status:400});
+ const r=await pool.query<{status:string;provider_call_id:string|null}>(
+  "SELECT status,provider_call_id FROM public.max_call_sessions WHERE id=$1 AND user_id=$2",
+  [sessionId,userId]);
+ const row=r.rows[0];
+ if(!row)throw Object.assign(Error("Session not found"),{status:404});
+ if(!["initiating","ringing","in_progress"].includes(row.status))
+  throw Object.assign(Error("This call is not active"),{status:409});
+ if(!row.provider_call_id||!sid.test(row.provider_call_id))
+  throw Object.assign(Error("Awaiting a verified provider call ID; use your phone to hang up"),{status:409});
+ const status=row.status==="in_progress"?"completed":"canceled";
+ const url=callUrl(c,"/Calls/"+encodeURIComponent(row.provider_call_id)+".json");
+ const response=await fetch(url,{
+  method:"POST",headers:{Authorization:authenticated(c),
+   "Content-Type":"application/x-www-form-urlencoded",Accept:"application/json"},
+  body:new URLSearchParams({Status:status}),redirect:"error",
+  cache:"no-store",signal:AbortSignal.timeout(11000)
+ });
+ if(!response.ok)throw Object.assign(Error("SignalWire did not confirm hangup; use your physical phone"),{status:503});
+ // The callback may include actual talk duration; do not write guessed duration.
+ await pool.query(
+  "UPDATE public.max_call_sessions SET status=$3,ended_at=COALESCE(ended_at,now()),updated_at=now() "+
+  "WHERE id=$1 AND user_id=$2 AND status IN ('initiating','ringing','in_progress')",
+  [sessionId,userId,status]);
+ return {hangupRequested:true,confirmedByProvider:true,recordingEnabled:false};
+}
 async function verifiedWebhook(req:Request,res:Response,part:"bridge"|"agent"|"donor"){
  const c=cfg();
  if(!c){res.sendStatus(503);return null;}
