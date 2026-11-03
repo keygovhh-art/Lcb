@@ -50,7 +50,7 @@ export const gavhahMorePhoneAliases = {
  "6":"15","7":"16","8":"17","9":"12"
 } as const;
 export const gavhahWebsitePhoneVirtualMenus = {
- "9702":{"1":"162","2":"165","3":"166","4":"163","5":"164"},
+ "9702":{"1":"97021"}, // Discussion: wait-to-listen; press 1 for options only\n "97021":{"1":"970211"}, // Record a discussion, then #, preview, publish/redo/discard/cancel/continue
  "9703":{"1":"152","2":"153","3":"154","4":"151"},
  "9704":{"1":"154","2":"152","3":"153","4":"164","5":"161"},
  "9706":{"1":"151","2":"155","3":"154"},
