@@ -33,6 +33,12 @@ jobs:
           cache: pnpm
       - name: Install exactly locked dependencies
         run: pnpm install --frozen-lockfile
+      - name: Verify SignalWire callback-to-agent, voicemail, status and member-scoped return-call flow
+        run: node --test tests/signalwire-max-return-calls-contract.test.mjs
+      - name: Verify Olam outbound provider signatures, no-recording and one-agent call safety
+        run: node --test tests/signalwire-olam-max-outbound-contract.test.mjs
+      - name: Verify Olam SignalWire four-second repeat and silent hangup
+        run: node --experimental-strip-types --test tests/olam-signalwire-two-tries.test.mjs
       - name: Check frontend and API TypeScript
         run: pnpm run typecheck
       - name: Build frontend and API exactly as Render
@@ -140,7 +146,7 @@ jobs:
           const gates = fs.readFileSync('artifacts/gavhah/src/components/admin/membership-gate-management.tsx','utf8');
           const reporter = fs.readFileSync('artifacts/gavhah/src/components/shared/report-button.tsx','utf8');
           const backend = fs.readFileSync('artifacts/api-server/src/routes/private-assistance.ts','utf8');
-          assert(admin.includes('useState("overview")'));
+          assert(admin.includes('get("tab") === "keypad" ? "keypad" : "overview"'));
           assert(admin.includes('flex flex-wrap h-auto gap-1 p-1'));
           assert(!admin.includes('admin-section-select'));
           assert(inbox.includes('operations-filter'));

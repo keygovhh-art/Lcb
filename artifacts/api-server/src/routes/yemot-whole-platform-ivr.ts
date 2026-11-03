@@ -37,7 +37,7 @@ export const phoneTree: Record<string,Item> = {
       "5":leaf("Read a public charity campaign by its website number","/charity/:id"),
       "9":group("Olam Chesed Communication — SignalWire account gateway",{
         "1":leaf("Tishl — live calling desk","/communications"),
-        "2":leaf("Calls and call assignments","/communications"),
+        "2":leaf("Call access and account information","/communications"),
         "3":leaf("Donor 360 and contacts","/communications"),
         "4":leaf("Pledges and donation tracking","/communications"),
         "5":leaf("Follow ups and callbacks","/communications"),

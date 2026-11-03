@@ -3,6 +3,7 @@ import { pool } from "@workspace/db";
 import {phonePromptOverride} from "../routes/yemot-voice-studio";
 import {applyFixedPhonePhraseEdits} from "../routes/gavhah-hotline-speech-library";
 import { logger } from "./logger";
+import {noteYemotReturnCalls} from "./signalwire-max-return-calls";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
@@ -26,7 +27,7 @@ const categories:Record<string,string>={
 };
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124"]);
-const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press zero for official Gavhah member registration. Press star to return.";
+const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for official Gavhah member registration. Press star to return.";
 const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
 const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
 const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
@@ -66,7 +67,7 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  : mode==="news"
  ? [name,"no","1","0","7","No","no","no","","0123456789","1","Ok","None"]
  : mode==="root"
- ? [name,"no","4","1","1","No","no"]
+ ? [name,"no","4","1","8","No","no"]
  : [name,"no","1","1","8","No","no"];
  const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
   ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
@@ -767,6 +768,27 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    // Do not repeat the entire contact queue or the menu customization.
    const pending=readManualResultPending(manualFlash)!;
    if(!feedback)spoken+=pending.stage==="choose"?choosePrompt:confirmationPrompt(pending);
+  }else if(!fromNext&&!fromShared && (path==="14"||["141","142","143","144","1591","1592","1599"].includes(path))){
+   // Yemot NEVER places MAX outbound calls. Caller ID alone never confirms an account.
+   const linkedMember=await memberAllowed(client,{...s,member_id:userId});
+   if(!linkedMember){
+    spoken="For Olam Chesed Communications, if you do not yet have an account, open the Gavhah website and fill out the Communications account application form. "+
+     "If you already have a Gavhah account, sign in securely with your eight digit website code first. "+
+     "Outgoing calls are on the separate Olam Chesed SignalWire hotline, not on Yemot. Press zero to return.";
+   }else{
+    const access=await client.query<{status:string}>(
+      "SELECT status FROM public.gavhah_olam_chesed_access WHERE user_id=$1",[userId]);
+    if(access.rows[0]?.status!=="linked"){
+     spoken="Your Gavhah account is linked, but Olam Chesed Communications access has not been approved. "+
+      "Open the Communications page on the Gavhah website and fill out the access application form. "+
+      "For outgoing calls use only the Olam Chesed SignalWire hotline after approval. Press zero to return.";
+    }else{
+     spoken="Your Olam Chesed Communications account is approved. "+
+      "To place outbound calls, use the separate Olam Chesed Communications SignalWire hotline or your calling desk on the website. "+
+      "Call Assignments are available only to active members who joined a Campaign Center campaign. "+
+      "This Yemot line does not place outgoing calls. Press zero to return.";
+    }
+   }
   }else if(sectionPaths.has(path)){
    const permitted=!sectionRequiresLogin.has(path)||
       await memberAllowed(client,{...s,member_id:userId});
@@ -793,6 +815,17 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     const custom=await phonePromptOverride(path);
     if(custom.ttsText)spoken=custom.ttsText;
     publishedAudio=custom.audioPath;
+  }
+  if(process.env.OLAM_RETURN_CALL_ROUTING_ENABLED==="true"&&
+     (fromShared||!fromNext)&&userId&&
+     await memberAllowed(client,{...s,member_id:userId})){
+   await client.query(
+    "INSERT INTO public.max_agent_activity(user_id,channel,last_seen_at) "+
+    "VALUES($1,$2,now()) ON CONFLICT(user_id) DO UPDATE SET "+
+    "channel=EXCLUDED.channel,last_seen_at=now()",
+    [userId,fromShared?"olam":"yemot"]);
+   // A verified Yemot member hears a single notice on their next menu response.
+   if(!fromShared&&mode!=="record")spoken=(await noteYemotReturnCalls(client,userId))+spoken;
   }
   spoken=await applyFixedPhonePhraseEdits(client,fromShared?"signalwire":"yemot",spoken);
   await client.query("COMMIT");
