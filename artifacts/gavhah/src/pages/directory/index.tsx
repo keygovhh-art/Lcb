@@ -274,15 +274,12 @@ function CreateProjectDialog() {
     createProject.mutate(
       { data: { title: form.title, description: form.description, type: form.type, organizerName: displayName, location: form.location || undefined, goalDescription: form.goalDescription || undefined } },
       {
-        onSuccess: (project) => {
-          qc.setQueryData(getListCommunityProjectsQueryKey({}), (current: any) => {
-            const items = Array.isArray(current) ? current : [];
-            return [project, ...items.filter((item: any) => item.id !== project.id)];
-          });
+        onSuccess: () => {
+          // The project remains non-public until an authorized Gavhah reviewer approves it.
           void qc.invalidateQueries({ queryKey: ["/api/community-projects"] });
           setOpen(false);
           setForm({ title: "", description: "", type: "project", location: "", goalDescription: "" });
-          toast({ title: "Project created", description: "Your project is now listed in the directory." });
+          toast({ title: "דער פראיעקט איז אריינגעשיקט צום טיעם", description: "דער פראיעקט איז נישט פובליק. די גבהה־מערכת וועט עס ערשט איבערקוקן און באשטעטיגן." });
         },
         onError: () => toast({ title: "Error", description: "Could not create project.", variant: "destructive" }),
       }
@@ -302,7 +299,7 @@ function CreateProjectDialog() {
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-primary">Create a Community Project</DialogTitle>
-            <p className="text-sm text-muted-foreground">Start a project, campaign, initiative, or assistance program for the community.</p>
+            <p className="text-sm text-muted-foreground">A project, campaign or program is first sent privately to Gavhah staff. Only approved projects are made public.</p>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
             <div className="grid grid-cols-2 gap-3">
@@ -338,7 +335,7 @@ function CreateProjectDialog() {
             </div>
             <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold gap-2" disabled={createProject.isPending}>
               <FolderKanban className="h-4 w-4" />
-              {createProject.isPending ? "Creating..." : "Create Project"}
+              {createProject.isPending ? "אריינשיקן..." : "שיקן צום טיעם פאר באשטעטיגונג"}
             </Button>
           </form>
         </DialogContent>
