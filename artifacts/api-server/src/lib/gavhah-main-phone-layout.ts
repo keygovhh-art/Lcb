@@ -4,7 +4,7 @@
 export const gavhahHomepageHotlineDivisions = [
  {number:1,name:"Chesed News Center",website:"/news",phonePath:"11"},
  {number:2,name:"Askanim Discussion Center",website:"/forum",phonePath:"9702"},
- {number:3,name:"Private Assistance",website:"/directory",phonePath:"9703"},
+ {number:3,name:"Community Projects & Private Askanim Matching",website:"/directory",phonePath:"9703"},
  {number:4,name:"United In Kindness",website:"/united",phonePath:"9704"},
  {number:5,name:"Olam Hachesed Communications",website:"/communications",phonePath:"159"},
  {number:6,name:"Today's Cause",website:"/charity",phonePath:"9706"},
@@ -52,7 +52,8 @@ export const gavhahMorePhoneAliases = {
 export const gavhahWebsitePhoneVirtualMenus = {
  "9702":{"1":"97021"}, // Discussion: wait-to-listen; press 1 for options only
  "97021":{"1":"970211"}, // Record a discussion, then #, preview, publish/redo/discard/cancel/continue
- "9703":{"1":"152","2":"153","3":"154","4":"151"},
+ "9703":{"1":"97031"}, // Approved projects play automatically; 1 = options
+ "97031":{"1":"970311","2":"970312"}, // 1 private staff list; 2 project for approval
  "9704":{"1":"154","2":"152","3":"153","4":"164","5":"161"},
  "9706":{"1":"151","2":"155","3":"154"},
  "9708":{"1":"161","2":"167","3":"164","4":"162"},
