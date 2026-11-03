@@ -767,6 +767,27 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    // Do not repeat the entire contact queue or the menu customization.
    const pending=readManualResultPending(manualFlash)!;
    if(!feedback)spoken+=pending.stage==="choose"?choosePrompt:confirmationPrompt(pending);
+  }else if(!fromNext&&!fromShared && (path==="14"||["141","142","143","144","1591","1592","1599"].includes(path))){
+   // Yemot NEVER places MAX outbound calls. Caller ID alone never confirms an account.
+   const linkedMember=await memberAllowed(client,{...s,member_id:userId});
+   if(!linkedMember){
+    spoken="For Olam Chesed Communications, if you do not yet have an account, open the Gavhah website and fill out the Communications account application form. "+
+     "If you already have a Gavhah account, sign in securely with your eight digit website code first. "+
+     "Outgoing calls are on the separate Olam Chesed SignalWire hotline, not on Yemot. Press zero to return.";
+   }else{
+    const access=await client.query<{status:string}>(
+      "SELECT status FROM public.gavhah_olam_chesed_access WHERE user_id=$1",[userId]);
+    if(access.rows[0]?.status!=="linked"){
+     spoken="Your Gavhah account is linked, but Olam Chesed Communications access has not been approved. "+
+      "Open the Communications page on the Gavhah website and fill out the access application form. "+
+      "For outgoing calls use only the Olam Chesed SignalWire hotline after approval. Press zero to return.";
+    }else{
+     spoken="Your Olam Chesed Communications account is approved. "+
+      "To place outbound calls, use the separate Olam Chesed Communications SignalWire hotline or your calling desk on the website. "+
+      "Call Assignments are available only to active members who joined a Campaign Center campaign. "+
+      "This Yemot line does not place outgoing calls. Press zero to return.";
+    }
+   }
   }else if(sectionPaths.has(path)){
    const permitted=!sectionRequiresLogin.has(path)||
       await memberAllowed(client,{...s,member_id:userId});
