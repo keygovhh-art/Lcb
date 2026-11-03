@@ -18,6 +18,7 @@ import featuredCausesRouter from "./featured-causes";
 import communityProjectsRouter from "./community-projects";
 import askanusRouter from "./askanus";
 import communicationsMaxRouter from "./communications-max";
+import maxCallingWorkspaceRouter from "./max-calling-workspace";
 import communicationsFinanceRouter from "./communications-finance";
 import communicationsContactsTransferRouter from "./communications-contacts-transfer";
 import communicationsAssistantRouter from "./communications-assistant";
@@ -94,6 +95,7 @@ router.use("/askanus", (req, res, next) => {
 });
 router.use(askanusRouter);
 router.use(communicationsMaxRouter);
+router.use(maxCallingWorkspaceRouter);
 router.use(communicationsFinanceRouter);
 router.use(communicationsContactsTransferRouter);
 router.use(communicationsAssistantRouter);
