@@ -33,6 +33,8 @@ jobs:
           cache: pnpm
       - name: Install exactly locked dependencies
         run: pnpm install --frozen-lockfile
+      - name: Verify SignalWire callback-to-agent, voicemail, status and member-scoped return-call flow
+        run: node --test tests/signalwire-max-return-calls-contract.test.mjs
       - name: Verify Olam outbound provider signatures, no-recording and one-agent call safety
         run: node --test tests/signalwire-olam-max-outbound-contract.test.mjs
       - name: Verify Olam SignalWire four-second repeat and silent hangup
