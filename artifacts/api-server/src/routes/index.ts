@@ -43,6 +43,7 @@ import {signalWireSharedHotline} from "../lib/signalwire-shared-ivr";
 import {signalwireMaxAgentBridge,signalwireMaxCallStatus} from "../lib/signalwire-max-outbound";
 import newsVoiceRepliesRouter from "./news-voice-replies";
 import forumVoiceRouter from "./forum-voice";
+import gavhahPhone3IntakeRouter from "./gavhah-phone3-intake";
 import phoneAccountLinkRouter from "./phone-account-link";
 import reservationsRouter from "./reservations";
 import supportRouter from "./support";
@@ -138,6 +139,7 @@ router.post("/signalwire/max/status/:id/:part",(req,res,next)=>{
 });
 router.use(newsVoiceRepliesRouter);
 router.use(forumVoiceRouter);
+router.use(gavhahPhone3IntakeRouter);
 router.use(phoneAccountLinkRouter);
 router.use(reservationsRouter);
 router.use(supportRouter);
