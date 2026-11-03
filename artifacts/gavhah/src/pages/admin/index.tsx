@@ -340,6 +340,18 @@ export default function FounderDashboard() {
           <p className="text-muted-foreground font-serif italic ml-11">
             Platform oversight, management, and administration.
           </p>
+          {user?.role === "super_admin" && (
+            <a
+              href="/api/admin/yemot/voice-studio"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary/30 bg-card px-4 py-2 text-sm font-semibold text-primary hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              dir="rtl"
+              lang="yi"
+            >
+              <Edit3 className="h-4 w-4" />
+              מפתח און עדיט
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
         </div>
       </div>
 
