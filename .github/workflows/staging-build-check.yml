@@ -33,6 +33,8 @@ jobs:
           cache: pnpm
       - name: Install exactly locked dependencies
         run: pnpm install --frozen-lockfile
+      - name: Verify Olam SignalWire four-second repeat and silent hangup
+        run: node --experimental-strip-types --test tests/olam-signalwire-two-tries.test.mjs
       - name: Check frontend and API TypeScript
         run: pnpm run typecheck
       - name: Build frontend and API exactly as Render
