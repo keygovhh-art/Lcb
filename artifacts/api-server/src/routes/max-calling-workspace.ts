@@ -6,7 +6,7 @@ const router=Router();
 router.use("/askanus/max/calling",requireAuth);
 const idok=(v:unknown)=>Number.isSafeInteger(Number(v))&&Number(v)>0;
 const str=(v:unknown,max:number)=>String(v??"").trim().slice(0,max);
-const outcomes=new Set(["","spoke","donation","no_answer","callback","not_interested","do_not_call","other"]);
+const outcomes=new Set(["","spoke","donation","no_answer","callback","not_interested","asked_no_more","do_not_call","other"]);
 const moods=new Set(["","friendly","neutral","busy","uncomfortable","uninterested","other"]);
 function normalizeNanp(value:unknown):string|null{
  const raw=String(value??"");
@@ -105,6 +105,14 @@ router.post("/askanus/max/calling/sessions",async(req,res,next)=>{
    const c=await ownedContact(userId,contactId);
    if(!c){res.status(404).json({error:"Contact not found"});return;}
    if(c.do_not_call){res.status(409).json({error:"Do not call this contact"});return;}
+  }
+  // "Please do not call me again" warning is separate from hard DO NOT CALL.
+  const asked=await pool.query(
+   "SELECT 1 FROM public.max_call_sessions WHERE user_id=$1 AND number_e164=$2 "+
+   "AND outcome='asked_no_more' ORDER BY created_at DESC LIMIT 1",
+   [userId,number]);
+  if(asked.rowCount&&req.body?.confirmAskAgain!==true){
+   res.status(409).json({error:"This person previously asked not to be called again. Confirm before proceeding.",requiresConfirmation:true});return;
   }
   // Preparing is NOT dialing. No audio recording, no duration fabrication.
   const r=await pool.query(
