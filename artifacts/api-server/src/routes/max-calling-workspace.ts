@@ -1,6 +1,8 @@
 import {Router} from "express";
 import {pool} from "@workspace/db";
-import {getSessionUserId,requireAuth} from "../middlewares/auth";
+import {getSessionUserId,requireAuth,requireAdmin,getCurrentSessionUser} from "../middlewares/auth";
+import {placeOlamMaxOutboundCall,signalwireMaxReadyForUser} from "../lib/signalwire-max-outbound";
+import {verifyMaxCampaignDialClaim} from "./communications-connect";
 
 const router=Router();
 router.use("/askanus/max/calling",requireAuth);
@@ -42,7 +44,7 @@ router.get("/askanus/max/calling/preferences",async(req,res,next)=>{
   res.set("Cache-Control","private,no-store").json({
    lastCaseId:r?.last_case_id??null,holdMode:r?.hold_mode??"gavhah",
    holdMessage:r?.hold_message??"",holdAudioPath:r?.hold_audio_path??"",
-   providerReady:false,recordingEnabled:false,maxParticipants:3,
+   providerReady:await signalwireMaxReadyForUser(userId),recordingEnabled:false,maxParticipants:3,
    keypad:{beforeCall:"1 אויסקלייבן; 2 סקיפן; 3 אפציעס",
     duringCall:"1 ענטפערן; 2 האלטן/צוריק; 3 העכער; 4 שטילער; 5 מעניו; 6 דריי־וועג; 0 הילף",
     fiveMenu:"1 אראפהאקן; 2 רופן נאך איינעם"}
@@ -160,12 +162,81 @@ router.patch("/askanus/max/calling/sessions/:id",async(req,res,next)=>{
   res.json(map(r.rows[0]));
  }catch(e){next(e);}
 });
-// Refuse, rather than pretending, to place or control calls before verified integration.
-// Phone-device volume cannot be changed by a remote HTTP API.
-router.post("/askanus/max/calling/sessions/:id/dial",requireAuth,(_req,res)=>{
- res.status(503).json({error:"SignalWire MAX outbound calling is not activated. No call placed.",recordingEnabled:false});
+// Real Olam SignalWire click-to-call, not a tel: link or fabricated duration.
+router.post("/askanus/max/calling/sessions/:id/dial",requireAuth,async(req,res,next)=>{
+ const userId=getSessionUserId(req)!;
+ try{
+  const id=String(req.params.id||"");
+  const result=await placeOlamMaxOutboundCall(userId,id,verifyMaxCampaignDialClaim);
+  res.setHeader("Cache-Control","private,no-store").json(result);
+ }catch(e){
+  const status=(e as any)?.status;
+  if(typeof status==="number"&&status>=400&&status<=503){
+   res.status(status).json({error:(e as Error).message,callInitiated:false,
+    callStateUncertain:(e as Error).message.includes("uncertain")});return;
+  }
+  next(e);
+ }
 });
 router.post("/askanus/max/calling/sessions/:id/control",requireAuth,(_req,res)=>{
  res.status(503).json({error:"Live hold, incoming waiting and conference control require a real verified active call.",maxParticipants:3});
 });
+
+// Superadmin attests the callback phone has been independently verified.
+// Unlike users.phone this field cannot be edited by the member or caller ID.
+function allowedOrigin(req:any){
+ const o=req.get("origin"),h=req.get("x-forwarded-host")||req.get("host");
+ if(!o||!h||req.get("sec-fetch-site")==="cross-site")return false;
+ try{const u=new URL(o);return u.protocol==="https:"&&u.host===h}catch{return false}
+}
+router.put("/admin/olam/max/agent-phone/:uid",requireAdmin,async(req,res,next)=>{
+ try{
+  const u=await getCurrentSessionUser(req);
+  if(u?.role!=="super_admin"||!allowedOrigin(req)){res.sendStatus(403);return;}
+  const uid=Number(req.params.uid);
+  const phone=normalizeNanp(req.body?.phone);
+  const note=str(req.body?.verificationNote,800);
+  if(!idok(uid)||!phone||note.length<12||req.body?.confirm!=="VERIFIED_AGENT_CALLBACK_PHONE"){
+   res.status(400).json({error:"Verified agent phone and owner attestation required"});return;
+  }
+  const a=await pool.query("SELECT 1 FROM public.gavhah_olam_chesed_access WHERE user_id=$1 AND status='linked'",[uid]);
+  if(!a.rowCount){res.status(409).json({error:"Agent must first have verified Olam access"});return;}
+  await pool.query(
+   "INSERT INTO public.gavhah_olam_signalwire_agent_numbers "+
+   "(user_id,phone_e164,verified_at,verified_by,verification_note) VALUES($1,$2,now(),$3,$4) "+
+   "ON CONFLICT(user_id) DO UPDATE SET phone_e164=EXCLUDED.phone_e164,"+
+   "verified_at=now(),verified_by=EXCLUDED.verified_by,verification_note=EXCLUDED.verification_note,"+
+   "revoked_at=NULL,updated_at=now()",
+   [uid,phone,u.id,note]);
+  res.json({verified:true,userId:uid,phoneEnding:phone.slice(-4)});
+ }catch(e){next(e)}
+});
+router.delete("/admin/olam/max/agent-phone/:uid",requireAdmin,async(req,res,next)=>{
+ try{
+  const u=await getCurrentSessionUser(req);
+  if(u?.role!=="super_admin"||!allowedOrigin(req)||req.body?.confirm!=="REVOKE_AGENT_CALLBACK_PHONE"){
+   res.sendStatus(403);return;
+  }
+  const uid=Number(req.params.uid);
+  if(!idok(uid)){res.sendStatus(400);return;}
+  await pool.query(
+   "UPDATE public.gavhah_olam_signalwire_agent_numbers SET revoked_at=now(),updated_at=now() WHERE user_id=$1",
+   [uid]);
+  res.json({revoked:true});
+ }catch(e){next(e)}
+});
+router.get("/askanus/max/calling/agent-status",requireAuth,async(req,res,next)=>{
+ try{
+  const uid=getSessionUserId(req)!;
+  const r=await pool.query(
+   "SELECT RIGHT(phone_e164,4) AS ending,verified_at,revoked_at FROM public.gavhah_olam_signalwire_agent_numbers WHERE user_id=$1",[uid]);
+  const row=r.rows[0];
+  res.set("Cache-Control","private,no-store").json({
+   callbackVerified:!!row?.verified_at&&!row?.revoked_at,
+   phoneEnding:row?.revoked_at?null:row?.ending??null,
+   signalwireReady:await signalwireMaxReadyForUser(uid)
+  });
+ }catch(e){next(e)}
+});
+
 export default router;
