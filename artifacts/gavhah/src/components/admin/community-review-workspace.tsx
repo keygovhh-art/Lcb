@@ -98,7 +98,7 @@ export function CommunityReviewWorkspace(){
        <div className="flex flex-wrap gap-2">
          <Button disabled={busy!==null} variant="outline" onClick={()=>void reviewPrivate(i,"reviewing")}>אין באארבעטונג</Button>
          {i.kind!=="project"&&<Button disabled={busy!==null} onClick={()=>void reviewPrivate(i,"completed")}>באארבעט / פארטיג</Button>}
-         <Button disabled={busy!==null} variant="destructive" onClick={()=>void reviewPrivate(i,"rejected")}>אפווארפן</Button>
+         {i.kind!=="project"&&<Button disabled={busy!==null} variant="destructive" onClick={()=>void reviewPrivate(i,"rejected")}>אפווארפן</Button>}
        </div>
      </article>)}
    </div>
