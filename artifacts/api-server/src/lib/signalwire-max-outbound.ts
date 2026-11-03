@@ -248,9 +248,12 @@ export async function signalwireMaxCallStatus(req:Request,res:Response){
     "updated_at=now() WHERE id=$1 AND status IN ('initiating','ringing','in_progress')",[v.row.id]);
   }else if(final.has(result)){
    const secs=Number(v.form.CallDuration??v.form.Duration??NaN);
-   await pool.query("UPDATE public.max_call_sessions SET status=$2,ended_at=now(),"+
-    "duration_seconds=CASE WHEN $3::integer IS NOT NULL THEN $3 ELSE duration_seconds END,updated_at=now() "+
-    "WHERE id=$1 AND status NOT IN ('completed','failed','no_answer','busy','canceled')",
+   await pool.query("UPDATE public.max_call_sessions SET "+
+    "status=CASE WHEN status IN ('completed','failed','no_answer','busy','canceled') THEN status ELSE $2 END,"+
+    "ended_at=COALESCE(ended_at,now()),"+
+    "duration_seconds=CASE WHEN $3::integer IS NOT NULL THEN COALESCE(duration_seconds,$3) ELSE duration_seconds END,"+
+    "updated_at=now() WHERE id=$1 AND (status IN ('initiating','ringing','in_progress') "+
+    "OR (status='completed' AND duration_seconds IS NULL))",
     [v.row.id,result,Number.isSafeInteger(secs)&&secs>=0?secs:null]);
   }
  }else if(final.has(result)){
