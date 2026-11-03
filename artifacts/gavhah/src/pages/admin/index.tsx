@@ -36,6 +36,7 @@ import { PrivateAssistanceManagement } from "@/components/admin/private-assistan
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 import { YemotCentralManagement } from "@/components/admin/yemot-central-management";
+import { YemotVoiceStudio } from "@/components/admin/yemot-voice-studio";
 
 function reportContentPath(type: string, id: number) {
   if (type === "news") return `/news/${id}`;
@@ -66,6 +67,7 @@ export default function FounderDashboard() {
   const yi = lang === "yi";
   const { user, isLoaded, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "keypad" ? "keypad" : "overview");
+  const [hotlinePanel, setHotlinePanel] = useState<"index" | "editor">("index");
   const [annTitle, setAnnTitle] = useState("");
   const [annContent, setAnnContent] = useState("");
   const [editAnnId, setEditAnnId] = useState<number | null>(null);
@@ -359,7 +361,7 @@ export default function FounderDashboard() {
             <TabsTrigger value="welcome-pages" className="gap-2">
               <Edit3 className="h-4 w-4" /> {yi ? "ברוכים־הבאים־בלעטער" : "Welcome Page Designer"}
             </TabsTrigger>
-            <TabsTrigger value="keypad" className="gap-2"><Globe className="h-4 w-4" /> קיפעד־מפתח</TabsTrigger>
+            <TabsTrigger value="keypad" className="gap-2"><Globe className="h-4 w-4" /> {yi ? "האטליין־מפתח און עדיטער" : "Hotline Index & Editor"}</TabsTrigger>
             {user?.role === "super_admin" && (
               <TabsTrigger value="yemot-global" className="gap-2"><Globe className="h-4 w-4" /> ימות API — צענטראל</TabsTrigger>
             )}
@@ -524,11 +526,33 @@ export default function FounderDashboard() {
 
           <TabsContent value="keypad" className="space-y-5" dir="rtl" lang="yi">
             <div className="rounded-xl border bg-card p-5 space-y-3">
-              <h2 className="text-xl font-bold">טעלעפאן־מפתח — אלע קנעפלעך און עקסטענשאנס</h2>
-              <p className="text-sm text-muted-foreground">דער מפתח אונטערשיידט צווישן לייווע קיפעד־אקציעס, לייענען, און זאכן וואס זענען דערווייל נאר א וועב־מפה. עולם החסד בלייבט אויף SignalWire.</p>
-              <a className="inline-flex items-center rounded-lg border px-4 py-2 text-primary font-semibold" href="/api/admin/hotline-keypad-map" target="_blank" rel="noopener noreferrer">עפענען דעם גאנצן קיפעד־מפתח</a>
+              <h2 className="text-xl font-bold">{yi ? "האטליין־מפתח און עדיטער" : "Hotline Index & Editor"}</h2>
+              <p className="text-sm text-muted-foreground">
+                {yi
+                  ? "דא קענסטו זען דעם גאנצן קיפעד־מפתח און אריינגיין אינעם עקזיסטירנדן ימות־קול־עדיטער. די לייוו־מעניוס ווערן נישט געענדערט ביים בלויז עפענען."
+                  : "See the full keypad directory and use the existing Yemot menu voice editor. Opening this panel does not change live menus."}
+              </p>
+              <div className="flex flex-wrap gap-2" role="group" aria-label={yi ? "האנטליין־כלים" : "Hotline tools"}>
+                <Button type="button" variant={hotlinePanel === "index" ? "default" : "outline"} aria-pressed={hotlinePanel === "index"} onClick={() => setHotlinePanel("index")}>
+                  {yi ? "מפתח — אלע מעניוס און קנעפלעך" : "Keypad index"}
+                </Button>
+                {user?.role === "super_admin" && (
+                  <Button type="button" variant={hotlinePanel === "editor" ? "default" : "outline"} aria-pressed={hotlinePanel === "editor"} onClick={() => setHotlinePanel("editor")}>
+                    <Edit3 className="h-4 w-4" /> {yi ? "מעניו־ און קול־עדיטער" : "Menu & Voice Editor"}
+                  </Button>
+                )}
+              </div>
             </div>
-            <iframe title="גבהה קיפעד מפתח" src="/api/admin/hotline-keypad-map" className="w-full rounded-xl border bg-white" style={{height:"min(1350px,85vh)"}} />
+            {hotlinePanel === "index" || user?.role !== "super_admin" ? (
+              <div className="space-y-3">
+                <a className="inline-flex items-center rounded-lg border px-4 py-2 text-primary font-semibold" href="/api/admin/hotline-keypad-map" target="_blank" rel="noopener noreferrer">
+                  {yi ? "עפענען דעם גאנצן קיפעד־מפתח" : "Open full keypad index"}
+                </a>
+                <iframe title="גבהה קיפעד מפתח" src="/api/admin/hotline-keypad-map" className="w-full rounded-xl border bg-white" style={{height:"min(1350px,85vh)"}} />
+              </div>
+            ) : (
+              <YemotVoiceStudio />
+            )}
           </TabsContent>
           {user?.role === "super_admin" && (
             <TabsContent value="yemot-global" className="space-y-6"><YemotCentralManagement /></TabsContent>
