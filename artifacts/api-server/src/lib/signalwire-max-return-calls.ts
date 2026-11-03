@@ -7,7 +7,7 @@ import {normalizedSignalWireNumber} from "./signalwire-number-safety";
 
 const root="https://gavhah-cloudflare-native.keygovhh.workers.dev";
 const macKey=()=>String(process.env.SIGNALWIRE_SIGNING_KEY||"");
-const active=()=>process.env.OLAM_RETURN_CALL_ROUTING_ENABLED==="true"&&macKey().length>=32;
+const active=()=>process.env.OLAM_RETURN_CALL_ROUTING_ENABLED==="true"&&macKey().length>=24;
 const esc=(s:string)=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;")
  .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
 const xml=(s:string)=>'<?xml version="1.0" encoding="UTF-8"?><Response>'+s+'</Response>';
