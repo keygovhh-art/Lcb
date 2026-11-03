@@ -651,7 +651,7 @@ function CommunityProjectsContent() {
     <div className="rounded-xl border bg-muted/20 p-5 space-y-2">
       <div className="flex items-center gap-2">
         <FolderKanban className="h-6 w-6 text-primary" />
-        <h2 className="font-serif text-2xl font-bold text-primary">Community Projects, Campaigns & Programs</h2>
+        <h2 className="font-serif text-2xl font-bold text-primary">2 — Community Projects, Campaigns & Programs (team-reviewed)</h2>
       </div>
       <p className="text-sm text-muted-foreground leading-relaxed">
         Submit community projects, campaigns, initiatives and programs for Gavhah staff approval.
@@ -701,6 +701,7 @@ export default function Directory() {
       <p className="rounded-lg border bg-muted/20 p-4 text-sm" dir="rtl">
         {yi ? "דער זעלבער מעמבער קען סיי בעטן הילף און סיי זיך אנגעבן צו העלפן אנדערע. ביידע אנמעלדונגען בלייבן פריוואט און אומאפהענגיג." : "One member can both request help and volunteer to help others. Both applications are private and independent."}
       </p>
+      <h2 className="text-lg font-bold" dir="rtl">1 — פריוואטע ליסטע: איך דארף עסקנים / איך קען העלפן</h2>
       <div id="help-center" className="grid md:grid-cols-2 gap-4 scroll-mt-24">
         <section className="border rounded-xl bg-card p-6 space-y-4">
           <div className="flex gap-2 items-center text-primary">
