@@ -26,6 +26,7 @@ import { DiscussionTicker } from "@/components/shared/discussion-ticker";
 import { UpvoteButton } from "@/components/shared/upvote-button";
 import { useUpvoteStates } from "@/hooks/use-upvote-states";
 import { visibleForumTopic } from "@/lib/forum-topic";
+import {ForumVoicePlayer} from "@/components/news/forum-voice-recorder";
 
 export default function ForumDetail() {
   const { id } = useParams<{ id: string }>();
@@ -448,6 +449,8 @@ export default function ForumDetail() {
                   <p key={i} className="mb-3">{para}</p>
                 ))}
               </div>
+
+              {discussion.category?.startsWith("voice:") && <div dir="rtl" className="my-6"><p className="font-semibold mb-2">🎙️ הער דעם שמועס</p><ForumVoicePlayer id={discussion.id}/></div>}
 
               <div className="flex items-center gap-6 pt-4 border-t text-sm text-muted-foreground">
                 <UpvoteButton
