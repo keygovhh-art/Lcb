@@ -253,7 +253,15 @@ export function MaxCallDesk() {
     <div id="max-projects" className="rounded-xl border bg-card p-4 sm:p-6 space-y-4 scroll-mt-24">
       <div className="space-y-2">
         <Label htmlFor="max-project">פאר וועלכן פראיעקט ארבעטסטו?</Label>
-        <select id="max-project" value={caseId??""} onChange={e=>setCaseId(Number(e.target.value))}
+        <select id="max-project" value={caseId??""} onChange={e=>{
+            const nextCase=Number(e.target.value);
+            setCaseId(nextCase);
+            void fetch("/api/askanus/max/calling/preferences",{
+              method:"PUT",credentials:"include",
+              headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({lastCaseId:nextCase})
+            }).catch(()=>{setError("נישט געלונגען צו אפהיטן דעם לעצטן פראיעקט.");});
+          }}
           className="w-full h-11 rounded-lg border bg-background px-3 text-sm">
           {cases.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}
         </select>
