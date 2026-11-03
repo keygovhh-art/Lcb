@@ -42,6 +42,7 @@ import {signalWireNextHotline} from "../lib/signalwire-next-hotline";
 import {signalWireSharedHotline} from "../lib/signalwire-shared-ivr";
 import {signalwireMaxAgentBridge,signalwireMaxCallStatus} from "../lib/signalwire-max-outbound";
 import newsVoiceRepliesRouter from "./news-voice-replies";
+import forumVoiceRouter from "./forum-voice";
 import phoneAccountLinkRouter from "./phone-account-link";
 import reservationsRouter from "./reservations";
 import supportRouter from "./support";
@@ -136,6 +137,7 @@ router.post("/signalwire/max/status/:id/:part",(req,res,next)=>{
  void signalwireMaxCallStatus(req,res).catch(next);
 });
 router.use(newsVoiceRepliesRouter);
+router.use(forumVoiceRouter);
 router.use(phoneAccountLinkRouter);
 router.use(reservationsRouter);
 router.use(supportRouter);
