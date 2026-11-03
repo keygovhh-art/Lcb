@@ -3,7 +3,7 @@ import {pool} from "@workspace/db";
 import {getSessionUserId,requireAuth} from "../middlewares/auth";
 import {updateOlamAgentPresence,olamReturnChoice,olamReturnWhisper,
  olamReturnAccept,olamReturnDialDone,olamReturnFallback,
- olamReturnRecorded,olamReturnAudio} from "../lib/signalwire-max-return-calls";
+ olamReturnRecorded,olamReturnRecordingReady,olamReturnAudio} from "../lib/signalwire-max-return-calls";
 import {fetchOlamVoicemailAudio} from "../lib/signalwire-max-outbound";
 const router=Router();
 const step=(fn:(req:Request,res:Response)=>Promise<void>)=>
@@ -27,6 +27,7 @@ router.post("/signalwire/max/return/:id/accept",step(olamReturnAccept));
 router.post("/signalwire/max/return/:id/dialdone",step(olamReturnDialDone));
 router.post("/signalwire/max/return/:id/fallback",step(olamReturnFallback));
 router.post("/signalwire/max/return/:id/record",step(olamReturnRecorded));
+router.post("/signalwire/max/return/:id/recordready",step(olamReturnRecordingReady));
 router.get("/signalwire/max/return/:id/audio",step(olamReturnAudio));
 router.use("/askanus/max/return-calls",requireAuth);
 router.get("/askanus/max/return-calls/preferences",step(async(req,res)=>{
