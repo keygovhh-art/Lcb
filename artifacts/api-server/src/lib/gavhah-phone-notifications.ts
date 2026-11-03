@@ -1,9 +1,10 @@
-import type {PoolClient} from "pg";
-import {phonePromptOverride} from "../routes/yemot-voice-studio";
 
-const stripWebsiteWords=(value:string)=>value.replace(/\b(?:website|web[- ]?site)\b/gi,"account").replace(/\s+/g," ").trim();
 // Read/write the SAME public.notifications rows used by Gavhah /api/notifications.
 // Never use caller ID as membership; caller must pass memberAllowed first.
+// These externally supplied helpers are referenced by the shared telephone runtime.
+declare function phonePromptOverride(path:string):Promise<{ttsMuted?:boolean;ttsText?:string}>;
+declare function gvPhoneNoSiteWords2026(text:string):string;
+type GavhahNotificationQueryClient2026 = {query:(sql:string,params?:unknown[])=>Promise<{rows:any[]}>};
 const gvNotificationSubmenus2026:Record<string,string> = {
  "97181":"Notifications center. Press 1 for unread notifications. Press 2 for all notifications. Press 3 to mark every notification as read. Press 4 to browse categories. Press 5 for your profile. Press 9 for the previous notifications reader. Press star to go back.",
  "971813":"Mark all notifications as read. To confirm, press 1 twice. Press star to cancel.",
@@ -31,7 +32,7 @@ async function gvNotificationMenuCustom2026(path:string){
  const custom=await phonePromptOverride(path);
  return custom.ttsMuted?"":(custom.ttsText||gvNotificationHelp2026(path));
 }
-async function gvNotificationRead2026(client:PoolClient,path:string,userId:number,page:number,confirmId:number|null){
+async function gvNotificationRead2026(client:GavhahNotificationQueryClient2026,path:string,userId:string|number,page:number,confirmId:number){
  if(path==="97181"){
   const r=await client.query("SELECT count(*)::int AS total,count(*) FILTER(WHERE NOT is_read)::int AS unread FROM public.notifications WHERE user_id=$1",[userId]);
   const {total=0,unread=0}=r.rows[0]||{};
@@ -49,7 +50,7 @@ async function gvNotificationRead2026(client:PoolClient,path:string,userId:numbe
  const result=await client.query(sql,[userId,pageNo]);
  const row=result.rows[0];
  if(!row)return "There are no more notifications in this list. Press 2 for previous. Press 9 for notifications center.";
- const readable=stripWebsiteWords(String(row.message||"").replace(/<[^>]*>/g," ").replace(/https?:\/\/\S+/g," ").slice(0,320));
+ const readable=gvPhoneNoSiteWords2026(String(row.message||"").replace(/<[^>]*>/g," ").replace(/https?:\/\/\S+/g," ").slice(0,320));
  const date=row.created_at?new Date(row.created_at).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}):"";
  const safeReadable=/[\u0590-\u05ff]/u.test(readable)?"A notification with Yiddish text is available in Gavhah.":readable;
  const prompt="Notification "+(pageNo+1)+". "+(row.is_read?"Already read. ":"Unread. ")+(date?"Date "+date+". ":"")+(safeReadable||"An activity notice is available.")+". ";
