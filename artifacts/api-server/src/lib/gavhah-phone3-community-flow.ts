@@ -83,6 +83,16 @@ async function commitPhone3(client:PoolClient,d:Phone3Draft,callHash:string){
   "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id",
   [d.memberId,type,d.category,d.availability||null,d.urgency||null,
    d.title||null,d.details,d.location||null,d.goal||null,projectId,fingerprint]);
+ // Put a private, staff-visible pointer in the normal operations inbox.
+ // Never expose voice files, caller ID, or applications in public activity.
+ await client.query(
+  "INSERT INTO public.support_messages "+
+  "(user_id,name,email,type,subject,message,status) VALUES($1,$2,$3,$4,$5,$6,'open')",
+  [d.memberId,"Gavhah phone member","phone3@internal.invalid","phone3_intake",
+    "Private Askanim / project intake #"+inserted.rows[0].id,
+    "PRIVATE SYSTEM APPLICATION — use Founder Dashboard > keypad 3 review. "+
+    "Kind: "+type+". Category: "+d.category+". Project ID: "+(projectId||"not a project")+
+    ". Do not disclose member contact details without mutual consent and staff authorization."]);
  return {ok:true,message:"Your application number is "+inserted.rows[0].id+
    ". It was saved PRIVATELY for Gavhah staff. "+
    (type==="project"?"The project is NOT public until approved. ":"No private helper information is public.")};
