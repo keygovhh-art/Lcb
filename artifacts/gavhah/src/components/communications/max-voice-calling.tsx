@@ -11,7 +11,7 @@ type Call={id:string;caseId:number|null;number:string;country:string;direction:s
  durationSeconds:number|null;startedAt:string|null;answeredAt:string|null;endedAt:string|null;
  outcome:string;mood:string;note:string;createdAt:string;participantCount:number};
 type Prefs={lastCaseId:number|null;holdMode:"gavhah"|"message"|"audio";
- holdMessage:string;holdAudioPath:string;providerReady:boolean;recordingEnabled:boolean};
+ holdMessage:string;holdAudioPath:string;signalwireConnected:boolean;providerReady:boolean;recordingEnabled:boolean};
 const outcomes=[
  {value:"",label:"אויסגאנג נישט אריינגעלייגט"},{value:"donation",label:"געגעבן א נדבה (צולייגן סכום אין נדבות־באריכט)"},
  {value:"no_answer",label:"נישט אויפגעהויבן"},{value:"callback",label:"צוריקרופן"},
@@ -176,8 +176,10 @@ export function MaxVoiceCalling({cases,selectedContact}:{
    </h3>
    <p className="text-sm text-muted-foreground">
     {prefs?.providerReady
-     ?"SignalWire איז צוגעגרייט פאר דיין באשטעטיגטן נומער. מיט א קנעפל גייט דער רוף ארויס. קיין שמועסן ווערן נישט רעקארדירט."
-     :"SignalWire איז נאכנישט אקטיוו פאר דיין אקאונט. מען קען בלויז צוגרייטן און אפהיטן רופן ביז די פארבינדונג ווערט באשטעטיגט."}
+     ?"SignalWire איז שוין קאנעקטעד און די נייע רופן זענען אקטיוו פאר דיין באשטעטיגטן נומער. קיין שמועסן ווערן נישט רעקארדירט."
+     :prefs?.signalwireConnected
+      ?"SignalWire איז שוין קאנעקטעד און וועריפיצירט! דער נייער אויטאמאטישער רופן־קנעפל איז נאך פארשפארט ביז די באשטעטיגטע רופן־אקטיוואציע."
+      :"די רופן־צוגרייטונג איז פאראן; דער SignalWire־מצב קען דערווייל נישט באשטעטיגט ווערן."}
    </p>
   </div>
   {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -186,7 +188,9 @@ export function MaxVoiceCalling({cases,selectedContact}:{
   {callingMode&&<div className="rounded-lg border p-3 space-y-2">
    <strong>Calling Mode — {callingMode.campaignTitle}</strong>
    <p>{callingMode.lead.displayName}: <span dir="ltr">{callingMode.lead.phone}</span></p>
-   <p className="text-sm text-muted-foreground">דער נומער איז גרייט. אמת'ע SignalWire רופן זענען נאכנישט אקטיוו.</p>
+   <p className="text-sm text-muted-foreground">{prefs?.providerReady
+    ?"SignalWire קען שוין רופן דיין באשטעטיגטן טעלעפאן און דערנאך דעם נדבן."
+    :"SignalWire איז שוין קאנעקטעד; דער נייער אויטאמאטישער רוף איז נאך נישט אקטיווירט."}</p>
   </div>}
   <div className="rounded-xl border p-3 space-y-3">
    <p className="font-semibold">
