@@ -272,4 +272,19 @@ router.post("/askanus/connect/call-queue/:id/result",requireAuth,endpoint(async(
  res.json(data);
 }));
 
+
+// Internal server-only authorization. A browser cannot forge its own campaign
+// membership or override a Campaign Center number on the outbound dial path.
+export async function verifyMaxCampaignDialClaim(
+ userId:number,campaignId:string,contactId:string
+):Promise<{authorized:boolean;phone:string}>{
+ if(!/^[a-f0-9-]{36}$/i.test(campaignId)||!/^[a-f0-9-]{36}$/i.test(contactId))
+  throw Object.assign(Error("Invalid campaign calling claim"),{status:400});
+ const result=await remote("/call-queue/"+encodeURIComponent(contactId)+"/authorize-dial","POST",{
+  gavhahUserId:userId,campaignId
+ });
+ return {authorized:result.authorized===true,
+   phone:typeof result.phone==="string"?result.phone:""};
+}
+
 export default router;
