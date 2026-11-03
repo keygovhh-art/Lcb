@@ -21,7 +21,7 @@ button.danger{color:#993b3b;border-color:#e0bdbd;background:#fff8f8}
 .info{border-radius:9px;background:#eff5fa;padding:10px 12px;color:#476780}
 .status{margin:10px 0;border-radius:9px;padding:10px;background:#f0f5fa;min-height:20px;white-space:pre-wrap}
 .good{background:#edf8f1;color:#176237}.error{background:#fff0f0;color:#a22929}
-audio{width:100%;margin:11px 0}label{display:block;font-weight:650;margin:12px 0 5px}
+.record-guide{direction:rtl;text-align:right;padding:13px 15px;margin:13px 0 7px;border:1px solid #b5cede;border-right:4px solid #35769b;border-radius:12px;background:#f6fafc;overflow-wrap:anywhere}.record-guide .guide-title{font-size:16px;font-weight:750;margin-bottom:6px;color:#174d73}.record-guide .guide-text{font-size:17px;line-height:1.9;white-space:pre-wrap;color:#263a4d}.record-guide .guide-hint{font-size:12px;margin-top:8px;color:#576d80}.record-guide.recording{position:sticky;top:7px;z-index:8;max-height:40vh;overflow:auto;box-shadow:0 7px 18px #183f5c30;background:#fff}audio{width:100%;margin:11px 0}label{display:block;font-weight:650;margin:12px 0 5px}
 .divider{border:0;border-top:1px solid #e1e9f1;margin:17px 0}
 a{color:#175e91}#caption{font-weight:700}.current-message{padding:14px;margin:10px 0;border:1px solid #c2d4e5;background:#f8fbfe;border-radius:11px;font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;direction:ltr;text-align:left;min-height:52px}
 @media(max-width:650px){.grid{grid-template-columns:1fr}#choices{max-height:none}header{padding:16px}h1{font-size:23px}}
@@ -51,7 +51,7 @@ a{color:#175e91}#caption{font-weight:700}.current-message{padding:14px;margin:10
 <h2>רעקארדירונג פאר דער עקסטענשאן</h2>
 <label for="file">ארויפלייגן א רעקארדירונג (WAV, WEBM, OGG, MP3)</label>
 <input id="file" type="file" accept="audio/wav,audio/wave,audio/webm,audio/ogg,audio/mpeg,audio/mp3">
-<div class="actions"><button id="record" type="button">רעקארדירן פונעם מייקראפאן</button><button id="stop" type="button" disabled>אפשטעלן רעקארדירונג</button></div>
+<aside id="recordGuide" class="record-guide" aria-label="אידישער ביישפיל פאר די רעקארדירונג"><div class="guide-title">ביישפיל: וואס דו קענסט זאגן ביים רעקארדירן</div><div id="recordGuideText" class="guide-text" dir="rtl"></div><p class="guide-hint">דאס איז בלויז אן אידישער פארשלאג, נישט א לייווע מעלדונג. ער בלייבט זעבאר בשעתן רעקארדירן.</p></aside><div class="actions"><button id="record" type="button">רעקארדירן פונעם מייקראפאן</button><button id="stop" type="button" disabled>אפשטעלן רעקארדירונג</button></div>
 <audio controls id="player"></audio><div id="voiceLabSlot"></div><div class="actions"><button id="voiceLoadSaved" type="button">עפענען די אפגעהיטענע רעקארדירונג אינעם Voice Changer</button></div>
 <div class="actions"><button class="primary" id="upload" type="button" disabled>אפהיטן רעקארדירונג אלס פריוואטע פארשלאג</button></div>
 <div id="audioState" class="info">נאך נישט אויסגעקליבן קיין רעקארדירונג.</div><div class="actions"><button id="discardAudio" class="danger" type="button">אוועקווארפן די יעצטיגע רעקארדירונג</button><button id="deleteDraft" class="danger" type="button">אויסמעקן די אפגעהיטענע רעקארדירונג</button></div>
@@ -65,11 +65,71 @@ a{color:#175e91}#caption{font-weight:700}.current-message{padding:14px;margin:10
 const root="/api/admin/yemot/voice-studio",el=id=>document.getElementById(id);
 let catalog=[],prompts=new Map(),selected=null,trail=[],blob=null,recorder=null,chunks=[],stream=null,objectUrl=null,busy=false,verifiedFolder=false,voiceLab=null,voiceLabPath=null;
 const escapeNothing=s=>String(s||"");
+
+const recYiddishSamples={
+"root":"ברוכים הבאים צו גבהה. פאר חסד־נייעס דרוקט 1. פאר עסקנים־שמועסן דרוקט 2. פאר הילף דרוקט 3. פאר עולם החסד קאמיוניקאציע דרוקט 5. פאר מיין עסקנות דרוקט 9. פאר זוכן גיט אריין 11. פאר מעלדונגען 12. פאר פארבינדונגען 13. פאר פראפיל 15. צו ווערן א גבהה־מעמבער דרוקט 0.",
+"11":"צו הערן אלע אפדעיטס, ווארט אויפן ליין. פאר אנדערע אפציעס, דרוק 1.",
+"97111":"פאר וויכטיגע נייעס דרוקט 1. פאר אויסגעצייכנטע אפדעיטס דרוקט 2. פאר אן ארטיקל לויטן נומער דרוקט 3. פאר אלע אפדעיטס דרוקט 4.",
+"111":"איר הערט יעצט די לעצטע אפדעיטס. בלייבט אויפן ליין פארן נעקסטן.",
+"113":"איר הערט די וויכטיגע און דרינגענדע נייעס. בלייבט אויפן ליין פארן נעקסטן.",
+"114":"איר הערט די אויסגעצייכנטע אפדעיטס. בלייבט אויפן ליין פארן נעקסטן.",
+"115":"גיט אריין דעם נומער פונעם ארטיקל וואס איר ווילט הערן, און דרוקט שארף.",
+"185":"ברוכים הבאים צו גבהה־רעגיסטראציע. קלייבט א פערזענליכן פעסווארד פון זעקס ביז צוועלף ציפערן און דרוקט שארף.",
+"1851":"צו ווערן א גבהה־מעמבער קלייבט א פריוואטן פעסווארד פון זעקס ביז צוועלף ציפערן, און דרוקט שארף.",
+"1852":"לייגט נאכאמאל אריין דעם זעלבן פעסווארד און דרוקט שארף.",
+"1853":"די צוויי פעסווארדס שטימען נישט. ביטע פרובירט נאכאמאל.",
+"1854":"ביטע קלייבט אן אנדערן פעסווארד פון זעקס ביז צוועלף ציפערן.",
+"1855":"די רעגיסטראציע איז צייטווייליג נישט צוטריטליך. ביטע פרובירט שפעטער נאכאמאל.",
+"1856":"איר זענט יעצט איינגעשריבן אלס גבהה־מעמבער. דער האטליין וועט אויטאמאטיש אויסזאגן און איבערחזרן אייער פערזענליכן פיר־ציפערדיקן איי־די.",
+"1857":"עס זענען געווען צו פיל אומריכטיגע פרואוון. הייבט אן נאכאמאל.",
+"1858":"איר זענט שוין איינגעשריבן אלס גבהה־מעמבער.",
+"1251":"לייגט אריין אייער פריוואטן גבהה־פעסווארד פון זעקס ביז צוועלף ציפערן, און דרוקט שארף.",
+"1252":"לייגט אריין אייער צווייטן זיכערהייט־קאד, און דרוקט שארף.",
+"1253":"לייגט אריין אייער פיר־ציפערדיקן גבהה־איי־די, און דרוקט שארף.",
+"1254":"ברוכים הבאים צוריק. אייער אקאונט איז באשטעטיגט.",
+"97181":"פאר אומגעלייענטע מעלדונגען דרוקט 1. פאר אלע מעלדונגען דרוקט 2. צו אנצייכענען אלע אלס געלייענט דרוקט 3. פאר מעלדונגען לויטן סארט דרוקט 4.",
+"971811":"דא הערט איר אומגעלייענטע מעלדונגען. פאר דער נעקסטער דרוקט 1, פאר דער פריערדיגער 2, און צו אנצייכענען געלייענט דרוקט 5 צוויי מאל.",
+"971812":"דא הערט איר אלע מעלדונגען. פאר דער נעקסטער דרוקט 1, פאר דער פריערדיגער 2, און צו אנצייכענען געלייענט דרוקט 5 צוויי מאל.",
+"971813":"צו אנצייכענען אלע מעלדונגען אלס געלייענט, דרוקט 1 צוויי מאל צו באשטעטיגן.",
+"971814":"פאר אפקלאנגען דרוקט 1. פאר צדקה דרוקט 2. פאר גרופעס דרוקט 3. פאר אנאנסן דרוקט 4. פאר הילף דרוקט 5.",
+"97190":"פאר נייעס לויט א נומער דרוקט 1. פאר שמועסן דרוקט 2. פאר צדקה דרוקט 3. פאר גרופעס דרוקט 4. פאר מנינים דרוקט 5.",
+"97193":"פאר מיינע פארבינדונגען דרוקט 1. פאר פאלן וואס ווארטן אויף מיין באשטעטיגונג דרוקט 2. פאר נאכגעפאלגטע אפדעיטס דרוקט 3.",
+"159":"ברוכים הבאים צו עולם החסד קאמיוניקאציע. פאלגט די אנווייזונגען פאר רופן, קאנטאקטן און באריכטן.",
+"182":"דא קענט איר הערן אייערע אקאונט־פרטים און אייער פערזענליכן גבהה־איי־די.",
+"19":"ברוכים הבאים צום כח הרבים־דעשבאורד. דא קענט איר הערן באריכטן און פארוואלטונגס־אפציעס.",
+"12":"ברוכים הבאים צו מיין עסקנות. דא קענט איר פירן אייערע אויפגאבן, נאטיצן און ענינים.",
+"9777":"פאר רעזערוואציעס דרוקט 1. פארן סיסטעם־צענטער דרוקט 2. פאר כח הרבים דרוקט 3. פאר קאנטאקטן דרוקט 4. פאר רופן דרוקט 5. פאר חסד דרוקט 6. פאר קהילה דרוקט 7. פאר מנינים דרוקט 8."
+};
+const recYiddishWords=[
+["important and critical news","וויכטיגע נייעס"],["all updates","אלע אפדעיטס"],["featured updates","אויסגעצייכנטע אפדעיטס"],["emergency appeals","דרינגענדע הילף־רופן"],["fundraising","צדקה־זאמלונגען"],["organization updates","ארגאניזאציע־אפדעיטס"],["community alerts","ציבורישע מעלדונגען"],["volunteer calls","וואלונטיר־רופן"],["news","נייעס"],["announcement","מעלדונגען"],["bikur cholim","ביקור חולים"],["wedding","חתונה־נייעס"],["donor","נדבנים"],["pledges","צוזאגן"],["contacts","קאנטאקטן"],["follow","צוריקרופן"],["call","רופן"],["tasks","אויפגאבן"],["notes","נאטיצן"],["personal","פערזענליכע ענינים"],["charity","צדקה"],["campaign","קאמפיינס"],["community","קהילה"],["group","גרופעס"],["forum","שמועסן"],["discussion","שמועסן"],["connection","פארבינדונגען"],["minyan","מנינים"],["reservation","רעזערוואציעס"],["notification","מעלדונגען"],["profile","פראפיל"],["register","איינשרייבן"],["password","פעסווארד"],["security","זיכערהייט"],["account","אקאונט"],["report","באריכטן"],["management","פארוואלטונג"],["team","מאנשאפט"],["volunteer","וואלונטירן"],["search","זוכן"],["directory","רשימה"],["assistance","הילף"],["support","הילף"],["privacy","פריוואטקייט"],["settings","איינשטעלונגען"],["system","סיסטעם"],["koach","כח הרבים"],["olam","עולם החסד"],["messages","מעלדונגען"],["help","הילף"],["updates","אפדעיטס"]
+];
+function recYiddishName(n){
+ let v=String(n?.label||"").replace(/^\s*\d+\s*[—–-]\s*/,"").trim();
+ if(/[\u0590-\u05ff]/u.test(v)){const p=v.split(/[—–]/).map(x=>x.trim()).find(x=>/[\u0590-\u05ff]/u.test(x));if(p)return p.slice(0,110)}
+ for(const pair of recYiddishWords)if(v.toLowerCase().includes(pair[0]))return pair[1];
+ return "די אויסגעקליבענע אפטיילונג";
+}
+function recYiddishExample(n){
+ if(!n)return "קלייבט א קנעפל פאר א פאסיגן אידישן ביישפיל.";
+ if(recYiddishSamples[n.path])return recYiddishSamples[n.path];
+ const children=catalog.filter(x=>x.parent===n.path&&x.path!==n.path).filter((x,i,all)=>all.findIndex(v=>v.path===x.path)===i);
+ if(children.length){
+  const notes=children.slice(0,16).map((x,i)=>{
+   const m=String(x.label||"").match(/^\s*(\d+)\s*[—–-]/);
+   return "פאר "+recYiddishName(x)+" דרוקט "+(x.displayDigit||m?.[1]||x.path.slice(-1)||String(i+1))+".";
+  });
+  return "ברוכים הבאים צו "+recYiddishName(n)+". "+notes.join(" ")+" צו גיין צוריק דרוקט שטערנדל.";
+ }
+ return "איר האט אויסגעקליבן "+recYiddishName(n)+". פאלגט די ווייטערדיגע אנווייזונגען. צוריק צום פריערדיגן מעניו, דרוקט שטערנדל.";
+}
+function showRecYiddish(n){el("recordGuideText").textContent=recYiddishExample(n)}
+
 function message(t,bad=false){const p=el("status");p.textContent=t;p.className="status "+(bad?"error":"good")}
 function selectedApi(tail=""){return root+"/"+encodeURIComponent(selected.path)+tail}
 function updateAudioControls(){
  const row=selected?prompts.get(selected.path):null;
- el("upload").disabled=!blob||busy;el("record").disabled=busy;
+ el("recordGuide").classList.toggle("recording",!!recorder&&recorder.state==="recording");
+  el("upload").disabled=!blob||busy;el("record").disabled=busy;
  el("stop").disabled=!recorder||recorder.state!=="recording";el("saveTts").disabled=busy;
  el("resetTts").disabled=busy;el("muteTts").disabled=busy;
  el("publish").disabled=busy||!row?.audio_size||selected?.path==="1856";el("unpublish").disabled=busy||!row?.published_path;
@@ -163,7 +223,7 @@ function setPreview(src){
 function select(node){
  if(voiceLab&&voiceLabPath!==node.path){voiceLab.clear();voiceLabPath=node.path;}
  if(recorder&&recorder.state==="recording"){message("שטעל קודם אפ די רעקארדירונג.",true);return}
- selected=node;blob=null;el("file").value="";el("editor").hidden=false;
+ selected=node;showRecYiddish(node);blob=null;el("file").value="";el("editor").hidden=false;
  el("heading").textContent=(node.path==="root"?"הויפט־מעניו":"קנעפל "+(trail[trail.length-1]?.displayDigit||node.path.slice(-1))+" — "+node.label);
  el("details").textContent="טעכנישע עקסטענשאן: "+node.path+" · אונטער־מעניו: "+node.parent+" · "+(node.kind==="menu"?"אפטיילונג מיט קנעפלעך":"לעצטער קנעפל");
  const saved=prompts.get(node.path);el("tts").value=saved?.tts_text?.trim()?saved.tts_text:(node.effectiveTts||node.suggestedEnglish||"");showCurrentSpeech();
