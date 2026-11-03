@@ -13,6 +13,7 @@ import { MaxSourceHelper } from "@/components/communications/max-source-helper";
 import { MaxReminderInbox } from "@/components/communications/max-reminder-inbox";
 import { MaxPerformancePanel } from "@/components/communications/max-performance-panel";
 import { MaxHistoryPanel } from "@/components/communications/max-history-panel";
+import { MaxVoiceCalling } from "@/components/communications/max-voice-calling";
 import { GavhahConnectPanel } from "@/components/communications/gavhah-connect-panel";
 
 type PersonalCase = {
@@ -216,7 +217,7 @@ export function MaxCallDesk() {
     <nav aria-label="MAX הויפט־אפטיילונגען" className="grid grid-cols-5 gap-1.5 text-center text-[11px] sm:text-sm">
       {[
         {href:"#max-today",label:"היינט"},
-        {href:"#max-call",label:"רופן"},
+        {href:"#max-voice-calling",label:"רופן"},
         {href:"#max-contacts",label:"מענטשן"},
         {href:"#max-projects",label:"צוועקן"},
         {href:"#max-more",label:"מער"},
@@ -246,6 +247,9 @@ export function MaxCallDesk() {
     <MaxReminderInbox onChanged={()=>{void load();}} />
     {error && <div role="alert" className="p-3 rounded-lg border border-destructive/40 text-destructive">{error}</div>}
     {message && <div role="status" className="p-3 rounded-lg border border-green-600/30 text-green-800 dark:text-green-300">{message}</div>}
+    <MaxVoiceCalling cases={cases.map(c=>({id:c.id,title:c.title}))}
+      selectedContact={chosenContact?{id:chosenContact.id,name:chosenContact.name,
+        phone:chosenContact.phone,doNotCall:!!chosenContact.doNotCall}:null}/>
     <div id="max-projects" className="rounded-xl border bg-card p-4 sm:p-6 space-y-4 scroll-mt-24">
       <div className="space-y-2">
         <Label htmlFor="max-project">פאר וועלכן פראיעקט ארבעטסטו?</Label>
