@@ -97,7 +97,7 @@ router.get("/admin/yemot/voice-studio",requireAuth,admin,wrap(async(_req,res)=>{
  ]);
  res.setHeader("Cache-Control","private, no-store");
  const campaignReady=installation.rows[0]?.campaign_state==="live";
- const gavhahMain="Welcome to Gavhah. For news and updates, press 1. For My Askanus, press 2. For contacts, press 3. For calling, press 4. For kindness, press 5. For community, press 6. For minyans, press 7. For messages or registration, press 8. For management, press 9. For advanced Askanus keypad, enter 88 then pound. For Campaign Center, enter 4444. For official Gavhah member registration, press 0. Press star to go back.";
+ const gavhahMain="Welcome to Gavhah. For news and updates, press 1. For My Askanus, press 2. For community projects and private Askanim connections, press 3. For calling, press 4. For kindness, press 5. For community, press 6. For minyans, press 7. For messages or registration, press 8. For management, press 9. For advanced Askanus keypad, enter 88 then pound. For Campaign Center, enter 4444. For official Gavhah member registration, press 0. Press star to go back.";
  const originalMain="Welcome to Gavhah and Campaign Center. For Gavhah, press 1. For Campaign Center, press 2. To create a website member account, press 8. For official Gavhah member registration, press 0. Press star to go back.";
  const items=catalogue().map(item=>({...item,
   effectiveTts:gavhahPhoneStageVoices[item.path]?.text || (item.path==="root"?(campaignReady?gavhahMain:originalMain):item.kind==="menu"?phonePrompt(item.path).replace(/press zero to go back/gi,"press star to go back"):item.suggestedEnglish),
