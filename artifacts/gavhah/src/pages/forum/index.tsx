@@ -10,11 +10,14 @@ import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useEngagementSettings, settingFor } from "@/lib/engagement-settings";
 import { DiscussionTicker } from "@/components/shared/discussion-ticker";
 import { visibleForumTopic } from "@/lib/forum-topic";
+import { ForumVoiceRecorder } from "@/components/news/forum-voice-recorder";
+import {useQueryClient} from "@tanstack/react-query";
 
 export default function ForumList() {
   const { data: engagementSettings } = useEngagementSettings();
   const forumEngagement = settingFor(engagementSettings, "forum");
   const [search, setSearch] = useState("");
+  const queryClient=useQueryClient();
 
   const params = { search: search || undefined };
   const { data: discussions, isLoading } = useListDiscussions(params, {
@@ -45,6 +48,9 @@ export default function ForumList() {
       </div>
 
       <DiscussionTicker />
+      <div className="container mx-auto px-4 pt-6">
+        <ForumVoiceRecorder onPublished={()=>{void queryClient.invalidateQueries({queryKey:["/api/discussions"]});}} />
+      </div>
 
       <div className="container mx-auto px-4 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -95,7 +101,7 @@ export default function ForumList() {
                             {disc.title}
                           </h3>
                           <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                            {disc.content.substring(0, 120)}...
+                            {disc.category?.startsWith("voice:") ? "🎙️ הער דעם רעקארדירטן שמועס — דרוק צו עפענען דעם שפילער" : disc.content.substring(0,120)+"..."}
                           </p>
                           <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                             <span>By <span className="font-medium text-foreground">{disc.authorName}</span></span>
