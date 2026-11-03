@@ -7,7 +7,7 @@ const router=Router();
 const table="public.gavhah_olam_voice_recordings";
 const root="https://gavhah-cloudflare-native.keygovhh.workers.dev";
 const routePath=(v:string|string[])=>Array.isArray(v)?(v.length===1?v[0]:""):v;
-const validPath=(p:string)=>p==="root"||/^[1-9][0-9]{0,11}$/.test(p);
+const validPath=(p:string)=>(p==="root"||p==="retry")||/^[1-9][0-9]{0,11}$/.test(p);
 const urlSign=(path:string,version:string)=>{
  const secret=process.env.SIGNALWIRE_SIGNING_KEY||"";
  if(secret.length<24)throw Error("SignalWire voice signing key unavailable");
