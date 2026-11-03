@@ -34,6 +34,8 @@ export function MaxReturnCallsPanel(){
  const [saving,setSaving]=useState(false);
  const [chimeOn,setChimeOn]=useState(false);
  const [playing,setPlaying]=useState<string|null>(null);
+ const [recording,setRecording]=useState(false);
+ const recorder=useRef<MediaRecorder|null>(null);
  const ref=useRef<AudioContext|null>(null);
  const seen=useRef(new Set<string>());
  const started=useRef(Date.now());
@@ -119,6 +121,52 @@ export function MaxReturnCallsPanel(){
   }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען")}
   finally{setSaving(false)}
  };
+ const startMicrophone=async()=>{
+  setError("");
+  try{
+   if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==="undefined")
+    throw Error("דער בראוזער האט נישט קיין מייקראפאן־רעקארדירונג.");
+   const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+   const chunks:Blob[]=[];
+   const r=new MediaRecorder(stream);
+   recorder.current=r;
+   r.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+   r.onstop=async()=>{
+    setRecording(false);stream.getTracks().forEach(track=>track.stop());
+    try{
+     if(!chunks.length)throw Error("קיין שטימע איז נישט רעקארדירט געווארן.");
+     const blob=new Blob(chunks,{type:r.mimeType||"audio/webm"});
+     const context=new AudioContext();
+     const decoded=await context.decodeAudioData(await blob.arrayBuffer());
+     await context.close();
+     const frames=Math.ceil(Math.min(60,decoded.duration)*16000);
+     if(!frames)throw Error("די רעקארדירונג איז ליידיג.");
+     const offline=new OfflineAudioContext(1,frames,16000);
+     const source=offline.createBufferSource();
+     source.buffer=decoded;source.connect(offline.destination);source.start(0);
+     const rendered=await offline.startRendering();
+     const values=rendered.getChannelData(0);
+     const buffer=new ArrayBuffer(44+values.length*2);
+     const view=new DataView(buffer);
+     const write=(i:number,t:string)=>{for(let j=0;j<t.length;j++)view.setUint8(i+j,t.charCodeAt(j))};
+     write(0,"RIFF");view.setUint32(4,36+values.length*2,true);write(8,"WAVE");
+     write(12,"fmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);
+     view.setUint16(22,1,true);view.setUint32(24,16000,true);
+     view.setUint32(28,32000,true);view.setUint16(32,2,true);
+     view.setUint16(34,16,true);write(36,"data");view.setUint32(40,values.length*2,true);
+     for(let i=0;i<values.length;i++){
+      const v=Math.max(-1,Math.min(1,values[i]));
+      view.setInt16(44+i*2,v<0?v*32768:v*32767,true);
+     }
+     await upload(new File([buffer],"my-unavailable-message.wav",{type:"audio/wav"}));
+    }catch(e){setError(e instanceof Error?e.message:"רעקארדירונג נישט געלונגען.")}
+   };
+   r.start(1000);setRecording(true);
+  }catch(e){setError(e instanceof Error?e.message:"נישט געקענט עפענען דעם מייקראפאן.")}
+ };
+ const stopMicrophone=()=>{
+  if(recorder.current?.state==="recording")recorder.current.stop();
+ };
  const removeAudio=async()=>{
   setSaving(true);setError("");
   try{
@@ -178,6 +226,13 @@ export function MaxReturnCallsPanel(){
   </label>
   <div className="rounded-lg border p-3 space-y-2">
    <strong className="text-sm">מיין אייגענע רעקארדירונג — ווען איך בין נישט אוועליבעל</strong>
+   <div className="flex flex-wrap gap-2">
+    {recording?<Button size="sm" variant="destructive" onClick={stopMicrophone}>
+      אפשטעלן און אפהיטן די רעקארדירונג
+     </Button>:
+     <Button size="sm" variant="outline" disabled={saving}
+      onClick={()=>void startMicrophone()}>רעקארדירן מיטן מייקראפאן</Button>}
+   </div>
    <input type="file" accept=".wav,audio/wav" aria-label="אפלאָדן שטימע רעקארדירונג"
     disabled={saving} onChange={e=>void upload(e.target.files?.[0])}/>
    <p className="text-xs text-muted-foreground">WAV, 16 kHz, איין קאנאל, 16-bit PCM, אונטער 4 MB.</p>
