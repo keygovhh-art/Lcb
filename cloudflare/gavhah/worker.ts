@@ -2,6 +2,7 @@
  * Independent full Cloudflare Gavhah application: original Express API and
  * React SPA static assets live in ONE Cloudflare Worker. No Render proxy.
  * Uses the existing Neon PostgreSQL database with Worker runtime secrets.
+ * Keep pool connections bounded and require persistent session acknowledgement for login.
  * Real phone callbacks require provider-secret and number verification.
  */
 import {httpServerHandler} from "cloudflare:node";
