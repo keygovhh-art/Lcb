@@ -54,7 +54,7 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
   // For forum posts: unique caller-bound Yemot WAV, optional supported append.
   // Other recording flows keep their old provider parameters untouched.
   const forumPath=audioPath&&isForumRecordingFile(audioPath)?audioPath:null;
-  const config=forumPath?",/GavhahForumVoice,"+forumPath.split("/").pop()!.replace(/\\.wav$/,"")+
+  const config=forumPath?",/GavhahForumVoice,"+forumPath.split("/").pop()!.replace(/\.wav$/,"")+
    ",no,yes,"+(appendRecording?"yes":"no")+",1,300":"";
   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
    .send("read="+voice(prompt)+"=rr"+step+",,record"+config);return;
