@@ -7,12 +7,15 @@ const bridge=await readFile(new URL('../artifacts/api-server/src/routes/communic
 const cc=await readFile(new URL('../artifacts/api-server/src/routes/max-calling-workspace.ts',import.meta.url),'utf8');
 const schema=await readFile(new URL('../lib/db/migrations/20261103_max_calls_campaign_workspace.sql',import.meta.url),'utf8');
 
-test('Only separate and explicitly enabled Olam SignalWire project may bill outbound calls',()=>{
+test('Reuse existing owner-verified SignalWire credentials, with a separate billable-call enable gate',()=>{
  assert.match(source,/OLAM_SIGNALWIRE_CALLING_ENABLED/);
- assert.match(source,/OLAM_SIGNALWIRE_SPACE/);
- assert.match(source,/OLAM_SIGNALWIRE_API_TOKEN/);
- assert.match(source,/OLAM_SIGNALWIRE_SIGNING_KEY/);
- assert.match(source,/OLAM_SIGNALWIRE_CALLBACK_BASE/);
+ assert.match(source,/gavhah_signalwire_credentials/);
+ assert.match(source,/gavhah_signalwire_shared_route/);
+ assert.match(source,/YEMOT_ENCRYPTION_KEY/);
+ assert.match(source,/SIGNALWIRE_SIGNING_KEY/);
+ assert.match(source,/signalwireAlreadyConnected/);
+ assert.doesNotMatch(source,/process\.env\.OLAM_SIGNALWIRE_API_TOKEN/);
+ assert.doesNotMatch(source,/process\.env\.OLAM_SIGNALWIRE_SPACE/);
  assert.match(source,/if\(!c\)throw/);
  assert.match(source,/gavhah_olam_chesed_access/);
  assert.match(source,/gavhah_olam_signalwire_agent_numbers/);
