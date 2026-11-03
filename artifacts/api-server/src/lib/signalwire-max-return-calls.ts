@@ -120,7 +120,8 @@ function voicemail(id:string,message:string,announceNumber?:string,audioUrl?:str
   digits(announceNumber).split("").join(" ")+"."):"";
  return intro+phone+say("Please leave a message after the beep. Press pound when finished.")+
   '<Record action="'+esc(action(id,"record"))+
-  '" method="POST" maxLength="120" playBeep="true" finishOnKey="#"/>'+
+  '" method="POST" maxLength="120" playBeep="true" finishOnKey="#" '+ 
+  'recordingStatusCallback="'+esc(action(id,"recordready"))+'" recordingStatusCallbackMethod="POST"/>'+
   '<Hangup/>';
 }
 async function onUnavailable(id:string,row:ReturnCall,why:"busy"|"yemot"|"unavailable"){
@@ -235,24 +236,49 @@ export async function olamReturnFallback(req:Request,res:Response){
  if(!row){res.sendStatus(404);return;}
  send(res,await onUnavailable(id,row,"unavailable"));
 }
+const recordingId=(form:Record<string,string>)=>{
+ const direct=String(form.RecordingSid||"");
+ if(/^[a-zA-Z0-9_.:-]{8,160}$/.test(direct))return direct;
+ const url=String(form.RecordingUrl||"");
+ const match=/\/Recordings\/([A-Za-z0-9_.:-]{8,160})(?:\.(?:wav|mp3))?(?:\?|$)/.exec(url);
+ return match?.[1]||null;
+};
 export async function olamReturnRecorded(req:Request,res:Response){
  if(!validate(req,res,"record"))return;
  const id=String(req.params.id),sid=String(req.body?.CallSid||"");
  const row=await get(id,sid);
  if(!row){res.sendStatus(404);return;}
- const rec=String(req.body?.RecordingSid||"");
+ const rec=recordingId(req.body||{});
  const duration=Number(req.body?.RecordingDuration||NaN);
- if(!/^[a-zA-Z0-9_.:-]{8,160}$/.test(rec)){
-  send(res,say("We could not save your message. Please call again.")+"<Hangup/>");return;
- }
+ // RecordingStatusCallback is authoritative when the action omits RecordingSid.
  await pool.query(
   "INSERT INTO public.max_return_voicemails(return_call_id,owner_user_id,recording_sid,duration_seconds) "+
   "VALUES($1,$2,$3,$4) ON CONFLICT(return_call_id) DO UPDATE SET "+
-  "recording_sid=EXCLUDED.recording_sid,duration_seconds=EXCLUDED.duration_seconds",
+  "recording_sid=COALESCE(max_return_voicemails.recording_sid,EXCLUDED.recording_sid),"+
+  "duration_seconds=COALESCE(EXCLUDED.duration_seconds,max_return_voicemails.duration_seconds)",
   [id,row.owner_user_id,rec,Number.isSafeInteger(duration)&&duration>=0?duration:null]);
  await pool.query("UPDATE public.max_return_calls SET status='voicemail',updated_at=now() WHERE id=$1",[id]);
  await recordAlert(id,row.owner_user_id,"voicemail",row.incoming_from);
- send(res,say("Your message has been sent to the volunteer. Thank you.")+"<Hangup/>");
+ send(res,say("Thank you. Your message has been received.")+"<Hangup/>");
+}
+export async function olamReturnRecordingReady(req:Request,res:Response){
+ if(!validate(req,res,"recordready"))return;
+ const id=String(req.params.id),sid=String(req.body?.CallSid||"");
+ const row=await get(id,sid);
+ if(!row){res.sendStatus(404);return;}
+ const outcome=String(req.body?.RecordingStatus||"");
+ if(outcome!=="completed"){res.sendStatus(204);return;}
+ const rec=recordingId(req.body||{});
+ if(!rec){res.sendStatus(400);return;}
+ const secs=Number(req.body?.RecordingDuration||NaN);
+ await pool.query(
+  "INSERT INTO public.max_return_voicemails(return_call_id,owner_user_id,recording_sid,duration_seconds) "+
+  "VALUES($1,$2,$3,$4) ON CONFLICT(return_call_id) DO UPDATE SET "+
+  "recording_sid=EXCLUDED.recording_sid,duration_seconds=COALESCE(EXCLUDED.duration_seconds,"+
+  "max_return_voicemails.duration_seconds)",
+  [id,row.owner_user_id,rec,Number.isSafeInteger(secs)&&secs>=0?secs:null]);
+ await recordAlert(id,row.owner_user_id,"voicemail",row.incoming_from);
+ res.sendStatus(204);
 }
 export async function olamReturnAudio(req:Request,res:Response){
  const id=String(req.params.id||"");
