@@ -143,8 +143,9 @@ export async function placeOlamMaxOutboundCall(userId:number,sessionId:string,
   }
   throw Object.assign(Error("SignalWire rejected the outbound agent call"),{status:response.status>=500?503:409});
  }
- const result=await response.json().catch(()=>({}));
- const callId=String(result?.sid||result?.id||"");
+ const result:unknown=await response.json().catch(()=>null);
+ const object=result&&typeof result==="object"&&!Array.isArray(result)?result as {sid?:unknown;id?:unknown}:{};
+ const callId=String(object.sid||object.id||"");
  if(!sid.test(callId))throw Object.assign(Error("Provider accepted request without a valid call ID; check account"),{status:503});
  await pool.query(
   "UPDATE public.max_call_sessions SET provider_call_id=$1,status='ringing',updated_at=now() "+
