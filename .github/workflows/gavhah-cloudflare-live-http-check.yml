@@ -1,0 +1,46 @@
+name: Cloudflare native Gavhah live phone deployment smoke (safe, no outbound calls)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/gavhah-cloudflare-live-http-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check real Cloudflare Worker readiness (no phone calls)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://gavhah-cloudflare-native.keygovhh.workers.dev"
+          c=$(curl -sS --retry 2 --max-time 15 -o /tmp/gavhah-ready.json -w '%{http_code}' "$BASE/__gavhah/status")
+          echo "Worker readiness HTTP: $c"
+          cat /tmp/gavhah-ready.json
+          test "$c" = "200"
+          node -e 'const x=require("/tmp/gavhah-ready.json");for(const k of ["databaseCredentialsConfigured","sessionsConfigured","signalwirePhoneCallbacksEnabled","yemotPhoneCallbacksEnabled"]){if(x[k]!==true)throw Error(k+" not active")}if(x.hosting!=="cloudflare-native"||x.renderProxy!==false)throw Error("Not independent Cloudflare native")'
+      - name: Only authenticated members can access private return-calls and MAX
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://gavhah-cloudflare-native.keygovhh.workers.dev"
+          for p in /api/auth/me /api/askanus/max/return-calls/preferences /api/askanus/max/calling/agent-status; do
+            status=$(curl -sS --max-time 12 -o /tmp/unauthorized -w '%{http_code}' "$BASE$p")
+            echo "$p: HTTP $status"
+            test "$status" = "401"
+          done
+      - name: Reject unsigned public SignalWire callbacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://gavhah-cloudflare-native.keygovhh.workers.dev"
+          for p in /api/signalwire/shared-ivr /api/signalwire/max/return/1/choice /api/signalwire/max/bridge/1; do
+            code=$(curl -sS --max-time 12 -o /tmp/signalwire-deny -w '%{http_code}' -X POST -d 'CallSid=notasignedcall&From=+12125550123' "$BASE$p")
+            echo "$p unsigned POST: HTTP $code"
+            test "$code" = "403" || test "$code" = "400"
+          done
