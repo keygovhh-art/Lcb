@@ -33,6 +33,7 @@ import { MembershipGateManagement } from "@/components/admin/membership-gate-man
 import { AdvancedMemberManagement } from "@/components/admin/advanced-member-management";
 import { OperationsInbox } from "@/components/admin/operations-inbox";
 import { PrivateAssistanceManagement } from "@/components/admin/private-assistance-management";
+import {CommunityReviewWorkspace} from "@/components/admin/community-review-workspace";
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 import { YemotCentralManagement } from "@/components/admin/yemot-central-management";
@@ -422,6 +423,7 @@ export default function FounderDashboard() {
               )}
             </TabsTrigger>
             <TabsTrigger value="projects" className="gap-2"><FolderKanban className="h-4 w-4" /> Projects</TabsTrigger>
+             <TabsTrigger value="community-review" className="gap-2"><UserCheck className="h-4 w-4" /> קנעפל 3 — איבערקוק</TabsTrigger>
             <TabsTrigger value="minyans" className="gap-2">
               <Clock className="h-4 w-4" /> Minyans
               {adminMinyans.filter(m => m.status === "pending").length > 0 && (
@@ -1047,7 +1049,9 @@ export default function FounderDashboard() {
           </TabsContent>
 
           {/* ─── Projects ─── */}
-          <TabsContent value="projects" className="space-y-4">
+          <TabsContent value="community-review" className="space-y-4"><CommunityReviewWorkspace /></TabsContent>
+
+           <TabsContent value="projects" className="space-y-4">
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary">Community Projects</h2>
               <p className="text-muted-foreground text-sm mt-1">All community projects and their current status.</p>
