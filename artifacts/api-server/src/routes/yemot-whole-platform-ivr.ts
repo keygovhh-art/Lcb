@@ -9,15 +9,8 @@ const group=(label:string,children:Record<string,Item>):Item=>({label,children,p
 const leaf=(label:string,web:string,details="This module is mapped. Private actions require a separately verified telephone sign-in."):Item=>({label,web,details,phone:"roadmap"});
 export const phoneTree: Record<string,Item> = {
   "1":group("Gavhah. Global Kindness Network",{
-    "1":group("News and updates",{
+    "1":group("News and updates — wait for all updates, press 1 for options",{
       "1":leaf("All updates, newest first","/news"),
-      "2":group("Browse news categories",{
-        "1":leaf("Emergency appeals","/news"),"2":leaf("Fundraising","/news"),
-        "3":leaf("Announcements","/news"),"4":leaf("Volunteer calls","/news"),
-        "5":leaf("Community alerts","/news"),"6":leaf("Organization updates","/news"),
-        "7":leaf("Bikur Cholim","/news"),"8":leaf("Community","/news"),
-        "9":leaf("Medical and wedding news","/news")
-      }),
       "3":leaf("Important and critical news","/news"),
       "4":leaf("Featured updates","/news"),
       "5":leaf("Read an update by its article number","/news/:id")
