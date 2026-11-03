@@ -15,6 +15,26 @@ export const gavhahHomepageHotlineDivisions = [
  {number:11,name:"System Center",website:"/system",phonePath:"18",via:"77 then 2"},
  {number:12,name:"Koach Harabim",website:"/dashboard",phonePath:"19",via:"77 then 3"}
 ] as const;
+// Direct hotline aliases inspired by the signed-in mobile drawer, not a replacement
+// for the twelve homepage departments above; all older paths remain available.
+export const gavhahMobileDrawerPhoneAliases = [
+ {dial:"11",name:"Search",website:"/search",path:"97190"},
+ {dial:"12",name:"Notifications",website:"/notifications",path:"97181"},
+ {dial:"13",name:"My Connections",website:"/connections",path:"97193"},
+ {dial:"14",name:"Koach Harabim Dashboard",website:"/dashboard",path:"19"},
+ {dial:"15",name:"My Profile",website:"/profile",path:"182"},
+] as const;
+// To dial direct two-digit codes on Yemot, enter both digits and finish #.
+// 11 has category-by-ID lookup (not unrestricted keyboard text search).
+// 13 provides member-only connection case status; no contact disclosure or
+// consent actions (both require explicit separate approval through Gavhah).
+export const gavhahPhoneSearchSubmenu={
+ "1":"115", // news by number
+ "2":"166", // discussions by number
+ "3":"155", // charity by number
+ "4":"167", // groups by number
+ "5":"173"  // minyans by number
+} as const;
 export const gavhahMainPhoneShortcuts = {
  "0": "official Gavhah member registration (old internal path 185)",
  "77": "More departments, all remaining older contact/call/community tools",
