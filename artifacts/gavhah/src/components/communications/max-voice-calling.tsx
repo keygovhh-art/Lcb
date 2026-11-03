@@ -131,6 +131,19 @@ export function MaxVoiceCalling({cases,selectedContact}:{
    await dialSignalWire(prepared.sessionId);
   }catch(e){setError(e instanceof Error?e.message:"SignalWire רוף נישט געלונגען")}
  };
+ const hangup=async(id:string)=>{
+  setBusy(true);setError("");
+  try{
+   const done=await ask<{hangupRequested:boolean}>(
+    "/api/askanus/max/calling/sessions/"+encodeURIComponent(id)+"/control",
+    put({action:"hangup"},"POST"));
+   if(done.hangupRequested){
+    setMessage("SignalWire האט באשטעטיגט דעם אויפהענג־באפעל.");
+    setHistory(xs=>xs.map(x=>x.id===id?{...x,status:"completed"}:x));
+   }
+  }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען; האק אראפ אויפן טעלעפאן.")}
+  finally{setBusy(false)}
+ };
  const beginEdit=(c:Call)=>{
   setEditing(c.id);setEditCase(c.caseId);setEditOutcome(c.outcome);
   setEditMood(c.mood);setEditNote(c.note);
@@ -247,6 +260,11 @@ export function MaxVoiceCalling({cases,selectedContact}:{
      {" · "+(cases.find(x=>x.id===c.caseId)?.title||"אן קאמפיין")}
     </p>
     {c.note&&<p className="text-sm whitespace-pre-wrap">{c.note}</p>}
+    {prefs?.providerReady&&["initiating","ringing","in_progress"].includes(c.status)&&
+     <Button type="button" size="sm" variant="destructive" disabled={busy}
+      onClick={()=>void hangup(c.id)}>
+      <PhoneCall className="h-4 w-4 ml-1"/> אראפהאקן דורך SignalWire
+     </Button>}
     {editing===c.id?<div className="space-y-2">
      <select className="w-full rounded-lg border p-2 bg-background" value={editCase??""}
       onChange={e=>setEditCase(e.target.value?Number(e.target.value):null)}
