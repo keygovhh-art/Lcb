@@ -333,7 +333,6 @@ export default function NewsPage() {
   const breaking = filtered.filter(a => a.urgency === "breaking");
   const important = filtered.filter(a => a.urgency === "high");
   const regular = filtered.filter(a => a.urgency !== "breaking" && a.urgency !== "high");
-  const featured = filtered.filter(a => a.isFeatured);
   const withDeadlines = filtered.filter(a => a.deadline && a.urgency !== "breaking");
 
   return (
