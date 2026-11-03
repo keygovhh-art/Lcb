@@ -94,7 +94,12 @@ function rootChoices(){
   ["7","17","מנינים"],
   ["8","9708","גרופעס"],
   ["9","12","מיין עסקנות"],
-  ["77","9777","מער אפטיילונגען — 10, 11, 12 און אלע פריערדיגע פונקציעס"],
+  ["11","97190","זוכן — Search"],
+  ["12","97181","מעלדונגען — Notifications"],
+  ["13","97193","מיינע פארבינדונגען — My Connections"],
+  ["14","19","כח הרבים דעשבאורד — Koach Harabim"],
+  ["15","182","מיין פראפיל — My Profile"],
+  ["77","9777","מער אפטיילונגען — רעזערוואציעס, סיסטעם־צענטער, און אלע פריערדיגע פונקציעס"],
   ["88","88","פארגעשריטענע מיין עסקנות־כלים"],
   ["4444","2","קאמפיין סענטער"],
   ["0","185","אויפשרייבן אלס גבהה־מעמבער"]
@@ -134,7 +139,7 @@ function showOptions(){
  let matches=search?
   catalog.filter(n=>(n.path+" "+n.label+" "+n.parent).toLowerCase().includes(search)):
   atRoot?rootChoices():catalog.filter(n=>n.parent===section.path).sort((a,b)=>Number(a.path)-Number(b.path));
- const names=search?"זוך־רעזולטאטן":atRoot?"הויפט־מעניו — 1 ביז 9, מער 77, עסקנות 88, קאמפיין 4444, מעמבער 0":section.label+" — אונטער־קנעפלעך";
+ const names=search?"זוך־רעזולטאטן":atRoot?"הויפט־מעניו — 1 ביז 9; זוכן 11, מעלדונגען 12, פארבינדונגען 13, כח הרבים 14, פראפיל 15; מער 77":section.label+" — אונטער־קנעפלעך";
  el("branch-title").textContent=names;
  el("quantity").textContent=matches.length+(search?" געפונענע עקסטענשאנס":" קנעפלעך אין דעם מעניו");
  el("back").disabled=!trail.length;el("main").disabled=!trail.length;
