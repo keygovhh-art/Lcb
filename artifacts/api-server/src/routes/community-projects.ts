@@ -328,6 +328,9 @@ router.post("/admin/community-projects/:id/review",requireAdmin,async(req,res):P
   if(!row)return null;
   await tx.execute(sql`INSERT INTO public.gavhah_project_review_log(project_id,reviewer_id,decision,note)
     VALUES(${id},${getSessionUserId(req)!},${decision},${String(req.body?.note||"").slice(0,1500)})`);
+  await tx.execute(sql`UPDATE public.gavhah_phone3_intake SET status=${decision==="approved"?"completed":"rejected"},
+    staff_notes=${String(req.body?.note||"").slice(0,1500)}, reviewed_by=${getSessionUserId(req)!},reviewed_at=now()
+    WHERE project_id=${id} AND status IN ('pending','reviewing')`);
   return row;
  });
  if(!updated){res.status(409).json({error:"Another reviewer already handled this proposal"});return;}
