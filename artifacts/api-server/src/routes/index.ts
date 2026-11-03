@@ -39,6 +39,7 @@ import olamChesedKeypadRouter from "./olam-chesed-keypad";
 import hotlineMigrationRouter from "./hotline-migration";
 import {signalWireNextHotline} from "../lib/signalwire-next-hotline";
 import {signalWireSharedHotline} from "../lib/signalwire-shared-ivr";
+import {signalwireMaxAgentBridge,signalwireMaxCallStatus} from "../lib/signalwire-max-outbound";
 import newsVoiceRepliesRouter from "./news-voice-replies";
 import phoneAccountLinkRouter from "./phone-account-link";
 import reservationsRouter from "./reservations";
@@ -123,6 +124,14 @@ router.post("/signalwire/next-ivr",(req,res,next)=>{
 // Original provider voice/SMS settings remain unchanged.
 router.post("/signalwire/shared-ivr",(req,res,next)=>{
   void signalWireSharedHotline(req,res).catch(next);
+});
+// Dedicated Olam Chesed phone callbacks: independent from GV/Yemot numbers.
+// Every callback checks both its HMAC URL and SignalWire project signature.
+router.post("/signalwire/max/bridge/:id",(req,res,next)=>{
+ void signalwireMaxAgentBridge(req,res).catch(next);
+});
+router.post("/signalwire/max/status/:id/:part",(req,res,next)=>{
+ void signalwireMaxCallStatus(req,res).catch(next);
 });
 router.use(newsVoiceRepliesRouter);
 router.use(phoneAccountLinkRouter);
