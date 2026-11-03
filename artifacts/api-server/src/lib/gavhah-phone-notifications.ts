@@ -1,5 +1,5 @@
 import type {PoolClient} from "pg";
-import {phonePromptOverride} from "../routes/gavhah-hotline-speech-library";
+import {phonePromptOverride} from "../routes/yemot-voice-studio";
 
 const stripWebsiteWords=(value:string)=>value.replace(/\b(?:website|web[- ]?site)\b/gi,"account").replace(/\s+/g," ").trim();
 // Read/write the SAME public.notifications rows used by Gavhah /api/notifications.
