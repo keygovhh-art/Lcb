@@ -97,6 +97,12 @@ export default function ForumList() {
                           <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
                             {disc.content.substring(0, 120)}...
                           </p>
+                          {(disc as any).phoneVoiceAudioUrl && (
+                            <div className="mb-3 rounded-lg border bg-muted/20 p-3" onClick={e => { e.preventDefault(); e.stopPropagation(); }}>
+                              <div className="mb-1 text-xs font-semibold text-foreground" dir="rtl">🎙️ שמועס אויפן גבהה־ליין — הערט די רעקארדירונג</div>
+                              <audio controls preload="none" className="w-full" src={(disc as any).phoneVoiceAudioUrl} aria-label="הערן דעם שמועס" />
+                            </div>
+                          )}
                           <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                             <span>By <span className="font-medium text-foreground">{disc.authorName}</span></span>
                             <span>{formatGregorianDate(new Date(disc.createdAt), "MMM d, yyyy")}</span>

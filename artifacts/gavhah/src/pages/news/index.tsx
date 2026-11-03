@@ -333,7 +333,6 @@ export default function NewsPage() {
   const breaking = filtered.filter(a => a.urgency === "breaking");
   const important = filtered.filter(a => a.urgency === "high");
   const regular = filtered.filter(a => a.urgency !== "breaking" && a.urgency !== "high");
-  const featured = filtered.filter(a => a.isFeatured);
   const withDeadlines = filtered.filter(a => a.deadline && a.urgency !== "breaking");
 
   return (
@@ -430,7 +429,7 @@ export default function NewsPage() {
             </div>
 
             {/* Priority area — reached from the pinned button above */}
-            {!search && activeCategory === "all" && (breaking.length > 0 || important.length > 0 || withDeadlines.length > 0 || featured.length > 0) && (
+            {!search && activeCategory === "all" && (breaking.length > 0 || important.length > 0 || withDeadlines.length > 0) && (
               <div ref={priorityRef} className="scroll-mt-24 space-y-10 border-t pt-10">
 
                 {(breaking.length > 0 || important.length > 0) && (
@@ -486,17 +485,6 @@ export default function NewsPage() {
                   </div>
                 )}
 
-                {featured.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <Star className="h-5 w-5 text-accent fill-accent" />
-                      <h3 className="font-serif text-xl font-bold text-primary">Featured</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {featured.slice(0, 2).map(a => <NewsCard key={a.id} article={a} large />)}
-                    </div>
-                  </div>
-                )}
 
               </div>
             )}

@@ -14,7 +14,6 @@ export const gavhahNewsDial = {
  otherMenu: "97111",
  otherOptions: {
   "1": {title:"Important and critical news", internalPath:"113"},
-  "2": {title:"Featured updates", internalPath:"114"},
   "3": {title:"Read an update by article number", internalPath:"115"},
   "4": {title:"All updates, newest first", internalPath:"111"}
  },

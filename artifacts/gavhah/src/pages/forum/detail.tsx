@@ -443,6 +443,13 @@ export default function ForumDetail() {
                 <span>{formatGregorianDate(new Date(discussion.createdAt), "MMMM d, yyyy")}</span>
               </div>
 
+              {(discussion as any).phoneVoiceAudioUrl && (
+                <section className="mb-6 rounded-xl border bg-muted/20 p-4" dir="rtl" aria-label="רעקארדירטע עסקנים־שמועס">
+                  <p className="mb-2 font-semibold">🎙️ הערט דעם שמועס פונעם גבהה־ליין</p>
+                  <audio controls preload="none" className="w-full" src={(discussion as any).phoneVoiceAudioUrl} />
+                </section>
+              )}
+
               <div className="prose prose-slate max-w-none text-foreground leading-relaxed mb-8">
                 {discussion.content.split("\n").map((para, i) => (
                   <p key={i} className="mb-3">{para}</p>

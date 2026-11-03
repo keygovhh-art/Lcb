@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, sql, and, inArray } from "drizzle-orm";
-import { db, discussionsTable, commentsTable, entityLikesTable, supportMessagesTable } from "@workspace/db";
+import { db, pool, discussionsTable, commentsTable, entityLikesTable, supportMessagesTable } from "@workspace/db";
+import {fetchModeratedNewsAudio, validRecordedPath} from "../lib/yemot-news-engagement";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { resolvePublicPostingName, getMemberIdentity } from "../lib/user-display";
@@ -10,6 +11,29 @@ import { notifyUser, notifyStaff } from "../lib/notify";
 import { getEngagementSetting } from "../lib/engagement-settings";
 
 const router: IRouter = Router();
+
+async function phoneVoiceAudioUrls(ids:number[]):Promise<Map<number,string>> {
+ if(!ids.length)return new Map();
+ const result=await pool.query<{discussion_id:number}>(
+  "SELECT discussion_id FROM public.gavhah_forum_voice_posts WHERE discussion_id=ANY($1::integer[])",[ids]);
+ return new Map(result.rows.map(row=>[row.discussion_id,"/api/discussions/"+row.discussion_id+"/phone-voice"]));
+}
+
+// This public URL plays only a server-recorded, voluntarily published forum voice post.
+// Provider tokens and file paths never leave the backend.
+router.get("/discussions/:id/phone-voice",async(req,res,next)=>{
+ try{
+  const id=Number(req.params.id);
+  if(!Number.isSafeInteger(id)||id<1){res.sendStatus(404);return;}
+  const q=await pool.query<{provider_recording_path:string}>(
+   "SELECT provider_recording_path FROM public.gavhah_forum_voice_posts WHERE discussion_id=$1",[id]);
+  const audio=validRecordedPath(q.rows[0]?.provider_recording_path);
+  if(!audio){res.sendStatus(404);return;}
+  const bytes=await fetchModeratedNewsAudio(audio);
+  res.set("Content-Type","audio/wav").set("Cache-Control","no-store")
+   .set("X-Content-Type-Options","nosniff").send(Buffer.from(bytes));
+ }catch(err){next(err);}
+});
 
 function isStaffRole(role?: string) {
   return role === "admin" || role === "moderator" || role === "super_admin";
@@ -35,7 +59,11 @@ router.get("/discussions", requireAuth, async (req, res): Promise<void> => {
   let all = await db.select().from(discussionsTable).orderBy(desc(discussionsTable.createdAt));
   if (category) all = all.filter(d => d.category === category);
   if (search) all = all.filter(d => d.title.toLowerCase().includes(search.toLowerCase()) || d.content.toLowerCase().includes(search.toLowerCase()));
-  res.json(all.map(row => publicPostForViewer(row, getSessionUserId(req), getSessionUserRole(req))));
+  const voice=await phoneVoiceAudioUrls(all.map(row=>row.id));
+  res.json(all.map(row=>({
+    ...publicPostForViewer(row, getSessionUserId(req), getSessionUserRole(req)),
+    phoneVoiceAudioUrl:voice.get(row.id)||null,
+  })));
 });
 
 router.post("/discussions", requireAuth, async (req, res): Promise<void> => {
@@ -70,7 +98,11 @@ router.get("/discussions/:id", requireAuth, async (req, res): Promise<void> => {
   const [disc] = await db.select().from(discussionsTable).where(eq(discussionsTable.id, id));
   if (!disc) { res.status(404).json({ error: "Not found" }); return; }
   await db.update(discussionsTable).set({ views: sql`${discussionsTable.views} + 1` }).where(eq(discussionsTable.id, id));
-  res.json(publicPostForViewer({ ...disc, views: disc.views + 1 }, getSessionUserId(req), getSessionUserRole(req)));
+  const voice=await phoneVoiceAudioUrls([disc.id]);
+  res.json({
+    ...publicPostForViewer({ ...disc, views: disc.views + 1 }, getSessionUserId(req), getSessionUserRole(req)),
+    phoneVoiceAudioUrl:voice.get(disc.id)||null,
+  });
 });
 
 router.patch("/discussions/:id", requireAuth, async (req, res): Promise<void> => {
