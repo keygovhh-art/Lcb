@@ -37,6 +37,8 @@ jobs:
         run: node --test tests/signalwire-max-return-calls-contract.test.mjs
       - name: Verify Olam outbound provider signatures, no-recording and one-agent call safety
         run: node --test tests/signalwire-olam-max-outbound-contract.test.mjs
+      - name: Verify isolated temporary 123456 member login is never admin or permanent
+        run: node --test tests/olam-temp-123456-member-pin.test.mjs
       - name: Verify Olam SignalWire four-second repeat and silent hangup
         run: node --experimental-strip-types --test tests/olam-signalwire-two-tries.test.mjs
       - name: Check frontend and API TypeScript

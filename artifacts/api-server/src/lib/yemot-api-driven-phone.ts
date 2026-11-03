@@ -550,6 +550,25 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     }
    }else if(path==="125"){
     if(digit==="0"){path="";}
+    else if(digit==="123456"&&s.login_failures<5&&
+      process.env.GAVHAH_PHONE_TEST_PIN_ENABLED==="true"){
+     // Explicit, revocable 24-hour *non-admin*, no-personal-data test account.
+     // Both independent Yemot and SignalWire use the SAME verified menu engine.
+     const accountId=Number(process.env.GAVHAH_PHONE_TEST_MEMBER_ID||0);
+     const until=Date.parse(process.env.GAVHAH_PHONE_TEST_PIN_EXPIRES_AT||"");
+     if(Number.isSafeInteger(accountId)&&accountId>0&&Number.isFinite(until)&&
+        until>Date.now()&&until-Date.now()<=24*60*60*1000){
+      const account=await client.query<{id:number}>(
+       "SELECT id FROM public.users WHERE id=$1 AND role='member' AND status='active' "+
+       "AND name='Gavhah Temporary Phone Test Member' AND email IS NULL AND phone IS NULL "+
+       "AND password_hash='disabled-phone-test-only'",[accountId]);
+      if(account.rowCount){
+       userId=accountId;s.member_id=accountId;s.login_failures=0;
+       s.linked_until=new Date(Math.min(until,Date.now()+10*60*1000)).toISOString();
+       path="12";feedback="Test member connected for ten minutes. Super admin access is disabled. ";
+      }else{s.login_failures++;feedback="Test member login is not configured. ";}
+     }else{s.login_failures++;feedback="The temporary test password has expired. ";}
+    }
     else if(/^\d{8}$/.test(digit)&&s.login_failures<5){
      const key=process.env.YEMOT_ENCRYPTION_KEY||"";
      if(key.length>=36){
