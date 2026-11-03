@@ -36,7 +36,7 @@ function responseXml(body:string){
 }
 const speak=(text:string)=>'<Say voice="man" language="en-US">'+
  xml(text.replace(/[\u0590-\u05ff\u0600-\u06ff]/g," ").slice(0,3200))+'</Say>';
-export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,sharedRootMode=false,menuAudioUrl:string|null=null):string{
+export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,sharedRootMode=false,menuAudioUrl:string|null=null,olamFourSecondRetries=false):string{
  const found=/^read=t-([\s\S]*)=(iv|ln|ar|rg)(\d+),no,(\d+),(\d+),(\d+),No,no(?:,.*)?$/.exec(reply);
  if(found){
   const [,prompt,mode,,maxDigits,,timeout]=found;
@@ -44,11 +44,22 @@ export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,s
   // four-digit 4444 shortcut, but that Campaign Center shortcut belongs to
   // the OLD phone number, not the new SignalWire GV-only number.
   const digits=sharedRootMode?5:mode==="iv"?1:Math.min(16,Math.max(1,Number(maxDigits)||1));
-  const seconds=Math.min(18,Math.max(5,Number(timeout)||8));
-  const gather='<Gather input="dtmf" action="'+xml(actionUrl)+'" method="POST" '+
-   'numDigits="'+digits+'" finishOnKey="#" timeout="'+seconds+'">'+
-   (menuAudioUrl&&mode==="iv"?'<Play>'+xml(menuAudioUrl)+'</Play>':speak(prompt))+'</Gather>';
-  return responseXml(gather+speak("No selection received. Please call again.")+"<Hangup/>");
+  // Olam Chesed Communication: exactly two opportunities, 4 seconds of
+  // silence after each prompt. An empty Gather falls through to the next
+  // instruction (actionOnEmptyResult=false), WITHOUT an extra webhook.
+  // This is intentionally limited to Olam's SignalWire line, not Yemot.
+  const seconds=olamFourSecondRetries?4:Math.min(18,Math.max(5,Number(timeout)||8));
+  const gatherStart='<Gather input="dtmf" action="'+xml(actionUrl)+'" method="POST" '+
+    'numDigits="'+digits+'" finishOnKey="#" timeout="'+seconds+'" actionOnEmptyResult="false">';
+  const first=(menuAudioUrl&&mode==="iv"?'<Play>'+xml(menuAudioUrl)+'</Play>':speak(prompt));
+  const gathering=gatherStart+first+'</Gather>';
+  if(olamFourSecondRetries){
+   // No "last attempt", "final", "goodbye", or third prompt.
+   // Keep the second message deliberately short and polite.
+   const again=gatherStart+speak("Please enter your selection again.")+'</Gather>';
+   return responseXml(gathering+again+"<Hangup/>");
+  }
+  return responseXml(gathering+speak("No selection received. Please call again.")+"<Hangup/>");
  }
  if(/^read=t-[\s\S]*=rr\d+,,record$/.test(reply)){
   // Refuse to claim audio recording is saved: provider-specific webhook/media
