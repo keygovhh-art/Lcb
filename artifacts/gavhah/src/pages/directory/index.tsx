@@ -654,8 +654,8 @@ function CommunityProjectsContent() {
         <h2 className="font-serif text-2xl font-bold text-primary">Community Projects, Campaigns & Programs</h2>
       </div>
       <p className="text-sm text-muted-foreground leading-relaxed">
-        Create and manage community projects, campaigns, initiatives and programs.
-        Browse what is underway, see the goals, join, volunteer your time or offer support.
+        Submit community projects, campaigns, initiatives and programs for Gavhah staff approval.
+        Only approved projects are public. Browse, join, volunteer or support them after review.
         This public project area is separate from private assistance applications.
       </p>
     </div>
@@ -689,7 +689,7 @@ export default function Directory() {
     <div className="bg-gradient-to-br from-primary/5 to-secondary/5 border-b">
       <div className="container mx-auto max-w-4xl px-4 py-12 text-center">
         <h1 className="font-serif text-3xl sm:text-4xl font-bold text-primary">
-          {yi ? "גבהה — פריוואטע הילף און עסקנות" : "Gavhah — Private Assistance"}
+          {yi ? "גבהה — קאמיוניטי פראיעקטן און פריוואטע עסקנים" : "Gavhah — Community Projects & Private Askanim"}
         </h1>
         <p className="text-muted-foreground mt-3 leading-relaxed">
           {yi ? "דארפסטו הילף, אדער ווילסטו העלפן אנדערע? שיק אריין א פריוואטע בקשה. די מערכת זוכט פאסיגע עסקנים און פירט די גאנצע פארבינדונג. קיין בקשות אדער עסקנים־ליסטעס ווערן נישט פובליק געמאכט." :
