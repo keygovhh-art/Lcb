@@ -12,7 +12,7 @@ type Call={id:string;caseId:number|null;number:string;country:string;direction:s
 type Prefs={lastCaseId:number|null;holdMode:"gavhah"|"message"|"audio";
  holdMessage:string;holdAudioPath:string;providerReady:boolean;recordingEnabled:boolean};
 const outcomes=[
- {value:"",label:"אויסגאנג נישט אריינגעלייגט"},{value:"spoke",label:"געגעבן א נדבה / גערעדט"},
+ {value:"",label:"אויסגאנג נישט אריינגעלייגט"},{value:"donation",label:"געגעבן א נדבה (צולייגן סכום אין נדבות־באריכט)"},
  {value:"no_answer",label:"נישט אויפגעהויבן"},{value:"callback",label:"צוריקרופן"},
  {value:"not_interested",label:"נישט אינטערעסירט"},{value:"do_not_call",label:"נישט מער רופן"},
  {value:"other",label:"אנדערש"}];
