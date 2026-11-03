@@ -9,9 +9,9 @@ import {olamMenuAudioUrl} from "../routes/olam-voice-audio";
 import {maybeHandleOlamReturnCall} from "./signalwire-max-return-calls";
 
 /**
- * STAGED ONLY: the provider-owned +1 (605) 655-8080 webhook is NOT changed
- * by this module. When separately approved and physically tested, this will
- * make Gavhah the root and delegate 55555 to the saved original provider
+ * Use verified, owner-approved live routing only. Provider-side routing is
+ * configured separately; this handler never rewrites phone-number webhooks.
+ * Delegate 55555 to the saved original provider
  * cXML webhook using SignalWire's <Redirect> instruction.
  *
  * The old system's original URL is NEVER sent to the dashboard, logged,
@@ -48,7 +48,7 @@ export function sharedRouteReady(r:SharedRoute|null):boolean{
  if(r.requested_number!=="6056558080"||r.old_extension!==LEGACY_EXTENSION||
   r.audit_state!=="verified_compatibility_voice_url"||
   r.original_call_handler!=="laml_webhooks"||
-  r.cutover_enabled!==false||!/^[a-f0-9]{64}$/.test(r.route_fingerprint||"")||
+  r.cutover_enabled!==true||!/^[a-f0-9]{64}$/.test(r.route_fingerprint||"")||
   !r.original_voice_url)return false;
  try{
   const target=new URL(r.original_voice_url);
