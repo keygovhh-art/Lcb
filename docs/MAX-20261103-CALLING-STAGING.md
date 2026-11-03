@@ -21,3 +21,19 @@ The code in this branch is staged, **NOT LIVE**. The Cloudflare production Worke
 7. Enforce max 3 participants in the provider conference as well as in database. Test transfer, hold, merge, hangup, and disconnected/waiting calls.
 
 The existing SignalWire hotline number and existing Yemot provider are not changed. No provider writes or billable calls are performed by this branch.
+
+
+## Additional guarded implementation (2026-11-03)
+- Campaign Center canonical database is the source for active memberships, individual assignment, 20-minute claims and call outcomes; Govhh PR #61 has separate disposable-Postgres passing tests.
+- MAX frontend shows the joined campaign's call queue and picks the next contact with one tap; after verified authorization it invokes /dial automatically.
+- POST /api/askanus/max/calling/sessions/:id/dial uses a separate dedicated Olam SignalWire Compatibility API project to call the member's **owner-verified callback phone first**; after the member answers, a signed webhook initiates the donor leg. The original audio is **not** recorded, and provider webhooks supply duration (no synthesized duration).
+- POST /control {action:"hangup"} uses the provider Call SID and requires provider confirmation. HOLD/3-way/incoming call waiting/handset volume are not yet implemented or represented as live.
+- Before each Campaign Center dial, the MAX backend revalidates the member's exclusive call claim against the Campaign Center server via /call-queue/:id/authorize-dial; rejects unknown countries and DNC contacts. DB partial unique index blocks concurrent billable sessions.
+- Owner must explicitly configure **separate** Olam variables/Cloudflare secrets:
+  OLAM_SIGNALWIRE_CALLING_ENABLED=true,
+  OLAM_SIGNALWIRE_SPACE, OLAM_SIGNALWIRE_PROJECT_ID, OLAM_SIGNALWIRE_API_TOKEN,
+  OLAM_SIGNALWIRE_FROM, OLAM_SIGNALWIRE_SIGNING_KEY, OLAM_SIGNALWIRE_CALLBACK_BASE.
+  DO NOT point these to a different Gavhah/Phone Yeshiva provider/project. No such dedicated env binding was found during Cloudflare read-only inspection. Secrets are never sent to browsers.
+- Admin must separately approve Olam access and verify each agent's callback phone via PUT /api/admin/olam/max/agent-phone/:uid, with explicit VERIFY attestation. No member-controlled phone setting can enable billable calls.
+- Olam SignalWire shared IVR cXML is exactly two 4-second Gather prompts, then Hangup with NO final/goodbye announcement. Optional owner-uploaded signed WAV on extension "retry" is supported; fallback is short English TTS until Yiddish WAV is published. This is **not** the unchanged Yemot IVR. No live provider routing was changed.
+- **NOT DEPLOYED**. As inspected, Gavhah production Neon lacks max_call_sessions and Campaign Center production Neon lacks cc_contacts.assigned_member_subject. New staging Neon branches cannot currently be created due to account branch limits. Production Cloudflare Worker contains live revisions absent from the GitHub bundle. Do not merge, migrate or deploy until backup/reconciliation, provider credential verification and physical number tests.
