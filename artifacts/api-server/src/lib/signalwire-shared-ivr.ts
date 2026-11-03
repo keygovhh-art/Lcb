@@ -128,5 +128,5 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  const root=reply.startsWith("read=t-Gavhah SignalWire main menu.");
  res.status(200).type("application/xml; charset=utf-8")
   .set("Cache-Control","no-store")
-  .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root,await olamMenuAudioUrl((await pool.query<{path:string}>("SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",[callHash])).rows[0]?.path||"root")));
+  .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root,await olamMenuAudioUrl((await pool.query<{path:string}>("SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",[callHash])).rows[0]?.path||"root"),true));
 }
