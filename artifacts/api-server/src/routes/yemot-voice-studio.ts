@@ -37,7 +37,7 @@ function wrap(fn:(req:Request,res:Response)=>Promise<void>){
 }
 type TreeItem={label:string;children?:Record<string,TreeItem>};
 function catalogue(){
- const items:{path:string,label:string,kind:string,depth:number,parent:string}[]=[
+ const items:{path:string,label:string,kind:string,depth:number,parent:string,displayDigit?:string}[]=[
   {path:"root",label:"Main menu — Gavhah / Campaign Center",kind:"menu",depth:0,parent:""}
  ];
  const visit=(tree:Record<string,TreeItem>,prefix:string)=>{
@@ -48,11 +48,14 @@ function catalogue(){
   }
  };
  visit(phoneTree as Record<string,TreeItem>,"");
+ const nDigits:Record<string,string>={"111":"4","113":"1","114":"2","115":"3"};
+ for(const item of items){if(nDigits[item.path]){item.parent="97111";item.depth=4;item.displayDigit=nDigits[item.path];item.label=nDigits[item.path]+" — "+item.label;}}
+ items.push({path:"97111",label:"1 — Other news options",kind:"menu",depth:3,parent:"11",displayDigit:"1"});
  // Implementation != verified phone functionality: label honestly.
  const known=new Set([...sectionPaths,"155","166","167","173","111","1121","1122","1123","1124","1125","1126","1127","1128","1129","113","114","115","121","122","123","124","125","126","185"]);
  items.push(...Object.entries(gavhahPhoneStageVoices).map(([path,item])=>({path,label:item.label,kind:"button",depth:4,parent:path.slice(0,3)})));
  return items.map(item=>({...item,
-  suggestedEnglish:gavhahPhoneStageVoices[item.path]?.text || (item.kind==="menu"?phonePrompt(item.path==="root"?"":item.path):
+  suggestedEnglish:item.path==="11"?"To hear all updates, stay on the line. For other options, press 1.":item.path==="97111"?"Other news options. Press 1 for important and critical news. Press 2 for featured updates. Press 3 to find an update by article number. Press 4 for all updates. Press star to go back.":gavhahPhoneStageVoices[item.path]?.text || (item.kind==="menu"?phonePrompt(item.path==="root"?"":item.path):
    "You selected "+item.label+". Press star to go back."),
   capability:item.kind==="menu"?"navigation":
   known.has(item.path)?"api_implemented_not_phone_verified":"roadmap_only"}));
