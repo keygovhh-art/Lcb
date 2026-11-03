@@ -1,34 +1,38 @@
 
 // Read/write the SAME public.notifications rows used by Gavhah /api/notifications.
 // Never use caller ID as membership; caller must pass memberAllowed first.
-const gvNotificationSubmenus2026 = {
+// These externally supplied helpers are referenced by the shared telephone runtime.
+declare function phonePromptOverride(path:string):Promise<{ttsMuted?:boolean;ttsText?:string}>;
+declare function gvPhoneNoSiteWords2026(text:string):string;
+type GavhahNotificationQueryClient2026 = {query:(sql:string,params?:unknown[])=>Promise<{rows:any[]}>};
+const gvNotificationSubmenus2026:Record<string,string> = {
  "97181":"Notifications center. Press 1 for unread notifications. Press 2 for all notifications. Press 3 to mark every notification as read. Press 4 to browse categories. Press 5 for your profile. Press 9 for the previous notifications reader. Press star to go back.",
  "971813":"Mark all notifications as read. To confirm, press 1 twice. Press star to cancel.",
  "971814":"Notification categories. Press 1 for comments and replies. Press 2 for charity and causes. Press 3 for groups and volunteers. Press 4 for announcements. Press 5 for help replies. Press star to return."
 };
-const gvNotificationFilters2026={
+const gvNotificationFilters2026:Record<string,string[]>={
  "9718141":["comment","reply"],
  "9718142":["cause_support","charity_update"],
  "9718143":["group_activity","project_join","volunteer_match"],
  "9718144":["announcement"],
  "9718145":["help_response"]
 };
-function gvNotificationIsList2026(path){return path==="971811"||path==="971812"||Object.hasOwn(gvNotificationFilters2026,path)}
-function gvNotificationFilter2026(path){
+function gvNotificationIsList2026(path:string){return path==="971811"||path==="971812"||Object.hasOwn(gvNotificationFilters2026,path)}
+function gvNotificationFilter2026(path:string){
  if(path==="971811")return " AND is_read=false";
  const groups=gvNotificationFilters2026[path];
  return groups?" AND type IN ("+groups.map((_,i)=>"'"+groups[i]+"'").join(",")+")":"";
 }
-function gvNotificationHelp2026(path){
+function gvNotificationHelp2026(path:string){
  if(gvNotificationSubmenus2026[path])return gvNotificationSubmenus2026[path];
  if(gvNotificationIsList2026(path))return "Press 1 for the next notification. Press 2 for the previous. Press 3 to hear the related Gavhah item. Press 5 twice to mark the current notification read. Press 9 for the notifications center. Press star to go back.";
  return "Press star to return.";
 }
-async function gvNotificationMenuCustom2026(path){
+async function gvNotificationMenuCustom2026(path:string){
  const custom=await phonePromptOverride(path);
  return custom.ttsMuted?"":(custom.ttsText||gvNotificationHelp2026(path));
 }
-async function gvNotificationRead2026(client,path,userId,page,confirmId){
+async function gvNotificationRead2026(client:GavhahNotificationQueryClient2026,path:string,userId:string|number,page:number,confirmId:number){
  if(path==="97181"){
   const r=await client.query("SELECT count(*)::int AS total,count(*) FILTER(WHERE NOT is_read)::int AS unread FROM public.notifications WHERE user_id=$1",[userId]);
   const {total=0,unread=0}=r.rows[0]||{};
