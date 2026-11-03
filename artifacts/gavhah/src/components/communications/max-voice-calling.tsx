@@ -3,6 +3,7 @@ import {PhoneCall,Save,Volume2} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Textarea} from "@/components/ui/textarea";
+import {MaxCampaignAssignments,type PreparedCampaignCall} from "@/components/communications/max-campaign-assignments";
 
 type Project={id:number;title:string};
 type Person={id:number;name:string;phone:string;doNotCall:boolean};
@@ -46,6 +47,7 @@ export function MaxVoiceCalling({cases,selectedContact}:{
  const [holdMode,setHoldMode]=useState<Prefs["holdMode"]>("gavhah");
  const [holdMessage,setHoldMessage]=useState("");
  const [help,setHelp]=useState(false);
+ const [callingMode,setCallingMode]=useState<PreparedCampaignCall|null>(null);
  useEffect(()=>{
   let active=true;
   Promise.all([
@@ -94,6 +96,20 @@ export function MaxVoiceCalling({cases,selectedContact}:{
   }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען")}
   finally{setBusy(false)}
  };
+ // Only a provider-verified account may dial. A queue click always enters mode.
+ const selectAssignedCall=async(prepared:PreparedCampaignCall)=>{
+  setCallingMode(prepared);setNumber(prepared.lead.phone);setCountry(prepared.country);
+  window.location.hash="#max-voice-calling";
+  if(!prefs?.providerReady){
+   setMessage("דער נעקסטער רוף פון Campaign Center איז צוגעגרייט. SignalWire איז נאכנישט פארבונדן פאר עכטע רופן.");
+   return;
+  }
+  try{
+   const r=await ask<{dialInitiated:boolean;providerReady:boolean}>(
+    "/api/askanus/max/calling/sessions/"+encodeURIComponent(prepared.sessionId)+"/dial",put({},"POST"));
+   setMessage(r.dialInitiated?"דער רוף ווערט אנגערופן דורך SignalWire.":"די רופן־פארבינדונג איז נישט אקטיוו.");
+  }catch(e){setError(e instanceof Error?e.message:"SignalWire רוף נישט געלונגען")}
+ };
  const beginEdit=(c:Call)=>{
   setEditing(c.id);setEditCase(c.caseId);setEditOutcome(c.outcome);
   setEditMood(c.mood);setEditNote(c.note);
@@ -132,6 +148,12 @@ export function MaxVoiceCalling({cases,selectedContact}:{
   </div>
   {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
   {message&&<p role="status" className="text-sm font-semibold">{message}</p>}
+  <MaxCampaignAssignments onPrepared={p=>{void selectAssignedCall(p)}}/>
+  {callingMode&&<div className="rounded-lg border p-3 space-y-2">
+   <strong>Calling Mode — {callingMode.campaignTitle}</strong>
+   <p>{callingMode.lead.displayName}: <span dir="ltr">{callingMode.lead.phone}</span></p>
+   <p className="text-sm text-muted-foreground">דער נומער איז גרייט. אמת'ע SignalWire רופן זענען נאכנישט אקטיוו.</p>
+  </div>}
   <div className="rounded-xl border p-3 space-y-3">
    <p className="font-semibold">
     {prefs?.lastCaseId&&cases.some(x=>x.id===prefs.lastCaseId)
