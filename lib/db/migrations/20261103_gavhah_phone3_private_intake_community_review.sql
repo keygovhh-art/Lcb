@@ -20,10 +20,10 @@ CREATE TABLE IF NOT EXISTS public.gavhah_phone3_intake (
  staff_notes TEXT,
  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
  CONSTRAINT gavhah_phone3_recording_format_chk CHECK (
-  (voice_title IS NULL OR voice_title ~ '^ivr2:/[[:alnum:]_/-]+\\.wav$')
-  AND voice_details ~ '^ivr2:/[[:alnum:]_/-]+\\.wav$'
-  AND (voice_location IS NULL OR voice_location ~ '^ivr2:/[[:alnum:]_/-]+\\.wav$')
-  AND (voice_goal IS NULL OR voice_goal ~ '^ivr2:/[[:alnum:]_/-]+\\.wav$')
+  (voice_title IS NULL OR (voice_title LIKE 'ivr2:/%' AND RIGHT(voice_title,4)='.wav'))
+  AND voice_details LIKE 'ivr2:/%' AND RIGHT(voice_details,4)='.wav'
+  AND (voice_location IS NULL OR (voice_location LIKE 'ivr2:/%' AND RIGHT(voice_location,4)='.wav'))
+  AND (voice_goal IS NULL OR (voice_goal LIKE 'ivr2:/%' AND RIGHT(voice_goal,4)='.wav'))
  )
 );
 CREATE INDEX IF NOT EXISTS gavhah_phone3_intake_queue_idx
