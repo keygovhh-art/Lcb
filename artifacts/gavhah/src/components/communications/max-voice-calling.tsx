@@ -61,6 +61,19 @@ export function MaxVoiceCalling({cases,selectedContact}:{
   return ()=>{active=false};
  },[]);
  useEffect(()=>{if(selectedContact?.phone)setNumber(selectedContact.phone)},[selectedContact?.id,selectedContact?.phone]);
+ // The provider is the only authority for duration/status; don't simulate timers.
+ useEffect(()=>{
+  if(!prefs?.providerReady||!history.some(c=>["initiating","ringing","in_progress"].includes(c.status)))return;
+  let stopped=false;
+  const refresh=()=>{
+   void ask<Call[]>("/api/askanus/max/calling/sessions")
+    .then(calls=>{if(!stopped)setHistory(calls)})
+    .catch(()=>{});
+  };
+  const interval=window.setInterval(refresh,4000);
+  return ()=>{stopped=true;window.clearInterval(interval)};
+ },[prefs?.providerReady,history.some(c=>["initiating","ringing","in_progress"].includes(c.status))]);
+
  const projectName=cases.find(c=>c.id===caseId)?.title;
  const selectedProject=cases.find(c=>c.id===caseId);
  const savePreference=async(newCase:number|null,mode=holdMode,announcement=holdMessage)=>{
@@ -68,6 +81,15 @@ export function MaxVoiceCalling({cases,selectedContact}:{
    "/api/askanus/max/calling/preferences",
    put({lastCaseId:newCase,holdMode:mode,holdMessage:announcement,holdAudioPath:""}));
   setPrefs(prev=>prev?{...prev,lastCaseId:p.lastCaseId,holdMode:mode,holdMessage:announcement}:prev);
+ };
+ const dialSignalWire=async(id:string)=>{
+  const result=await ask<{dialInitiated:boolean;message?:string;agentPhoneEnding?:string}>(
+   "/api/askanus/max/calling/sessions/"+encodeURIComponent(id)+"/dial",put({},"POST"));
+  if(result.dialInitiated){
+   setMessage("SignalWire רופט יעצט דיין באשטעטיגטן טעלעפאן, ענדיגט מיט "+(result.agentPhoneEnding||"")+
+    ". ווען דו הייבסט אויף, רופט די סיסטעם דעם צוגעטיילטן נומער.");
+   setHistory(xs=>xs.map(c=>c.id===id?{...c,status:"ringing"}:c));
+  }else setMessage("דער רוף איז נישט ארויסגעגאנגען.");
  };
  const prepareCall=async()=>{
   if(selectedContact?.doNotCall){setError("דער קאנטאקט איז אנגעצייכנט נישט צו רופן.");return;}
@@ -93,6 +115,7 @@ export function MaxVoiceCalling({cases,selectedContact}:{
    const call=await attempt(false);
    setHistory(list=>[call,...list]);setMessage(call.message);
    if(!skip&&caseId)await savePreference(caseId);
+   if(prefs?.providerReady)await dialSignalWire(call.id);
   }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען")}
   finally{setBusy(false)}
  };
@@ -105,9 +128,7 @@ export function MaxVoiceCalling({cases,selectedContact}:{
    return;
   }
   try{
-   const r=await ask<{dialInitiated:boolean;providerReady:boolean}>(
-    "/api/askanus/max/calling/sessions/"+encodeURIComponent(prepared.sessionId)+"/dial",put({},"POST"));
-   setMessage(r.dialInitiated?"דער רוף ווערט אנגערופן דורך SignalWire.":"די רופן־פארבינדונג איז נישט אקטיוו.");
+   await dialSignalWire(prepared.sessionId);
   }catch(e){setError(e instanceof Error?e.message:"SignalWire רוף נישט געלונגען")}
  };
  const beginEdit=(c:Call)=>{
@@ -141,9 +162,9 @@ export function MaxVoiceCalling({cases,selectedContact}:{
     <PhoneCall className="h-5 w-5"/> רופן — קאמפיין און רוף־געשיכטע
    </h3>
    <p className="text-sm text-muted-foreground">
-    די אמת'ע SignalWire־רופן זענען נאכנישט אנגעשלאסן. דערווייל קען מען
-    צוגרייטן א רוף און אפהיטן אדער עדיטן אינפארמאציע, אבער נישט מאכן
-    א רוף פון דעם טישל. קיין שמועסן ווערן נישט רעקארדירט.
+    {prefs?.providerReady
+     ?"SignalWire איז צוגעגרייט פאר דיין באשטעטיגטן נומער. מיט א קנעפל גייט דער רוף ארויס. קיין שמועסן ווערן נישט רעקארדירט."
+     :"SignalWire איז נאכנישט אקטיוו פאר דיין אקאונט. מען קען בלויז צוגרייטן און אפהיטן רופן ביז די פארבינדונג ווערט באשטעטיגט."}
    </p>
   </div>
   {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -195,7 +216,7 @@ export function MaxVoiceCalling({cases,selectedContact}:{
      placeholder="+1 212 555 0123" type="tel" aria-label="טעלעפאן נומער"/>
    </div>
    <Button onClick={()=>void prepareCall()} disabled={busy||!number.trim()}>
-    <Save className="h-4 w-4 ml-1"/> צוגרייטן רוף — נישט אנרופן
+    <Save className="h-4 w-4 ml-1"/> {prefs?.providerReady?"רוף יעצט דורך SignalWire":"צוגרייטן רוף — נישט אנרופן"}
    </Button>
    <p className="text-xs text-muted-foreground">אמעריקא און קאנאדע האבן ביידע +1; א ריכטיגע לאנד־איבערפרואוו דורכן פראוויידער וועט מען דארפן פארן אמת'ן רוף.</p>
   </div>
