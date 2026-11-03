@@ -532,7 +532,7 @@ export default function FounderDashboard() {
                   ? "דא קענסטו זען דעם גאנצן קיפעד־מפתח און אריינגיין אינעם עקזיסטירנדן ימות־קול־עדיטער. די לייוו־מעניוס ווערן נישט געענדערט ביים בלויז עפענען."
                   : "See the full keypad directory and use the existing Yemot menu voice editor. Opening this panel does not change live menus."}
               </p>
-              <div className="flex flex-wrap gap-2" role="group" aria-label={yi ? "האנטליין־כלים" : "Hotline tools"}>
+              <div className="flex flex-wrap gap-2" role="group" aria-label={yi ? "האטליין־כלים" : "Hotline tools"}>
                 <Button type="button" variant={hotlinePanel === "index" ? "default" : "outline"} aria-pressed={hotlinePanel === "index"} onClick={() => setHotlinePanel("index")}>
                   {yi ? "מפתח — אלע מעניוס און קנעפלעך" : "Keypad index"}
                 </Button>
