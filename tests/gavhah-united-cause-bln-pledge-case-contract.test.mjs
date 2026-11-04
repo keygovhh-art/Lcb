@@ -63,7 +63,7 @@ test("Real joined-cause web and phone user entry points are connected",()=>{
  const my=read("artifacts/gavhah/src/pages/my/index.tsx");
  const dashboard=read("artifacts/gavhah/src/pages/admin/index.tsx");
  const ivr=read("artifacts/api-server/src/lib/yemot-api-driven-phone.ts");
- assert.match(web,/united\/\$\{causeId\}\/\$\{endpoint\}/);
+ assert.ok(web.includes("channelKey}/${causeId}/${endpoint}"));
  assert.match(my,/UnitedMemberCaseHub/);
  assert.match(dashboard,/UnitedTeamDashboard/);
  assert.match(ivr,/digit==="4"/);
