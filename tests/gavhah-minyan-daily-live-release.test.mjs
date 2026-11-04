@@ -49,7 +49,7 @@ test("No GPS guessing and routing requires a configured provider",()=>{
  assert.match(engine,/GOOGLE_MAPS_API_KEY/);
  assert.match(engine,/TRAFFIC_AWARE/);
  assert.match(engine,/GEO.*NOT_CONFIGURED|GEOCODING_NOT_CONFIGURED/);
- assert.match(engine,/skipped/);
+ assert.match(engine,/avoided|input\.avoid/);
 });
 test("Phone keypad 7 and Today's Cause 6 use distinct channels, secure submission review",()=>{
  const phone=read("artifacts/api-server/src/lib/yemot-api-driven-phone.ts");
