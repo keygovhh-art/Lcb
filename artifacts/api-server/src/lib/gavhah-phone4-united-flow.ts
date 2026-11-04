@@ -53,6 +53,14 @@ function latestId(d:UnitedPhoneDraft,callHash:string):string{
  return createHash("sha256").update("united-phone4|"+callHash+"|"+
   d.memberId+"|"+d.mode+"|"+d.startedAt).digest("hex");
 }
+async function phone4Notify(c:PoolClient,member:number,memberText:string,teamText:string,caseId?:number){
+ const url=caseId?"/my?case="+caseId:"/united";
+ await c.query("INSERT INTO public.notifications(user_id,type,message,link_url) "+
+  "VALUES($1,'united_phone_submission',$2,$3)",[member,memberText,url]);
+ await c.query("INSERT INTO public.notifications(user_id,type,message,link_url) "+
+  "SELECT id,'united_phone_team',$1,'/founder' FROM public.users "+
+  "WHERE role IN ('admin','moderator','super_admin') AND status='active'",[teamText]);
+}
 async function submitNomination(c:PoolClient,d:UnitedPhoneDraft,callHash:string){
  if(!validRecordedPath(d.title)||!validRecordedPath(d.details))
   return {ok:false,message:"Required recordings missing. Nothing submitted."};
@@ -68,6 +76,9 @@ async function submitNomination(c:PoolClient,d:UnitedPhoneDraft,callHash:string)
   "VALUES($1,'Gavhah phone member','united@internal.invalid','united_cause_nomination',$2,$3,'open')",
   [d.memberId,"United cause proposal #"+r.rows[0].id,
    "PRIVATE voice proposal — listen to stored WAVs on Founder Dashboard and review before submitting to public queue."]);
+ await phone4Notify(c,d.memberId,
+  "Your United cause proposal #"+r.rows[0].id+" is in private team review.",
+  "New phone cause proposal #"+r.rows[0].id+" needs transcription and approval.");
  return {ok:true,message:"Your cause proposal #"+r.rows[0].id+
   " was saved privately for Gavhah team review. It is not public."};
 }
@@ -115,6 +126,12 @@ export async function nextUnitedPhone4(
          causeId:active.rows[0].id,userId:draft.memberId,amountCents:(draft.dollars||0)*100,
          dueOn:draft.dueOn||"",source:"yemot",requestKey:latestId(draft,callHash)
         });
+        await phone4Notify(c,draft.memberId,
+        saved.status==="pending_team"?"Your extended BLN undertaking is awaiting team approval.":
+          "Your BLN undertaking and due-date follow-up were saved in My Askanus.",
+        "New United phone BLN pledge #"+saved.pledgeId+
+          (saved.status==="pending_team"?" requires staff approval.": " accepted within two months."),
+        saved.caseId);
         feedback="Your BLN undertaking is saved in My Askanus case "+saved.caseId+". "+
          (saved.status==="pending_team"?"The due date is more than two months away, so the team must approve it.":
          "A follow-up was created for the due date.")+" No payment has been collected.";
@@ -145,6 +162,9 @@ export async function nextUnitedPhone4(
         amountCents:draft.dollars?draft.dollars*100:null,
         source:"yemot",requestKey:latestId(draft,callHash)
        });
+       await phone4Notify(c,draft.memberId,
+        "Your donation instructions request was saved in your My Askanus case; no payment has been received.",
+        "New United phone donation instructions request #"+saved.intentId,saved.caseId);
        feedback="Your donation instructions request is in My Askanus case "+saved.caseId+
         ". No money has been collected. Listen to the joining and donation instructions.";
        path="9704";page=0;flash="";
