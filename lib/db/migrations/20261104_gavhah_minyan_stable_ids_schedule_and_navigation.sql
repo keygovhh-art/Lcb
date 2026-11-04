@@ -28,7 +28,7 @@ BEGIN
  RETURN NEW;
 END $$;
 -- Add the trigger once; never remove or replace an existing production trigger.
-DO $
+DO $$
 BEGIN
  IF NOT EXISTS(
    SELECT 1 FROM pg_trigger WHERE tgrelid='public.minyans'::regclass
@@ -38,7 +38,7 @@ BEGIN
    AFTER INSERT OR UPDATE OF status ON public.minyans FOR EACH ROW
    EXECUTE FUNCTION public.gavhah_assign_minyan_dial();
  END IF;
-END $;
+END $$;
 -- Existing approved locations receive codes; pending locations get no codes.
 INSERT INTO public.gavhah_minyan_directory(minyan_id,dial_code)
 SELECT m.id,nextval('public.gavhah_minyan_dial_seq')
