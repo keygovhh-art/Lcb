@@ -54,6 +54,40 @@ export async function ensureUnitedCauseCase(
    "VALUES($1,$2,$3,'joined',$4)",
    [causeId,caseId,userId,"Official member joined United in Kindness"]);
  }
+ if(newJoin){
+  // Optional quota reservation only for separately approved Olam members.
+  // Does NOT activate free SignalWire minutes until billing/webhook quota
+  // enforcement has been deployed and verified.
+  await c.query("SELECT pg_advisory_xact_lock($1::int,4242)",[causeId]);
+  const policy=await c.query<{
+   enabled:boolean;minutes_per_member:number;max_total_minutes:number;expiration_days:number
+  }>("SELECT enabled,minutes_per_member,max_total_minutes,expiration_days "+
+     "FROM public.gavhah_united_olam_bonus_policies WHERE cause_id=$1",[causeId]);
+  const p=policy.rows[0];
+  if(p?.enabled&&p.minutes_per_member>0){
+   const allowed=await c.query("SELECT 1 FROM public.gavhah_olam_chesed_access "+
+    "WHERE user_id=$1 AND status='linked'",[userId]);
+   if(allowed.rowCount){
+    const used=await c.query<{n:string}>(
+     "SELECT coalesce(sum(minutes_allocated),0)::text AS n "+
+     "FROM public.gavhah_united_olam_bonus_allocations WHERE cause_id=$1 AND status!='revoked'",[causeId]);
+    if(p.max_total_minutes===0||Number(used.rows[0]?.n||0)+p.minutes_per_member<=p.max_total_minutes){
+     const reserved=await c.query(
+      "INSERT INTO public.gavhah_united_olam_bonus_allocations "+
+      "(cause_id,member_id,minutes_allocated,status,expires_at) "+
+      "VALUES($1,$2,$3,'reserved',now()+$4::integer*interval '1 day') "+
+      "ON CONFLICT(cause_id,member_id) DO NOTHING RETURNING id",
+      [causeId,userId,p.minutes_per_member,p.expiration_days]);
+     if(reserved.rowCount){
+      await c.query("INSERT INTO public.notifications(user_id,type,message,link_url) "+
+       "VALUES($1,'united_olam_bonus',$2,'/my')",
+       [userId,"An Olam Chesed bonus quota was reserved after joining. "+
+         "This is not active SignalWire calling credit until the service confirms provider enforcement."]);
+     }
+    }
+   }
+  }
+ }
  return {cause,caseId,supporterId,newJoin};
 }
 export function centsFromUnknown(amount:unknown):number|null{
