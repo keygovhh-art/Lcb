@@ -55,8 +55,7 @@ export const gavhahWebsitePhoneVirtualMenus = {
  "9703":{"1":"97031"}, // Approved projects play automatically; 1 = options
  "97031":{"1":"970311","2":"970312"},
  "9704":{"1":"97041","2":"97042"},
- "97041":{"1":"970411","2":"970412"}, // 1 private staff list; 2 project for approval
- "9704":{"1":"154","2":"152","3":"153","4":"164","5":"161"},
+ "97041":{"1":"970411","2":"970412"}, // 1 BLN undertaking; 2 donate-now instructions
  "9706":{"1":"151","2":"155","3":"154"},
  "9708":{"1":"161","2":"167","3":"164","4":"162"},
  "9777":gavhahMorePhoneAliases
