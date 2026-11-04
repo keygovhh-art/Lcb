@@ -44,6 +44,22 @@ function zonedTime(y:number,m:number,d:number,minute:number,zone:string):number|
  const p=zoneParts(guess,zone);
  return p.y===y&&p.m===m&&p.d===d&&p.hh===hr&&p.mm===mm?guess:null;
 }
+export function exactLocalTripTime(localDay:string,hour:number,minute:number,zone="America/New_York"):number|null{
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(localDay)||!Number.isInteger(hour)||hour<0||hour>23||
+   !Number.isInteger(minute)||minute<0||minute>59)return null;
+ const [y,m,d]=localDay.split("-").map(Number);
+ const check=new Date(Date.UTC(y,m-1,d));
+ if(check.toISOString().slice(0,10)!==localDay)return null;
+ return zonedTime(y,m,d,hour*60+minute,zone);
+}
+export function nextLocalTripTime(hour:number,minute:number,zone="America/New_York"):number|null{
+ const today=localYmd(Date.now(),zone);
+ let start=exactLocalTripTime(today,hour,minute,zone);
+ if(start!==null&&start>Date.now()-60_000)return start;
+ const [y,m,d]=today.split("-").map(Number);
+ const next=new Date(Date.UTC(y,m-1,d+1)).toISOString().slice(0,10);
+ return exactLocalTripTime(next,hour,minute,zone);
+}
 function localYmd(epoch:number,zone:string):string{
  const p=zoneParts(epoch,zone);
  return [p.y,String(p.m).padStart(2,"0"),String(p.d).padStart(2,"0")].join("-");
