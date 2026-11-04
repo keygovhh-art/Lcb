@@ -9,6 +9,7 @@ type Cause={id:number;title:string;status:string;goal_amount:string|null;support
 type Pledge={id:number;member_id:number;case_id:number;cause_id:number;amount_cents:string;due_on:string;status:string;review_note:string|null};
 type Donation={id:number;member_id:number;case_id:number;cause_id:number;amount_cents:string|null;state:string;evidence_note:string|null};
 type Case={id:number;user_id:number;cause_id:number;status:string;funds_promised:string;funds_received:string};
+type Nomination={id:number;member_id:number;urgency:string;status:string;member_nickname:string|null};
 type Dashboard={causes:Cause[];pledges:Pledge[];donationIntents:Donation[];cases:Case[];
  bonuses:Array<Record<string,unknown>>;campaignLinks:Array<Record<string,unknown>>};
 async function callApi(path:string,method="GET",body?:unknown){
@@ -22,6 +23,8 @@ async function callApi(path:string,method="GET",body?:unknown){
 }
 export function UnitedTeamDashboard(){
  const [data,setData]=useState<Dashboard|null>(null);
+ const [nominations,setNominations]=useState<Nomination[]>([]);
+ const [nominationInputs,setNominationInputs]=useState<Record<number,{title:string;description:string;location:string;note:string}>>({});
  const [activeCauseId,setActiveCauseId]=useState<number|null>(null);
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[message,setMessage]=useState("");
  const [verification,setVerification]=useState<Record<number,string>>({});
@@ -36,8 +39,11 @@ export function UnitedTeamDashboard(){
  const [bonusMember,setBonusMember]=useState("");
  const refresh=useCallback(async()=>{
   try{
-   const got=await callApi("/api/admin/united/workspace") as Dashboard;
-   setData(got);setError("");setActiveCauseId(old=>old||got.causes[0]?.id||null);
+   const [got,nom]=await Promise.all([
+    callApi("/api/admin/united/workspace") as Promise<Dashboard>,
+    callApi("/api/admin/united/phone-nominations") as Promise<Nomination[]>
+   ]);
+   setData(got);setNominations(nom);setError("");setActiveCauseId(old=>old||got.causes[0]?.id||null);
   }catch(e){setError(e instanceof Error?e.message:"נישטא קיין פארבינדונג");}
  },[]);
  useEffect(()=>{void refresh()},[refresh]);
@@ -118,6 +124,38 @@ export function UnitedTeamDashboard(){
       </div>
     </>}
    </div>)}
+  </div>
+  <div className="rounded-xl border bg-card p-4 space-y-3">
+   <h3 className="font-bold">נייע צוועק־פארשלאגן אויפן האטליין — פריוואטע רעקארדירונגען</h3>
+   <p className="text-sm">מ׳דארף אויסהערן און אויסשרייבן דעם נאמען און באשרייבונג. טיעם־איבערקוק שאפט בלויז א ווארטנדע פראפאזאל, נישט קיין פובליק צוועק.</p>
+   {nominations.filter(n=>n.status==="pending").length===0&&<p className="text-sm">נישטא קיין ווארטנדע פארשלאגן.</p>}
+   {nominations.filter(n=>n.status==="pending").map(n=><article key={n.id} className="border rounded-lg p-3 space-y-3">
+    <h4 className="font-semibold">פארשלאג #{n.id} — מעמבער #{n.member_id} · {n.urgency}</h4>
+    <div className="grid sm:grid-cols-3 gap-2">{(["title","details","location"] as const).map(field=>
+      <div key={field}><p className="text-xs">{field}</p>
+      <audio className="w-full" preload="none" controls
+       src={`/api/admin/united/phone-nominations/${n.id}/audio/${field}`}/></div>)}</div>
+    <Input placeholder="נאמען פארן צוועק (נויטיג פאר באשטעטיגונג)"
+     value={nominationInputs[n.id]?.title||""} onChange={e=>setNominationInputs(o=>({
+      ...o,[n.id]:{title:"",description:"",location:"",note:"",...o[n.id],title:e.target.value}}))}/>
+    <Textarea placeholder="פולע אויסגעשריבענע באשרייבונג"
+     value={nominationInputs[n.id]?.description||""} onChange={e=>setNominationInputs(o=>({
+      ...o,[n.id]:{title:"",description:"",location:"",note:"",...o[n.id],description:e.target.value}}))}/>
+    <Input placeholder="געגנט" value={nominationInputs[n.id]?.location||""}
+     onChange={e=>setNominationInputs(o=>({
+      ...o,[n.id]:{title:"",description:"",location:"",note:"",...o[n.id],location:e.target.value}}))}/>
+    <Textarea placeholder="פריוואטע מערכת הערה" value={nominationInputs[n.id]?.note||""}
+     onChange={e=>setNominationInputs(o=>({
+      ...o,[n.id]:{title:"",description:"",location:"",note:"",...o[n.id],note:e.target.value}}))}/>
+    <div className="flex gap-2 flex-wrap">
+     <Button disabled={busy||!(nominationInputs[n.id]?.title||"").trim()||!(nominationInputs[n.id]?.description||"").trim()}
+      onClick={()=>void run(()=>callApi(`/api/admin/united/phone-nominations/${n.id}/review`,"POST",
+       {decision:"approved",...nominationInputs[n.id]}))}>אננעמען פאר ווייטערדיגן טיעם־איבערקוק</Button>
+     <Button disabled={busy} variant="destructive"
+      onClick={()=>void run(()=>callApi(`/api/admin/united/phone-nominations/${n.id}/review`,"POST",
+       {decision:"rejected",note:nominationInputs[n.id]?.note||""}))}>אפווארפן</Button>
+    </div>
+   </article>)}
   </div>
   <div className="rounded-xl border bg-card p-4 space-y-3">
    <h3 className="font-bold">פאלא־אפס און מעלדונגען — צום מעמבער, טיעם אדער ביידע</h3>
