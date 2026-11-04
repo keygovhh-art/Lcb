@@ -202,6 +202,22 @@ export async function nextUnitedPhone4(
  }
  return {path,page,flash,feedback};
 }
+export async function dailyBeforeNewsSegments(client:PoolClient):Promise<string[]>{
+ const data=await readCauseChannel(client,"daily");
+ if(!data?.enabled||!data.phoneBeforeNews||!data.cause)return [];
+ const list:string[]=[];
+ list.push(promptMessage("Today's Gavhah Cause. "+safeEnglish(data.cause.title,100)));
+ const msg=data.messages?.announcement;
+ const path=msg?.phoneAudioReady&&data.announcementMode==="recording"?
+  (await client.query("SELECT phone_audio_path FROM public.gavhah_cause_messages "+
+   "WHERE channel='daily' AND purpose='announcement'")).rows[0]?.phone_audio_path:null;
+ if(path&&wav(path))list.push(wav(path));
+ else list.push(promptMessage(msg?.textEn||safeEnglish(data.cause.description,230)||
+  "The daily cause is available on the Gavhah website."));
+ list.push(promptMessage("To support the daily cause, visit the Gavhah Today's Cause page. "+
+  "Now, to hear all news updates, stay on the line. For options press one."));
+ return list;
+}
 export async function speakUnitedPhone4(
  client:PoolClient,path:string,flash:string,feedback:string
 ):Promise<Phone4Speech>{
