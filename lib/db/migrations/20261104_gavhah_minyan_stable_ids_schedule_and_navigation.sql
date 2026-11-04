@@ -27,10 +27,18 @@ BEGIN
  END IF;
  RETURN NEW;
 END $$;
-DROP TRIGGER IF EXISTS gavhah_minyan_dial_on_approved ON public.minyans;
-CREATE TRIGGER gavhah_minyan_dial_on_approved
- AFTER INSERT OR UPDATE OF status ON public.minyans FOR EACH ROW
- EXECUTE FUNCTION public.gavhah_assign_minyan_dial();
+-- Add the trigger once; never remove or replace an existing production trigger.
+DO $
+BEGIN
+ IF NOT EXISTS(
+   SELECT 1 FROM pg_trigger WHERE tgrelid='public.minyans'::regclass
+     AND tgname='gavhah_minyan_dial_on_approved' AND NOT tgisinternal
+ ) THEN
+  CREATE TRIGGER gavhah_minyan_dial_on_approved
+   AFTER INSERT OR UPDATE OF status ON public.minyans FOR EACH ROW
+   EXECUTE FUNCTION public.gavhah_assign_minyan_dial();
+ END IF;
+END $;
 -- Existing approved locations receive codes; pending locations get no codes.
 INSERT INTO public.gavhah_minyan_directory(minyan_id,dial_code)
 SELECT m.id,nextval('public.gavhah_minyan_dial_seq')
