@@ -1,12 +1,12 @@
 import {createHash} from "node:crypto";
 import type {PoolClient} from "pg";
 import {validRecordedPath,fetchModeratedNewsAudio} from "./yemot-news-engagement";
-import {deterministicTrip,getGeoFromAddress,type Mode,type Geo,type Place,type Rule} from "./gavhah-minyan-route-engine";
+import {deterministicTrip,getGeoFromAddress,exactLocalTripTime,nextLocalTripTime,type Mode,type Geo,type Place,type Rule} from "./gavhah-minyan-route-engine";
 
 type M7Stage=
  "main"|"search"|"city"|"city-options"|"saved"|"search-method"|"search-input"|
- "by-code"|"listing"|"plan-start"|"plan-method"|"plan-address"|"plan-clock"|"plan-ampm"|
- "plan-confirm"|"plan-travel"|"plan-results"|
+ "by-code"|"listing"|"plan-start"|"plan-method"|"plan-address"|"plan-date-choice"|"plan-day"|"plan-clock"|"plan-ampm"|
+ "plan-confirm"|"plan-travel"|"plan-results"|"plan-preference"|
  "submit-name-method"|"submit-name"|"submit-city"|"submit-other-city-method"|"submit-other-city"|
  "submit-address-method"|"submit-address"|"submit-prayer"|"submit-time-mode"|"submit-time"|
  "submit-ampm"|"submit-time-confirm"|"submit-more"|"submit-confirm";
@@ -16,14 +16,14 @@ export type Minyan7Draft={
  cityCode:string;city:string;search:string;searchVia:"voice"|"keypad";
  name:string;nameAudio:string;address:string;addressAudio:string;cityAudio:string;
  searchAddress:string;listIds:number[];page:number;lastDial:number|null;
- planStart:string;clockDigits:string;clockHour:number;clockMinute:number;meridiem:"am"|"pm"|"";
+ planStart:string;planDay:string;clockDigits:string;clockHour:number;clockMinute:number;meridiem:"am"|"pm"|"";
  transport:Mode;origin:Geo|null;chosenPlace:number|null;skipped:number[];
  suggested:Array<{id:number;name:string;dial:number;time:string;minutes:number;address:string}>;
  services:M7Record[];currentPrayer:string;timeMode:"clock"|"rt";pendingTime:string;notesAudio:string;
 };
 const goodStages=new Set<M7Stage>([
  "main","search","city","city-options","saved","search-method","search-input","by-code","listing",
- "plan-start","plan-method","plan-address","plan-clock","plan-ampm","plan-confirm","plan-travel","plan-results",
+ "plan-start","plan-method","plan-address","plan-date-choice","plan-day","plan-clock","plan-ampm","plan-confirm","plan-travel","plan-results","plan-preference",
  "submit-name-method","submit-name","submit-city","submit-other-city-method","submit-other-city",
  "submit-address-method","submit-address","submit-prayer","submit-time-mode","submit-time","submit-ampm",
  "submit-time-confirm","submit-more","submit-confirm"
@@ -39,7 +39,7 @@ function fresh(memberId:number|null):Minyan7Draft{
  return {kind:"minyan7",stage:"main",memberId,validUntil:Date.now()+25*60*1000,
  cityCode:"",city:"",search:"",searchVia:"voice",name:"",nameAudio:"",address:"",addressAudio:"",cityAudio:"",
  searchAddress:"",listIds:[],page:0,lastDial:null,
- planStart:"",clockDigits:"",clockHour:0,clockMinute:0,meridiem:"",
+ planStart:"",planDay:"",clockDigits:"",clockHour:0,clockMinute:0,meridiem:"",
  transport:"walking",origin:null,chosenPlace:null,skipped:[],suggested:[],
  services:[],currentPrayer:"",timeMode:"clock",pendingTime:"",notesAudio:""};
 }
@@ -59,7 +59,7 @@ export function minyan7Input(path:string,flash:string):"record"|"text"|"digits"|
  if(!d)return "menu";
  if(["search-input","plan-address","submit-name","submit-other-city","submit-address"].includes(d.stage))
   return d.searchVia==="voice"?"record":"text";
- if(["by-code","plan-clock","submit-time"].includes(d.stage))return "digits";
+ if(["by-code","plan-day","plan-clock","submit-time"].includes(d.stage))return "digits";
  return "menu";
 }
 // Multi-tap keypad: 2=A,22=B,222=C; 0 separates letters; 1=space;
@@ -174,7 +174,7 @@ async function getPlanPlaces(client:PoolClient,origin:Geo):Promise<Place[]>{
  return [...places.values()].sort((a,b)=>approx(a)-approx(b)).slice(0,75);
 }
 async function computePhonePlan(client:PoolClient,d:Minyan7Draft):Promise<string>{
- const origin=d.origin||d.searchAddress?await getGeoFromAddress(d.searchAddress):null;
+ const origin=d.origin||(d.searchAddress?await getGeoFromAddress(d.searchAddress):null);
  if(!origin)return "A valid address or linked website location is needed before live route planning.";
  const from=d.planStart?Date.parse(d.planStart):Date.now();
  if(!Number.isFinite(from))return "Your chosen time is invalid. Enter the time again.";
@@ -294,7 +294,7 @@ export async function nextMinyan7(client:PoolClient,path:string,digit:string,fla
    if(saved.rows[0]){
     d.searchAddress=saved.rows[0].start_address;
     d.origin={latitude:saved.rows[0].start_lat!,longitude:saved.rows[0].start_lng!};
-    d.stage="plan-clock";
+    d.stage="plan-date-choice";
    }else msg="There is no saved location. Press two to enter your address.";
   }
  }else if(d.stage==="plan-address"){
@@ -302,8 +302,19 @@ export async function nextMinyan7(client:PoolClient,path:string,digit:string,fla
   if(d.searchVia==="keypad")address=decodeMultitap(digit);
   if(address&&address.length>=6){
    d.searchAddress=address+(d.city?", "+d.city:"");
-   d.origin=null;d.stage="plan-clock";
+   d.origin=null;d.stage="plan-date-choice";
   }else msg="A full address was not verified. Please enter it by the website or try again with speech recognition enabled.";
+ }else if(d.stage==="plan-date-choice"){
+  if(digit==="1"){d.planStart=new Date().toISOString();d.planDay="";d.stage="plan-travel";}
+  else if(digit==="2"){d.stage="plan-day";}
+ }else if(d.stage==="plan-day"){
+  if(/^\d{8}$/.test(digit)){
+   const candidate=digit.slice(0,4)+"-"+digit.slice(4,6)+"-"+digit.slice(6,8);
+   const day=exactLocalTripTime(candidate,12,0);
+   if(day!==null&&day>=Date.now()-86400000&&day<=Date.now()+365*86400000){
+    d.planDay=candidate;d.planStart="";d.stage="plan-clock";
+   }else msg="Invalid trip date. Use YYYYMMDD, within one year.";
+  }else msg="Enter eight digits for year month and day, then pound.";
  }else if(d.stage==="plan-clock"){
   const t=parseClock(digit);
   if(t){d.clockHour=t.hour;d.clockMinute=t.minute;d.stage="plan-ampm";}
@@ -319,18 +330,14 @@ export async function nextMinyan7(client:PoolClient,path:string,digit:string,fla
  }else if(d.stage==="plan-travel"){
   if(digit==="1"||digit==="2"){
    d.transport=digit==="1"?"driving":"walking";
-   // The selected clock time applies to the next local date containing it;
-   // for future-day precision use the website date picker.
-   const ny=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",
-    year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
-   const match=ny.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-   if(match){
+   if(!d.planStart){
     const hour=(d.clockHour%12)+(d.meridiem==="pm"?12:0);
-    const local=match[3]+"-"+match[1]+"-"+match[2]+"T"+String(hour).padStart(2,"0")+":"+
-      String(d.clockMinute).padStart(2,"0")+":00-05:00";
-    // Local daylight offset is determined by the member's website planner;
-    // in phone mode use NOW when no verified future departure is available.
-    d.planStart=Date.parse(local)>Date.now()+60_000?new Date(local).toISOString():"";
+    const clock=d.planDay?
+      exactLocalTripTime(d.planDay,hour,d.clockMinute):
+      nextLocalTripTime(hour,d.clockMinute);
+    if(clock===null){msg="This chosen clock time does not exist on that date. Please reenter.";
+      d.stage="plan-clock";
+    }else d.planStart=new Date(clock).toISOString();
    }
    try{msg=await computePhonePlan(client,d);}catch(e){
     msg=e instanceof Error&&/NOT_CONFIGURED|ADDRESS_/.test(e.message)
@@ -344,8 +351,14 @@ export async function nextMinyan7(client:PoolClient,path:string,digit:string,fla
   }else if(digit==="2"){
    if(d.suggested[0])d.skipped.push(d.suggested[0].id);
    d.page=0;try{msg=await computePhonePlan(client,d);}catch{msg="Cannot recheck routing. Please try later.";}
-  }else if(digit==="3")d.stage="plan-preference" as M7Stage;
+  }else if(digit==="3")d.stage="plan-preference";
   else if(digit==="8")d.page=Math.min(2,d.page+1);
+ }else if(d.stage==="plan-preference"){
+  const choice=Number(digit);
+  if(Number.isSafeInteger(choice)&&choice>=1&&choice<=d.suggested.length){
+    d.chosenPlace=d.suggested[choice-1].id;d.stage="plan-results";d.page=0;
+    try{msg=await computePhonePlan(client,d);}catch{msg="Your chosen minyan cannot be confirmed from the routing provider right now.";}
+  }else msg="Enter a suggested location number, beginning with 1.";
  }else if(d.stage==="submit-name"){
   const a=d.searchVia==="voice"?safeRecord(digit):"";
   const t=d.searchVia==="keypad"?decodeMultitap(digit):null;
@@ -443,11 +456,14 @@ export async function minyan7Speech(client:PoolClient,path:string,flash:string,f
  else if(d.stage==="plan-address")text+=d.searchVia==="voice"?
   "Say the entire street address, city and state clearly, then pound. The service will verify the address. Phone calls do not provide automatic GPS.":
   "Enter full address using multi-tap keypad. Double-zero toggles number mode, one is space, zero separates letters, finish with pound.";
- else if(d.stage==="plan-clock")text+="Enter the start hour and minute, for example eight thirty four is 834, then pound. On the website you can choose any future date.";
+ else if(d.stage==="plan-date-choice")text+="For an immediate live route press 1. To plan for a future date press 2.";
+ else if(d.stage==="plan-day")text+="Enter the date with eight digits, year month day, for example 20261105, then pound.";
+ else if(d.stage==="plan-clock")text+="Enter the start hour and minute, for example eight thirty four is 834, then pound.";
  else if(d.stage==="plan-ampm")text+="For morning press 1, for afternoon or evening press 2.";
  else if(d.stage==="plan-confirm")text+="You selected "+timeLabel(d)+". If correct press 1. To re-enter the time press 2.";
  else if(d.stage==="plan-travel")text+="If you plan to travel by car press 1. On foot press 2.";
  else if(d.stage==="plan-results")text+=routePreview(d);
+ else if(d.stage==="plan-preference")text+="Enter the list number of the minyan you want to visit FIRST, then pound.";
  else if(d.stage==="submit-name-method")text+="To enter the synagogue name by voice press 1; by multi-tap keypad press 2.";
  else if(d.stage==="submit-name")text+=d.searchVia==="voice"?
   "Record the synagogue or minyan shtiebel name after the beep and finish with pound.":
