@@ -64,6 +64,54 @@ router.post("/me/united/shared-cases/:caseId/note",requireAuth,async(req,res,nex
   res.status(201).json({ok:true,caseId});
  }catch(e){next(e);}
 });
+router.get("/me/united/shared-cases/:caseId/details",requireAuth,async(req,res,next)=>{
+ try{
+  const id=intId(req.params.caseId),user=getSessionUserId(req);
+  if(!id||!user){res.sendStatus(404);return;}
+  const access=await caseAccess(user,id);
+  if(!access){res.sendStatus(404);return;}
+  const [events,followups]=await Promise.all([
+   pool.query("SELECT id,kind,details,created_at FROM public.gavhah_united_case_events "+
+    "WHERE case_id=$1 ORDER BY created_at DESC LIMIT 75",[id]),
+   pool.query("SELECT id,note,due_date,completed,created_at FROM public.case_followups "+
+    "WHERE case_id=$1 ORDER BY created_at DESC LIMIT 75",[id])
+  ]);
+  res.set("Cache-Control","private,no-store").json({caseId:id,role:access.role||"owner",
+   events:events.rows,followups:followups.rows});
+ }catch(e){next(e);}
+});
+router.post("/me/united/shared-cases/:caseId/followups",requireAuth,async(req,res,next)=>{
+ if(!sameOrigin(req)){res.sendStatus(403);return;}
+ const id=intId(req.params.caseId),user=getSessionUserId(req);
+ const note=String(req.body?.note||"").trim(),due=String(req.body?.dueOn||"");
+ if(!id||!user||note.length<3||note.length>900||
+  !/^\\d{4}-\\d{2}-\\d{2}$/.test(due)||
+  !Number.isFinite(Date.parse(due+"T00:00:00Z"))||
+  new Date(due+"T00:00:00Z").toISOString().slice(0,10)!==due){
+  res.status(400).json({error:"A note (3-900 characters) and valid YYYY-MM-DD due date are required"});return;
+ }
+ try{
+  const allowed=await caseAccess(user,id,true);
+  if(!allowed){res.sendStatus(404);return;}
+  const client=await pool.connect();
+  let followupId=0;
+  try{
+   await client.query("BEGIN");
+   const row=await client.query<{id:number}>(
+    "INSERT INTO public.case_followups(case_id,date,note,due_date) "+
+    "VALUES($1,current_date::text,$2,$3) RETURNING id",[id,note,due]);
+   followupId=row.rows[0].id;
+   await client.query("INSERT INTO public.gavhah_united_case_events "+
+    "(cause_id,case_id,author_id,kind,details) VALUES($1,$2,$3,'followup',$4)",
+    [allowed.cause_id,id,user,"Follow-up by coordinator due "+due+": "+note]);
+   await client.query("COMMIT");
+  }catch(e){await client.query("ROLLBACK").catch(()=>{});throw e;}finally{client.release();}
+  if(allowed.owner_id!==user)
+   await notifyUser(allowed.owner_id,"united_case_followup",
+    "A permitted coordinator scheduled a follow-up for your United case.","/my?case="+id);
+  res.status(201).json({id:followupId,caseId:id,dueOn:due,ok:true});
+ }catch(e){next(e);}
+});
 router.post("/admin/united/cases/:caseId/collaborators",requireAdmin,async(req,res,next)=>{
  if(!sameOrigin(req)){res.sendStatus(403);return;}
  const caseId=intId(req.params.caseId),member=intId(req.body?.memberId);
