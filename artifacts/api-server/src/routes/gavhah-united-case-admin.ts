@@ -236,7 +236,7 @@ router.post("/admin/united/olam/bonus-policy",requireAdmin,async(req,res,next)=>
  minutes=Number(req.body?.minutesPerMember),expires=Number(req.body?.expirationDays||30),
  cap=Number(req.body?.maxTotalMinutes||0);
  if(!causeId||typeof enabled!=="boolean"||![minutes,expires,cap].every(Number.isSafeInteger)||
-    minutes<0||minutes>10000||expires<1||expires>365||cap<0||cap>1e6){
+    minutes<0||minutes>10000||expires<1||expires>365||cap<0||cap>1e6||enabled&&(minutes===0||cap===0)){
   res.status(400).json({error:"Invalid bonus policy limits"});return;
  }
  try{
