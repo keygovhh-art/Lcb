@@ -61,10 +61,27 @@ export async function readCauseChannel(client:{query:(sql:string,values?:unknown
  const messages=(await client.query(
   "SELECT purpose,text_en,audio_data IS NOT NULL AS has_audio,phone_audio_path "+
   "FROM public.gavhah_cause_messages WHERE channel=$1",[which])).rows as Array<{purpose:string,text_en:string,has_audio:boolean,phone_audio_path:string|null}>;
+ // These figures have different financial meanings. Never add them together:
+ //  1) BLN undertakings officially accepted / approved (including fulfilled);
+ //  2) cash actually verified as received by staff.
+ // Longer-dated applications awaiting review, rejected/cancelled submissions,
+ // donation intentions and legacy amount_raised are NOT claimed as BLN accepted
+ // or verified cash. Historical legacy promises need separate reconciliation.
  let verifiedCents:number|null=null;
+ let pledgedCents=0;
+ let pendingPledgeCents=0;
  if(which==="united"&&c){
-  const total=(await client.query("SELECT verified_cents FROM public.gavhah_united_verified_totals WHERE cause_id=$1",[c.id])).rows[0];
-  verifiedCents=total?Number(total.verified_cents):null;
+  const [received,undertakings]=await Promise.all([
+   client.query("SELECT verified_cents FROM public.gavhah_united_verified_totals WHERE cause_id=$1",[c.id]),
+   client.query(
+    "SELECT coalesce(sum(amount_cents) FILTER "+
+    "(WHERE status IN ('accepted_bln','approved_bln','fulfilled')),0)::text AS pledged_cents,"+
+    "coalesce(sum(amount_cents) FILTER (WHERE status='pending_team'),0)::text AS pending_cents "+
+    "FROM public.gavhah_united_pledges WHERE cause_id=$1",[c.id])
+  ]);
+  verifiedCents=received.rows[0]?Number(received.rows[0].verified_cents):null;
+  pledgedCents=Number(undertakings.rows[0]?.pledged_cents||0);
+  pendingPledgeCents=Number(undertakings.rows[0]?.pending_cents||0);
  }
  return {
   channel:which,enabled:settings.enabled===true,
@@ -80,6 +97,9 @@ export async function readCauseChannel(client:{query:(sql:string,values?:unknown
    id:c.id,title:c.title,description:c.description,
    organizerName:c.organizer_name||null,location:c.location||null,
    goalAmount:Number(c.goal_amount||0),joinedCount:Number(c.supporter_count||0),
+   // Accepted BLN vs funds verified in the finance ledger are kept separate.
+   pledgedDollars:which==="united"?pledgedCents/100:null,
+   pendingApprovalPledgedDollars:which==="united"?pendingPledgeCents/100:null,
    verifiedRaisedDollars:verifiedCents===null?null:verifiedCents/100,
    reportedRaisedDollars:which==="daily"?Number(c.raised_amount||0):null,
    donationUrl:which==="daily"?c.donation_url||null:null,
