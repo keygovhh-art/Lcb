@@ -111,9 +111,9 @@ export function MinyanTeamWorkspace(){
      <Button disabled={busy} onClick={()=>void run(()=>api(
       `/api/admin/minyans/phone-submissions/${p.id}/review`,"POST",{
        decision:"approved",...transcriptions[p.id],
-       synagogueName:transcriptions[p.id]?.synagogueName??p.synagogue_typed||"",
-       city:transcriptions[p.id]?.city??p.city||"",
-       address:transcriptions[p.id]?.address??p.address_typed||"",
+       synagogueName:(transcriptions[p.id]?.synagogueName||p.synagogue_typed||""),
+       city:(transcriptions[p.id]?.city||p.city||""),
+       address:(transcriptions[p.id]?.address||p.address_typed||""),
        times:{
         shacharis:transcriptions[p.id]?.shacharis||"",
         mincha:transcriptions[p.id]?.mincha||"",
