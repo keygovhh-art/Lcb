@@ -160,8 +160,8 @@ export async function getGeoFromAddress(address:string):Promise<Geo>{
   const data=await response.json() as {status?:string;results?:Array<{partial_match?:boolean;geometry?:{location?:{lat?:number;lng?:number}}}>};
   if(data?.status!=="OK"||!data?.results?.length)throw Error("ADDRESS_NOT_VERIFIED");
   const result=data.results[0],loc=result.geometry?.location;
-  if(result.partial_match||!validGeo({latitude:loc?.lat,longitude:loc?.lng}))
-   throw Error("ADDRESS_AMBIGUOUS");
+  if(result.partial_match||!loc||typeof loc.lat!=="number"||typeof loc.lng!=="number"||
+    !validGeo({latitude:loc.lat,longitude:loc.lng}))throw Error("ADDRESS_AMBIGUOUS");
   return {latitude:loc.lat,longitude:loc.lng};
  }finally{clearTimeout(timer);}
 }
