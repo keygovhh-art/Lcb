@@ -9,6 +9,7 @@ import groupsRouter from "./groups";
 import groupAdvancedRouter from "./group-advanced";
 import groupPlatformControlRouter from "./group-platform-control";
 import minyansRouter from "./minyans";
+import minyanNavigationRouter from "./gavhah-minyan-navigation";
 import volunteersRouter from "./volunteers";
 import charityRouter from "./charity";
 import statsRouter from "./stats";
@@ -73,6 +74,8 @@ router.use(newsRouter);
 router.use(groupsRouter);
 router.use(groupAdvancedRouter);
 router.use(groupPlatformControlRouter);
+// Advanced dial lookup must precede the legacy /minyans/:id matcher.
+router.use(minyanNavigationRouter);
 router.use(minyansRouter);
 router.use(volunteersRouter);
 router.use(charityRouter);
