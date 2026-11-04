@@ -18,6 +18,8 @@ export function UnitedMemberCaseHub({highlightCase}:{highlightCase?:number|null}
  const [amount,setAmount]=useState<Record<number,string>>({});
  const [evidence,setEvidence]=useState<Record<number,string>>({});
  const [notes,setNotes]=useState<Record<number,string>>({});
+ const [followupNotes,setFollowupNotes]=useState<Record<number,string>>({});
+ const [followupDates,setFollowupDates]=useState<Record<number,string>>({});
  const [error,setError]=useState(""),[busy,setBusy]=useState(false);
  const [message,setMessage]=useState("");
  const refresh=useCallback(async()=>{
@@ -59,6 +61,22 @@ export function UnitedMemberCaseHub({highlightCase}:{highlightCase?:number|null}
    if(!res.ok)throw Error(outcome.error||"נישט געלונגען");
    setMessage("דיין נאטיץ איז אפגעהיטן פאר דעם קעיס.");
    setNotes(old=>({...old,[c.case_id]:""}));await refresh();
+  }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
+  finally{setBusy(false);}
+ };
+ const scheduleFollowup=async(c:Shared)=>{
+  if(busy||!(followupNotes[c.case_id]||"").trim()||!followupDates[c.case_id])return;
+  setBusy(true);setError("");
+  try{
+   const r=await fetch(`/api/me/united/shared-cases/${c.case_id}/followups`,{
+    method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({note:followupNotes[c.case_id],dueOn:followupDates[c.case_id]})
+   });
+   const result=await r.json().catch(()=>({}));
+   if(!r.ok)throw Error(result.error||"פאלא־אפ נישט געלונגען");
+   setMessage("דער פאלא־אפ איז געשאפן אינעם זעלבן אפיציעלן קעיס.");
+   setFollowupNotes(o=>({...o,[c.case_id]:""}));setFollowupDates(o=>({...o,[c.case_id]:""}));
+   await refresh();
   }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
   finally{setBusy(false);}
  };
@@ -121,6 +139,13 @@ export function UnitedMemberCaseHub({highlightCase}:{highlightCase?:number|null}
       <Button disabled={busy||!notes[c.case_id]?.trim()} onClick={()=>void shareNote(c)}>
        אפהיטן די נאטיץ
       </Button>
+      <Textarea placeholder="א נייע קאארדינירטע פאלא־אפ אויפגאבע"
+       value={followupNotes[c.case_id]||""}
+       onChange={e=>setFollowupNotes(n=>({...n,[c.case_id]:e.target.value}))}/>
+      <Input type="date" value={followupDates[c.case_id]||""}
+       onChange={e=>setFollowupDates(n=>({...n,[c.case_id]:e.target.value}))}/>
+      <Button variant="outline" disabled={busy||!followupNotes[c.case_id]?.trim()||!followupDates[c.case_id]}
+       onClick={()=>void scheduleFollowup(c)}>אריינלייגן א פאלא־אפ אין דעם קעיס</Button>
     </>}
    </article>)}
  </section>;
