@@ -265,6 +265,13 @@ export default function United() {
     query: { queryKey: getGetActiveFeaturedCauseQueryKey() },
   });
 
+  const {data:unitedChannel}=useQuery<any>({
+    queryKey:["/api/cause-channels/united"],
+    queryFn:async()=>{
+      const r=await fetch("/api/cause-channels/united",{cache:"no-store"});
+      return r.ok?r.json():null;
+    }
+  });
   const causeId = cause?.id ?? 0;
   // Membership is determined by signed-in account ID, never by public supporter names.
   // The server returns only the active account's joined official cases.
@@ -385,6 +392,31 @@ export default function United() {
 
                 {/* Description */}
                 <p className="text-foreground leading-relaxed text-base">{cause.description}</p>
+
+                {unitedChannel?.enabled&&unitedChannel.cause?.id===causeId&&
+                  <section dir="rtl" className="rounded-xl border p-4 space-y-3">
+                    <h3 className="font-bold">די אפיציעלע מעסעדזש פון מתאחדים באהבה</h3>
+                    <p className="text-sm">באשטעטיגט באקומענע נדבות:
+                      <strong className="ms-2">{unitedChannel.cause.verifiedRaisedDollars===null
+                        ?"דער באשטעטיגטער סכום איז נאך נישט אריינגעשטעלט":
+                        "$"+Number(unitedChannel.cause.verifiedRaisedDollars).toLocaleString("en-US",{minimumFractionDigits:2})}</strong>
+                    </p>
+                    <p className="text-sm">{unitedChannel.cause.joinedCount} מענטשן האבן זיך שוין אנגעשלאסן אינעם צוועק.</p>
+                    {unitedChannel.announcementMode==="recording"&&unitedChannel.messages?.announcement?.audioUrl?
+                      <audio controls className="w-full" preload="metadata"
+                        src={unitedChannel.messages.announcement.audioUrl}/>:
+                      <div className="space-y-2">
+                        <p className="text-sm whitespace-pre-line">{unitedChannel.messages?.announcement?.textEn||cause.description}</p>
+                        <Button variant="outline" size="sm" onClick={()=>{
+                          const words=unitedChannel.messages?.announcement?.textEn||cause.description;
+                          if("speechSynthesis" in window){
+                            window.speechSynthesis.cancel();
+                            const spoken=new SpeechSynthesisUtterance(words);spoken.lang="en-US";
+                            window.speechSynthesis.speak(spoken);
+                          }
+                        }}>הערן אין ענגלישע TTS</Button>
+                      </div>}
+                  </section>}
 
                 {/* Progress */}
                 <div className="bg-muted/30 rounded-xl p-6 space-y-4">
