@@ -150,10 +150,13 @@ export function JoinCauseDialog({causeId,open,onClose,channelKey="united"}:{
 }
 
 // ---- Submit Future Cause Dialog ----
-function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function SubmitCauseDialog({open,onClose,channelKey="united"}:{
+ open:boolean;onClose:()=>void;channelKey?:"united"|"daily"
+}) {
   const { toast } = useToast();
   const { user } = useAuth();
   const submitCause = useSubmitCause();
+  const [dailySubmitting,setDailySubmitting]=useState(false);
   const [form, setForm] = useState({ title: "", description: "", location: "", urgency: "normal" });
   const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
     setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
@@ -163,6 +166,21 @@ function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim() || !form.description.trim() || !submittedByValue) return;
+    if(channelKey==="daily"){
+      setDailySubmitting(true);
+      void fetch("/api/daily/proposals",{
+        method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(form)
+      }).then(async r=>{
+        const data=await r.json().catch(()=>({}));
+        if(!r.ok)throw Error(data.error||"Could not submit today's cause proposal");
+        onClose();
+        setForm({title:"",description:"",location:"",urgency:"normal"});
+        toast({title:"צוועק פארשלאג אריינגעשיקט",description:"דאס ווארט אויף די היינטיגע צוועק טיעם באשטעטיגונג."});
+      }).catch(error=>toast({title:"נישט געלונגען",description:String(error),variant:"destructive"}))
+       .finally(()=>setDailySubmitting(false));
+      return;
+    }
     submitCause.mutate(
       { data: { title: form.title.trim(), description: form.description.trim(), submittedBy: submittedByValue, location: form.location || undefined, urgency: form.urgency } },
       {
@@ -180,7 +198,7 @@ function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => vo
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-serif text-xl text-primary">Submit a Future Cause</DialogTitle>
+          <DialogTitle className="font-serif text-xl text-primary">{channelKey==="daily"?"פארשלאגן א נייעם היינטיגע צוועק":"Submit a Future Cause"}</DialogTitle>
           <p className="text-sm text-muted-foreground">
             Know of a need that the entire community should rally around? Submit it for consideration as a future featured cause.
             The Gavhah committee reviews all submissions and selects causes based on urgency and community impact.
@@ -213,9 +231,9 @@ function SubmitCauseDialog({ open, onClose }: { open: boolean; onClose: () => vo
             <Label className="font-semibold">Description *</Label>
             <Textarea value={form.description} onChange={s("description")} placeholder="Describe the need, the community affected, and why this cause deserves featured status..." className="resize-none min-h-28" required />
           </div>
-          <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold gap-2" disabled={submitCause.isPending}>
+          <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold gap-2" disabled={submitCause.isPending||dailySubmitting}>
             <SendHorizonal className="h-4 w-4" />
-            {submitCause.isPending ? "Submitting..." : "Submit for Review"}
+            {submitCause.isPending||dailySubmitting ? "מען שיקט אריין..." : "שיקן צום טיעם פאר באשטעטיגונג"}
           </Button>
         </form>
       </DialogContent>
