@@ -7,6 +7,7 @@ import {noteYemotReturnCalls} from "./signalwire-max-return-calls";
 import {nextAskanimPhoneState,askanimPhoneSpeech} from "./gavhah-askanim-phone-flow";
 import {readForumVoiceDraft} from "./yemot-forum-voice";
 import {nextPhone3State,phone3WantsRecording,phone3Speech} from "./gavhah-phone3-community-flow";
+import {nextUnitedPhone4,speakUnitedPhone4,phone4InputKind} from "./gavhah-phone4-united-flow";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
@@ -86,6 +87,16 @@ function sendAskanimRead(res:Response,step:number,media:string[],spoken:string,l
   : ["iv"+step,"no","1","1","8","No","no"];
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
   .send("read="+sounds+"="+params.join(","));
+}
+function sendUnitedRead(res:Response,step:number,segments:string[],kind:"listen"|"menu"|"record"|"amount"|"date"){
+ const prompt=segments.filter(Boolean).join(".");
+ const input=kind==="record"?"rr"+step:kind==="amount"||kind==="date"?"pn"+step:"iv"+step;
+ const opts=kind==="record"?input+",,record":
+  kind==="amount"?[input,"no","9","1","14","No","no"].join(","):
+  kind==="date"?[input,"no","8","8","14","No","no"].join(","):
+  kind==="listen"?[input,"no","1","0","7","No","no","no","","0123456789","1","Ok","None"].join(","):
+  [input,"no","1","1","8","No","no"].join(",");
+ res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("read="+prompt+"="+opts);
 }
 function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fromNext=false,fromShared=false){
  let nodes=tree,current:TreeNode|undefined;
@@ -351,7 +362,7 @@ async function tryFastYemotRoot(req:Request,res:Response,tree:Record<string,Tree
  if(!req.path.endsWith("/yemot/ivr"))return false;
  const digit=req.body?.iv0??req.query.iv0;
  const input=digit==null?null:String(digit);
- if(input==="2"||input==="3")return false; // Virtual menus 2 and 3 use dynamic validated state.
+ if(input==="2"||input==="3"||input==="4")return false; // Virtual menus 2/3/4 use dynamic validated state.
   if(input!==null&&!/^[1-9]$/.test(input))return false;
  const call=sourceCallId(req);
  const supplied=String(req.body?.entryKey??req.query.entryKey??"");
@@ -449,7 +460,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   let manualFlash=s.action_flash||"";
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";}
-  const inputName=(replyMode||path==="970211"&&readForumVoiceDraft(manualFlash)?.stage==="record"||phone3WantsRecording(path,manualFlash)?"rr":path==="125"?"ln":path==="185"?"rg":(path==="115"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(replyMode||path==="970211"&&readForumVoiceDraft(manualFlash)?.stage==="record"||phone3WantsRecording(path,manualFlash)||phone4InputKind(path,manualFlash)==="record"?"rr":phone4InputKind(path,manualFlash)==="amount"||phone4InputKind(path,manualFlash)==="date"?"pn":path==="125"?"ln":path==="185"?"rg":(path==="115"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
   let goToProviderManagement=false;
@@ -459,7 +470,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    // Existing Yemot management is usually extension /0 (admin_login).
    // Preserve it on root 0, and keep nested 0 returning to the API root.
    // Moving to /0 DOES NOT bypass the provider admin password.
-   if((digit==="0"||digit==="*") && path.startsWith("9703") && !fromShared){
+   if((digit==="0"||digit==="*") && path.startsWith("9704") && !fromShared){
+    path=path==="9704"?"":path==="97041"||path==="97042"?"9704":"97041";
+    manualFlash="";page=0;position=0;chunk=0;confirmId=null;feedback="";
+   }else if((digit==="0"||digit==="*") && path.startsWith("9703") && !fromShared){
     // Correct virtual-menu ancestry (9703 -> root, 97031 -> 9703, 970311/312 -> 97031).
     path=path==="9703"?"":path==="97031"?"9703":"97031";
     manualFlash="";page=0;position=0;chunk=0;confirmId=null;feedback="";
@@ -492,6 +506,12 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     }else feedback="Press 1 to request Olam Chesed SignalWire access. ";
    }else if(!from4444 && !fromNext && ready4444 && path==="" && digit==="4444"){
     goToCampaignExtension=true;
+   }else if(!from4444 && directGavhah && path==="" && digit==="4"){
+    path="9704";page=0;manualFlash="";
+   }else if(path.startsWith("9704")){
+    const next=await nextUnitedPhone4(client,{path,page,flash:manualFlash,feedback},digit,userId,
+      !!userId&&await memberAllowed(client,{...s,member_id:userId}),callHash);
+    path=next.path;page=next.page;manualFlash=next.flash;feedback=next.feedback;
    }else if(!from4444 && directGavhah && path==="" && digit==="3"){
     path="9703";page=0;manualFlash="";
    }else if(path.startsWith("9703")){
@@ -754,6 +774,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",spoken=feedback;
   let askanimMedia:string[]=[];let askanimActive=false;
   let projectMenuMedia:string[]=[];let projectMenuActive=false;
+  let unitedSegments:string[]=[];let unitedKind:"listen"|"menu"|"record"|"amount"|"date"="menu";let unitedActive=false;
   if(reportMode){
    spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
   }else if(replyMode){
@@ -761,6 +782,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(actionsOpen){
    const articleId=await currentNewsId(path,position,confirmId);
    spoken+=await actionsMenu(client,articleId,userId,await memberAllowed(client,{...s,member_id:userId}));
+  }else if(path.startsWith("9704")){
+   const united=await speakUnitedPhone4(client,path,manualFlash,feedback);
+   unitedActive=true;unitedSegments=united.segments;unitedKind=united.kind;
+   mode=unitedKind==="record"?"record":unitedKind==="listen"?"news":"menu";
   }else if(path.startsWith("9703")){
    const projectMenu=await phone3Speech(client,path,page,manualFlash,feedback);
    projectMenuActive=true;projectMenuMedia=projectMenu.audio;spoken=projectMenu.spoken;
@@ -860,7 +885,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    if(!path && directGavhah && !from4444)mode="root";
    spoken+=menuPrompt(path,tree,ready4444,fromNext,fromShared);
   }
-  if(path!=="141"&&!path.startsWith("9702")&&!path.startsWith("9703"))manualFlash="";
+  if(path!=="141"&&!path.startsWith("9702")&&!path.startsWith("9703")&&!path.startsWith("9704"))manualFlash="";
   await client.query("UPDATE public.gavhah_yemot_call_states "+
    "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,action_flash=$15,updated_at=now() "+
    "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,manualFlash]);
@@ -891,7 +916,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(goToCampaignExtension){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/4444");
   }else{
-   if(projectMenuActive&&mode!=="record")
+   if(unitedActive)sendUnitedRead(res,step,unitedSegments,unitedKind);
+   else if(projectMenuActive&&mode!=="record")
      sendAskanimRead(res,step,projectMenuMedia,spoken,mode==="news");
    else if(askanimActive&&mode!=="record")sendAskanimRead(res,step,askanimMedia,spoken,mode==="news");
    else sendRead(res,spoken,step,mode,publishedAudio);
