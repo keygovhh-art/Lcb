@@ -83,7 +83,7 @@ async function planPlaces(searchCity?:string):Promise<Place[]>{
    if(!place.rules.some(p=>JSON.stringify(p)===JSON.stringify(rule)))place.rules.push(rule);
   }
  }
- return [...places.values()].slice(0,14);
+ return [...places.values()].slice(0,500);
 }
 router.get("/minyans/advanced",async(req,res,next)=>{
  try{
