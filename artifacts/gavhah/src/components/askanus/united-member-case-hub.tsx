@@ -55,7 +55,8 @@ export function UnitedMemberCaseHub({highlightCase}:{highlightCase?:number|null}
     method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({note:notes[c.case_id]})
    });
-   if(!res.ok)throw Error((await res.json().catch(()=>({})).error||"נישט געלונגען"));
+   const outcome=await res.json().catch(()=>({}));
+   if(!res.ok)throw Error(outcome.error||"נישט געלונגען");
    setMessage("דיין נאטיץ איז אפגעהיטן פאר דעם קעיס.");
    setNotes(old=>({...old,[c.case_id]:""}));await refresh();
   }catch(e){setError(e instanceof Error?e.message:"נישט געלונגען");}
