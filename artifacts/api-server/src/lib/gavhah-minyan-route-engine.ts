@@ -172,8 +172,17 @@ export async function deterministicTrip(input:{
  if(!validGeo(input.origin)||!Number.isFinite(input.startAt))throw Error("Verified starting location needed");
  const maxStops=Math.max(1,Math.min(8,input.maxStops||5));
  const avoided=new Set(input.avoid||[]);
+ const km=(a:Geo,b:Geo)=>{
+  const rad=Math.PI/180,dlat=(b.latitude-a.latitude)*rad,
+   dlng=(b.longitude-a.longitude)*rad;
+  const z=Math.sin(dlat/2)**2+
+   Math.cos(a.latitude*rad)*Math.cos(b.latitude*rad)*Math.sin(dlng/2)**2;
+  return 6371*2*Math.atan2(Math.sqrt(z),Math.sqrt(1-z));
+ };
  const eligible=input.places.filter(p=>p.address&&validGeo(p.point)&&p.rules.length&&
-   !avoided.has(p.id)).slice(0,MAX_DESTINATIONS);
+    !avoided.has(p.id)).sort((a,b)=>
+     (a.id===input.preferredId?-1:0)-(b.id===input.preferredId?-1:0)||
+     km(input.origin,a.point)-km(input.origin,b.point)).slice(0,MAX_DESTINATIONS);
  if(!eligible.length)return {stops:[],later:[],routingMode:input.mode,provider:"none",
   warning:"No approved and geocoded minyan locations were eligible; no approximate ETA was invented."};
  const horizon=input.startAt+Math.min(48,Math.max(1,(input.maxWaitMinutes||90)/60+2))*3600000;
@@ -193,7 +202,7 @@ export async function deterministicTrip(input:{
     const key=place.id+":"+event.startsAt;
     if(plannedKeys.has(key))continue;
     // Allow revisits only when a NEW later minyan is actually available.
-    const last=result.findLast(x=>x.place.id===place.id);
+    const last=[...result].reverse().find(x=>x.place.id===place.id);
     if(last&&Date.parse(event.startsAt)<Date.parse(last.event.startsAt)+20*60000)continue;
     const early=Math.round((Date.parse(event.startsAt)-reachable)/60000);
     // Strict nearest-first among currently feasible prayer times.
