@@ -71,7 +71,7 @@ export async function ensureUnitedCauseCase(
     const used=await c.query<{n:string}>(
      "SELECT coalesce(sum(minutes_allocated),0)::text AS n "+
      "FROM public.gavhah_united_olam_bonus_allocations WHERE cause_id=$1 AND status!='revoked'",[causeId]);
-    if(p.max_total_minutes===0||Number(used.rows[0]?.n||0)+p.minutes_per_member<=p.max_total_minutes){
+    if(p.max_total_minutes>0&&Number(used.rows[0]?.n||0)+p.minutes_per_member<=p.max_total_minutes){
      const reserved=await c.query(
       "INSERT INTO public.gavhah_united_olam_bonus_allocations "+
       "(cause_id,member_id,minutes_allocated,status,expires_at) "+
