@@ -212,4 +212,64 @@ router.post("/admin/daily/donations/:id/review",requireAdmin,async(req,res,next)
   res.json({id,status:decision,caseId:paid.case_id,verified:decision==="verified"});
  }catch(e){next(e);}
 });
+// Today's Cause proposals are independent from United featured-cause submissions.
+router.post("/daily/proposals",requireAuth,async(req,res,next)=>{
+ if(!safeWrite(req)){res.sendStatus(403);return;}
+ const member=getSessionUserId(req),title=String(req.body?.title||"").trim(),
+  description=String(req.body?.description||"").trim(),location=String(req.body?.location||"").trim(),
+  urgency=String(req.body?.urgency||"normal");
+ if(!member||title.length<3||title.length>200||description.length<12||
+   description.length>5000||location.length>160||!["normal","high","urgent"].includes(urgency)){
+  res.status(400).json({error:"Cause title (3-200), description (12-5000), and valid urgency required"});return;
+ }
+ try{
+  const recent=await pool.query<{n:string}>(
+   "SELECT count(*)::text AS n FROM public.gavhah_daily_cause_proposals "+
+   "WHERE member_id=$1 AND created_at>now()-interval '1 day'",[member]);
+  if(Number(recent.rows[0]?.n||0)>=5){
+   res.status(429).json({error:"Daily proposal limit reached"});return;
+  }
+  const r=await pool.query(
+   "INSERT INTO public.gavhah_daily_cause_proposals "+
+   "(member_id,title,description,location,urgency,status) "+
+   "VALUES($1,$2,$3,$4,$5,'pending') RETURNING id,status",
+   [member,title,description,location||null,urgency]);
+  await notifyStaff("New independent Today's Cause proposal #"+r.rows[0].id+" is awaiting review.",
+   "/founder","daily_cause_proposal");
+  res.status(201).json({...r.rows[0],published:false,channel:"daily"});
+ }catch(e){next(e);}
+});
+router.get("/admin/daily/proposals",requireAdmin,async(_req,res,next)=>{
+ try{
+  const r=await pool.query("SELECT id,member_id,title,description,location,urgency,"+
+   "status,created_at,review_note FROM public.gavhah_daily_cause_proposals "+
+   "ORDER BY created_at DESC LIMIT 200");
+  res.set("Cache-Control","private,no-store").json(r.rows);
+ }catch(e){next(e);}
+});
+router.post("/admin/daily/proposals/:id/review",requireAdmin,async(req,res,next)=>{
+ if(!safeWrite(req)){res.sendStatus(403);return;}
+ const id=num(req.params.id),decision=String(req.body?.decision||""),
+  note=String(req.body?.note||"").slice(0,1000);
+ if(!id||!["reviewing","approved","rejected"].includes(decision)){
+  res.status(400).json({error:"Invalid review decision"});return;
+ }
+ try{
+  const r=await pool.query<{member_id:number;id:number}>(
+   "UPDATE public.gavhah_daily_cause_proposals "+
+   "SET status=$2,review_note=$3,reviewed_by=$4,reviewed_at=now() "+
+   "WHERE id=$1 AND status IN('pending','reviewing') RETURNING id,member_id",
+   [id,decision,note,getSessionUserId(req)]);
+  if(!r.rowCount){res.status(409).json({error:"Already reviewed"});return;}
+  await notifyUser(r.rows[0].member_id,"daily_proposal_review",
+   decision==="approved"?
+   "Your Today's Cause proposal was accepted for the charity team's publication queue, but it is NOT live yet.":
+   decision==="rejected"?"Your Today's Cause proposal was not approved.":
+   "Your Today's Cause proposal is being reviewed.",
+   "/charity");
+  res.json({id,status:decision,published:false,
+   note:"The staff must separately create and publish a verified charity under /admin/charity."});
+ }catch(e){next(e);}
+});
+
 export default router;
