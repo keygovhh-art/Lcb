@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import {
   useGetActiveFeaturedCause,
-  useJoinFeaturedCause,
   useListFeaturedCauseSupporters,
   useSubmitCause,
   getGetActiveFeaturedCauseQueryKey,
@@ -40,85 +39,109 @@ const PLEDGE_LABELS: Record<string, string> = {
 function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { user } = useAuth();
-  const joinCause = useJoinFeaturedCause();
-  const [form, setForm] = useState({ name: "", pledgeType: "volunteer", pledgeAmount: "", message: "", location: "" });
-  const accountName = (user as any)?.nickname || user?.name || "";
-  const joinName = accountName;
-  const s = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | string) =>
-    setForm(f => ({ ...f, [k]: typeof e === "string" ? e : e.target.value }));
-
-
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!joinName) return;
-    joinCause.mutate(
-      {
-        id: causeId,
-        data: {
-          name: joinName,
-          pledgeType: form.pledgeType,
-          pledgeAmount: form.pledgeAmount ? Number(form.pledgeAmount) : undefined,
-          message: form.message || undefined,
-          location: form.location || undefined,
-        },
-      },
-      {
-        onSuccess: () => {
-          qc.invalidateQueries({ queryKey: getGetActiveFeaturedCauseQueryKey() });
-          qc.invalidateQueries({ queryKey: getListFeaturedCauseSupportersQueryKey(causeId) });
-          qc.invalidateQueries({ queryKey: ["/api/me/official-joins"] });
-          onClose();
-          setForm({ name: "", pledgeType: "volunteer", pledgeAmount: "", message: "", location: "" });
-          toast({ title: "Thank you for joining this cause", description: "Your commitment has been recorded. Gavhah will be in touch to coordinate." });
-        },
-        onError: () => toast({ title: "Could not join", description: "You may already have joined this cause, or the request could not be saved.", variant: "destructive" }),
-      }
-    );
+  const [choice,setChoice]=useState<"pledge"|"donate"|null>(null);
+  const [amount,setAmount]=useState("");
+  const [dueOn,setDueOn]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [err,setErr]=useState("");
+  const [done,setDone]=useState<{caseId:number;message:string;checkoutUrl?:string|null}|null>(null);
+  const {data:channel}=useQuery<any>({
+    queryKey:["/api/cause-channels/united"],
+    queryFn:async()=>{
+      const r=await fetch("/api/cause-channels/united",{cache:"no-store"});
+      return r.ok?r.json():null;
+    },enabled:open
+  });
+  const perform=async(e:React.FormEvent)=>{
+    e.preventDefault();setErr("");if(busy)return;
+    if(!choice)return;
+    if(choice==="pledge"&&(!amount||!dueOn)){
+      setErr("גיב אריין א סכום און א דאטום.");return;
+    }
+    setBusy(true);
+    try{
+      const endpoint=choice==="pledge"?"pledges":"donate-now";
+      const body=choice==="pledge"
+        ? {amount:Number(amount),dueOn,requestKey:crypto.randomUUID().replaceAll("-","")}
+        : {amount:amount?Number(amount):undefined,requestKey:crypto.randomUUID().replaceAll("-","")};
+      const response=await fetch(`/api/united/${causeId}/${endpoint}`,{
+        method:"POST",credentials:"same-origin",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(body)
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||"ס׳האט זיך נישט געלונגען אריינצושיקן");
+      setDone({
+        caseId:result.caseId,
+        message:choice==="pledge"?
+          result.status==="pending_team"
+            ?"דיין בל״נ אונטערנעמונג ווארט אויף דער טיעם־באשטעטיגונג וויבאלד דער טערמין איז לענגער ווי צוויי חדשים."
+            :"דיין בל״נ אונטערנעמונג איז אריינגעשריבן. א פאלא־אפ איז אריינגעשטעלט אין מיין עסקנות."
+          :"דיין נדבה־בקשה איז אריינגעשריבן אין מיין עסקנות. דאס מיינט נאכנישט אז דו האסט באצאלט.",
+        checkoutUrl:choice==="donate"&&channel?.checkoutAvailable?channel?.checkoutUrl:null
+      });
+      void qc.invalidateQueries({queryKey:["/api/me/official-joins"]});
+      void qc.invalidateQueries({queryKey:["/api/cause-channels/united"]});
+      void qc.invalidateQueries({queryKey:getListFeaturedCauseSupportersQueryKey(causeId)});
+      toast({title:"איינגעשריבן אין גבהה",description:"די אינפארמאציע איז פארבונדן מיט מיין עסקנות."});
+    }catch(e){setErr(e instanceof Error?e.message:"אומבאקאנטער פעלער");}
+    finally{setBusy(false);}
   };
-
+  const reset=()=>{setChoice(null);setAmount("");setDueOn("");setDone(null);setErr("");onClose();};
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={v=>{if(!v)reset();}}>
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="font-serif text-xl text-primary">Join This Cause</DialogTitle>
-          <p className="text-sm text-muted-foreground">Register your commitment. Gavhah will coordinate with you directly.</p>
+          <DialogTitle className="text-xl">זיך אנשליסן אין מתאחדים באהבה</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          <ActiveAccountIdentity label="Joining this cause as account" />
-          <div className="space-y-1.5">
-            <Label className="font-semibold">Location <span className="font-normal text-muted-foreground">(optional)</span></Label>
-            <Input value={form.location} onChange={s("location")} placeholder="City or neighborhood" className="h-11" />
+        <ActiveAccountIdentity label="מעמבער־אקאונט" />
+        {done?<div className="space-y-4">
+          <p role="status" className="font-semibold">{done.message}</p>
+          {choice==="donate"&&<p className="text-sm">{channel?.donationInstructionsEn||
+            "צו געבן א נדבה, פאלג די אפיציעלע אנווייזונגען פון דער מערכת."}
+            {channel?.donationHotline&&<span> — האטליין: {channel.donationHotline}</span>}
+          </p>}
+          {done.checkoutUrl&&<a href={done.checkoutUrl} target="_blank" rel="noopener noreferrer"
+            className="underline text-primary font-semibold">עפענען זיכערע באצאל־זייט ביים פראוויידער</a>}
+          <a href={`/my?case=${done.caseId}`} className="block rounded-lg border p-3 text-primary font-semibold underline">
+            עפענען מיין עסקנות — קעיס #{done.caseId}
+          </a>
+          <Button onClick={reset}>פארמאכן</Button>
+        </div>:<>
+          <p className="text-sm text-muted-foreground">
+            אויסקלייבן איינע פון די צוויי אפציעס. אין ביידע פעלער עפנט זיך אן אפיציעלער קעיס אין „מיין עסקנות“.
+          </p>
+          <div className="grid gap-2">
+            <Button type="button" variant={choice==="pledge"?"default":"outline"}
+              onClick={()=>{setChoice("pledge");setErr("");}}>1 — אונטערנעמען בל״נ א סכום</Button>
+            <Button type="button" variant={choice==="donate"?"default":"outline"}
+              onClick={()=>{setChoice("donate");setErr("");}}>2 — געבן א נדבה יעצט / הערן וויאזוי</Button>
           </div>
-          <div className="space-y-1.5">
-            <Label className="font-semibold">How Will You Help?</Label>
-            <Select value={form.pledgeType} onValueChange={s("pledgeType")}>
-              <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="volunteer">Volunteer Time</SelectItem>
-                <SelectItem value="financial">Financial Support</SelectItem>
-                <SelectItem value="both">Financial + Volunteer</SelectItem>
-                <SelectItem value="items">Goods / Items</SelectItem>
-                <SelectItem value="coordination">Coordination Help</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {(form.pledgeType === "financial" || form.pledgeType === "both") && (
-            <div className="space-y-1.5">
-              <Label className="font-semibold">Pledge Amount ($) <span className="font-normal text-muted-foreground">(optional)</span></Label>
-              <Input type="number" min="0" value={form.pledgeAmount} onChange={s("pledgeAmount")} placeholder="0" className="h-11" />
+          {choice&&<form onSubmit={perform} className="space-y-4">
+            {choice==="pledge"&&<p className="rounded-md border p-3 text-sm">
+              די אונטערנעמונג איז <strong>בל״נ</strong>. א טערמין פון מער ווי צוויי חדשים
+              דארף א באזונדערע באשטעטיגונג פון דער גבהה־מערכת.
+            </p>}
+            <div className="space-y-1">
+              <Label>סכום אין דאלאר {choice==="donate"?"(אויב באקאנט)":"*"}</Label>
+              <Input type="number" min="0.01" max="999999999" step="0.01"
+                required={choice==="pledge"} value={amount} onChange={e=>setAmount(e.target.value)}
+                placeholder="150.00" />
             </div>
-          )}
-          <div className="space-y-1.5">
-            <Label className="font-semibold">Message <span className="font-normal text-muted-foreground">(optional)</span></Label>
-            <Textarea value={form.message} onChange={s("message")} placeholder="Words of support or what you can offer..." className="resize-none min-h-20" />
-          </div>
-          <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold gap-2" disabled={joinCause.isPending}>
-            <Heart className="h-4 w-4 fill-current" />
-            {joinCause.isPending ? "Registering..." : "Join This Cause"}
-          </Button>
-        </form>
+            {choice==="pledge"&&<div className="space-y-1">
+              <Label>ביז ווען וועסטו עס בל״נ געבן? *</Label>
+              <Input type="date" required value={dueOn} onChange={e=>setDueOn(e.target.value)}/>
+            </div>}
+            {choice==="donate"&&<p className="text-sm text-muted-foreground">
+              ווען עס איז דא א פארבונדענער פעימענט־פראוויידער, קען מען עפענען יענעמס
+              זיכערע באצאל־זייט. גבהה נעמט יעצט נישט קיין קארטל־דעטאלן.
+            </p>}
+            {err&&<p role="alert" className="text-destructive">{err}</p>}
+            <Button type="submit" disabled={busy} className="w-full">
+              {busy?"מען שיקט אריין...":choice==="pledge"?"אונטערנעמען בל״נ און עפענען קעיס":"אויפנעמען נדבה־בקשה און עפענען קעיס"}
+            </Button>
+          </form>}
+        </>}
       </DialogContent>
     </Dialog>
   );
@@ -403,10 +426,10 @@ export default function United() {
                     <div className="flex flex-col sm:flex-row gap-3">
                     <Button
                       className="flex-1 bg-secondary hover:bg-secondary/90 text-white h-13 text-base font-semibold gap-2 py-3"
-                      onClick={myJoin ? openMyCampaign : () => setJoinOpen(true)}
+                      onClick={() => setJoinOpen(true)}
                     >
                       <Heart className="h-5 w-5 fill-current" />
-                      {myJoin ? "איך בין אקטיוו אי״ה" : "Join This Cause"}
+                      זיך אנשליסן — בל״נ / נדבה
                     </Button>
                     <Button
                       variant="outline"
@@ -510,6 +533,9 @@ export default function United() {
         )}
       </div>
 
+      {myJoin&&<div className="fixed bottom-4 left-4 z-20">
+        <Button variant="secondary" onClick={openMyCampaign}>מיין עסקנות — מיין צוועק־קעיס</Button>
+      </div>}
       <JoinCauseDialog causeId={causeId} open={joinOpen} onClose={() => setJoinOpen(false)} />
       <SubmitCauseDialog open={submitOpen} onClose={() => setSubmitOpen(false)} />
     </Layout>
