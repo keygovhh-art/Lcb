@@ -36,7 +36,9 @@ const PLEDGE_LABELS: Record<string, string> = {
 };
 
 // ---- Join Cause Dialog ----
-function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: boolean; onClose: () => void }) {
+export function JoinCauseDialog({causeId,open,onClose,channelKey="united"}:{
+ causeId:number;open:boolean;onClose:()=>void;channelKey?:"united"|"daily"
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [choice,setChoice]=useState<"pledge"|"donate"|null>(null);
@@ -46,9 +48,9 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
   const [err,setErr]=useState("");
   const [done,setDone]=useState<{caseId:number;message:string;checkoutUrl?:string|null}|null>(null);
   const {data:channel}=useQuery<any>({
-    queryKey:["/api/cause-channels/united"],
+    queryKey:["/api/cause-channels",channelKey],
     queryFn:async()=>{
-      const r=await fetch("/api/cause-channels/united",{cache:"no-store"});
+      const r=await fetch("/api/cause-channels/"+channelKey,{cache:"no-store"});
       return r.ok?r.json():null;
     },enabled:open
   });
@@ -64,7 +66,7 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
       const body=choice==="pledge"
         ? {amount:Number(amount),dueOn,requestKey:crypto.randomUUID().replaceAll("-","")}
         : {amount:amount?Number(amount):undefined,requestKey:crypto.randomUUID().replaceAll("-","")};
-      const response=await fetch(`/api/united/${causeId}/${endpoint}`,{
+      const response=await fetch(`/api/${channelKey}/${causeId}/${endpoint}`,{
         method:"POST",credentials:"same-origin",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify(body)
@@ -81,7 +83,7 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
         checkoutUrl:choice==="donate"&&channel?.checkoutAvailable?channel?.checkoutUrl:null
       });
       void qc.invalidateQueries({queryKey:["/api/me/official-joins"]});
-      void qc.invalidateQueries({queryKey:["/api/cause-channels/united"]});
+      void qc.invalidateQueries({queryKey:["/api/cause-channels",channelKey]});
       void qc.invalidateQueries({queryKey:getListFeaturedCauseSupportersQueryKey(causeId)});
       toast({title:"איינגעשריבן אין גבהה",description:"די אינפארמאציע איז פארבונדן מיט מיין עסקנות."});
     }catch(e){setErr(e instanceof Error?e.message:"אומבאקאנטער פעלער");}
@@ -92,7 +94,7 @@ function JoinCauseDialog({ causeId, open, onClose }: { causeId: number; open: bo
     <Dialog open={open} onOpenChange={v=>{if(!v)reset();}}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-xl">זיך אנשליסן אין מתאחדים באהבה</DialogTitle>
+          <DialogTitle className="text-xl">זיך אנשליסן אין {channelKey==="united"?"מתאחדים באהבה":"היינטיגע צוועק"}</DialogTitle>
         </DialogHeader>
         <ActiveAccountIdentity label="מעמבער־אקאונט" />
         {done?<div className="space-y-4">
