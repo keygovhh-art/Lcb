@@ -70,6 +70,7 @@ export async function readCauseChannel(client:{query:(sql:string,values?:unknown
  let verifiedCents:number|null=null;
  let pledgedCents=0;
  let pendingPledgeCents=0;
+ let joinedCount=0;
  if(which==="united"&&c){
   const [received,undertakings]=await Promise.all([
    client.query("SELECT verified_cents FROM public.gavhah_united_verified_totals WHERE cause_id=$1",[c.id]),
@@ -82,6 +83,30 @@ export async function readCauseChannel(client:{query:(sql:string,values?:unknown
   verifiedCents=received.rows[0]?Number(received.rows[0].verified_cents):null;
   pledgedCents=Number(undertakings.rows[0]?.pledged_cents||0);
   pendingPledgeCents=Number(undertakings.rows[0]?.pending_cents||0);
+ }
+ if(which==="daily"&&c){
+  const [actual,undertakings,members]=await Promise.all([
+   client.query(
+    "SELECT coalesce(sum(d.amount),0)::numeric AS old_verified_dollars,count(*)::int AS old_count "+
+    "FROM public.donations d WHERE d.charity_id=$1",[c.id]),
+   client.query(
+    "SELECT coalesce(sum(amount_cents) FILTER "+
+    "(WHERE status IN ('accepted_bln','approved_bln','fulfilled')),0)::text AS pledged_cents,"+
+    "coalesce(sum(amount_cents) FILTER (WHERE status='pending_team'),0)::text AS pending_cents "+
+    "FROM public.gavhah_daily_pledges WHERE charity_id=$1",[c.id]),
+   client.query("SELECT count(*)::int AS n FROM public.gavhah_daily_joined WHERE charity_id=$1",[c.id])
+  ]);
+  const reviewed=(await client.query(
+   "SELECT verified_cents FROM public.gavhah_daily_verified_totals WHERE charity_id=$1",[c.id])).rows[0];
+  const oldPaid=Number(actual.rows[0]?.old_verified_dollars||0)*100;
+  // Old donations were created by staff-confirmed offline receipts. Direct
+  // changes to legacy charities.raised_amount do not prove payment.
+  verifiedCents=Number(actual.rows[0]?.old_count||0)>0||reviewed?
+   oldPaid+Number(reviewed?.verified_cents||0):
+   Number(c.raised_amount||0)>0?null:0;
+  pledgedCents=Number(undertakings.rows[0]?.pledged_cents||0);
+  pendingPledgeCents=Number(undertakings.rows[0]?.pending_cents||0);
+  joinedCount=Number(members.rows[0]?.n||0);
  }
  return {
   channel:which,enabled:settings.enabled===true,
@@ -96,10 +121,10 @@ export async function readCauseChannel(client:{query:(sql:string,values?:unknown
   cause:c?{
    id:c.id,title:c.title,description:c.description,
    organizerName:c.organizer_name||null,location:c.location||null,
-   goalAmount:Number(c.goal_amount||0),joinedCount:Number(c.supporter_count||0),
+   goalAmount:Number(c.goal_amount||0),joinedCount:which==="daily"?joinedCount:Number(c.supporter_count||0),
    // Accepted BLN vs funds verified in the finance ledger are kept separate.
-   pledgedDollars:which==="united"?pledgedCents/100:null,
-   pendingApprovalPledgedDollars:which==="united"?pendingPledgeCents/100:null,
+   pledgedDollars:pledgedCents/100,
+   pendingApprovalPledgedDollars:pendingPledgeCents/100,
    verifiedRaisedDollars:verifiedCents===null?null:verifiedCents/100,
    reportedRaisedDollars:which==="daily"?Number(c.raised_amount||0):null,
    donationUrl:which==="daily"?c.donation_url||null:null,
