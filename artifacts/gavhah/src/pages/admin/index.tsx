@@ -34,6 +34,7 @@ import { AdvancedMemberManagement } from "@/components/admin/advanced-member-man
 import { OperationsInbox } from "@/components/admin/operations-inbox";
 import { PrivateAssistanceManagement } from "@/components/admin/private-assistance-management";
 import {CommunityReviewWorkspace} from "@/components/admin/community-review-workspace";
+import {UnitedTeamDashboard} from "@/components/admin/united-team-dashboard";
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 import { YemotCentralManagement } from "@/components/admin/yemot-central-management";
@@ -416,6 +417,7 @@ export default function FounderDashboard() {
             <TabsTrigger value="charity" className="gap-2"><Heart className="h-4 w-4" /> Charity</TabsTrigger>
             <TabsTrigger value="featured" className="gap-2"><Sparkles className="h-4 w-4" /> Featured</TabsTrigger>
             <TabsTrigger value="causes" className="gap-2"><HandHeart className="h-4 w-4" /> Causes</TabsTrigger>
+              <TabsTrigger value="united-team" className="gap-2"><Heart className="h-4 w-4" /> מתאחדים באהבה — צענטראל</TabsTrigger>
             <TabsTrigger value="submissions" className="gap-2">
               <Star className="h-4 w-4" /> Cause Reviews
               {causeSubmissions.filter(c => c.status === "pending").length > 0 && (
@@ -951,7 +953,9 @@ export default function FounderDashboard() {
           </TabsContent>
 
           {/* ─── Cause Activity ─── */}
-          <TabsContent value="causes" className="space-y-4">
+          <TabsContent value="united-team" className="space-y-4"><UnitedTeamDashboard /></TabsContent>
+
+           <TabsContent value="causes" className="space-y-4">
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary">Cause Activity</h2>
               <p className="text-muted-foreground text-sm mt-1">Recent supporter pledges and cause activity across the platform.</p>
