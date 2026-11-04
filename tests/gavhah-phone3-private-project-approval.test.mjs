@@ -25,7 +25,9 @@ test("All private phone3 submissions are bound to verified member, never caller 
  assert.match(flow,/draft|d\.stage==="confirm"/);
  assert.match(flow,/digit==="1"/);
  assert.match(flow,/SELECT count\(\*\)::text AS n FROM public.gavhah_phone3_intake/);
- assert.match(flow,/status='pending'/);
+ const migration=read("lib/db/migrations/20261103_gavhah_phone3_private_intake_community_review.sql");
+ assert.match(migration,/DEFAULT 'pending'/);
+ assert.match(flow,/gavhah_phone3_intake/);
  assert.doesNotMatch(flow,/caller.?id/i);
 });
 test("Public project creation must always be pending and cannot be made active by owner",()=>{
