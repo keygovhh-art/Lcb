@@ -16,6 +16,7 @@ import { CaseFollowups } from "@/components/askanus/case-followups";
 import { MaxHistoryPanel } from "@/components/communications/max-history-panel";
 import { PhoneAccountLink } from "@/components/askanus/phone-account-link";
 import {UnitedMemberCaseHub} from "@/components/askanus/united-member-case-hub";
+import {CauseMessageMemberInbox} from "@/components/askanus/cause-message-member-inbox";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -797,6 +798,7 @@ export default function MyAskanus() {
 
       <div className="container mx-auto px-4 py-10">
         <UnitedMemberCaseHub highlightCase={focusedCase}/>
+        <CauseMessageMemberInbox/>
         <Tabs defaultValue="cases" className="space-y-8">
           <TabsList className="bg-muted/50 h-auto p-1 flex flex-wrap gap-1">
             <TabsTrigger value="cases" className="gap-2">
