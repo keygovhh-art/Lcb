@@ -231,9 +231,15 @@ export async function speakUnitedPhone4(
    add("There is no active United in Kindness cause at the moment. Press two to suggest one.");
    return {segments,kind:"menu"};
   }
+  // Read both totals BEFORE the official announcement. A BLN promise is
+  // never described as money in hand; unapproved pledges are not counted.
+  add("Total amount already undertaken, BLN: "+
+      Number(cause.pledgedDollars||0).toFixed(2)+" dollars.");
   if(cause.verifiedRaisedDollars===null)
-   add("The verified amount raised is not yet available.");
-  else add("Raised "+cause.verifiedRaisedDollars.toFixed(2)+" dollars.");
+   add("Total funds actually received: not yet verified in the system.");
+  else
+   add("Total money actually received: "+
+       cause.verifiedRaisedDollars.toFixed(2)+" dollars.");
   const official=channel.messages?.announcement;
   const audio=official?.phoneAudioReady&&channel.announcementMode==="recording"?
    (await client.query("SELECT phone_audio_path FROM public.gavhah_cause_messages "+
