@@ -36,6 +36,7 @@ import { PrivateAssistanceManagement } from "@/components/admin/private-assistan
 import {CommunityReviewWorkspace} from "@/components/admin/community-review-workspace";
 import {UnitedTeamDashboard} from "@/components/admin/united-team-dashboard";
 import {CauseChannelsTeamSettings} from "@/components/admin/cause-channels-team-settings";
+import {MinyanTeamWorkspace} from "@/components/admin/minyan-team-workspace";
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 import { YemotCentralManagement } from "@/components/admin/yemot-central-management";
@@ -1094,6 +1095,7 @@ export default function FounderDashboard() {
 
           {/* ─── Minyan Moderation ─── */}
           <TabsContent value="minyans" className="space-y-4">
+            <MinyanTeamWorkspace/>
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary">Minyan Submissions</h2>
               <p className="text-muted-foreground text-sm mt-1">Review community submissions before they appear publicly.</p>
