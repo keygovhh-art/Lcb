@@ -216,6 +216,12 @@ router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<
       pledgeAmount = parsed;
     }
   }
+  // Legacy joins must never bypass BLN due dates or count pledges as paid.
+  // The new /united/:causeId/pledges API records amount, deadline and staff review.
+  if(pledgeAmount!==null){
+    res.status(409).json({error:"Financial undertakings require the BLN form and due date under /united"});
+    return;
+  }
 
   const safeName = await resolveMemberDisplayName(userId, req.body?.name);
   const message = req.body?.message ? String(req.body.message).trim().slice(0, 1500) : null;
@@ -254,11 +260,7 @@ router.post("/featured-causes/:id/join", requireAuth, async (req, res): Promise<
     await tx.update(featuredCausesTable)
       .set({ supporterCount: sql`${featuredCausesTable.supporterCount} + 1` })
       .where(eq(featuredCausesTable.id, causeId));
-    if (pledgeAmount !== null) {
-      await tx.update(featuredCausesTable)
-        .set({ amountRaised: sql`${featuredCausesTable.amountRaised} + ${pledgeAmount}` })
-        .where(eq(featuredCausesTable.id, causeId));
-    }
+    // Legacy join is participation only; verified receipts use a separate ledger.
     return { supporter, alreadyJoined: false };
   });
 
