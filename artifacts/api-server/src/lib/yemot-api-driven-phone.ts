@@ -7,7 +7,7 @@ import {noteYemotReturnCalls} from "./signalwire-max-return-calls";
 import {nextAskanimPhoneState,askanimPhoneSpeech} from "./gavhah-askanim-phone-flow";
 import {readForumVoiceDraft} from "./yemot-forum-voice";
 import {nextPhone3State,phone3WantsRecording,phone3Speech} from "./gavhah-phone3-community-flow";
-import {nextUnitedPhone4,speakUnitedPhone4,phone4InputKind} from "./gavhah-phone4-united-flow";
+import {nextUnitedPhone4,speakUnitedPhone4,phone4InputKind,dailyBeforeNewsSegments} from "./gavhah-phone4-united-flow";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
@@ -775,6 +775,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let askanimMedia:string[]=[];let askanimActive=false;
   let projectMenuMedia:string[]=[];let projectMenuActive=false;
   let unitedSegments:string[]=[];let unitedKind:"listen"|"menu"|"record"|"amount"|"date"="menu";let unitedActive=false;
+  let dailyNewsSegments:string[]=[];
   if(reportMode){
    spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
   }else if(replyMode){
@@ -782,6 +783,9 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(actionsOpen){
    const articleId=await currentNewsId(path,position,confirmId);
    spoken+=await actionsMenu(client,articleId,userId,await memberAllowed(client,{...s,member_id:userId}));
+  }else if(path==="11"&&!from4444&&!fromNext&&!fromShared){
+   dailyNewsSegments=await dailyBeforeNewsSegments(client);
+   mode="menu";spoken+=menuPrompt(path,tree,ready4444,fromNext,fromShared);
   }else if(path.startsWith("9704")){
    const united=await speakUnitedPhone4(client,path,manualFlash,feedback);
    unitedActive=true;unitedSegments=united.segments;unitedKind=united.kind;
@@ -893,7 +897,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   // Menu-only overrides: never replace personal records, credentials, PIN,
   // monetary confirmations, news content, or other dynamic disclosures.
   if((mode==="menu"||mode==="root")&&!manualFlash&&!goToProviderManagement&&!goToCampaignExtension&&
-     !feedback&&path!=="125"&&path!=="185"&&isNavigationalMenu(path,tree)){
+     !feedback&&!dailyNewsSegments.length&&path!=="125"&&path!=="185"&&isNavigationalMenu(path,tree)){
     const custom=await phonePromptOverride(path);
     if(custom.ttsText)spoken=custom.ttsText;
     publishedAudio=custom.audioPath;
@@ -916,7 +920,8 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(goToCampaignExtension){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/4444");
   }else{
-   if(unitedActive)sendUnitedRead(res,step,unitedSegments,unitedKind);
+   if(dailyNewsSegments.length)sendUnitedRead(res,step,[...dailyNewsSegments,"t-"+safeVoice(spoken,350)],"menu");
+   else if(unitedActive)sendUnitedRead(res,step,unitedSegments,unitedKind);
    else if(projectMenuActive&&mode!=="record")
      sendAskanimRead(res,step,projectMenuMedia,spoken,mode==="news");
    else if(askanimActive&&mode!=="record")sendAskanimRead(res,step,askanimMedia,spoken,mode==="news");
