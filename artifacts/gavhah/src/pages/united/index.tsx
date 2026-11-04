@@ -299,9 +299,17 @@ export default function United() {
   );
 
   const goal = Number(cause?.goalAmount ?? 0);
-  const raised = Number(cause?.amountRaised ?? 0);
-  const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
-  const remaining = Math.max(0, goal - raised);
+  // The old cause.amountRaised contains historical pledges, not audited cash.
+  // Both public figures come exclusively from the read-only cause finance API.
+  const hasUnitedTotals = unitedChannel?.cause?.id === causeId;
+  const pledged: number | null = hasUnitedTotals && unitedChannel.cause.pledgedDollars != null
+    ? Number(unitedChannel.cause.pledgedDollars) : null;
+  const received: number | null = hasUnitedTotals && unitedChannel.cause.verifiedRaisedDollars != null
+    ? Number(unitedChannel.cause.verifiedRaisedDollars) : null;
+  const pct = goal > 0 && pledged !== null ? Math.min(100, Math.round((pledged / goal) * 100)) : 0;
+  const remaining: number | null = received === null ? null : Math.max(0, goal - received);
+  const displayMoney = (value: number | null) => value === null
+    ? "נאכנישט באשטעטיגט" : "$"+value.toLocaleString("en-US", {minimumFractionDigits:2,maximumFractionDigits:2});
 
   const displayedSupporters = showAllSupporters ? (supporters ?? []) : (supporters ?? []).slice(0, 6);
 
@@ -396,11 +404,14 @@ export default function United() {
                 {unitedChannel?.enabled&&unitedChannel.cause?.id===causeId&&
                   <section dir="rtl" className="rounded-xl border p-4 space-y-3">
                     <h3 className="font-bold">די אפיציעלע מעסעדזש פון מתאחדים באהבה</h3>
-                    <p className="text-sm">באשטעטיגט באקומענע נדבות:
-                      <strong className="ms-2">{unitedChannel.cause.verifiedRaisedDollars===null
-                        ?"דער באשטעטיגטער סכום איז נאך נישט אריינגעשטעלט":
-                        "$"+Number(unitedChannel.cause.verifiedRaisedDollars).toLocaleString("en-US",{minimumFractionDigits:2})}</strong>
-                    </p>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <p className="rounded-lg border p-3 text-sm">סך הכל שוין אונטערגענומען בל״נ:
+                        <strong className="block text-lg">{displayMoney(pledged)}</strong>
+                      </p>
+                      <p className="rounded-lg border p-3 text-sm">סך הכל געלט שוין פאקטיש אריינגעקומען:
+                        <strong className="block text-lg">{displayMoney(received)}</strong>
+                      </p>
+                    </div>
                     <p className="text-sm">{unitedChannel.cause.joinedCount} מענטשן האבן זיך שוין אנגעשלאסן אינעם צוועק.</p>
                     {unitedChannel.announcementMode==="recording"&&unitedChannel.messages?.announcement?.audioUrl?
                       <audio controls className="w-full" preload="metadata"
@@ -422,30 +433,38 @@ export default function United() {
                 <div className="bg-muted/30 rounded-xl p-6 space-y-4">
                   <div className="flex items-center justify-between flex-wrap gap-4">
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Funds Pledged</p>
-                      <p className="font-serif text-3xl font-bold text-secondary">${raised.toLocaleString()}</p>
+                      <p className="text-xs font-semibold tracking-wider text-muted-foreground">סך הכל שוין אונטערגענומען בל״נ</p>
+                      <p className="font-serif text-3xl font-bold text-secondary">{displayMoney(pledged)}</p>
+                      {unitedChannel?.cause?.pendingApprovalPledgedDollars > 0 && <p className="text-xs text-muted-foreground">
+                        {displayMoney(Number(unitedChannel.cause.pendingApprovalPledgedDollars))} ווארט נאך אויף טיעם־באשטעטיגונג (נישט אריינגערעכנט)
+                      </p>}
                       {goal > 0 && (
                         <p className="text-sm text-muted-foreground">of ${goal.toLocaleString()} goal</p>
                       )}
+                    </div>
+                    <div className="space-y-1 text-right">
+                      <p className="text-xs font-semibold tracking-wider text-muted-foreground">סך הכל געלט שוין פאקטיש אריינגעקומען</p>
+                      <p className="font-serif text-3xl font-bold text-primary">{displayMoney(received)}</p>
+                      <p className="text-xs text-muted-foreground">בלויז באשטעטיגטע אריינגעקומענע נדבות</p>
                     </div>
                     <div className="space-y-1 text-right">
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Supporters</p>
                       <p className="font-serif text-3xl font-bold text-primary">{cause.supporterCount.toLocaleString()}</p>
                       <p className="text-sm text-muted-foreground">people joined</p>
                     </div>
-                    {goal > 0 && remaining > 0 && (
+                    {goal > 0 && remaining !== null && remaining > 0 && (
                       <div className="space-y-1 text-right">
                         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Still Needed</p>
                         <p className="font-serif text-3xl font-bold text-amber-600">${remaining.toLocaleString()}</p>
-                        <p className="text-sm text-muted-foreground">{pct}% reached</p>
+                        <p className="text-sm text-muted-foreground">לויטן שוין באצאלטן סכום</p>
                       </div>
                     )}
                   </div>
 
-                  {goal > 0 && (
+                  {goal > 0 && pledged !== null && (
                     <div className="space-y-1.5">
                       <Progress value={pct} className="h-3" />
-                      <p className="text-right text-xs text-muted-foreground">{pct}% of goal pledged</p>
+                      <p className="text-right text-xs text-muted-foreground">{pct}% פונעם ציל בל״נ אונטערגענומען (נישט אלעס באצאלט)</p>
                     </div>
                   )}
                 </div>
@@ -490,11 +509,12 @@ export default function United() {
 
                 {/* Financial stat strip */}
                 {goal > 0 && (
-                  <div className="grid grid-cols-3 gap-3 pt-2 border-t">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t">
                     {[
-                      { icon: DollarSign, label: "Raised", value: `$${raised.toLocaleString()}`, color: "text-secondary" },
-                      { icon: DollarSign, label: "Goal", value: `$${goal.toLocaleString()}`, color: "text-primary" },
-                      { icon: DollarSign, label: "Needed", value: `$${remaining.toLocaleString()}`, color: "text-amber-600" },
+                      { icon: DollarSign, label: "Pledged BLN", value: displayMoney(pledged), color: "text-secondary" },
+                      { icon: DollarSign, label: "Actually Received", value: displayMoney(received), color: "text-primary" },
+                      { icon: DollarSign, label: "Goal", value: `${goal.toLocaleString()}`, color: "text-primary" },
+                      { icon: DollarSign, label: "Still Needed (received)", value: displayMoney(remaining), color: "text-amber-600" },
                     ].map(stat => (
                       <div key={stat.label} className="text-center space-y-0.5">
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">{stat.label}</p>
