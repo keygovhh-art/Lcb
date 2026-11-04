@@ -25,6 +25,7 @@ import { formatGregorianDate } from "@/lib/gregorian-date";
 import { useLikeArticle } from "@/hooks/use-like-article";
 import { UpvoteButton } from "@/components/shared/upvote-button";
 import { ImageUploadField } from "@/components/shared/image-upload-field";
+import {DailyCauseNewsPrelude} from "@/components/news/daily-cause-news-prelude";
 
 // --- Category config ---
 const CATEGORIES = [
@@ -367,6 +368,7 @@ export default function NewsPage() {
       </div>
 
       <div className="container mx-auto px-4 py-10">
+        <DailyCauseNewsPrelude/>
         {/* Priority shortcut */}
         {!search && activeCategory === "all" && (breaking.length > 0 || important.length > 0) && (
           <div className="mb-5">
