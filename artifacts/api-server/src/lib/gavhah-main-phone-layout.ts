@@ -8,7 +8,7 @@ export const gavhahHomepageHotlineDivisions = [
  {number:4,name:"United In Kindness",website:"/united",phonePath:"9704"},
  {number:5,name:"Olam Hachesed Communications",website:"/communications",phonePath:"159"},
  {number:6,name:"Today's Cause",website:"/charity",phonePath:"9706"},
- {number:7,name:"Minyan Directory",website:"/minyans",phonePath:"17"},
+ {number:7,name:"Minyan Directory & Trip Planner",website:"/minyans",phonePath:"9707"},
  {number:8,name:"Group Center",website:"/groups",phonePath:"9708"},
  {number:9,name:"My Askanus",website:"/my",phonePath:"12"},
  {number:10,name:"Office Reservations",website:"/reservations",phonePath:"172",via:"77 then 1"},
@@ -56,7 +56,10 @@ export const gavhahWebsitePhoneVirtualMenus = {
  "97031":{"1":"970311","2":"970312"},
  "9704":{"1":"97041","2":"97042"},
  "97041":{"1":"970411","2":"970412"}, // 1 BLN undertaking; 2 donate-now instructions
- "9706":{"1":"151","2":"155","3":"154"},
+ "9706":{"1":"97061","2":"97062"}, // Today's Cause: same menus as United, financially independent
+ "97061":{"1":"970611","2":"970612"},
+ "9707":{"1":"97071","2":"97072"}, // 1 search/plan; 2 submit reviewed minyan
+ "97071":{"1":"970711","2":"970712","3":"970713","4":"970714","5":"970715"},
  "9708":{"1":"161","2":"167","3":"164","4":"162"},
  "9777":gavhahMorePhoneAliases
 } as const;
