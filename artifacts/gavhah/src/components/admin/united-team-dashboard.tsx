@@ -37,6 +37,11 @@ export function UnitedTeamDashboard(){
  const [bonusEnabled,setBonusEnabled]=useState(false),[bonusMinutes,setBonusMinutes]=useState("60");
  const [bonusMax,setBonusMax]=useState("600"),[bonusDays,setBonusDays]=useState("30");
  const [bonusMember,setBonusMember]=useState("");
+ const editNomination=(id:number,field:"title"|"description"|"location"|"note",value:string)=>{
+  setNominationInputs(old=>({...old,[id]:{
+   ...(old[id]||{title:"",description:"",location:"",note:""}),[field]:value
+  }}));
+ };
  const refresh=useCallback(async()=>{
   try{
    const [got,nom]=await Promise.all([
@@ -136,17 +141,13 @@ export function UnitedTeamDashboard(){
       <audio className="w-full" preload="none" controls
        src={`/api/admin/united/phone-nominations/${n.id}/audio/${field}`}/></div>)}</div>
     <Input placeholder="נאמען פארן צוועק (נויטיג פאר באשטעטיגונג)"
-     value={nominationInputs[n.id]?.title||""} onChange={e=>setNominationInputs(o=>({
-      ...o,[n.id]:{title:"",description:"",location:"",note:"",...o[n.id],title:e.target.value}}))}/>
+     value={nominationInputs[n.id]?.title||""} onChange={e=>editNomination(n.id,"title",e.target.value)}/>
     <Textarea placeholder="פולע אויסגעשריבענע באשרייבונג"
-     value={nominationInputs[n.id]?.description||""} onChange={e=>setNominationInputs(o=>({
-      ...o,[n.id]:{title:"",description:"",location:"",note:"",...o[n.id],description:e.target.value}}))}/>
+     value={nominationInputs[n.id]?.description||""} onChange={e=>editNomination(n.id,"description",e.target.value)}/>
     <Input placeholder="געגנט" value={nominationInputs[n.id]?.location||""}
-     onChange={e=>setNominationInputs(o=>({
-      ...o,[n.id]:{title:"",description:"",location:"",note:"",...o[n.id],location:e.target.value}}))}/>
+     onChange={e=>editNomination(n.id,"location",e.target.value)}/>
     <Textarea placeholder="פריוואטע מערכת הערה" value={nominationInputs[n.id]?.note||""}
-     onChange={e=>setNominationInputs(o=>({
-      ...o,[n.id]:{title:"",description:"",location:"",note:"",...o[n.id],note:e.target.value}}))}/>
+     onChange={e=>editNomination(n.id,"note",e.target.value)}/>
     <div className="flex gap-2 flex-wrap">
      <Button disabled={busy||!(nominationInputs[n.id]?.title||"").trim()||!(nominationInputs[n.id]?.description||"").trim()}
       onClick={()=>void run(()=>callApi(`/api/admin/united/phone-nominations/${n.id}/review`,"POST",
