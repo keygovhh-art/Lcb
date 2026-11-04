@@ -157,7 +157,7 @@ export async function getGeoFromAddress(address:string):Promise<Geo>{
  try{
   const response=await fetch(url.toString(),{signal:abort.signal});
   if(!response.ok)throw Error("GEOCODING_PROVIDER_ERROR");
-  const data=await response.json();
+  const data=await response.json() as {status?:string;results?:Array<{partial_match?:boolean;geometry?:{location?:{lat?:number;lng?:number}}}>};
   if(data?.status!=="OK"||!data?.results?.length)throw Error("ADDRESS_NOT_VERIFIED");
   const result=data.results[0],loc=result.geometry?.location;
   if(result.partial_match||!validGeo({latitude:loc?.lat,longitude:loc?.lng}))
