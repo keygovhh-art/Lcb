@@ -35,6 +35,7 @@ import { OperationsInbox } from "@/components/admin/operations-inbox";
 import { PrivateAssistanceManagement } from "@/components/admin/private-assistance-management";
 import {CommunityReviewWorkspace} from "@/components/admin/community-review-workspace";
 import {UnitedTeamDashboard} from "@/components/admin/united-team-dashboard";
+import {CauseChannelsTeamSettings} from "@/components/admin/cause-channels-team-settings";
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 import { YemotCentralManagement } from "@/components/admin/yemot-central-management";
@@ -418,6 +419,8 @@ export default function FounderDashboard() {
             <TabsTrigger value="featured" className="gap-2"><Sparkles className="h-4 w-4" /> Featured</TabsTrigger>
             <TabsTrigger value="causes" className="gap-2"><HandHeart className="h-4 w-4" /> Causes</TabsTrigger>
               <TabsTrigger value="united-team" className="gap-2"><Heart className="h-4 w-4" /> מתאחדים באהבה — צענטראל</TabsTrigger>
+              <TabsTrigger value="united-settings" className="gap-2"><Heart className="h-4 w-4" /> מתאחדים סעטינגס</TabsTrigger>
+              <TabsTrigger value="daily-cause-settings" className="gap-2"><Star className="h-4 w-4" /> היינטיגע צוועק סעטינגס</TabsTrigger>
             <TabsTrigger value="submissions" className="gap-2">
               <Star className="h-4 w-4" /> Cause Reviews
               {causeSubmissions.filter(c => c.status === "pending").length > 0 && (
@@ -954,6 +957,8 @@ export default function FounderDashboard() {
 
           {/* ─── Cause Activity ─── */}
           <TabsContent value="united-team" className="space-y-4"><UnitedTeamDashboard /></TabsContent>
+           <TabsContent value="united-settings" className="space-y-4"><CauseChannelsTeamSettings which="united"/></TabsContent>
+           <TabsContent value="daily-cause-settings" className="space-y-4"><CauseChannelsTeamSettings which="daily"/></TabsContent>
 
            <TabsContent value="causes" className="space-y-4">
             <div>
