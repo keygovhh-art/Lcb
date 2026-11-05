@@ -12,7 +12,7 @@ export type MyResult = Partial<MyState> & {feedback?:string; signedInUntil?:Date
 const prefix="12";
 export const isMyAskanusPath=(p:string)=>p===prefix||p.startsWith(prefix);
 export const isMyAskanusNumericEntry=(p:string)=>(
-  ["1231","1234","123521","123522","123523","12356","1241","1244","1253","1261","1262","127"].includes(p)
+  ["1231","1234","123531","123532","123533","12356","1241","1244","1253","1261","1262","127"].includes(p)
 );
 const say=(value:unknown,max=170)=>{
  const v=String(value??"").replace(/<[^>]*>/g," ").replace(/https?:\/\/\S+/gi," ");
@@ -21,6 +21,7 @@ const say=(value:unknown,max=170)=>{
 };
 const pos=(n:number)=>Math.max(0,Math.min(100000,Math.floor(n||0)));
 const myBack=(path:string)=>{
+ if(path==="12")return "";
  if(["1235","1245","1264"].includes(path))return path.slice(0,3);
  if(["12355"].includes(path))return "12354";
  if(path.length>3)return path.slice(0,-1);
@@ -63,7 +64,7 @@ async function totals(client:PoolClient,uid:number,onlyToday:boolean){
   SELECT
   (SELECT COUNT(*)::int FROM public.askanus_cases WHERE user_id=$1 AND closed_at AT TIME ZONE 'America/New_York' >= date_trunc('day',now() AT TIME ZONE 'America/New_York')) helped,
   (SELECT COUNT(*)::int FROM public.askanus_cases WHERE user_id=$1 AND ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date=(now() AT TIME ZONE 'America/New_York')::date) open_cases,
-  (SELECT COALESCE(SUM(amount),0)::text FROM public.max_progress_events WHERE user_id=$1 AND event_kind='funds_received' AND (created_at AT TIME ZONE 'America/New_York')::date=(now() AT TIME ZONE 'America/New_York')::date) funds_raised,
+  (SELECT COALESCE(SUM(amount),0)::text FROM public.max_progress_events WHERE user_id=$1 AND event_kind='funds_received' AND ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date=(now() AT TIME ZONE 'America/New_York')::date) funds_raised,
   (SELECT COALESCE(SUM(amount),0)::text FROM public.max_progress_events WHERE user_id=$1 AND event_kind='funds_promised' AND (created_at AT TIME ZONE 'America/New_York')::date=(now() AT TIME ZONE 'America/New_York')::date) pledged,
   (SELECT COALESCE(SUM(goal_amount),0)::text FROM public.askanus_cases WHERE user_id=$1 AND ((created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York')::date=(now() AT TIME ZONE 'America/New_York')::date) goal,
   0::text outstanding,
@@ -297,7 +298,7 @@ export async function myAskanusDigit(c:PoolClient,s:MyState,digit:string):Promis
   return {path:"1235",flash:"",feedback:"Follow up saved. "};
  }
  if(s.path==="12357"){
-  const id=Number(s.flash.split(":")[2]);if(!Number.isSafeInteger(id)||!id)return {path:"12355",flash:""};
+  const id=Number(s.flash.split(":").pop());if(!Number.isSafeInteger(id)||!id)return {path:"12355",flash:""};
   const item=(await c.query("SELECT f.* FROM public.case_followups f JOIN public.askanus_cases x ON x.id=f.case_id WHERE f.id=$1 AND x.id=$2 AND x.user_id=$3 FOR UPDATE",[id,s.focusId,uid])).rows[0];
   if(!item)return {path:"12355",flash:""};
   if(digit==="1"){
