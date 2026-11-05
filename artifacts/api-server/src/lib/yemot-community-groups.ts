@@ -13,8 +13,8 @@ const validId=(x:unknown)=>{const n=Number(x);return Number.isSafeInteger(n)&&n>
 const say=(x:unknown,max=85)=>String(x||"").replace(/<[^>]+>/g," ").replace(/[&=,;#]/g," ")
  .replace(/[^\x20-\x7e]/g," ").replace(/\s+/g," ").trim().slice(0,max);
 async function getGroup(client:PoolClient,id:number,userId:number|null){
- const q=await client.query<{id:number;name:string;privacy:string;owner_id:number;member_count:number;members_can_post:boolean;member:boolean;manager:boolean}>(
-  "SELECT g.id,g.name,g.privacy,g.owner_id,g.member_count,g.members_can_post,"+
+ const q=await client.query<{id:number;name:string;privacy:string;owner_id:number;member_count:number;members_can_post:boolean;platform_feature_overrides:Record<string,boolean>|null;member:boolean;manager:boolean}>(
+  "SELECT g.id,g.name,g.privacy,g.owner_id,g.member_count,g.members_can_post,g.platform_feature_overrides,"+
   "EXISTS(SELECT 1 FROM public.group_members m WHERE m.group_id=g.id AND m.user_id=$2 AND m.status='approved') AS member,"+
   "EXISTS(SELECT 1 FROM public.group_members m WHERE m.group_id=g.id AND m.user_id=$2 AND m.status='approved' AND m.role IN ('admin','moderator','owner')) AS manager "+
   "FROM public.groups g WHERE g.id=$1",[id,userId]);
@@ -130,6 +130,8 @@ export async function groupPhoneDigit(client:PoolClient,s:GroupPhoneSession,digi
     [g.id,s.verifiedUserId]);
    if(existing.rows[0]?.status==="suspended"||existing.rows[0]?.status==="removed"){
     next.feedback="Your group access is inactive. Contact the owner.";
+   }else if(g.platform_feature_overrides?.joinGroup===false){
+    next.feedback="Group joining is restricted by Gavhah administration.";
    }else if(existing.rows[0]?.status==="approved"||g.owner_id===s.verifiedUserId){
     next.feedback="You are already a group member.";
    }else{
@@ -141,7 +143,10 @@ export async function groupPhoneDigit(client:PoolClient,s:GroupPhoneSession,digi
      await client.query("INSERT INTO public.group_members(group_id,user_id,user_name,role,status) VALUES($1,$2,$3,'member',$4)",
       [g.id,s.verifiedUserId,user.rows[0]?.name||"Gavhah member",status]);
     }
-    if(status==="approved")await client.query("UPDATE public.groups SET member_count=member_count+1 WHERE id=$1",[g.id]);
+    if(status==="approved"){
+     await client.query("UPDATE public.groups SET member_count=member_count+1 WHERE id=$1",[g.id]);
+     await client.query("INSERT INTO public.saved_items(user_id,content_type,content_id,content_title,content_url) VALUES($1,\'group\',$2,$3,$4) ON CONFLICT(user_id,content_type,content_id) DO NOTHING",[s.verifiedUserId,g.id,g.name,"/groups/"+g.id]);
+    }
     next.feedback=status==="approved"?"You joined this group and it is now in your personal member list.":"Your membership request was submitted.";
    }
   }
