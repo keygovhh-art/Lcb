@@ -13,6 +13,7 @@ on:
       - feature/gavhah-max-integration-20261014
       - feature/max-campaign-connect-20261015
       - release-candidate/max-on-published-main-20261015
+      - feature/max-hebrew-calendar-dual-payments-hotline-inbox-20261015
   pull_request:
     branches:
       - feature/gavhah-max-integration-20261014

@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and } from "drizzle-orm";
 import {
   db, announcementsTable, reportsTable, notificationsTable,
-  broadcastsTable, usersTable, volunteerProfilesTable, newsTable, discussionsTable,
+  broadcastsTable, hotlineMailboxEntries, usersTable, volunteerProfilesTable, newsTable, discussionsTable,
 } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId } from "../middlewares/auth";
 import { createRateLimiter } from "../middlewares/rate-limit";
@@ -159,8 +159,8 @@ router.post("/broadcasts", requireAdmin, async (req, res): Promise<void> => {
     res.status(400).json({ error: "subject and message are required" });
     return;
   }
-  if (channel !== "website") {
-    res.status(400).json({ error: "Only website notifications are active right now" });
+  if (!["website","hotline_inbox","both"].includes(channel)) {
+    res.status(400).json({ error: "Select website, internal hotline inbox, or both" });
     return;
   }
 
@@ -192,28 +192,59 @@ router.post("/broadcasts", requireAdmin, async (req, res): Promise<void> => {
   const cleanSubject = String(subject).trim().slice(0, 240);
   const cleanMessage = String(message).trim().slice(0, 5000);
 
-  if (recipientIds.length > 0) {
-    await db.insert(notificationsTable).values(
-      recipientIds.map(userId => ({
-        userId,
-        type: "broadcast",
-        message: `${cleanSubject} — ${cleanMessage}`,
-        linkUrl: "/notifications",
-        isRead: false,
-      }))
-    );
-  }
-
-  const [broadcast] = await db.insert(broadcastsTable).values({
-    authorId,
-    subject: cleanSubject,
-    message: cleanMessage,
-    recipientGroup,
-    channel: "website",
-    recipientCount: recipientIds.length,
-  }).returning();
+  // Save the broadcast and fan out IN-APP records in one transaction.
+  // No telephone call, SMS, email or paid provider request is ever triggered.
+  const broadcast=await db.transaction(async tx=>{
+    const [saved]=await tx.insert(broadcastsTable).values({
+      authorId,subject:cleanSubject,message:cleanMessage,recipientGroup,
+      channel,recipientCount:recipientIds.length,
+    }).returning();
+    const doWebsite=channel==="website"||channel==="both";
+    const doHotline=channel==="hotline_inbox"||channel==="both";
+    for(let start=0;start<recipientIds.length;start+=250){
+      const ids=recipientIds.slice(start,start+250);
+      if(doWebsite)await tx.insert(notificationsTable).values(ids.map(userId=>({
+        userId,type:"broadcast",message:`${cleanSubject} — ${cleanMessage}`,
+        linkUrl:"/notifications",isRead:false,
+      })));
+      if(doHotline)await tx.insert(hotlineMailboxEntries).values(ids.map(userId=>({
+        broadcastId:saved.id,userId,subject:cleanSubject,message:cleanMessage,
+      })));
+    }
+    return saved;
+  });
 
   res.status(201).json(broadcast);
+});
+
+// Website-accessible version of the private hotline mailbox.
+// The phone provider's IVR is intentionally NOT granted access through
+// a guessed phone number; verified caller-to-member linkage is still required.
+router.get("/hotline/mailbox", requireAuth, async (req,res):Promise<void>=>{
+  const userId=getSessionUserId(req)!;
+  const rawLimit=Number(req.query.limit??50),rawOffset=Number(req.query.offset??0);
+  if(!Number.isSafeInteger(rawLimit)||rawLimit<1||rawLimit>100||
+     !Number.isSafeInteger(rawOffset)||rawOffset<0||rawOffset>100000){
+    res.status(400).json({error:"Invalid inbox paging"});return;
+  }
+  const messages=await db.select().from(hotlineMailboxEntries)
+   .where(eq(hotlineMailboxEntries.userId,userId))
+   .orderBy(desc(hotlineMailboxEntries.createdAt),desc(hotlineMailboxEntries.id))
+   .limit(rawLimit).offset(rawOffset);
+  res.setHeader("Cache-Control","private,no-store");
+  res.json(messages.map(x=>({...x,createdAt:x.createdAt.toISOString()})));
+});
+router.patch("/hotline/mailbox/:id/read", requireAuth, async(req,res):Promise<void>=>{
+  const userId=getSessionUserId(req)!;
+  const id=Number(req.params.id);
+  if(!Number.isSafeInteger(id)||id<=0){
+    res.status(400).json({error:"Invalid inbox message"});return;
+  }
+  const [row]=await db.update(hotlineMailboxEntries).set({isRead:true})
+    .where(and(eq(hotlineMailboxEntries.id,id),eq(hotlineMailboxEntries.userId,userId)))
+    .returning({id:hotlineMailboxEntries.id});
+  if(!row){res.status(404).json({error:"Mailbox message not found"});return;}
+  res.json({id:row.id,read:true});
 });
 
 // Notifications
