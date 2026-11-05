@@ -47,7 +47,7 @@ export const phoneTree: Record<string,Item> = {
       })
     }),
     "6":group("Community",{
-      "1":leaf("Groups","/groups"),"2":leaf("Discussion forum","/forum"),
+      "1":leaf("Group Center — Community Groups","/groups"),"2":leaf("Discussion forum","/forum"),
       "3":leaf("Directory","/directory"),"4":leaf("Connections","/connections"),
       "5":leaf("Create a forum post","/forum/new"),"6":leaf("Read a selected forum topic","/forum/:id"),
       "7":leaf("Open a selected group","/groups/:id"),
