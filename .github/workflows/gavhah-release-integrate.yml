@@ -3,6 +3,12 @@ on:
   push:
     branches:
       - release/gavhah-20261105-all-fixes-cloudflare
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/gavhah-release-integrate.yml'
+      - '.github/release/**'
 permissions:
   contents: write
 concurrency:
@@ -68,6 +74,7 @@ jobs:
           retention-days: 3
           include-hidden-files: true
       - name: Commit tested merge to isolated release branch
+        if: github.event_name == 'push'
         run: |
           git commit -m "Integrate verified Gavhah phone, Group Center and My Askanus source"
           git push origin HEAD:refs/heads/release/gavhah-20261105-all-fixes-cloudflare
