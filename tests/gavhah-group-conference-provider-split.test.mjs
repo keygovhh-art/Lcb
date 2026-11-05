@@ -34,7 +34,7 @@ test("Conference credentials protected and provider failures never self-certify"
  const migration=read("lib/db/migrations/20261105_group_yemot_conference_rooms.sql");
  assert(route.includes('requireAuth,superadmin,mutating'));
  assert(route.includes('createCipheriv("aes-256-gcm"'));
- assert(route.includes('provider_state=\\'needs_review\\''));
+ assert(route.includes("provider_state='needs_review'"));
  assert(route.includes('rootUntouched:true'));
  assert(route.includes('physicalCallTested:false'));
  assert(route.includes('sayError(res,403,"Group conference manager only")'));
