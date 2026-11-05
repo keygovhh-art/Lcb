@@ -526,6 +526,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      const authorized=!!userId&&await memberAllowed(client,{...s,member_id:userId});
      const next=await groupPhoneDigit(client,{path,page,focusId:confirmId,verifiedUserId:authorized?userId:null},digit);
      path=next.path;page=next.page;confirmId=next.focusId;feedback=next.feedback||"";
+     if(next.conferenceTransfer)conferenceTransfer=next.conferenceTransfer;
     }else if(path==="159" && !fromShared && !from4444){
     // Separate SignalWire permission: provider verification is NEVER inferred
     // from caller ID or from an ordinary Gavhah/MAX account.
