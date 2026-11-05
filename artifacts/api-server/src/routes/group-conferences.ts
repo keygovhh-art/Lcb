@@ -184,7 +184,7 @@ async function checkRoot(token:string){
  for(const folder of root.dirs){
   const raw=typeof folder==="string"?folder:String((folder as any)?.name??(folder as any)?.fileName??(folder as any)?.path??"");
   if(!raw.trim())throw Error("Provider directory contains unknown entries; no changes made");
-  const segment=raw.trim().replace(/\/+$/,"").split("/").pop()||"";
+  const segment=raw.trim().replace(/\/+$/,"").split(/[/:]/).pop()||"";
   if(/^[0-9]{1,3}$/.test(segment))used.add(segment);
  }
  return used;
@@ -200,6 +200,7 @@ router.post("/admin/groups/:id/conference/provision",requireAuth,superadmin,muta
   const l=await client.query<{locked:boolean}>("SELECT pg_try_advisory_lock(56181,54171) AS locked");
   lock=!!l.rows[0]?.locked;
   if(!lock){sayError(res,409,"Another group conference installation is running");return;}
+  const requestedMode=req.body?.mode==="listen_all"?"listen_all":"speech";
   const existing=await roomFor(id);
   if(existing&&existing.provider_state!=="unconfigured"){
    sayError(res,409,"A group conference already exists or requires provider inspection. Never overwrite existing conference extensions.");return;
@@ -222,13 +223,13 @@ router.post("/admin/groups/:id/conference/provision",requireAuth,superadmin,muta
   const memberPin=String(randomInt(10000000,100000000));
   const moderatorPin=String(randomInt(10000000,100000000));
   await client.query(
-   "INSERT INTO public.group_conference_rooms(group_id,provider_state,provider_line,listener_extension,moderator_extension,member_pin_sealed,moderator_pin_sealed,updated_by) "+
-   "VALUES($1,'provisioning',$2,$3,$4,$5,$6,$7)",
-   [id,conn.lineNumber,listener,moderator,seal(id,"member",memberPin),seal(id,"moderator",moderatorPin),user.id]);
+   "INSERT INTO public.group_conference_rooms(group_id,provider_state,provider_line,listener_extension,moderator_extension,member_pin_sealed,moderator_pin_sealed,updated_by,mode) "+
+   "VALUES($1,'provisioning',$2,$3,$4,$5,$6,$7,$8)",
+   [id,conn.lineNumber,listener,moderator,seal(id,"member",memberPin),seal(id,"moderator",moderatorPin),user.id,requestedMode]);
   try{
    await provider(conn.token,"UpdateExtension",{
     path:"ivr2:"+listener,type:"confbridge",title:"Gavhah Group "+id+" Meeting",
-    conf_bridge_type:"speech",password:memberPin,conf_bridge_record:"no"
+    conf_bridge_type:requestedMode,password:memberPin,conf_bridge_record:"no"
    });
    await provider(conn.token,"UpdateExtension",{
     path:"ivr2:"+moderator,type:"confbridge",title:"Gavhah Group "+id+" Moderator",
