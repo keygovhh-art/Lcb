@@ -60,7 +60,7 @@ export const gavhahWebsitePhoneVirtualMenus = {
  "97061":{"1":"970611","2":"970612"},
  "9707":{"1":"97071","2":"97072"}, // 1 search/plan; 2 submit reviewed minyan
  "97071":{"1":"970711","2":"970712","3":"970713","4":"970714","5":"970715"},
- "9708":{"1":"161","2":"167","3":"164","4":"162"},
+ "9708":{"1":"161","2":"167","3":"164","4":"162","5":"97085","6":"97086"}, // Same Yemot conference: public and lecturer entry
  "9777":gavhahMorePhoneAliases
 } as const;
 // In the live Worker, the new main keypad maps to existing backend paths;
