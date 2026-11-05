@@ -51,7 +51,7 @@ const getRow = async (): Promise<ProviderRow | null> => {
  */
 export async function getYemotConferenceCredentials(): Promise<{token:string;lineNumber:string}> {
   const row=await getRow();
-  if(!row?.enabled||!row.last_verified_at||!/^\\d{7,15}$/.test(row.line_number))
+  if(!row?.enabled||!row.last_verified_at||!/^\d{7,15}$/.test(row.line_number))
     throw Error("The verified Yemot conference provider connection is unavailable");
   return {token:decode(row),lineNumber:row.line_number};
 }
