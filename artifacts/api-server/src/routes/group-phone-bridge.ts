@@ -100,7 +100,7 @@ router.get("/groups/:id/hotline-profile",wrap(async(req,res)=>{
   introText:profile.intro_text,introLanguage:profile.intro_language,
   hasAudio:profile.has_audio,audioUrl:profile.has_audio?"/api/groups/"+groupId+"/hotline-audio":null,
   memberStatsPublic:profile.member_stats_public,memberCount,savedCount,
-  joined:g.member||!!user&&g.owner_id===user.id,saved,canManage:g.canManage||user?.role==="super_admin"
+  joined:g.member||!!user&&g.owner_id===user.id,saved,canManage:!!user&&(g.owner_id===user.id||user.role==="super_admin")
  });
 }));
 router.patch("/groups/:id/hotline-profile",requireAuth,mutating,wrap(async(req,res)=>{
@@ -109,7 +109,7 @@ router.patch("/groups/:id/hotline-profile",requireAuth,mutating,wrap(async(req,r
  if(!groupId){res.status(400).json({error:"Invalid group"});return;}
  const g=await groupAccess(groupId,user.id);
  if(!g){res.status(404).json({error:"Group not available"});return;}
- if(!g.canManage&&user.role!=="super_admin"){res.status(403).json({error:"Group management required"});return;}
+ if(g.owner_id!==user.id&&user.role!=="super_admin"){res.status(403).json({error:"Group management required"});return;}
  const {memberStatsPublic,introText,introLanguage}=req.body||{};
  if(memberStatsPublic!==undefined&&typeof memberStatsPublic!=="boolean"){
   res.status(400).json({error:"Invalid stats setting"});return;
@@ -135,7 +135,7 @@ router.post("/groups/:id/hotline-audio",requireAuth,mutating,wrap(async(req,res)
  if(!groupId){res.status(400).json({error:"Invalid group"});return;}
  const g=await groupAccess(groupId,user.id);
  if(!g){res.sendStatus(404);return;}
- if(!g.canManage&&user.role!=="super_admin"){res.sendStatus(403);return;}
+ if(g.owner_id!==user.id&&user.role!=="super_admin"){res.sendStatus(403);return;}
  const data=req.body?.base64;
  if(req.body?.mime!=="audio/wav"||typeof data!=="string"||data.length>1400000||
    !/^[A-Za-z0-9+/]+={0,2}$/.test(data)){
@@ -160,7 +160,7 @@ router.delete("/groups/:id/hotline-audio",requireAuth,mutating,wrap(async(req,re
  if(!groupId){res.sendStatus(400);return;}
  const g=await groupAccess(groupId,user.id);
  if(!g){res.sendStatus(404);return;}
- if(!g.canManage&&user.role!=="super_admin"){res.sendStatus(403);return;}
+ if(g.owner_id!==user.id&&user.role!=="super_admin"){res.sendStatus(403);return;}
  await pool.query("UPDATE public.group_phone_profiles SET intro_wav=NULL,updated_at=now() WHERE group_id=$1",[groupId]);
  res.json({ok:true});
 }));
