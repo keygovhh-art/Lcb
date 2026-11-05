@@ -73,6 +73,9 @@ jobs:
           path: .native-cloudflare/
           retention-days: 3
           include-hidden-files: true
+      - name: Export compressed native Worker for authenticated Cloudflare staging upload
+        run: |
+          gzip -c .native-cloudflare/worker.js | base64 -w0 | fold -w 32000 | awk '{printf "GAVHAH_B64_PART_%03d:%s\\n",NR-1,$0} END {printf "GAVHAH_TOTAL_PARTS:%d\\n",NR}'
       - name: Commit tested merge to isolated release branch
         if: github.event_name == 'push'
         run: |
