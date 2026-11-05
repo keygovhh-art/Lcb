@@ -4,6 +4,7 @@ import {phonePromptOverride} from "../routes/yemot-voice-studio";
 import {applyFixedPhonePhraseEdits} from "../routes/gavhah-hotline-speech-library";
 import { logger } from "./logger";
 import {noteYemotReturnCalls} from "./signalwire-max-return-calls";
+import {isCommunityPhonePath,groupPhoneDigit,groupPhonePrompt} from "./yemot-community-groups";
 import {nextAskanimPhoneState,askanimPhoneSpeech} from "./gavhah-askanim-phone-flow";
 import {readForumVoiceDraft} from "./yemot-forum-voice";
 import {nextPhone3State,phone3WantsRecording,phone3Speech} from "./gavhah-phone3-community-flow";
@@ -78,7 +79,7 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  : [name,"no","1","1","8","No","no"];
  const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
   ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
- const backHint=step>0&&mode!=="root"&&!/press zero to (go back|return)/i.test(prompt)?" To go back one menu, press zero.":"";
+ const backHint=step>0&&mode!=="root"&&!/press zero to (go back|return)|press zero for group management|press digit zero to return/i.test(prompt)?" To go back one menu, press zero.":"";
  const providerBody="read="+(audio?(step>0&&mode!=="root"?voice("To go back one menu press zero")+"."+audio:audio):voice(prompt+backHint))+"="+opts.join(",");
  if(step===0)logger.info({ivrResponse:"read",mode,step,promptCharacters:prompt.length,patternVersion:"basic-read-v2"},"Yemot welcome reply delivered");
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
@@ -472,7 +473,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   let manualFlash=s.action_flash||"";
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";}
-  const inputName=(replyMode||path==="970211"&&readForumVoiceDraft(manualFlash)?.stage==="record"||phone3WantsRecording(path,manualFlash)||phone4InputKind(path,manualFlash)==="record"||phone6InputKind(path,manualFlash)==="record"||minyan7Input(path,manualFlash)==="record"?"rr":phone4InputKind(path,manualFlash)==="amount"||phone4InputKind(path,manualFlash)==="date"||phone6InputKind(path,manualFlash)==="amount"||phone6InputKind(path,manualFlash)==="date"||minyan7Input(path,manualFlash)==="digits"||minyan7Input(path,manualFlash)==="text"?"pn":path==="125"?"ln":path==="185"?"rg":(path==="115"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(replyMode||path==="970211"&&readForumVoiceDraft(manualFlash)?.stage==="record"||phone3WantsRecording(path,manualFlash)||phone4InputKind(path,manualFlash)==="record"||phone6InputKind(path,manualFlash)==="record"||minyan7Input(path,manualFlash)==="record"?"rr":phone4InputKind(path,manualFlash)==="amount"||phone4InputKind(path,manualFlash)==="date"||phone6InputKind(path,manualFlash)==="amount"||phone6InputKind(path,manualFlash)==="date"||minyan7Input(path,manualFlash)==="digits"||minyan7Input(path,manualFlash)==="text"?"pn":path==="125"?"ln":path==="185"?"rg":(path==="115"||path==="161"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
   let goToProviderManagement=false;
@@ -498,7 +499,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     // Correct virtual-menu ancestry (9703 -> root, 97031 -> 9703, 970311/312 -> 97031).
     path=path==="9703"?"":path==="97031"?"9703":"97031";
     manualFlash="";page=0;position=0;chunk=0;confirmId=null;feedback="";
-   }else if(digit==="0" && path!=="" && !fromShared){
+   }else if(digit==="0" && path!=="" && !fromShared && !isCommunityPhonePath(path)){
     if(path==="185")await cancelPhoneSignup(client,callHash);
     path=path.length>2?path.slice(0,-1):(from4444?"2":"");
     position=0;chunk=0;page=0;confirmId=null;
@@ -507,7 +508,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     goToProviderManagement=true;
    }else if(from4444 && digit==="0"){
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
-   }else if(path==="159" && !fromShared && !from4444){
+   }else if(isCommunityPhonePath(path)){
+     const authorized=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+     const next=await groupPhoneDigit(client,{path,page,focusId:confirmId,verifiedUserId:authorized?userId:null},digit);
+     path=next.path;page=next.page;confirmId=next.focusId;feedback=next.feedback||"";
+    }else if(path==="159" && !fromShared && !from4444){
     // Separate SignalWire permission: provider verification is NEVER inferred
     // from caller ID or from an ordinary Gavhah/MAX account.
     const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
@@ -894,7 +899,13 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    const forum=await askanimPhoneSpeech(client,path,page,manualFlash,feedback);
    askanimActive=true;askanimMedia=forum.media;spoken=forum.message;
    mode=forum.mode==="record"?"record":forum.mode==="listen"?"news":"menu";
-  }else if(path==="159"||path.startsWith("159")){
+  }else if(isCommunityPhonePath(path)){
+    const authorized=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    const result=await groupPhonePrompt(client,{path,page,focusId:confirmId,verifiedUserId:authorized?userId:null});
+    mode=result.mode;
+    if(result.focusId!==undefined)confirmId=result.focusId;
+    spoken+=result.text.replace(/press zero to (go back|return)/gi,"press digit zero to return");
+   }else if(path==="159"||path.startsWith("159")){
    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
    const row=verified?(await client.query<{status:string}>(
     "SELECT status FROM public.gavhah_olam_chesed_access WHERE user_id=$1",[userId])).rows[0]:null;
