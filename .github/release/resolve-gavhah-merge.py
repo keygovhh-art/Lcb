@@ -14,7 +14,7 @@ expected={
 unmerged=set(subprocess.check_output(["git","diff","--name-only","--diff-filter=U"],text=True).splitlines())
 if unmerged != expected:
  raise RuntimeError(f"Unexpected merge conflicts: {unmerged}; expected {expected}")
-marker=r'<<<<<<< HEAD\n(.*?)=======\n(.*?)>>>>>>> [a-f0-9]{40}\n'
+marker=r'<<<<<<< HEAD\n(.*?)=======\n(.*?)>>>>>>> [^\n]+\n'
 
 def resolve(s,ours_prefix,theirs_prefix,merge_fn):
  matches=list(re.finditer(marker,s,re.S))
