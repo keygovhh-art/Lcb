@@ -274,15 +274,12 @@ function CreateProjectDialog() {
     createProject.mutate(
       { data: { title: form.title, description: form.description, type: form.type, organizerName: displayName, location: form.location || undefined, goalDescription: form.goalDescription || undefined } },
       {
-        onSuccess: (project) => {
-          qc.setQueryData(getListCommunityProjectsQueryKey({}), (current: any) => {
-            const items = Array.isArray(current) ? current : [];
-            return [project, ...items.filter((item: any) => item.id !== project.id)];
-          });
+        onSuccess: () => {
+          // The project remains non-public until an authorized Gavhah reviewer approves it.
           void qc.invalidateQueries({ queryKey: ["/api/community-projects"] });
           setOpen(false);
           setForm({ title: "", description: "", type: "project", location: "", goalDescription: "" });
-          toast({ title: "Project created", description: "Your project is now listed in the directory." });
+          toast({ title: "דער פראיעקט איז אריינגעשיקט צום טיעם", description: "דער פראיעקט איז נישט פובליק. די גבהה־מערכת וועט עס ערשט איבערקוקן און באשטעטיגן." });
         },
         onError: () => toast({ title: "Error", description: "Could not create project.", variant: "destructive" }),
       }
@@ -302,7 +299,7 @@ function CreateProjectDialog() {
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-primary">Create a Community Project</DialogTitle>
-            <p className="text-sm text-muted-foreground">Start a project, campaign, initiative, or assistance program for the community.</p>
+            <p className="text-sm text-muted-foreground">A project, campaign or program is first sent privately to Gavhah staff. Only approved projects are made public.</p>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
             <div className="grid grid-cols-2 gap-3">
@@ -338,7 +335,7 @@ function CreateProjectDialog() {
             </div>
             <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold gap-2" disabled={createProject.isPending}>
               <FolderKanban className="h-4 w-4" />
-              {createProject.isPending ? "Creating..." : "Create Project"}
+              {createProject.isPending ? "אריינשיקן..." : "שיקן צום טיעם פאר באשטעטיגונג"}
             </Button>
           </form>
         </DialogContent>
@@ -654,11 +651,11 @@ function CommunityProjectsContent() {
     <div className="rounded-xl border bg-muted/20 p-5 space-y-2">
       <div className="flex items-center gap-2">
         <FolderKanban className="h-6 w-6 text-primary" />
-        <h2 className="font-serif text-2xl font-bold text-primary">Community Projects, Campaigns & Programs</h2>
+        <h2 className="font-serif text-2xl font-bold text-primary">2 — Community Projects, Campaigns & Programs (team-reviewed)</h2>
       </div>
       <p className="text-sm text-muted-foreground leading-relaxed">
-        Create and manage community projects, campaigns, initiatives and programs.
-        Browse what is underway, see the goals, join, volunteer your time or offer support.
+        Submit community projects, campaigns, initiatives and programs for Gavhah staff approval.
+        Only approved projects are public. Browse, join, volunteer or support them after review.
         This public project area is separate from private assistance applications.
       </p>
     </div>
@@ -692,7 +689,7 @@ export default function Directory() {
     <div className="bg-gradient-to-br from-primary/5 to-secondary/5 border-b">
       <div className="container mx-auto max-w-4xl px-4 py-12 text-center">
         <h1 className="font-serif text-3xl sm:text-4xl font-bold text-primary">
-          {yi ? "גבהה — פריוואטע הילף און עסקנות" : "Gavhah — Private Assistance"}
+          {yi ? "גבהה — קאמיוניטי פראיעקטן און פריוואטע עסקנים" : "Gavhah — Community Projects & Private Askanim"}
         </h1>
         <p className="text-muted-foreground mt-3 leading-relaxed">
           {yi ? "דארפסטו הילף, אדער ווילסטו העלפן אנדערע? שיק אריין א פריוואטע בקשה. די מערכת זוכט פאסיגע עסקנים און פירט די גאנצע פארבינדונג. קיין בקשות אדער עסקנים־ליסטעס ווערן נישט פובליק געמאכט." :
@@ -704,6 +701,7 @@ export default function Directory() {
       <p className="rounded-lg border bg-muted/20 p-4 text-sm" dir="rtl">
         {yi ? "דער זעלבער מעמבער קען סיי בעטן הילף און סיי זיך אנגעבן צו העלפן אנדערע. ביידע אנמעלדונגען בלייבן פריוואט און אומאפהענגיג." : "One member can both request help and volunteer to help others. Both applications are private and independent."}
       </p>
+      <h2 className="text-lg font-bold" dir="rtl">1 — פריוואטע ליסטע: איך דארף עסקנים / איך קען העלפן</h2>
       <div id="help-center" className="grid md:grid-cols-2 gap-4 scroll-mt-24">
         <section className="border rounded-xl bg-card p-6 space-y-4">
           <div className="flex gap-2 items-center text-primary">

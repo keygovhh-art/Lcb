@@ -296,6 +296,15 @@ router.post("/askanus/cases/:id/progress", requireAuth, async (req, res) => {
   );
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
+  // United's audited BLN/receipt ledger is authoritative. Do not let a
+  // manually entered My Askanus money update bypass due dates or receipt review.
+  if(existing.sourceType==="featured_cause"&&
+      (action==="funds_received"||action==="funds_promised")){
+    res.status(409).json({error:
+      "For official United cause cases, use the BLN undertaking or donation verification workflow. Unreviewed money is not counted."});
+    return;
+  }
+
   if (!PROGRESS_ACTIONS.has(String(action || ""))) {
     res.status(400).json({ error: "invalid progress action" });
     return;

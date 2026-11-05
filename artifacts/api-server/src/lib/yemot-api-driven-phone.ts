@@ -4,6 +4,14 @@ import {phonePromptOverride} from "../routes/yemot-voice-studio";
 import {applyFixedPhonePhraseEdits} from "../routes/gavhah-hotline-speech-library";
 import { logger } from "./logger";
 import {noteYemotReturnCalls} from "./signalwire-max-return-calls";
+import {isCommunityPhonePath,groupPhoneDigit,groupPhonePrompt} from "./yemot-community-groups";
+import {nextAskanimPhoneState,askanimPhoneSpeech} from "./gavhah-askanim-phone-flow";
+import {readForumVoiceDraft} from "./yemot-forum-voice";
+import {nextPhone3State,phone3WantsRecording,phone3Speech} from "./gavhah-phone3-community-flow";
+import {nextUnitedPhone4,speakUnitedPhone4,phone4InputKind,dailyBeforeNewsSegments} from "./gavhah-phone4-united-flow";
+import {nextMinyan7,minyan7Speech,minyan7Input} from "./gavhah-phone7-minyan-flow";
+import {conferenceGate} from "./gavhah-unified-conference";
+import {nextDailyPhone6,speakDailyPhone6,phone6InputKind} from "./gavhah-phone6-daily-flow";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
 import {enrollFromKeypad,pendingPhoneSignup,cancelPhoneSignup} from "./yemot-phone-signup";
@@ -28,8 +36,8 @@ const categories:Record<string,string>={
 const newsAll="111",newsImportant="113";
 const personalPaths=new Set(["121","122","123","124"]);
 const root="Welcome to Gavhah and Campaign Center. Press 1 for Gavhah. Press 2 for Campaign Center. Press 8 to create a Gavhah website member account by phone. Press zero for official Gavhah member registration. Press star to return.";
-const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
-const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for Contacts, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
+const gavhahRoot="Welcome to Gavhah. Press 1 for News, 2 for My Askanus and MAX, 3 for community projects and private Askanim connections, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Enter 4444 for Campaign Center. Press zero for the existing telephone management. Registration is under 8 then 5.";
+const nextHotlineRoot="Welcome to the Gavhah replacement hotline TEST. Press 1 for News, 2 for My Askanus and MAX, 3 for community projects and private Askanim connections, 4 for Calling Center, 5 for Kindness, 6 for Community, 7 for Minyans, 8 for Messages and account, or 9 for Management. Press zero to repeat. This test does not replace the existing hotline.";
 const sharedSignalwireRoot="Gavhah SignalWire main menu. Press 1 for news, 2 for MAX and personal assistance, 3 for contacts, 4 for calling center, 5 for kindness, 6 for community, 7 for minyans, 8 for messages and account, or 9 for administration. For the previously connected system, press five five five five five. For a single digit menu choice, press pound after the digit or wait for the keypad timeout.";
 export function safeVoice(input:unknown,max=430){
  const plain=String(input??"").replace(/<[^>]+>/g," ").replace(/https?:\/\/\S+/gi," ");
@@ -71,10 +79,37 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  : [name,"no","1","1","8","No","no"];
  const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
   ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
- const backHint=step>0&&mode!=="root"&&!/press zero to (go back|return)/i.test(prompt)?" To go back one menu, press zero.":"";
+ const backHint=step>0&&mode!=="root"&&!/press zero to (go back|return)|press zero for group management|press digit zero to return/i.test(prompt)?" To go back one menu, press zero.":"";
  const providerBody="read="+(audio?(step>0&&mode!=="root"?voice("To go back one menu press zero")+"."+audio:audio):voice(prompt+backHint))+"="+opts.join(",");
  if(step===0)logger.info({ivrResponse:"read",mode,step,promptCharacters:prompt.length,patternVersion:"basic-read-v2"},"Yemot welcome reply delivered");
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
+}
+function sendAskanimRead(res:Response,step:number,media:string[],spoken:string,listen:boolean){
+ const sounds=[...media,voice(spoken)].filter(Boolean).join(".");
+ const params=listen
+  ? ["iv"+step,"no","1","0","7","No","no","no","","0123456789","1","Ok","None"]
+  : ["iv"+step,"no","1","1","8","No","no"];
+ res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
+  .send("read="+sounds+"="+params.join(","));
+}
+function sendUnitedRead(res:Response,step:number,segments:string[],kind:"listen"|"menu"|"record"|"amount"|"date"){
+ const prompt=segments.filter(Boolean).join(".");
+ const input=kind==="record"?"rr"+step:kind==="amount"||kind==="date"?"pn"+step:"iv"+step;
+ const opts=kind==="record"?input+",,record":
+  kind==="amount"?[input,"no","9","1","14","No","no"].join(","):
+  kind==="date"?[input,"no","8","8","14","No","no"].join(","):
+  kind==="listen"?[input,"no","1","0","7","No","no","no","","0123456789","1","Ok","None"].join(","):
+  [input,"no","1","1","8","No","no"].join(",");
+ res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("read="+prompt+"="+opts);
+}
+function sendMinyan7Read(res:Response,step:number,spoken:string,input:"record"|"text"|"digits"|"menu"){
+ const text=voice(spoken);
+ const params=input==="record"?"rr"+step+",,record":
+  input==="text"?["pn"+step,"no","180","1","25","No","no"].join(","):
+  input==="digits"?["pn"+step,"no","8","1","15","No","no"].join(","):
+  ["iv"+step,"no","1","1","8","No","no"].join(",");
+ res.type("text/plain; charset=utf-8").set("Cache-Control","no-store")
+  .send("read="+text+"="+params);
 }
 function menuPrompt(path:string,tree:Record<string,TreeNode>,ready4444=false,fromNext=false,fromShared=false){
  let nodes=tree,current:TreeNode|undefined;
@@ -340,7 +375,8 @@ async function tryFastYemotRoot(req:Request,res:Response,tree:Record<string,Tree
  if(!req.path.endsWith("/yemot/ivr"))return false;
  const digit=req.body?.iv0??req.query.iv0;
  const input=digit==null?null:String(digit);
- if(input!==null&&!/^[1-9]$/.test(input))return false;
+ if(["2","3","4","6","7","8"].includes(String(input)))return false; // Virtual app-owned IVR menus.
+  if(input!==null&&!/^[1-9]$/.test(input))return false;
  const call=sourceCallId(req);
  const supplied=String(req.body?.entryKey??req.query.entryKey??"");
  if(!call||!/^[a-f0-9]{64}$/.test(supplied))return false;
@@ -437,17 +473,33 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   let manualFlash=s.action_flash||"";
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";}
-  const inputName=(replyMode?"rr":path==="125"?"ln":path==="185"?"rg":(path==="115"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(replyMode||path==="970211"&&readForumVoiceDraft(manualFlash)?.stage==="record"||phone3WantsRecording(path,manualFlash)||phone4InputKind(path,manualFlash)==="record"||phone6InputKind(path,manualFlash)==="record"||minyan7Input(path,manualFlash)==="record"?"rr":phone4InputKind(path,manualFlash)==="amount"||phone4InputKind(path,manualFlash)==="date"||phone6InputKind(path,manualFlash)==="amount"||phone6InputKind(path,manualFlash)==="date"||minyan7Input(path,manualFlash)==="digits"||minyan7Input(path,manualFlash)==="text"?"pn":path==="125"?"ln":path==="185"?"rg":(path==="115"||path==="161"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
   let goToProviderManagement=false;
+   let conferenceTransfer:string|null=null;
   let goToCampaignExtension=false;
   if(raw!==undefined&&raw!==null){
    const digit=String(raw).trim();
    // Existing Yemot management is usually extension /0 (admin_login).
    // Preserve it on root 0, and keep nested 0 returning to the API root.
    // Moving to /0 DOES NOT bypass the provider admin password.
-   if(digit==="0" && path!=="" && !fromShared){
+   if((digit==="0"||digit==="*")&&path.startsWith("9708")&&!fromShared){
+     path=path==="9708"?"":"9708";page=0;manualFlash="";feedback="";
+    }else if((digit==="0"||digit==="*")&&path.startsWith("9706")&&!fromShared){
+    path=path==="9706"?"":path==="97061"||path==="97062"?"9706":"97061";
+    manualFlash="";page=0;position=0;chunk=0;confirmId=null;feedback="";
+   }else if((digit==="0"||digit==="*")&&path.startsWith("9707")&&!fromShared){
+    path=path==="9707"?"":path==="97071"||path==="97072"?"9707":"97071";
+    manualFlash="";page=0;position=0;chunk=0;confirmId=null;feedback="";
+   }else if((digit==="0"||digit==="*") && path.startsWith("9704") && !fromShared){
+    path=path==="9704"?"":path==="97041"||path==="97042"?"9704":"97041";
+    manualFlash="";page=0;position=0;chunk=0;confirmId=null;feedback="";
+   }else if((digit==="0"||digit==="*") && path.startsWith("9703") && !fromShared){
+    // Correct virtual-menu ancestry (9703 -> root, 97031 -> 9703, 970311/312 -> 97031).
+    path=path==="9703"?"":path==="97031"?"9703":"97031";
+    manualFlash="";page=0;position=0;chunk=0;confirmId=null;feedback="";
+   }else if(digit==="0" && path!=="" && !fromShared && !isCommunityPhonePath(path)){
     if(path==="185")await cancelPhoneSignup(client,callHash);
     path=path.length>2?path.slice(0,-1):(from4444?"2":"");
     position=0;chunk=0;page=0;confirmId=null;
@@ -456,7 +508,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     goToProviderManagement=true;
    }else if(from4444 && digit==="0"){
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
-   }else if(path==="159" && !fromShared && !from4444){
+   }else if(isCommunityPhonePath(path)){
+     const authorized=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+     const next=await groupPhoneDigit(client,{path,page,focusId:confirmId,verifiedUserId:authorized?userId:null},digit);
+     path=next.path;page=next.page;confirmId=next.focusId;feedback=next.feedback||"";
+    }else if(path==="159" && !fromShared && !from4444){
     // Separate SignalWire permission: provider verification is NEVER inferred
     // from caller ID or from an ordinary Gavhah/MAX account.
     const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
@@ -476,6 +532,72 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     }else feedback="Press 1 to request Olam Chesed SignalWire access. ";
    }else if(!from4444 && !fromNext && ready4444 && path==="" && digit==="4444"){
     goToCampaignExtension=true;
+   }else if(!from4444 && directGavhah && path==="" && digit==="8"){
+     path="9708";page=0;manualFlash="";
+    }else if(path==="9708"){
+     const choices:Record<string,string>={"1":"161","2":"167","3":"164","4":"162","5":"97085","6":"97086"};
+     if(choices[digit])path=choices[digit];
+    }else if(path==="97085"||path==="97086"){
+     const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+     const gate=await conferenceGate(client,verified?userId:null);
+     const mod=path==="97086";
+     if(digit==="1"){
+      if(mod&&gate.role!=="moderator")feedback="Only a verified conference moderator can open the lecturer entrance. ";
+      else if(gate.allowed&&gate.providerPath){
+       conferenceTransfer=gate.providerPath;feedback=" ";
+      }else feedback=gate.reason+" ";
+     }else if(digit==="2"&&!mod){
+      if(!verified||gate.role==="blocked")feedback="Securely sign in to request speaking permission. ";
+      else{
+       await client.query("INSERT INTO public.gavhah_unified_conference_hand_requests(member_id,state) "+
+       "VALUES($1,'raised') ON CONFLICT(member_id) DO UPDATE SET state='raised',created_at=now(),decided_by=NULL,decided_at=NULL",[userId]);
+       feedback="Your request to speak was sent to the Gavhah moderation team. ";
+      }
+     }else if(["2","3","4"].includes(digit)&&mod){
+      if(!verified||gate.role!=="moderator")feedback="Only the approved conference moderator can change the room schedule. ";
+      else{
+       const action=digit==="2"?"force_open":digit==="3"?"force_closed":"schedule";
+       await client.query("UPDATE public.gavhah_unified_conference SET override_state=$1,updated_at=now(),updated_by=$2 "+
+       "WHERE id=1",[action,userId]);
+       await client.query("INSERT INTO public.gavhah_unified_conference_events(actor_member_id,event_type,details) "+
+       "VALUES($1,'phone_override',$2::jsonb)",[userId,JSON.stringify({override:action})]);
+       feedback="Conference entry override is "+action.replace("_"," ")+". "+
+        (action==="force_closed"?"Existing participants are not disconnected by this action. ":"");
+      }
+     }else if(digit==="3"&&!mod){
+      feedback=gate.reason+" ";
+     }
+    }else if(!from4444 && directGavhah && path==="" && digit==="6"){
+    path="9706";page=0;manualFlash="";
+   }else if(path.startsWith("9706")){
+    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    const next=await nextDailyPhone6(client,{path,page,flash:manualFlash,feedback},digit,
+      verified?userId:null,verified,callHash);
+    path=next.path;page=next.page;manualFlash=next.flash;feedback=next.feedback;
+   }else if(!from4444 && directGavhah && path==="" && digit==="7"){
+    path="9707";page=0;manualFlash="";
+   }else if(path.startsWith("9707")){
+    const verifiedMember=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    const next=await nextMinyan7(client,path,digit,manualFlash,verifiedMember?userId:null,callHash);
+    path=next.path;manualFlash=next.flash;feedback=next.feedback;
+   }else if(!from4444 && directGavhah && path==="" && digit==="4"){
+    path="9704";page=0;manualFlash="";
+   }else if(path.startsWith("9704")){
+    const next=await nextUnitedPhone4(client,{path,page,flash:manualFlash,feedback},digit,userId,
+      !!userId&&await memberAllowed(client,{...s,member_id:userId}),callHash);
+    path=next.path;page=next.page;manualFlash=next.flash;feedback=next.feedback;
+   }else if(!from4444 && directGavhah && path==="" && digit==="3"){
+    path="9703";page=0;manualFlash="";
+   }else if(path.startsWith("9703")){
+    const next=await nextPhone3State(client,{path,page,flash:manualFlash,feedback},digit,userId,
+       !!userId&&await memberAllowed(client,{...s,member_id:userId}),callHash);
+    path=next.path;page=next.page;manualFlash=next.flash;feedback=next.feedback;
+   }else if(!from4444 && directGavhah && path==="" && digit==="2"){
+    path="9702";page=0;manualFlash="";
+   }else if(path.startsWith("9702")){
+    const next=await nextAskanimPhoneState(client,{path,page,flash:manualFlash,feedback},digit,userId,
+     !!userId&&await memberAllowed(client,{...s,member_id:userId}),callHash);
+    path=next.path;page=next.page;manualFlash=next.flash;feedback=next.feedback;
    }else if(!from4444 && directGavhah && path==="" && /^[1-9]$/.test(digit) && tree["1"]?.children?.[digit]){
     path="1"+digit;
    }else if(path==="" && digit==="8" && !ready4444){
@@ -724,6 +846,12 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    step++;
   }
   let mode:"menu"|"root"|"news"|"code"|"article"|"record"|"registration"="menu",spoken=feedback;
+  let askanimMedia:string[]=[];let askanimActive=false;
+  let projectMenuMedia:string[]=[];let projectMenuActive=false;
+  let unitedSegments:string[]=[];let unitedKind:"listen"|"menu"|"record"|"amount"|"date"="menu";let unitedActive=false;
+  let dailyNewsSegments:string[]=[];
+  let minyan7Active=false;let minyan7Mode:"record"|"text"|"digits"|"menu"="menu";
+  let daily6Segments:string[]=[];let daily6Kind:"listen"|"menu"|"record"|"amount"|"date"="menu";let daily6Active=false;
   if(reportMode){
    spoken+="Choose a report reason. Press 1 spam, 2 inappropriate, 3 misinformation, 4 harassment, or 5 other. Press 9 to cancel or zero for the main menu.";
   }else if(replyMode){
@@ -731,7 +859,53 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(actionsOpen){
    const articleId=await currentNewsId(path,position,confirmId);
    spoken+=await actionsMenu(client,articleId,userId,await memberAllowed(client,{...s,member_id:userId}));
-  }else if(path==="159"||path.startsWith("159")){
+  }else if(path.startsWith("9706")){
+    const daily=await speakDailyPhone6(client,path,manualFlash,feedback);
+    daily6Active=true;daily6Segments=daily.segments;daily6Kind=daily.kind;
+    mode=daily6Kind==="record"?"record":daily6Kind==="listen"?"news":"menu";
+   }else if(path==="9708"){
+    spoken="Group Center. For public groups press 1. To create a group press 2. "+
+     "Your saved or joined groups press 3. More group options press 4. "+
+     "For the single Hitkabtzu live conference press 5. "+
+     "For the lecturer and moderator entrance to the same conference room press 6. "+
+     "Press zero to return.";
+   }else if(path==="97085"||path==="97086"){
+    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    const gate=await conferenceGate(client,verified?userId:null);
+    const moderator=path==="97086";
+    spoken=feedback+(
+     moderator?"Hitkabtzu, lecturer and moderator controls. "+
+      "Press 1 to enter the verified shared room as moderator. Press 2 to open entry now. "+
+      "Press 3 to block new entrants immediately. Press 4 to return to the scheduled entrance policy. ":
+      "Hitkabtzu, the shared Gavhah conference room. Press 1 to enter the live meeting. "+
+      "Press 2 to ask for speaking permission. Press 3 to hear current access status. "
+    )+gate.reason+". Press zero to return to Group Center.";
+   }else if(path.startsWith("9707")){
+    const x=await minyan7Speech(client,path,manualFlash,feedback);
+    minyan7Active=true;minyan7Mode=x.input;spoken=x.text;
+    mode=x.input==="record"?"record":"menu";
+   }else if(path==="11"&&!from4444&&!fromNext&&!fromShared){
+   dailyNewsSegments=await dailyBeforeNewsSegments(client);
+   mode="menu";spoken+=menuPrompt(path,tree,ready4444,fromNext,fromShared);
+  }else if(path.startsWith("9704")){
+   const united=await speakUnitedPhone4(client,path,manualFlash,feedback);
+   unitedActive=true;unitedSegments=united.segments;unitedKind=united.kind;
+   mode=unitedKind==="record"?"record":unitedKind==="listen"?"news":"menu";
+  }else if(path.startsWith("9703")){
+   const projectMenu=await phone3Speech(client,path,page,manualFlash,feedback);
+   projectMenuActive=true;projectMenuMedia=projectMenu.audio;spoken=projectMenu.spoken;
+   mode=projectMenu.mode==="record"?"record":projectMenu.mode==="listen"?"news":"menu";
+  }else if(path.startsWith("9702")){
+   const forum=await askanimPhoneSpeech(client,path,page,manualFlash,feedback);
+   askanimActive=true;askanimMedia=forum.media;spoken=forum.message;
+   mode=forum.mode==="record"?"record":forum.mode==="listen"?"news":"menu";
+  }else if(isCommunityPhonePath(path)){
+    const authorized=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    const result=await groupPhonePrompt(client,{path,page,focusId:confirmId,verifiedUserId:authorized?userId:null});
+    mode=result.mode;
+    if(result.focusId!==undefined)confirmId=result.focusId;
+    spoken+=result.text.replace(/press zero to (go back|return)/gi,"press digit zero to return");
+   }else if(path==="159"||path.startsWith("159")){
    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
    const row=verified?(await client.query<{status:string}>(
     "SELECT status FROM public.gavhah_olam_chesed_access WHERE user_id=$1",[userId])).rows[0]:null;
@@ -822,7 +996,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    if(!path && directGavhah && !from4444)mode="root";
    spoken+=menuPrompt(path,tree,ready4444,fromNext,fromShared);
   }
-  if(path!=="141")manualFlash="";
+  if(path!=="141"&&!path.startsWith("9702")&&!path.startsWith("9703")&&!path.startsWith("9704")&&!path.startsWith("9706")&&!path.startsWith("9707"))manualFlash="";
   await client.query("UPDATE public.gavhah_yemot_call_states "+
    "SET step=$2,path=$3,news_position=$4,news_chunk=$5,phone_page=$6,selected_item_id=$7,member_id=$8,linked_until=$9,login_failures=$10,news_actions_open=$11,news_reply_mode=$12,news_reply_target=$13,news_report_mode=$14,action_flash=$15,updated_at=now() "+
    "WHERE call_hash=$1",[callHash,step,path,position,chunk,page,confirmId,userId,s.linked_until,s.login_failures,actionsOpen,replyMode,replyTarget,reportMode,manualFlash]);
@@ -830,7 +1004,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   // Menu-only overrides: never replace personal records, credentials, PIN,
   // monetary confirmations, news content, or other dynamic disclosures.
   if((mode==="menu"||mode==="root")&&!manualFlash&&!goToProviderManagement&&!goToCampaignExtension&&
-     !feedback&&path!=="125"&&path!=="185"&&isNavigationalMenu(path,tree)){
+     !feedback&&!dailyNewsSegments.length&&path!=="125"&&path!=="185"&&isNavigationalMenu(path,tree)){
     const custom=await phonePromptOverride(path);
     if(custom.ttsText)spoken=custom.ttsText;
     publishedAudio=custom.audioPath;
@@ -852,8 +1026,19 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/0");
   }else if(goToCampaignExtension){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/4444");
+  }else if(conferenceTransfer){
+   // Only trusted, provider-verified Yemot absolute numeric paths are allowed.
+   if(!/^\/[0-9]+(?:\/[0-9]+)*$/.test(conferenceTransfer))throw Error("Invalid conference provider extension");
+   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder="+conferenceTransfer);
   }else{
-   sendRead(res,spoken,step,mode,publishedAudio);
+   if(daily6Active)sendUnitedRead(res,step,daily6Segments,daily6Kind);
+    else if(minyan7Active)sendMinyan7Read(res,step,spoken,minyan7Mode);
+    else if(dailyNewsSegments.length)sendUnitedRead(res,step,[...dailyNewsSegments,"t-"+safeVoice(spoken,350)],"menu");
+   else if(unitedActive)sendUnitedRead(res,step,unitedSegments,unitedKind);
+   else if(projectMenuActive&&mode!=="record")
+     sendAskanimRead(res,step,projectMenuMedia,spoken,mode==="news");
+   else if(askanimActive&&mode!=="record")sendAskanimRead(res,step,askanimMedia,spoken,mode==="news");
+   else sendRead(res,spoken,step,mode,publishedAudio);
   }
  }catch(err){await client.query("ROLLBACK").catch(()=>{});throw err;}
  finally{client.release();}

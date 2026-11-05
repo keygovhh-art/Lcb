@@ -12,7 +12,6 @@ export const phoneTree: Record<string,Item> = {
     "1":group("News and updates — wait for all updates, press 1 for options",{
       "1":leaf("All updates, newest first","/news"),
       "3":leaf("Important and critical news","/news"),
-      "4":leaf("Featured updates","/news"),
       "5":leaf("Read an update by its article number","/news/:id")
     }),
     "2":group("My Askanus and MAX",{
@@ -48,10 +47,11 @@ export const phoneTree: Record<string,Item> = {
       })
     }),
     "6":group("Community",{
-      "1":leaf("Groups","/groups"),"2":leaf("Discussion forum","/forum"),
+      "1":leaf("Group Center — Community Groups","/groups"),"2":leaf("Discussion forum","/forum"),
       "3":leaf("Directory","/directory"),"4":leaf("Connections","/connections"),
       "5":leaf("Create a forum post","/forum/new"),"6":leaf("Read a selected forum topic","/forum/:id"),
-      "7":leaf("Open a selected group","/groups/:id")
+      "7":leaf("Open a selected group","/groups/:id"),
+       "8":leaf("Hitkabtzu unified conference through keypad 8 then 5, lecturer 8 then 6","/conferences")
     }),
     "7":group("Minyans and appointments",{
       "1":leaf("Minyan directory","/minyans"),"2":leaf("Reservations","/reservations"),

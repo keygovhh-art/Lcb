@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useListGroups, useJoinGroup, useCreateGroup, getListGroupsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,11 +15,14 @@ import { useAuth } from "@/context/auth-context";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { useToast } from "@/hooks/use-toast";
 import { ImageUploadField } from "@/components/shared/image-upload-field";
+import { GroupIntroRecorder } from "@/components/groups/group-phone-settings";
 
 export default function GroupsList() {
   const [search, setSearch] = useState("");
   const [privacy, setPrivacy] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [createIntroWav, setCreateIntroWav] = useState<string | null>(null);
+  const [myGroupLibrary, setMyGroupLibrary] = useState<Array<{id:number;name:string;saved:boolean;joined:boolean}>>([]);
   const [createForm, setCreateForm] = useState({ name: "", description: "", privacy: "public", imageUrl: "" });
   const qc = useQueryClient();
   const { isAuthenticated } = useAuth();
@@ -29,6 +32,13 @@ export default function GroupsList() {
   const { data: groups, isLoading } = useListGroups(params, {
     query: { queryKey: getListGroupsQueryKey(params) },
   });
+  useEffect(() => {
+    if (!isAuthenticated) { setMyGroupLibrary([]); return; }
+    let alive = true;
+    void fetch("/api/groups/me/library", {credentials:"same-origin"}).then(r=>r.ok?r.json():[])
+      .then(data=>{if(alive)setMyGroupLibrary(Array.isArray(data)?data:[]);}).catch(()=>{});
+    return ()=>{alive=false;};
+  }, [isAuthenticated, groups]);
   const join = useJoinGroup();
   const create = useCreateGroup();
 
@@ -48,6 +58,14 @@ export default function GroupsList() {
       } },
       {
         onSuccess: (group) => {
+          if (createIntroWav) {
+            void fetch(`/api/groups/${group.id}/hotline-audio`, {
+              method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({mime:"audio/wav",base64:createIntroWav})
+            }).then(r=>{if(!r.ok)toast({title:"גרופ געעפנט, אבער די רעקארדירונג האט זיך נישט געהיט",variant:"destructive"});})
+              .catch(()=>toast({title:"רעקארדירונג נישט געהיט",variant:"destructive"}));
+          }
+          setCreateIntroWav(null);
           setCreateOpen(false);
           setCreateForm({ name: "", description: "", privacy: "public", imageUrl: "" });
           qc.setQueryData(getListGroupsQueryKey(params), (current: any) => {
@@ -143,6 +161,7 @@ export default function GroupsList() {
               value={createForm.imageUrl}
               onChange={imageUrl => setCreateForm(f => ({ ...f, imageUrl }))}
             />
+            <GroupIntroRecorder onReady={setCreateIntroWav} />
             </div>
             <div className="shrink-0 border-t bg-background px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               <Button type="submit" className="w-full min-h-11 bg-secondary hover:bg-secondary/90 text-white" disabled={create.isPending}>
@@ -154,6 +173,14 @@ export default function GroupsList() {
       </Dialog>
 
       <div className="container mx-auto px-4 py-10 space-y-6">
+        {isAuthenticated && myGroupLibrary.length > 0 && <section className="border bg-card rounded-xl p-4" dir="rtl">
+          <h2 className="font-semibold mb-3">מיינע געסעיווטע און מיטגליד־גרופס</h2>
+          <div className="flex flex-wrap gap-2">
+            {myGroupLibrary.map(item=><Link key={item.id} href={`/groups/${item.id}`}>
+              <Button variant="outline" size="sm">{item.name} · {item.joined?"מעמבער":"געסעיווט"}</Button>
+            </Link>)}
+          </div>
+        </section>}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

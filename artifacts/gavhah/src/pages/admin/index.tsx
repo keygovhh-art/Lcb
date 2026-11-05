@@ -33,6 +33,12 @@ import { MembershipGateManagement } from "@/components/admin/membership-gate-man
 import { AdvancedMemberManagement } from "@/components/admin/advanced-member-management";
 import { OperationsInbox } from "@/components/admin/operations-inbox";
 import { PrivateAssistanceManagement } from "@/components/admin/private-assistance-management";
+import {CommunityReviewWorkspace} from "@/components/admin/community-review-workspace";
+import {UnitedTeamDashboard} from "@/components/admin/united-team-dashboard";
+import {CauseChannelsTeamSettings} from "@/components/admin/cause-channels-team-settings";
+import {MinyanTeamWorkspace} from "@/components/admin/minyan-team-workspace";
+import {DailyCauseTeamDashboard} from "@/components/admin/daily-cause-team-dashboard";
+import {UnifiedConferenceAdmin} from "@/components/admin/unified-conference-admin";
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 import { YemotCentralManagement } from "@/components/admin/yemot-central-management";
@@ -415,6 +421,11 @@ export default function FounderDashboard() {
             <TabsTrigger value="charity" className="gap-2"><Heart className="h-4 w-4" /> Charity</TabsTrigger>
             <TabsTrigger value="featured" className="gap-2"><Sparkles className="h-4 w-4" /> Featured</TabsTrigger>
             <TabsTrigger value="causes" className="gap-2"><HandHeart className="h-4 w-4" /> Causes</TabsTrigger>
+              <TabsTrigger value="united-team" className="gap-2"><Heart className="h-4 w-4" /> מתאחדים באהבה — צענטראל</TabsTrigger>
+              <TabsTrigger value="united-settings" className="gap-2"><Heart className="h-4 w-4" /> מתאחדים סעטינגס</TabsTrigger>
+              <TabsTrigger value="daily-cause-settings" className="gap-2"><Star className="h-4 w-4" /> היינטיגע צוועק סעטינגס</TabsTrigger>
+              <TabsTrigger value="daily-cause-team" className="gap-2"><Star className="h-4 w-4" /> היינטיגע צוועק — טיעם</TabsTrigger>
+              <TabsTrigger value="gavhah-conference">התקבצו — קאנפרענץ</TabsTrigger>
             <TabsTrigger value="submissions" className="gap-2">
               <Star className="h-4 w-4" /> Cause Reviews
               {causeSubmissions.filter(c => c.status === "pending").length > 0 && (
@@ -422,6 +433,7 @@ export default function FounderDashboard() {
               )}
             </TabsTrigger>
             <TabsTrigger value="projects" className="gap-2"><FolderKanban className="h-4 w-4" /> Projects</TabsTrigger>
+             <TabsTrigger value="community-review" className="gap-2"><UserCheck className="h-4 w-4" /> קנעפל 3 — איבערקוק</TabsTrigger>
             <TabsTrigger value="minyans" className="gap-2">
               <Clock className="h-4 w-4" /> Minyans
               {adminMinyans.filter(m => m.status === "pending").length > 0 && (
@@ -949,7 +961,13 @@ export default function FounderDashboard() {
           </TabsContent>
 
           {/* ─── Cause Activity ─── */}
-          <TabsContent value="causes" className="space-y-4">
+          <TabsContent value="united-team" className="space-y-4"><UnitedTeamDashboard /></TabsContent>
+           <TabsContent value="united-settings" className="space-y-4"><CauseChannelsTeamSettings which="united"/></TabsContent>
+           <TabsContent value="daily-cause-settings" className="space-y-4"><CauseChannelsTeamSettings which="daily"/></TabsContent>
+            <TabsContent value="daily-cause-team" className="space-y-4"><DailyCauseTeamDashboard/></TabsContent>
+            <TabsContent value="gavhah-conference" className="space-y-4"><UnifiedConferenceAdmin/></TabsContent>
+
+           <TabsContent value="causes" className="space-y-4">
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary">Cause Activity</h2>
               <p className="text-muted-foreground text-sm mt-1">Recent supporter pledges and cause activity across the platform.</p>
@@ -1047,7 +1065,9 @@ export default function FounderDashboard() {
           </TabsContent>
 
           {/* ─── Projects ─── */}
-          <TabsContent value="projects" className="space-y-4">
+          <TabsContent value="community-review" className="space-y-4"><CommunityReviewWorkspace /></TabsContent>
+
+           <TabsContent value="projects" className="space-y-4">
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary">Community Projects</h2>
               <p className="text-muted-foreground text-sm mt-1">All community projects and their current status.</p>
@@ -1081,6 +1101,7 @@ export default function FounderDashboard() {
 
           {/* ─── Minyan Moderation ─── */}
           <TabsContent value="minyans" className="space-y-4">
+            <MinyanTeamWorkspace/>
             <div>
               <h2 className="font-serif text-2xl font-bold text-primary">Minyan Submissions</h2>
               <p className="text-muted-foreground text-sm mt-1">Review community submissions before they appear publicly.</p>

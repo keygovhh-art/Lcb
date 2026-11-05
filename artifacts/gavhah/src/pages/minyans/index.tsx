@@ -15,6 +15,7 @@ import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { MemberGate } from "@/components/shared/member-gate";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import {MinyanAdvancedCenter} from "@/components/minyans/minyan-advanced-center";
 
 type Prayer = "shacharis" | "mincha" | "maariv";
 type Entry = { time: string; days: number[] };
@@ -256,6 +257,7 @@ export default function Minyans() {
       </div>
 
       <div className="container mx-auto px-4 py-10 space-y-6">
+        <MinyanAdvancedCenter/>
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

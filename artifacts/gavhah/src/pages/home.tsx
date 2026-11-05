@@ -29,8 +29,8 @@ const DEPARTMENTS = [
     iconColor: "bg-secondary/10 text-secondary",
   },
   {
-    label: "Private Assistance",
-    desc: "Submit confidential help requests or volunteer to assist — coordinated only by Gavhah",
+    label: "Community Projects & Private Askanim Connections",
+    desc: "Explore approved projects, submit campaigns for staff review, or privately offer/request Askanim help",
     href: "/directory",
     icon: <HandHeart className="h-7 w-7" />,
     color: "from-accent/15 to-accent/5 border-accent/20",
