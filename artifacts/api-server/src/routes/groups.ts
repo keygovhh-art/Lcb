@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, sql, and, inArray } from "drizzle-orm";
-import { db, groupsTable, groupMembersTable, groupPostsTable, groupPostDownvotesTable, usersTable, entityLikesTable } from "@workspace/db";
+import { db, pool, groupsTable, groupMembersTable, groupPostsTable, groupPostDownvotesTable, usersTable, entityLikesTable } from "@workspace/db";
 import { requireAuth, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { setLikeState } from "../lib/entity-likes";
 import { resolveMemberDisplayName, resolvePublicPostingName } from "../lib/user-display";
@@ -76,6 +76,7 @@ router.post("/groups", requireAuth, async (req, res): Promise<void> => {
     status: "approved",
   }).onConflictDoNothing();
 
+  await pool.query("INSERT INTO public.saved_items(user_id,content_type,content_id,content_title,content_url) VALUES($1,'group',$2,$3,$4) ON CONFLICT(user_id,content_type,content_id) DO NOTHING", [userId,group.id,group.name,"/groups/"+group.id]);
   await logActivity("group", `Created community group "${group.name}"`, ownerName);
   const [owner] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   await queueStaffReview({
@@ -258,6 +259,7 @@ router.post("/groups/:id/join", requireAuth, async (req, res): Promise<void> => 
     return;
   }
   if (existing && existing.status === "approved") {
+    await pool.query("INSERT INTO public.saved_items(user_id,content_type,content_id,content_title,content_url) VALUES($1,'group',$2,$3,$4) ON CONFLICT(user_id,content_type,content_id) DO NOTHING", [userId,groupId,group.name,"/groups/"+groupId]);
     res.json(existing);
     return;
   }
@@ -285,6 +287,7 @@ router.post("/groups/:id/join", requireAuth, async (req, res): Promise<void> => 
   }
 
   if (desiredStatus === "approved") {
+    await pool.query("INSERT INTO public.saved_items(user_id,content_type,content_id,content_title,content_url) VALUES($1,'group',$2,$3,$4) ON CONFLICT(user_id,content_type,content_id) DO NOTHING", [userId,groupId,group.name,"/groups/"+groupId]);
     await db.update(groupsTable)
       .set({ memberCount: sql`${groupsTable.memberCount} + 1` })
       .where(eq(groupsTable.id, groupId));
