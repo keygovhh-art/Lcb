@@ -39,3 +39,16 @@ CREATE TABLE IF NOT EXISTS public.group_conference_events (
 );
 CREATE INDEX IF NOT EXISTS group_conference_events_group_time_idx
   ON public.group_conference_events (group_id, created_at DESC);
+
+-- Explicitly queued one-time Cloudflare infrastructure provisioning requests.
+-- This is never a public phone dial-out campaign. A failed write is never retried blindly.
+CREATE TABLE IF NOT EXISTS public.group_conference_provision_queue (
+  group_id integer PRIMARY KEY REFERENCES public.groups(id) ON DELETE CASCADE,
+  mode text NOT NULL DEFAULT 'speech' CHECK(mode IN ('speech','listen_all')),
+  state text NOT NULL DEFAULT 'queued' CHECK(state IN ('queued','working','done','failed')),
+  last_error text,
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS group_conference_provision_queue_state_idx
+  ON public.group_conference_provision_queue(state, requested_at);
