@@ -72,7 +72,7 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  : [name,"no","1","1","8","No","no"];
  const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
   ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
- const backHint=step>0&&mode!=="root"&&!/press zero to (go back|return)/i.test(prompt)?" To go back one menu, press zero.":"";
+ const backHint=step>0&&mode!=="root"&&!/press zero to (go back|return)|press zero for group management|press digit zero to return/i.test(prompt)?" To go back one menu, press zero.":"";
  const providerBody="read="+(audio?(step>0&&mode!=="root"?voice("To go back one menu press zero")+"."+audio:audio):voice(prompt+backHint))+"="+opts.join(",");
  if(step===0)logger.info({ivrResponse:"read",mode,step,promptCharacters:prompt.length,patternVersion:"basic-read-v2"},"Yemot welcome reply delivered");
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
