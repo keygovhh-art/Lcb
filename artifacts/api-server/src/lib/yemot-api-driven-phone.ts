@@ -758,6 +758,12 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     spoken="This Olam Chesed function belongs to the separate SignalWire communication service. "+
      "This Yemot menu cannot originate SignalWire calls. Open the Olam Chesed Communication website. Press zero to go back.";
    }
+  }else if(isCommunityPhonePath(path)){
+   const active=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+   const result=await groupPhonePrompt(client,{path,page,focusId:confirmId,verifiedUserId:active?userId:null});
+   mode=result.mode;
+   if(result.focusId!==undefined)confirmId=result.focusId;
+   spoken+=result.text.replace(/press zero to (go back|return)/gi,"press digit zero to return");
   }else if(path==="185"){
    mode="registration";
    const pending=await pendingPhoneSignup(client,callHash);
