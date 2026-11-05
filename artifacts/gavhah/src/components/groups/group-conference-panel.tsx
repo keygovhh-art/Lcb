@@ -117,7 +117,7 @@ export function GroupConferencePanel({groupId,isSuperAdmin}:{
      {isSuperAdmin&&data.status==="not_configured"&&
       <Button disabled={busy} onClick={()=>void mutate(()=>api(
        "/api/admin/groups/"+groupId+"/conference/provision","POST",
-       {confirm:"ADD_ONLY_YEMOT_GROUP_CONFERENCE"}))}>
+       {confirm:"ADD_ONLY_YEMOT_GROUP_CONFERENCE",mode}))}>
        מאך גרייט א נייער ימות־צימער — אן אנרירן אנדערע עקסטענשאנס
       </Button>}
      {isSuperAdmin&&data.status==="needs_provider_review"&&
