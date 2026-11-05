@@ -50,7 +50,8 @@ export const phoneTree: Record<string,Item> = {
       "1":leaf("Groups","/groups"),"2":leaf("Discussion forum","/forum"),
       "3":leaf("Directory","/directory"),"4":leaf("Connections","/connections"),
       "5":leaf("Create a forum post","/forum/new"),"6":leaf("Read a selected forum topic","/forum/:id"),
-      "7":leaf("Open a selected group","/groups/:id")
+      "7":leaf("Open a selected group","/groups/:id"),
+       "8":leaf("Hitkabtzu unified conference through keypad 8 then 5, lecturer 8 then 6","/conferences")
     }),
     "7":group("Minyans and appointments",{
       "1":leaf("Minyan directory","/minyans"),"2":leaf("Reservations","/reservations"),
