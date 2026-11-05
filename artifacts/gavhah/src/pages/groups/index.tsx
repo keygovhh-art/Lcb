@@ -27,6 +27,11 @@ export default function GroupsList() {
   const qc = useQueryClient();
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
+
+  const params = { search: search || undefined, privacy: privacy || undefined };
+  const { data: groups, isLoading } = useListGroups(params, {
+    query: { queryKey: getListGroupsQueryKey(params) },
+  });
   useEffect(() => {
     if (!isAuthenticated) { setMyGroupLibrary([]); return; }
     let alive = true;
@@ -34,11 +39,6 @@ export default function GroupsList() {
       .then(data=>{if(alive)setMyGroupLibrary(Array.isArray(data)?data:[]);}).catch(()=>{});
     return ()=>{alive=false;};
   }, [isAuthenticated, groups]);
-
-  const params = { search: search || undefined, privacy: privacy || undefined };
-  const { data: groups, isLoading } = useListGroups(params, {
-    query: { queryKey: getListGroupsQueryKey(params) },
-  });
   const join = useJoinGroup();
   const create = useCreateGroup();
 
