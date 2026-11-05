@@ -15,13 +15,34 @@ export const phoneTree: Record<string,Item> = {
       "4":leaf("Featured updates","/news"),
       "5":leaf("Read an update by its article number","/news/:id")
     }),
-    "2":group("My Askanus and MAX",{
-      "1":leaf("My tasks, including marking complete","/my"),
-      "2":leaf("My personal cases and goals","/my"),
-      "3":leaf("My private notes","/my"),
-      "4":leaf("My personal dashboard","/my"),
-      "5":leaf("Securely link my website account by eight-digit code","/my"),
-      "6":leaf("Log out of this phone session","/my")
+    "2":group("My Askanus — accomplishments, cases and tasks",{
+      "1":leaf("What was accomplished — all-time website statistics","/my"),
+      "2":leaf("What was accomplished today — today statistics","/my"),
+      "3":group("Cases",{
+        "1":leaf("Open a personal case by phone","/my"),
+        "2":leaf("Cases newest to oldest, choose numbered case","/my"),
+        "3":leaf("Cases oldest to newest","/my"),
+        "4":leaf("Find a case by its number","/my"),
+        "5":leaf("Selected case: stats, status, finance, history and follow ups","/my")
+      }),
+      "4":group("Tasks",{
+        "1":leaf("Add a task by phone","/my"),
+        "2":leaf("Tasks newest to oldest, numbered choices","/my"),
+        "3":leaf("Tasks oldest to newest","/my"),
+        "4":leaf("Find a task by its number","/my")
+      }),
+      "5":group("My history",{
+        "1":leaf("Actions newest to oldest","/my"),
+        "2":leaf("Actions oldest to newest","/my"),
+        "3":leaf("Search recorded event number","/my")
+      }),
+      "6":group("My private notes",{
+        "1":leaf("New private note","/my"),
+        "2":leaf("Search note by number","/my"),
+        "3":leaf("All notes; numbered actions cross out, complete, delete","/my")
+      }),
+      "7":leaf("Sign in with four digit Gavhah ID and private PIN","/my"),
+      "8":leaf("Sign out of this verified phone session","/my")
     }),
     "3":group("People and contacts",{
       "1":leaf("Donor 360","/communications"),"2":leaf("Contacts","/communications"),
