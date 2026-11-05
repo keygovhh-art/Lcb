@@ -7,7 +7,7 @@ import type {PoolClient} from "pg";
 export const isCommunityPhonePath=(path:string)=>path==="161"||path.startsWith("1611")||path.startsWith("1612")||
  path.startsWith("1613")||path.startsWith("1614");
 export type GroupPhoneSession={
- path:string;page:number;focusId:number|null;verifiedUserId:number|null;feedback?:string;
+ path:string;page:number;focusId:number|null;verifiedUserId:number|null;feedback?:string;conferenceTransfer?:string;
 };
 const validId=(x:unknown)=>{const n=Number(x);return Number.isSafeInteger(n)&&n>0&&n<=99999999?n:null;};
 const say=(x:unknown,max=85)=>String(x||"").replace(/<[^>]+>/g," ").replace(/[&=,;#]/g," ")
@@ -152,6 +152,30 @@ export async function groupPhoneDigit(client:PoolClient,s:GroupPhoneSession,digi
   }
   return next;
  }
+ if(s.path==="16145"){
+  if(digit==="0"){next.path="1614";return next;}
+  if(!s.focusId){back();return next;}
+  const row=await client.query<{
+   enabled:boolean;provider_state:string;access_mode:string;
+   listener_extension:string|null;moderator_extension:string|null;
+  }>("SELECT enabled,provider_state,access_mode,listener_extension,moderator_extension "+
+     "FROM public.group_conference_rooms WHERE group_id=$1",[s.focusId]);
+  const room=row.rows[0];
+  if(!room?.enabled||room.provider_state!=="provider_accepted"){
+   next.feedback="The group conference is not open yet.";return next;
+  }
+  const g=await getGroup(client,s.focusId,s.verifiedUserId);
+  if(!g){next.feedback="This group is not available.";return next;}
+  const canEnter=room.access_mode==="public"&&g.privacy==="public"||
+   !!s.verifiedUserId&&(g.member||g.owner_id===s.verifiedUserId);
+  const manager=!!s.verifiedUserId&&(g.manager||g.owner_id===s.verifiedUserId);
+  if(digit==="1"&&canEnter&&room.listener_extension&&/^\/[0-9]{3}$/.test(room.listener_extension)){
+   next.conferenceTransfer=room.listener_extension;next.feedback="";
+  }else if(digit==="2"&&manager&&room.moderator_extension&&/^\/[0-9]{3}$/.test(room.moderator_extension)){
+   next.conferenceTransfer=room.moderator_extension;next.feedback="";
+  }else next.feedback="Your account is not authorized for this group conference.";
+  return next;
+ }
  if(s.path==="16147"){
   if(digit==="0")next.path="1614";
   return next;
@@ -201,6 +225,21 @@ export async function groupPhonePrompt(client:PoolClient,s:GroupPhoneSession):Pr
  if(path==="16142")return{mode:"menu",text:"Message recording will become available after the provider recording and moderation connection is verified. Press zero to return."};
  if(path==="16143")return{mode:"menu",text:"To leave a message for the group management, please open the group on Gavhah website. Press zero to return."};
  if(path==="16144")return{mode:"menu",text:"Private voice replies to members will be enabled after the secure inbox recording integration is verified. Press zero to return."};
- if(path==="16145")return{mode:"menu",text:"Group telephone conferencing requires the separate conference provider integration. Not enabled yet. Press zero to return."};
+ if(path==="16145"){
+  const r=(await client.query<{
+   enabled:boolean;provider_state:string;access_mode:string;provider_line:string|null;
+   listener_extension:string|null;moderator_extension:string|null;
+  }>("SELECT enabled,provider_state,access_mode,provider_line,listener_extension,moderator_extension "+
+   "FROM public.group_conference_rooms WHERE group_id=$1",[id])).rows[0];
+  if(!r?.enabled||r.provider_state!=="provider_accepted")
+   return {mode:"menu",text:"This group's Yemot conference room is closed or has not been verified. Press zero to return."};
+  const allowed=r.access_mode==="public"&&g.privacy==="public"||
+   !!uid&&(g.member||g.owner_id===uid);
+  const manager=!!uid&&(g.manager||g.owner_id===uid);
+  if(!allowed&&!manager)return{mode:"menu",text:"Members only conference. Verify your Gavhah member account before joining. Press zero to return."};
+  return{mode:"menu",text:"Yemot conference for this group. Press 1 to enter the conference. "+
+    (manager?"For manager entrance press 2. ":"")+
+    "A conference access code may be required. Hear that code securely in the group website. Press zero to return."};
+ }
  return{mode:"menu",text:"Press zero to go back."};
 }
