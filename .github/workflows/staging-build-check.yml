@@ -41,6 +41,14 @@ jobs:
         run: node --test tests/olam-temp-123456-member-pin.test.mjs
       - name: Verify Olam SignalWire four-second repeat and silent hangup
         run: node --experimental-strip-types --test tests/olam-signalwire-two-tries.test.mjs
+      - name: Validate new Gavhah menus, BLN cases, received totals and minyan DST routing
+        run: |
+          node --experimental-strip-types --test tests/gavhah-hitkabtzu-shared-conference.test.mjs
+          node --experimental-strip-types --test tests/gavhah-minyan-daily-live-release.test.mjs
+          node --test tests/gavhah-news-askanim-voice-parity.test.mjs
+          node --test tests/gavhah-phone3-private-project-approval.test.mjs
+          node --test tests/gavhah-united-cause-bln-pledge-case-contract.test.mjs
+          node --test tests/gavhah-united-public-pledge-vs-received-totals.test.mjs
       - name: Check frontend and API TypeScript
         run: pnpm run typecheck
       - name: Build frontend and API exactly as Render

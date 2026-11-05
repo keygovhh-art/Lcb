@@ -48,14 +48,42 @@ function catalogue(){
   }
  };
  visit(phoneTree as Record<string,TreeItem>,"");
- const nDigits:Record<string,string>={"111":"4","113":"1","114":"2","115":"3"};
+ const nDigits:Record<string,string>={"111":"4","113":"1","115":"3"};
  for(const item of items){if(nDigits[item.path]){item.parent="97111";item.depth=4;item.displayDigit=nDigits[item.path];item.label=nDigits[item.path]+" — "+item.label;}}
  items.push({path:"97111",label:"1 — Other news options",kind:"menu",depth:3,parent:"11",displayDigit:"1"});
+ items.push({path:"9702",label:"2 — עסקנים שמועסן",kind:"menu",depth:1,parent:"root",displayDigit:"2"});
+ items.push({path:"97021",label:"1 — שמועסן־אפציעס",kind:"menu",depth:2,parent:"9702",displayDigit:"1"});
+ items.push({path:"970211",label:"1 — אריינרעדן א שמועס",kind:"button",depth:3,parent:"97021",displayDigit:"1"});
+ items.push({path:"9703",label:"3 — קאמיוניטי פראיעקטן און פריוואטע עסקנים",kind:"menu",depth:1,parent:"root",displayDigit:"3"});
+ items.push({path:"97031",label:"1 — פראיעקט־אפציעס",kind:"menu",depth:2,parent:"9703",displayDigit:"1"});
+ items.push({path:"970311",label:"1 — פריוואטע עסקנים־ליסטע",kind:"button",depth:3,parent:"97031",displayDigit:"1"});
+ items.push({path:"970312",label:"2 — שיקן פראיעקט / קאמפיין פאר באשטעטיגונג",kind:"button",depth:3,parent:"97031",displayDigit:"2"});
+ items.push({path:"9704",label:"4 — מתאחדים באהבה — אקטיווער צוועק",kind:"menu",depth:1,parent:"root",displayDigit:"4"});
+ items.push({path:"97041",label:"1 — זיך אנשליסן / נדבה",kind:"menu",depth:2,parent:"9704",displayDigit:"1"});
+ items.push({path:"970411",label:"1 — אונטערנעמען א סכום בל״נ",kind:"button",depth:3,parent:"97041",displayDigit:"1"});
+ items.push({path:"970412",label:"2 — געבן יעצט / נדבה־אנווייזונגען",kind:"button",depth:3,parent:"97041",displayDigit:"2"});
+ items.push({path:"97042",label:"2 — פארשלאגן א נייעם צוועק פאר טיעם־באשטעטיגונג",kind:"button",depth:2,parent:"9704",displayDigit:"2"});
+ items.push({path:"9706",label:"6 — היינטיגע צוועק — אקטיווער צוועק",kind:"menu",depth:1,parent:"root",displayDigit:"6"});
+ items.push({path:"97061",label:"1 — זיך אנשליסן / נדבה",kind:"menu",depth:2,parent:"9706",displayDigit:"1"});
+ items.push({path:"970611",label:"1 — אונטערנעמען א סכום בל״נ",kind:"button",depth:3,parent:"97061",displayDigit:"1"});
+ items.push({path:"970612",label:"2 — געבן יעצט / נדבה־אנווייזונגען",kind:"button",depth:3,parent:"97061",displayDigit:"2"});
+ items.push({path:"97062",label:"2 — פארשלאגן א היינטיגע צוועק פאר טיעם־באשטעטיגונג",kind:"button",depth:2,parent:"9706",displayDigit:"2"});
+ items.push({path:"9707",label:"7 — מנינים און פלאנירן די הייליגע מצוה",kind:"menu",depth:1,parent:"root",displayDigit:"7"});
+ items.push({path:"97071",label:"1 — הערן און זוכן מנינים",kind:"menu",depth:2,parent:"9707",displayDigit:"1"});
+ items.push({path:"970711",label:"1 — מנינים דורך שטאט",kind:"button",depth:3,parent:"97071",displayDigit:"1"});
+ items.push({path:"970712",label:"2 — מיינע געסעיווטע מנינים",kind:"button",depth:3,parent:"97071",displayDigit:"2"});
+ items.push({path:"970713",label:"3 — זוך דורך וועלכע אינפארמאציע",kind:"button",depth:3,parent:"97071",displayDigit:"3"});
+ items.push({path:"970714",label:"4 — פלאן די הייליגע מצוה",kind:"button",depth:3,parent:"97071",displayDigit:"4"});
+ items.push({path:"970715",label:"5 — זוך לויט א 3–4 ציפער נומער",kind:"button",depth:3,parent:"97071",displayDigit:"5"});
+ items.push({path:"97072",label:"2 — אריינשיקן א מנין פאר טיעם־באשטעטיגונג",kind:"button",depth:2,parent:"9707",displayDigit:"2"});
+ items.push({path:"9708",label:"8 — גרופ־צענטער מיט התקבצו קאנפרענץ",kind:"menu",depth:1,parent:"root",displayDigit:"8"});
+ items.push({path:"97085",label:"5 — התקבצו — אריינגאנג צום צימער",kind:"button",depth:2,parent:"9708",displayDigit:"5"});
+ items.push({path:"97086",label:"6 — מגיד שיעור / פארוואלטער — דער זעלבער צימער",kind:"button",depth:2,parent:"9708",displayDigit:"6"});
  // Implementation != verified phone functionality: label honestly.
- const known=new Set([...sectionPaths,"155","166","167","173","111","1121","1122","1123","1124","1125","1126","1127","1128","1129","113","114","115","121","122","123","124","125","126","185"]);
+ const known=new Set(["9708","97085","97086","9706","97061","970611","970612","97062","9707","97071","970711","970712","970713","970714","970715","97072","9702","97021","970211","9703","97031","970311","970312","9704","97041","970411","970412","97042",...sectionPaths,"155","166","167","173","111","1121","1122","1123","1124","1125","1126","1127","1128","1129","113","115","121","122","123","124","125","126","185"]);
  items.push(...Object.entries(gavhahPhoneStageVoices).map(([path,item])=>({path,label:item.label,kind:"button",depth:4,parent:path.slice(0,3)})));
  return items.map(item=>({...item,
-  suggestedEnglish:item.path==="11"?"To hear all updates, stay on the line. For other options, press 1.":item.path==="97111"?"Other news options. Press 1 for important and critical news. Press 2 for featured updates. Press 3 to find an update by article number. Press 4 for all updates. Press star to go back.":gavhahPhoneStageVoices[item.path]?.text || (item.kind==="menu"?phonePrompt(item.path==="root"?"":item.path):
+  suggestedEnglish:item.path==="9708"?"Group Center. Press five for Hitkabtzu live conference. Press six for the verified lecturer and moderator entrance. Both use the same room.":item.path==="97085"?"Hitkabtzu. Press one to enter the shared conference, two to request speaking permission, or three for access status.":item.path==="97086"?"Moderator access. Press one to enter the verified meeting room, two to open entry, three to block new entry, four to restore the schedule.":item.path==="9706"?"Today's Cause. Hear the independent daily cause, the BLN undertaking total and money actually received, and the number of participants. To join press 1, to suggest a cause press 2.":item.path==="97061"?"For a BLN undertaking press one. To donate now or hear payment instructions press two.":item.path==="970611"?"Enter BLN amount and due date. Longer than two months requires team approval.":item.path==="970612"?"Donation instructions or amount; no card details accepted by phone.":item.path==="97062"?"Record cause name and description for staff approval.":item.path==="9707"?"Minyan Center. To search and plan press one. To submit a minyan for staff review press two.":item.path==="97071"?"Search by city press one. Saved places press two. Free search press three. Plan a trip press four. Lookup by minyan ID press five.":item.path==="97072"?"Submit name, city, full address, prayer and minyan times. All entries require staff verification.":item.path==="9704"?"United in Kindness. The active cause, verified funds raised and people joined are read automatically. Press one to join or two to suggest a cause.":item.path==="97041"?"Press one for a BLN amount undertaking. Press two to donate now or hear official donation instructions.":item.path==="970411"?"Enter a BLN amount and the deadline. More than two months requires team approval.":item.path==="970412"?"Hear official donation methods or enter a donation amount. No card payments are collected.":item.path==="97042"?"Record a suggested cause title and description. Team approval is required before it appears.":item.path==="9703"?"To hear community projects, stay on the line. For options press one.":item.path==="97031"?"For the private Askanim list press one. To propose a campaign or project for staff approval press two.":item.path==="970311"?"Private Askanim offers and requests are reviewed only by Gavhah staff.":item.path==="970312"?"Enter project details by keypad and recording. Team approval is required.":item.path==="9702"?"To hear Askanim discussions, stay on the line. For options press one.":item.path==="97021"?"To record a discussion, press one.":item.path==="970211"?"Record your discussion and press pound when finished.":item.path==="11"?"To hear all updates, stay on the line. For other options, press 1.":item.path==="97111"?"Other news options. Press 1 for important and critical news. Press 3 to find an update by article number. Press 4 for all updates. Press star to go back.":gavhahPhoneStageVoices[item.path]?.text || (item.kind==="menu"?phonePrompt(item.path==="root"?"":item.path):
    "You selected "+item.label+". Press star to go back."),
   capability:item.kind==="menu"?"navigation":
   known.has(item.path)?"api_implemented_not_phone_verified":"roadmap_only"}));
@@ -90,7 +118,7 @@ router.get("/admin/yemot/voice-studio",requireAuth,admin,wrap(async(_req,res)=>{
  ]);
  res.setHeader("Cache-Control","private, no-store");
  const campaignReady=installation.rows[0]?.campaign_state==="live";
- const gavhahMain="Welcome to Gavhah. For news and updates, press 1. For My Askanus, press 2. For contacts, press 3. For calling, press 4. For kindness, press 5. For community, press 6. For minyans, press 7. For messages or registration, press 8. For management, press 9. For advanced Askanus keypad, enter 88 then pound. For Campaign Center, enter 4444. For official Gavhah member registration, press 0. Press star to go back.";
+ const gavhahMain="Welcome to Gavhah. For news and updates, press 1. For My Askanus, press 2. For community projects and private Askanim connections, press 3. For calling, press 4. For kindness, press 5. For community, press 6. For minyans, press 7. For messages or registration, press 8. For management, press 9. For advanced Askanus keypad, enter 88 then pound. For Campaign Center, enter 4444. For official Gavhah member registration, press 0. Press star to go back.";
  const originalMain="Welcome to Gavhah and Campaign Center. For Gavhah, press 1. For Campaign Center, press 2. To create a website member account, press 8. For official Gavhah member registration, press 0. Press star to go back.";
  const items=catalogue().map(item=>({...item,
   effectiveTts:gavhahPhoneStageVoices[item.path]?.text || (item.path==="root"?(campaignReady?gavhahMain:originalMain):item.kind==="menu"?phonePrompt(item.path).replace(/press zero to go back/gi,"press star to go back"):item.suggestedEnglish),

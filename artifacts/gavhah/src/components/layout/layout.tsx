@@ -22,6 +22,7 @@ const PRIMARY_DEPTS = [
   { label: "Today's Cause", fullLabel: "Today's Cause", href: "/charity", icon: <Heart className="h-4 w-4" /> },
   { label: "Minyans", fullLabel: "Minyan Directory", href: "/minyans", icon: <Clock className="h-4 w-4" /> },
   { label: "Groups", fullLabel: "Group Center", href: "/groups", icon: <Users className="h-4 w-4" /> },
+  { label: "Hitkabtzu", fullLabel: "Hitkabtzu Conference", href: "/conferences", icon: <Users className="h-4 w-4" /> },
   { label: "My Askanus", fullLabel: "My Askanus", href: "/my", icon: <Star className="h-4 w-4" /> },
 ];
 

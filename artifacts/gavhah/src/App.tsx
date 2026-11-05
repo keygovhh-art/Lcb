@@ -22,6 +22,7 @@ import ForumNew from "@/pages/forum/new";
 import Directory, { CommunityProjectsPage } from "@/pages/directory/index";
 import United from "@/pages/united/index";
 import Communications from "@/pages/communications/index";
+import UnifiedConference from "@/pages/conferences/index";
 import Charity from "@/pages/charity/index";
 import Minyans from "@/pages/minyans/index";
 import GroupsList from "@/pages/groups/index";
@@ -176,6 +177,7 @@ function Router() {
       <Route path="/community-projects" component={CommunityProjectsPage} />
       <Route path="/united" component={United} />
       <Route path="/communications" component={Communications} />
+       <Route path="/conferences" component={UnifiedConference} />
       <Route path="/charity" component={Charity} />
       <Route path="/minyans" component={Minyans} />
       <Route path="/groups" component={GroupsList} />

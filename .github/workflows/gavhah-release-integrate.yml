@@ -1,0 +1,87 @@
+name: Gavhah integrated Cloudflare release candidate (no production deploy)
+on:
+  push:
+    branches:
+      - release/gavhah-20261105-all-fixes-cloudflare
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/gavhah-release-integrate.yml'
+      - '.github/release/**'
+permissions:
+  contents: write
+concurrency:
+  group: gavhah-release-integrate
+  cancel-in-progress: false
+jobs:
+  integrate-check-and-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Fetch fixed source refs and review integration conflicts
+        run: |
+          set -eux
+          git config user.name "gavhah-release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git fetch origin +refs/heads/feature/gavhah-next-changes-20261105:refs/remotes/origin/feature/gavhah-next-changes-20261105
+          if git merge --no-commit --no-ff origin/feature/gavhah-next-changes-20261105; then
+            echo "Merge was conflict free"
+          else
+            python3 .github/release/resolve-gavhah-merge.py
+          fi
+          git add -A
+          git diff --check --cached
+          if git diff --name-only --diff-filter=U | grep .; then
+            echo "Remaining merge conflicts; refuse to publish"
+            exit 1
+          fi
+      - name: Install pinned dependencies
+        run: pnpm install --frozen-lockfile
+      - name: TypeScript and integration safety checks
+        run: |
+          pnpm run typecheck
+          node --experimental-strip-types --test tests/gavhah-hitkabtzu-shared-conference.test.mjs tests/gavhah-minyan-daily-live-release.test.mjs
+          node --test tests/gavhah-news-askanim-voice-parity.test.mjs tests/gavhah-phone3-private-project-approval.test.mjs tests/gavhah-united-cause-bln-pledge-case-contract.test.mjs tests/gavhah-united-public-pledge-vs-received-totals.test.mjs
+          node --test tests/yemot-cloudflare-independent-gate.test.mjs
+          node --test tests/yemot-cloudflare-provider-cutover.test.mjs
+          node --test tests/yemot-campaign-4444-contract.test.mjs
+          node --test tests/olam-temp-123456-member-pin.test.mjs
+      - name: Build Cloudflare-native Worker without publishing or changing live phone routes
+        run: |
+          pnpm --filter @workspace/gavhah run build
+          node cloudflare/gavhah/build-inline-assets.mjs
+          mkdir -p .native-cloudflare
+          pnpm dlx wrangler deploy --config cloudflare/gavhah/wrangler.jsonc --dry-run --outdir "$GITHUB_WORKSPACE/.native-cloudflare"
+          test -s .native-cloudflare/worker.js
+      - name: Upload independently compiled release for later verified deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: gavhah-integrated-native-worker-bundle
+          path: .native-cloudflare/
+          retention-days: 3
+          include-hidden-files: true
+      - name: Export compressed native Worker for authenticated Cloudflare staging upload
+        run: |
+          gzip -c .native-cloudflare/worker.js | base64 -w0 | fold -w 32000 | awk '{printf "GAVHAH_B64_PART_%03d:%s\\n",NR-1,$0} END {printf "GAVHAH_TOTAL_PARTS:%d\\n",NR}'
+      - name: Commit tested merge to isolated release branch
+        if: github.event_name == 'push'
+        run: |
+          if git diff --cached --quiet && ! git rev-parse -q --verify MERGE_HEAD; then
+            echo "Release branch already contains all reviewed commits; no push needed"
+          else
+            git commit -m "Integrate verified Gavhah phone, Group Center and My Askanus source"
+            git push origin HEAD:refs/heads/release/gavhah-20261105-all-fixes-cloudflare
+          fi

@@ -12,16 +12,49 @@ export const phoneTree: Record<string,Item> = {
     "1":group("News and updates — wait for all updates, press 1 for options",{
       "1":leaf("All updates, newest first","/news"),
       "3":leaf("Important and critical news","/news"),
-      "4":leaf("Featured updates","/news"),
       "5":leaf("Read an update by its article number","/news/:id")
     }),
-    "2":group("My Askanus and MAX",{
-      "1":leaf("My tasks, including marking complete","/my"),
-      "2":leaf("My personal cases and goals","/my"),
-      "3":leaf("My private notes","/my"),
-      "4":leaf("My personal dashboard","/my"),
-      "5":leaf("Securely link my website account by eight-digit code","/my"),
-      "6":leaf("Log out of this phone session","/my")
+    "2":group("My Askanus — accomplishments, cases and tasks",{
+      "1":leaf("What was accomplished — all-time website statistics","/my"),
+      "2":leaf("What was accomplished today — today statistics","/my"),
+      "3":group("Cases",{
+        "1":leaf("Open a personal case by phone","/my"),
+        "2":leaf("Cases newest to oldest, choose numbered case","/my"),
+        "3":leaf("Cases oldest to newest","/my"),
+        "4":leaf("Find a case by its number","/my"),
+        "5":leaf("Selected case: stats, status, finance, history and follow ups","/my")
+      }),
+      "4":group("Tasks",{
+        "1":leaf("Add a task by phone","/my"),
+        "2":leaf("Tasks newest to oldest, numbered choices","/my"),
+        "3":leaf("Tasks oldest to newest","/my"),
+        "4":leaf("Find a task by its number","/my")
+      }),
+      "5":group("My history",{
+        "1":leaf("Actions newest to oldest","/my"),
+        "2":leaf("Actions oldest to newest","/my"),
+        "3":leaf("Search recorded event number","/my")
+      }),
+      "6":group("My private notes",{
+        "1":leaf("New private note","/my"),
+        "2":leaf("Search note by number","/my"),
+        "3":leaf("All notes; numbered actions cross out, complete, delete","/my")
+      }),
+      "7":group("All official Gavhah notifications — also available in the main notifications center",{
+        "1":leaf("My unread notifications","/notifications"),
+        "2":leaf("All notifications, newest first","/notifications"),
+        "3":leaf("Mark all official notifications read with confirmation","/notifications"),
+        "4":group("Notification categories",{
+          "1":leaf("Comments and replies","/notifications"),
+          "2":leaf("Charity and causes","/notifications"),
+          "3":leaf("Groups and volunteering","/notifications"),
+          "4":leaf("Announcements","/notifications"),
+          "5":leaf("Help responses","/notifications")
+        }),
+        "5":leaf("Find an official notification by number","/notifications")
+      }),
+      "8":leaf("Sign in with four digit Gavhah ID and private PIN","/my"),
+      "9":leaf("Sign out of this verified phone session","/my")
     }),
     "3":group("People and contacts",{
       "1":leaf("Donor 360","/communications"),"2":leaf("Contacts","/communications"),
@@ -48,10 +81,11 @@ export const phoneTree: Record<string,Item> = {
       })
     }),
     "6":group("Community",{
-      "1":leaf("Groups","/groups"),"2":leaf("Discussion forum","/forum"),
+      "1":leaf("Group Center — Community Groups","/groups"),"2":leaf("Discussion forum","/forum"),
       "3":leaf("Directory","/directory"),"4":leaf("Connections","/connections"),
       "5":leaf("Create a forum post","/forum/new"),"6":leaf("Read a selected forum topic","/forum/:id"),
-      "7":leaf("Open a selected group","/groups/:id")
+      "7":leaf("Open a selected group","/groups/:id"),
+       "8":leaf("Hitkabtzu unified conference through keypad 8 then 5, lecturer 8 then 6","/conferences")
     }),
     "7":group("Minyans and appointments",{
       "1":leaf("Minyan directory","/minyans"),"2":leaf("Reservations","/reservations"),

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, communityProjectsTable, projectMembersTable, supportMessagesTable, askanuscases, caseActivityLog } from "@workspace/db";
-import { requireAuth, getSessionUserId, getSessionUserRole } from "../middlewares/auth";
+import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { resolveMemberDisplayName, getMemberIdentity } from "../lib/user-display";
 import { logActivity } from "../lib/activity";
 import { notifyUser, notifyStaff, queueStaffReview } from "../lib/notify";
@@ -16,6 +16,16 @@ const PROJECT_TYPES = new Set(["project", "campaign", "initiative", "program"]);
 const PROJECT_STATUSES = new Set(["active", "completed"]);
 const PROJECT_MEMBER_ROLES = new Set(["volunteer", "supporter", "organizer", "donor"]);
 
+function sameOrigin(req: {get:(key:string)=>string|undefined}):boolean{
+ const origin=req.get("origin");
+ if(req.get("sec-fetch-site")==="cross-site")return false;
+ if(!origin)return true; // Server-originated authorized requests.
+ try{
+  const host=req.get("x-forwarded-host")||req.get("host");
+  const u=new URL(origin);
+  return !!host&&u.host===host&&u.protocol==="https:";
+ }catch{return false;}
+}
 function routeId(value: string | string[]) {
   return Number.parseInt(Array.isArray(value) ? value[0] : value, 10);
 }
@@ -24,6 +34,7 @@ function routeId(value: string | string[]) {
 router.get("/community-projects", async (req, res): Promise<void> => {
   const { type, status } = req.query as Record<string, string>;
   let all = await db.select().from(communityProjectsTable).orderBy(desc(communityProjectsTable.createdAt));
+  all = all.filter(p => p.status !== "pending" && p.status !== "rejected");
   if (type) all = all.filter(p => p.type === type);
   if (status) all = all.filter(p => p.status === status);
   res.json(all);
@@ -31,6 +42,7 @@ router.get("/community-projects", async (req, res): Promise<void> => {
 
 // POST /community-projects
 router.post("/community-projects", requireAuth, async (req, res): Promise<void> => {
+  if(!sameOrigin(req)){res.status(403).json({error:"Cross-site project creation denied"});return;}
   const userId = getSessionUserId(req)!;
   const { title, description, type, organizerName, location, goalDescription } = req.body;
   const cleanTitle = String(title || "").trim();
@@ -55,7 +67,7 @@ router.post("/community-projects", requireAuth, async (req, res): Promise<void> 
       organizerName: safeOrganizerName,
       location: location ? String(location).trim().slice(0, 200) : null,
       goalDescription: goalDescription ? String(goalDescription).trim().slice(0, 1000) : null,
-      status: "active",
+      status: "pending",
     }).returning();
     await tx.insert(projectMembersTable).values({
       userId, projectId: created.id, name: safeOrganizerName,
@@ -69,12 +81,13 @@ router.post("/community-projects", requireAuth, async (req, res): Promise<void> 
     }).onConflictDoNothing().returning();
     if (personal) await tx.insert(caseActivityLog).values({
       caseId: personal.id, date: new Date().toISOString().slice(0, 10),
-      type: "status_change", note: "Created and joined official community project",
+      type: "status_change", note: "Community project submitted for team review — not public",
     });
     return created;
   });
 
-  await logActivity("project", `Created community project "${project.title}"`, safeOrganizerName);
+  // Never publish or log a pending application into public activity.
+  // The project is visible only to its owner and authorized staff until approved.
   const creator = await getMemberIdentity(userId);
   await queueStaffReview({
     userId,
@@ -90,7 +103,7 @@ router.post("/community-projects", requireAuth, async (req, res): Promise<void> 
     ].filter(Boolean).join("\n"),
     notificationType: "admin_project_creation",
   });
-  res.status(201).json(project);
+  res.status(202).json(project);
 });
 
 // GET /community-projects/:id
@@ -98,6 +111,13 @@ router.get("/community-projects/:id", async (req, res): Promise<void> => {
   const id = routeId(req.params.id);
   const [project] = await db.select().from(communityProjectsTable).where(eq(communityProjectsTable.id, id));
   if (!project) { res.status(404).json({ error: "Not found" }); return; }
+  if(project.status==="pending"||project.status==="rejected"){
+    const viewer=await getCurrentSessionUser(req);
+    if(!viewer||(viewer.id!==project.ownerId&&!isStaffRole(viewer.role))){
+      res.status(404).json({error:"Not found"});return;
+    }
+    res.set("Cache-Control","private,no-store");
+  }
   res.json(project);
 });
 
@@ -132,12 +152,24 @@ router.patch("/community-projects/:id", requireAuth, async (req, res): Promise<v
   }
   if (location !== undefined) updates.location = location ? String(location).trim().slice(0, 200) : null;
   if (goalDescription !== undefined) updates.goalDescription = goalDescription ? String(goalDescription).trim().slice(0, 1000) : null;
+  if(status !== undefined && !isStaffRole(getSessionUserRole(req))){
+    res.status(403).json({error:"Publication changes require staff approval"});return;
+  }
+  if(status !== undefined && existing.status==="pending"){
+    res.status(409).json({error:"Use the team review endpoint to approve pending projects"});return;
+  }
   if (status !== undefined) {
     const clean = String(status);
     if (!PROJECT_STATUSES.has(clean)) { res.status(400).json({ error: "invalid project status" }); return; }
     updates.status = clean;
   }
 
+  // Owner edits to previously approved public content require fresh moderation.
+  if(!isStaffRole(getSessionUserRole(req))&&
+     existing.status!=="pending"&&existing.status!=="rejected"&&
+     Object.keys(updates).some(k=>k!=="status")){
+    updates.status="pending";
+  }
   const [project] = await db.update(communityProjectsTable)
     .set(updates)
     .where(eq(communityProjectsTable.id, id))
@@ -161,6 +193,7 @@ router.delete("/community-projects/:id", requireAuth, async (req, res): Promise<
 
 // POST /community-projects/:id/join
 router.post("/community-projects/:id/join", requireAuth, async (req, res): Promise<void> => {
+  if(!sameOrigin(req)){res.status(403).json({error:"Cross-site joining denied"});return;}
   const projectId = routeId(req.params.id);
   const userId = getSessionUserId(req)!;
   const { name, role, message } = req.body;
@@ -238,6 +271,14 @@ router.post("/community-projects/:id/join", requireAuth, async (req, res): Promi
 // GET /community-projects/:id/members
 router.get("/community-projects/:id/members", async (req, res): Promise<void> => {
   const projectId = routeId(req.params.id);
+  const [project]=await db.select().from(communityProjectsTable)
+    .where(eq(communityProjectsTable.id,projectId));
+  if(!project){res.sendStatus(404);return;}
+  if(project.status==="pending"||project.status==="rejected"){
+    const viewer=await getCurrentSessionUser(req);
+    if(!viewer||(viewer.id!==project.ownerId&&!isStaffRole(viewer.role))){res.sendStatus(404);return;}
+    res.set("Cache-Control","private,no-store");
+  }
   const members = await db
     .select()
     .from(projectMembersTable)
@@ -246,4 +287,56 @@ router.get("/community-projects/:id/members", async (req, res): Promise<void> =>
   res.json(members);
 });
 
+// Staff-only moderation. Pending projects never enter any public feed until
+// this endpoint promotes them to 'active'; rejecting does not publish.
+router.get("/admin/community-projects/pending",requireAdmin,async(_req,res):Promise<void>=>{
+ const items=await db.select().from(communityProjectsTable)
+  .where(eq(communityProjectsTable.status,"pending"))
+  .orderBy(desc(communityProjectsTable.createdAt));
+ res.set("Cache-Control","private,no-store").json(items);
+});
+router.post("/admin/community-projects/:id/review",requireAdmin,async(req,res):Promise<void>=>{
+ if(!sameOrigin(req)){res.sendStatus(403);return;}
+ const id=routeId(req.params.id);
+ const decision=String(req.body?.decision||"");
+ if(!Number.isSafeInteger(id)||id<=0||!["approved","rejected"].includes(decision)){
+  res.status(400).json({error:"Invalid review decision"});return;
+ }
+ const next=decision==="approved"?"active":"rejected";
+ const title=req.body?.title,description=req.body?.description;
+ const fields:Record<string,unknown>={status:next};
+ if(title!==undefined){
+  if(typeof title!=="string"||!title.trim()||title.length>240){res.status(400).json({error:"Valid title required"});return;}
+  fields.title=title.trim();
+ }
+ if(description!==undefined){
+  if(typeof description!=="string"||!description.trim()||description.length>5000){res.status(400).json({error:"Valid description required"});return;}
+  fields.description=description.trim();
+ }
+ const current=await db.select().from(communityProjectsTable)
+  .where(eq(communityProjectsTable.id,id)).limit(1);
+ if(!current[0]||current[0].status!=="pending"){res.status(409).json({error:"Pending project not found"});return;}
+ // Phone intake placeholders cannot be approved until staff writes the title and description.
+ if(decision==="approved" &&
+    (/^Phone project application #/.test(String(fields.title||current[0].title))||
+     /^Pending recorded details/.test(String(fields.description||current[0].description)))){
+  res.status(409).json({error:"Staff must enter the final title and description from the recording"});return;
+ }
+ const updated=await db.transaction(async tx=>{
+  const [row]=await tx.update(communityProjectsTable).set(fields)
+   .where(and(eq(communityProjectsTable.id,id),eq(communityProjectsTable.status,"pending"))).returning();
+  if(!row)return null;
+  await tx.execute(sql`INSERT INTO public.gavhah_project_review_log(project_id,reviewer_id,decision,note)
+    VALUES(${id},${getSessionUserId(req)!},${decision},${String(req.body?.note||"").slice(0,1500)})`);
+  await tx.execute(sql`UPDATE public.gavhah_phone3_intake SET status=${decision==="approved"?"completed":"rejected"},
+    staff_notes=${String(req.body?.note||"").slice(0,1500)}, reviewed_by=${getSessionUserId(req)!},reviewed_at=now()
+    WHERE project_id=${id} AND status IN ('pending','reviewing')`);
+  return row;
+ });
+ if(!updated){res.status(409).json({error:"Another reviewer already handled this proposal"});return;}
+ await notifyUser(updated.ownerId,"project_review",
+   decision==="approved"?"Your community project is approved and public.":"Your community project was not approved.",
+   "/directory");
+ res.json({id:updated.id,status:updated.status,reviewed:true});
+});
 export default router;

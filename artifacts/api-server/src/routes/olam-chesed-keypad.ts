@@ -15,11 +15,11 @@ export function getKeypadMap():KeypadEntry[]{
  const walk=(nodes:Record<string,TreeEntry>,parent:string,depth:number)=>{
   for(const [key,node] of Object.entries(nodes)){
    const digits=parent+key;
-   let status="וועב־מפה";let reason="דער קנעפל איז אין מעניו־בוים, אבער נישט באשטעטיגט אלס פולע קיפעד־פונקציע";
+   let status="וועב־מאפע";let reason="דער קנעפל איז אין מעניו־בוים, אבער נישט באשטעטיגט אלס פולע קיפעד־פונקציע";
    if(digits==="159"||digits.startsWith("159")){
     status="SignalWire";reason="באזונדערער עולם החסד־צוטריט; נישט די ימות־קאמוניקאציע";
    }else if(digits==="2"||digits.startsWith("2")){
-    status="4444־מפה";reason="קאמפיין סענטער איז באזונדער פארבונדן; אונטער־אקציעס זענען נישט אלע פונקציאנעל באשטעטיגט";
+    status="4444־מאפע";reason="קאמפיין סענטער איז באזונדער פארבונדן; אונטער־אקציעס זענען נישט אלע פונקציאנעל באשטעטיגט";
    }else if(node.children){
     status="מעניו";reason="די נאוויגאציע עקזיסטירט; אונטער־קנעפלעך האבן אייגענע מצב";
    }else if(activeAction.has(digits)){
@@ -100,7 +100,7 @@ router.get("/admin/hotline-keypad-map",requireAdmin,(_req,res)=>{
  "<!doctype html><html lang=\"yi\" dir=\"rtl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>גבהה — קיפעד מפתח</title>",
  "<style>body{margin:0;background:#f6f8fb;color:#182d43;font:14px/1.6 system-ui,Arial}main{max-width:1200px;margin:auto;padding:16px}h1{font-size:25px}h2{font-size:19px}section{background:white;border:1px solid #e0e7ef;border-radius:15px;padding:17px;margin:13px 0}.pill,.status{display:inline-block;background:#ebf2fa;border:1px solid #d6e1ee;border-radius:10px;padding:3px 8px;margin:3px;font-size:12px}.toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center}input,select,button{font:inherit;padding:10px;border:1px solid #b9ccdf;border-radius:9px}button{background:#185d95;color:white;cursor:pointer}p{line-height:1.7}.small{color:#657487}table{width:100%;border-collapse:collapse;min-width:700px}td,th{text-align:right;border-bottom:1px solid #e3eaf2;padding:9px;vertical-align:top}th{background:#edf3f9}tr[hidden]{display:none}.scroll{overflow-x:auto}a{color:#12659d}</style></head><body><main>",
  "<section><h1>גבהה — פונקטליכער קיפעד־מפתח</h1><p>דער אמתער קנעפּל־בוים, מיט פונקציע־מצב און וועב־פארבינדונג. א נאמען אינעם מעניו איז נישט א באשטעטיגונג אז דער פונקציע ארבעט שוין.</p><div>"+summary+"</div></section>",
- "<section><h2>הויפט־אנווייזונגען</h2><p><b>0</b> — איין מעניו צוריק; אויפן הויפט־מעניו בלייבט דער עקזיסטירנדער ימות־מענעדזשמענט. <b>4444</b> — קאמפיין סענטער. <b>159</b> — עולם החסד־צוטריט־טויער; די עכטע קאמוניקאציע בלייבט אויף SignalWire.</p><p class=\"small\">די אפציעס מיט „וועב־מפה“ אדער „4444־מפה“ זענען נישט באשטעטיגט אלס לייווע קיפעד־פונקציעס. פריוואטע דאטן פאדערן א באשטעטיגטן אקאונט.</p></section>",
+ "<section><h2>הויפט־אנווייזונגען</h2><p><b>0</b> — איין מעניו צוריק; אויפן הויפט־מעניו בלייבט דער עקזיסטירנדער ימות־מענעדזשמענט. <b>4444</b> — קאמפיין סענטער. <b>159</b> — עולם החסד־צוטריט־טויער; די עכטע קאמוניקאציע בלייבט אויף SignalWire.</p><p class=\"small\">די אפציעס מיט „וועב־מאפע“ אדער „4444־מאפע“ זענען נישט באשטעטיגט אלס לייווע קיפעד־פונקציעס. פריוואטע דאטן פאדערן א באשטעטיגטן אקאונט.</p></section>",
  "<section><h2>אלע קנעפלעך</h2><div class=\"toolbar\"><input id=\"q\" placeholder=\"זוך עקסטענשאן אדער אפציע\"><select id=\"f\"><option value=\"\">אלע מצבים</option>"+options+"</select><button id=\"reset\">אויסמעקן</button></div><p id=\"count\" class=\"small\">"+rows.length+" איינטרעגונגען</p><div class=\"scroll\"><table><thead><tr><th>קנעפּל</th><th>אפטיילונג</th><th>מצב</th><th>וואס ארבעט</th><th>וועב</th></tr></thead><tbody>"+table+"</tbody></table></div></section>",
  "<section><h2>עולם החסד־צוטריט־בקשות</h2><p>נאר דער גרינדער קען באשטעטיגן אן עקזיסטירנדן SignalWire־אקאונט. צוטריט צום גבהה־וועב אליין גיט נישט אויטאמאטיש דעם רעכט.</p><button id=\"refresh\">דערהיינטיגן</button><p id=\"reviewState\" class=\"small\"></p><div id=\"applications\"></div></section><p><a href=\"/founder\">צוריק צום דעשבאורד</a></p></main>",
  "<script>const q=document.getElementById('q'),f=document.getElementById('f'),trs=[...document.querySelectorAll('tbody tr')];function filt(){let n=0;for(const r of trs){let ok=r.dataset.text.includes(q.value.toLowerCase().trim())&&(!f.value||r.dataset.status===f.value);r.hidden=!ok;if(ok)n++;}document.getElementById('count').textContent=n+' פון '+trs.length+' איינטרעגונגען'}q.oninput=filt;f.onchange=filt;document.getElementById('reset').onclick=()=>{q.value='';f.value='';filt()};",

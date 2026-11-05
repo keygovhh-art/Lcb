@@ -1,0 +1,38 @@
+name: Gavhah release source snapshot (isolated, no deployment)
+on:
+  push:
+    branches:
+      - release/gavhah-20261105-all-fixes-cloudflare
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/gavhah-release-source-snapshot.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout release source and history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch integration branch refs
+        run: |
+          git fetch origin +refs/heads/feature/gavhah-next-changes-20261105:refs/remotes/origin/feature/gavhah-next-changes-20261105
+          git fetch origin +refs/heads/fix/20261103-news-askan-im-phone-public-parity:refs/remotes/origin/fix/20261103-news-askan-im-phone-public-parity
+          git fetch origin +refs/heads/main:refs/remotes/origin/main
+          git bundle create "$RUNNER_TEMP/gavhah-release-source.bundle" --all
+          git bundle verify "$RUNNER_TEMP/gavhah-release-source.bundle"
+          ls -lh "$RUNNER_TEMP/gavhah-release-source.bundle"
+      - name: Export Git object bundle for conflict-free local review
+        uses: actions/upload-artifact@v4
+        with:
+          name: gavhah-release-source-git-bundle
+          path: ${{ runner.temp }}/gavhah-release-source.bundle
+          retention-days: 2
+          compression-level: 1

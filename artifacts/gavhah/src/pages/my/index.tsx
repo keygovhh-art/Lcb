@@ -14,7 +14,9 @@ import { useAuth } from "@/context/auth-context";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { CaseFollowups } from "@/components/askanus/case-followups";
 import { MaxHistoryPanel } from "@/components/communications/max-history-panel";
-import { PhoneAccountLink } from "@/components/askanus/phone-account-link";
+import {UnitedMemberCaseHub} from "@/components/askanus/united-member-case-hub";
+import {CauseMessageMemberInbox} from "@/components/askanus/cause-message-member-inbox";
+import {DailyMemberCaseHub} from "@/components/askanus/daily-member-case-hub";
 import { Layout } from "@/components/layout/layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -731,7 +733,25 @@ export default function MyAskanus() {
     }
   };
 
-  const handleDeleteNote = (id: number) =>
+  const setNoteFlag = async (id: number, field: "completed" | "crossedOut", value: boolean) => {
+    try {
+      const response = await fetch(`/api/askanus/notes/${id}`, {
+        method: "PATCH", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [field]: value }),
+      });
+      if (!response.ok) throw new Error("Could not update note");
+      const updated = await response.json();
+      qc.setQueryData(getListAskanusNotesQueryKey(), (current: any) =>
+        Array.isArray(current) ? current.map((n: any) => n.id === id ? updated : n) : current
+      );
+      void invalidateNotes();
+    } catch {
+      toast({ title: "Could not update note", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteNote = (id: number) => {
+    if (!window.confirm("Permanently delete this note? This cannot be undone.")) return;
     deleteNote.mutate(
       { id },
       {
@@ -745,6 +765,7 @@ export default function MyAskanus() {
         onError: () => toast({ title: "Could not delete note", variant: "destructive" }),
       }
     );
+  };
 
   return (
     <Layout>
@@ -778,8 +799,6 @@ export default function MyAskanus() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4"><PhoneAccountLink /></div>
-
       {/* Lifetime Impact */}
       <div className="bg-muted/30 border-b py-6">
         <div className="container mx-auto px-4">
@@ -795,6 +814,9 @@ export default function MyAskanus() {
       </div>
 
       <div className="container mx-auto px-4 py-10">
+        <UnitedMemberCaseHub highlightCase={focusedCase}/>
+        <DailyMemberCaseHub highlightCase={focusedCase}/>
+        <CauseMessageMemberInbox/>
         <Tabs defaultValue="cases" className="space-y-8">
           <TabsList className="bg-muted/50 h-auto p-1 flex flex-wrap gap-1">
             <TabsTrigger value="cases" className="gap-2">
@@ -972,8 +994,10 @@ export default function MyAskanus() {
               {notes.map((note: any) => (
                 <div key={note.id} className="bg-card border rounded-xl p-5 hover:shadow-sm transition-shadow">
                   <div className="flex items-start justify-between gap-3 mb-2">
-                    <h3 className="font-serif font-bold text-primary">{note.title}</h3>
+                    <h3 className={`font-serif font-bold text-primary ${note.crossedOut ? "line-through opacity-60" : ""}`}>{note.title}</h3>
                     <div className="flex gap-1 shrink-0">
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" title="Cross out / Restore" aria-label="Cross out or restore note" onClick={() => void setNoteFlag(note.id, "crossedOut", !note.crossedOut)}>{note.crossedOut ? "צוריקשטעלן" : "אויסשטרייכן"}</Button>
+                      <Button size="sm" variant={note.completed ? "secondary" : "outline"} className="h-7 px-2 text-xs" title="Mark completed / Reopen" aria-label="Complete or reopen note" onClick={() => void setNoteFlag(note.id, "completed", !note.completed)}>{note.completed ? "פארענדיגט ✓" : "פארענדיגן"}</Button>
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary" onClick={() => { setEditNoteId(note.id); setNewNote({ title: note.title, content: note.content }); }}>
                         <Edit3 className="h-3.5 w-3.5" />
                       </Button>
@@ -982,7 +1006,7 @@ export default function MyAskanus() {
                       </Button>
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-4">{note.content}</p>
+                  <p className={`text-sm text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-4 ${note.crossedOut ? "line-through opacity-60" : ""}`}>{note.content}</p>
                   <p className="text-xs text-muted-foreground mt-3 border-t pt-2">{formatGregorianDate(note.createdAt)}</p>
                 </div>
               ))}

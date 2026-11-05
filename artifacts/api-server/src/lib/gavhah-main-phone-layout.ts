@@ -4,11 +4,11 @@
 export const gavhahHomepageHotlineDivisions = [
  {number:1,name:"Chesed News Center",website:"/news",phonePath:"11"},
  {number:2,name:"Askanim Discussion Center",website:"/forum",phonePath:"9702"},
- {number:3,name:"Private Assistance",website:"/directory",phonePath:"9703"},
+ {number:3,name:"Community Projects & Private Askanim Matching",website:"/directory",phonePath:"9703"},
  {number:4,name:"United In Kindness",website:"/united",phonePath:"9704"},
  {number:5,name:"Olam Hachesed Communications",website:"/communications",phonePath:"159"},
  {number:6,name:"Today's Cause",website:"/charity",phonePath:"9706"},
- {number:7,name:"Minyan Directory",website:"/minyans",phonePath:"17"},
+ {number:7,name:"Minyan Directory & Trip Planner",website:"/minyans",phonePath:"9707"},
  {number:8,name:"Group Center",website:"/groups",phonePath:"9708"},
  {number:9,name:"My Askanus",website:"/my",phonePath:"12"},
  {number:10,name:"Office Reservations",website:"/reservations",phonePath:"172",via:"77 then 1"},
@@ -50,11 +50,17 @@ export const gavhahMorePhoneAliases = {
  "6":"15","7":"16","8":"17","9":"12"
 } as const;
 export const gavhahWebsitePhoneVirtualMenus = {
- "9702":{"1":"162","2":"165","3":"166","4":"163","5":"164"},
- "9703":{"1":"152","2":"153","3":"154","4":"151"},
- "9704":{"1":"154","2":"152","3":"153","4":"164","5":"161"},
- "9706":{"1":"151","2":"155","3":"154"},
- "9708":{"1":"161","2":"167","3":"164","4":"162"},
+ "9702":{"1":"97021"}, // Discussion: wait-to-listen; press 1 for options only
+ "97021":{"1":"970211"}, // Record a discussion, then #, preview, publish/redo/discard/cancel/continue
+ "9703":{"1":"97031"}, // Approved projects play automatically; 1 = options
+ "97031":{"1":"970311","2":"970312"},
+ "9704":{"1":"97041","2":"97042"},
+ "97041":{"1":"970411","2":"970412"}, // 1 BLN undertaking; 2 donate-now instructions
+ "9706":{"1":"97061","2":"97062"}, // Today's Cause: same menus as United, financially independent
+ "97061":{"1":"970611","2":"970612"},
+ "9707":{"1":"97071","2":"97072"}, // 1 search/plan; 2 submit reviewed minyan
+ "97071":{"1":"970711","2":"970712","3":"970713","4":"970714","5":"970715"},
+ "9708":{"1":"161","2":"167","3":"164","4":"162","5":"97085","6":"97086"}, // Same Yemot conference: public and lecturer entry
  "9777":gavhahMorePhoneAliases
 } as const;
 // In the live Worker, the new main keypad maps to existing backend paths;
