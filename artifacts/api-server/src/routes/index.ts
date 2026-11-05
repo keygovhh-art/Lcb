@@ -21,6 +21,7 @@ import unitedWorkspaceRouter from "./gavhah-united-workspace";
 import unitedCaseAdminRouter from "./gavhah-united-case-admin";
 import unitedNominationsRouter from "./gavhah-united-nominations";
 import dailyWorkspaceRouter from "./gavhah-daily-workspace";
+import unifiedConferenceRouter from "./gavhah-unified-conference";
 import communityProjectsRouter from "./community-projects";
 import askanusRouter from "./askanus";
 import communicationsMaxRouter from "./communications-max";
@@ -89,6 +90,7 @@ router.use(unitedWorkspaceRouter);
 router.use(unitedCaseAdminRouter);
 router.use(unitedNominationsRouter);
 router.use(dailyWorkspaceRouter);
+router.use(unifiedConferenceRouter);
 router.use(communityProjectsRouter);
 // MAX/My Askanus changes are session-cookie authenticated. Cross-site requests
 // carrying an Origin must be from this host; preserve non-browser API clients.
