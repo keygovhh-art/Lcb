@@ -199,7 +199,7 @@ router.post("/admin/conference/hands/:id",requireAdmin,async(req,res,next)=>{
     [member,getSessionUserId(req)]);
   }
   await c.query("INSERT INTO public.gavhah_unified_conference_events "+
-   "(actor_member_id,event_type,details) VALUES($1,'hand_'+$2,$3::jsonb)",
+   "(actor_member_id,event_type,details) VALUES($1,'hand_' || $2,$3::jsonb)",
    [getSessionUserId(req),decision,JSON.stringify({member})]);
   await c.query("COMMIT");
   // Real-time microphone unmute on Yemot is separate provider integration.
