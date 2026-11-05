@@ -1,0 +1,43 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const read=p=>fs.readFileSync(p,"utf8");
+test("Gavhah group conference is its own provider-backed module",()=>{
+ const route=read("artifacts/api-server/src/routes/group-conferences.ts");
+ const migration=read("lib/db/migrations/20261105_group_yemot_conference_rooms.sql");
+ const index=read("artifacts/api-server/src/routes/index.ts");
+ assert(route.includes('getYemotConferenceCredentials'));
+ assert(route.includes('provider_state==="provider_accepted"'));
+ assert(route.includes('group_conference_rooms'));
+ assert(migration.includes("REFERENCES public.groups(id) ON DELETE CASCADE"));
+ assert(index.includes("router.use(groupConferencesRouter)"));
+ assert(!route.includes("gavhah_unified_conference"));
+});
+test("Only SignalWire owns ordinary calls and Yemot is conference-only",()=>{
+ const route=read("artifacts/api-server/src/routes/group-conferences.ts");
+ const sources=read("artifacts/api-server/src/lib/yemot-community-groups.ts");
+ const ui=read("artifacts/gavhah/src/components/groups/group-conference-panel.tsx");
+ assert(!/CallExtensionBridging|RunCampaign|GetTemplates|originateCall|placeOutboundCall|StartCall|call_forward/.test(route));
+ assert(route.includes("callingProvider:\"SignalWire\""));
+ assert(route.includes('provider:"Yemot"'));
+ assert(route.includes("CheckIfFileExists"));
+ assert(route.includes("GetTextFile"));
+ assert(route.includes("GetIVR2Dir"));
+ assert(route.includes("UpdateExtension"));
+ assert(sources.includes('s.path==="16145"'));
+ assert(sources.includes("next.conferenceTransfer=room.listener_extension"));
+ assert(sources.includes("next.conferenceTransfer=room.moderator_extension"));
+ assert(ui.includes("געווענליכע טעלעפאן־קאלס גייען נאר דורך SignalWire"));
+});
+test("Conference credentials protected and provider failures never self-certify",()=>{
+ const route=read("artifacts/api-server/src/routes/group-conferences.ts");
+ const migration=read("lib/db/migrations/20261105_group_yemot_conference_rooms.sql");
+ assert(route.includes('requireAuth,superadmin,mutating'));
+ assert(route.includes('createCipheriv("aes-256-gcm"'));
+ assert(route.includes('provider_state=\\'needs_review\\''));
+ assert(route.includes('rootUntouched:true'));
+ assert(route.includes('physicalCallTested:false'));
+ assert(route.includes('sayError(res,403,"Group conference manager only")'));
+ assert(route.includes('g.privacy!=="public"&&accessMode==="public"'));
+ assert(migration.includes("CHECK (NOT enabled OR (provider_state = 'provider_accepted'"));
+});
