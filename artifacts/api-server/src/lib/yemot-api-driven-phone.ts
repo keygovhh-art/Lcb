@@ -457,6 +457,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     goToProviderManagement=true;
    }else if(from4444 && digit==="0"){
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
+   }else if(isCommunityPhonePath(path)){
+    const active=!!userId && await memberAllowed(client,{...s,member_id:userId});
+    const next=await groupPhoneDigit(client,{path,page,focusId:confirmId,verifiedUserId:active?userId:null},digit);
+    path=next.path;page=next.page;confirmId=next.focusId;feedback=next.feedback||"";
    }else if(path==="159" && !fromShared && !from4444){
     // Separate SignalWire permission: provider verification is NEVER inferred
     // from caller ID or from an ordinary Gavhah/MAX account.
