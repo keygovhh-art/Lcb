@@ -70,5 +70,7 @@ export const askanusnotes = pgTable("askanus_notes", {
   userId: integer("user_id").notNull().default(1),
   title: text("title").notNull(),
   content: text("content").notNull(),
+  crossedOut: boolean("crossed_out").notNull().default(false),
+  completed: boolean("completed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
