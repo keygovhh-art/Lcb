@@ -441,7 +441,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   let manualFlash=s.action_flash||"";
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";}
-  const inputName=(replyMode?"rr":path==="127"?"ln":path==="185"?"rg":(path==="115"||path==="161"||isMyAskanusNumericEntry(path)||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(replyMode?"rr":path==="128"?"ln":path==="185"?"rg":(path==="115"||path==="161"||isMyAskanusNumericEntry(path)||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
   let goToProviderManagement=false;
@@ -774,7 +774,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }
   }else if(isMyAskanusPath(path)){
    const active=!!userId && await memberAllowed(client,{...s,member_id:userId});
-   mode=path==="127"?"pin":isMyAskanusNumericEntry(path)?"article":"menu";
+   mode=path==="128"?"pin":isMyAskanusNumericEntry(path)?"article":"menu";
    spoken+=await myAskanusPrompt(client,{path,page,focusId:confirmId,flash:manualFlash,memberId:active?userId:null,callHash,failures:s.login_failures});
   }else if(isCommunityPhonePath(path)){
    const active=!!userId&&await memberAllowed(client,{...s,member_id:userId});
