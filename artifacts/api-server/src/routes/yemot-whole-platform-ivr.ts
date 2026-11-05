@@ -41,8 +41,21 @@ export const phoneTree: Record<string,Item> = {
         "2":leaf("Search note by number","/my"),
         "3":leaf("All notes; numbered actions cross out, complete, delete","/my")
       }),
-      "7":leaf("Sign in with four digit Gavhah ID and private PIN","/my"),
-      "8":leaf("Sign out of this verified phone session","/my")
+      "7":group("All official Gavhah notifications — also available in the main notifications center",{
+        "1":leaf("My unread notifications","/notifications"),
+        "2":leaf("All notifications, newest first","/notifications"),
+        "3":leaf("Mark all official notifications read with confirmation","/notifications"),
+        "4":group("Notification categories",{
+          "1":leaf("Comments and replies","/notifications"),
+          "2":leaf("Charity and causes","/notifications"),
+          "3":leaf("Groups and volunteering","/notifications"),
+          "4":leaf("Announcements","/notifications"),
+          "5":leaf("Help responses","/notifications")
+        }),
+        "5":leaf("Find an official notification by number","/notifications")
+      }),
+      "8":leaf("Sign in with four digit Gavhah ID and private PIN","/my"),
+      "9":leaf("Sign out of this verified phone session","/my")
     }),
     "3":group("People and contacts",{
       "1":leaf("Donor 360","/communications"),"2":leaf("Contacts","/communications"),
