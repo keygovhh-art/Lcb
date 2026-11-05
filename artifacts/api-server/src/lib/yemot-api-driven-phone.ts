@@ -3,6 +3,7 @@ import { pool } from "@workspace/db";
 import {phonePromptOverride} from "../routes/yemot-voice-studio";
 import {applyFixedPhonePhraseEdits} from "../routes/gavhah-hotline-speech-library";
 import { logger } from "./logger";
+import {isCommunityPhonePath,groupPhoneDigit,groupPhonePrompt} from "./yemot-community-groups";
 import {noteYemotReturnCalls} from "./signalwire-max-return-calls";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
@@ -71,7 +72,7 @@ function sendRead(res:Response,prompt:string,step:number,mode:"menu"|"root"|"new
  : [name,"no","1","1","8","No","no"];
  const audio=audioPath&&/^ivr2:\/[0-9]{1,3}\/gavhah_[a-f0-9]{32}\.wav$/.test(audioPath)
   ? "f-"+audioPath.slice(5).replace(/\.wav$/,"") : null;
- const backHint=step>0&&mode!=="root"&&!/press zero to (go back|return)/i.test(prompt)?" To go back one menu, press zero.":"";
+ const backHint=step>0&&mode!=="root"&&!/press zero to (go back|return)|press zero for group management|press digit zero to return/i.test(prompt)?" To go back one menu, press zero.":"";
  const providerBody="read="+(audio?(step>0&&mode!=="root"?voice("To go back one menu press zero")+"."+audio:audio):voice(prompt+backHint))+"="+opts.join(",");
  if(step===0)logger.info({ivrResponse:"read",mode,step,promptCharacters:prompt.length,patternVersion:"basic-read-v2"},"Yemot welcome reply delivered");
  res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send(providerBody);
@@ -437,7 +438,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   let manualFlash=s.action_flash||"";
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";}
-  const inputName=(replyMode?"rr":path==="125"?"ln":path==="185"?"rg":(path==="115"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(replyMode?"rr":path==="125"?"ln":path==="185"?"rg":(path==="115"||path==="161"||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
   let goToProviderManagement=false;
@@ -447,7 +448,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    // Existing Yemot management is usually extension /0 (admin_login).
    // Preserve it on root 0, and keep nested 0 returning to the API root.
    // Moving to /0 DOES NOT bypass the provider admin password.
-   if(digit==="0" && path!=="" && !fromShared){
+   if(digit==="0" && path!=="" && !fromShared && !isCommunityPhonePath(path)){
     if(path==="185")await cancelPhoneSignup(client,callHash);
     path=path.length>2?path.slice(0,-1):(from4444?"2":"");
     position=0;chunk=0;page=0;confirmId=null;
@@ -456,6 +457,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     goToProviderManagement=true;
    }else if(from4444 && digit==="0"){
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
+   }else if(isCommunityPhonePath(path)){
+    const active=!!userId && await memberAllowed(client,{...s,member_id:userId});
+    const next=await groupPhoneDigit(client,{path,page,focusId:confirmId,verifiedUserId:active?userId:null},digit);
+    path=next.path;page=next.page;confirmId=next.focusId;feedback=next.feedback||"";
    }else if(path==="159" && !fromShared && !from4444){
     // Separate SignalWire permission: provider verification is NEVER inferred
     // from caller ID or from an ordinary Gavhah/MAX account.
@@ -753,6 +758,12 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     spoken="This Olam Chesed function belongs to the separate SignalWire communication service. "+
      "This Yemot menu cannot originate SignalWire calls. Open the Olam Chesed Communication website. Press zero to go back.";
    }
+  }else if(isCommunityPhonePath(path)){
+   const active=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+   const result=await groupPhonePrompt(client,{path,page,focusId:confirmId,verifiedUserId:active?userId:null});
+   mode=result.mode;
+   if(result.focusId!==undefined)confirmId=result.focusId;
+   spoken+=result.text.replace(/press zero to (go back|return)/gi,"press digit zero to return");
   }else if(path==="185"){
    mode="registration";
    const pending=await pendingPhoneSignup(client,callHash);
