@@ -64,7 +64,7 @@ jobs:
           pnpm --filter @workspace/gavhah run build
           node cloudflare/gavhah/build-inline-assets.mjs
           mkdir -p .native-cloudflare
-          pnpm dlx wrangler deploy --config cloudflare/gavhah/wrangler.jsonc --dry-run --outdir .native-cloudflare
+          pnpm dlx wrangler deploy --config cloudflare/gavhah/wrangler.jsonc --dry-run --outdir "$GITHUB_WORKSPACE/.native-cloudflare"
           test -s .native-cloudflare/worker.js
       - name: Upload independently compiled release for later verified deployment
         uses: actions/upload-artifact@v4
