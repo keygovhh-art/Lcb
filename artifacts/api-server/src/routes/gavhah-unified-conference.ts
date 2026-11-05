@@ -36,7 +36,7 @@ router.get("/conference",async(_req,res,next)=>{
 router.get("/me/conference",requireAuth,async(req,res,next)=>{
  const c=await pool.connect();
  try{
-  const gate=await conferenceGate(c,getSessionUserId(req));
+  const gate=await conferenceGate(c,getSessionUserId(req)??null);
   const hand=await c.query<{state:string}>(
    "SELECT state FROM public.gavhah_unified_conference_hand_requests WHERE member_id=$1",
    [getSessionUserId(req)]);
@@ -53,7 +53,7 @@ router.post("/me/conference/raise-hand",requireAuth,async(req,res,next)=>{
  const member=getSessionUserId(req);
  const c=await pool.connect();
  try{
-  const gate=await conferenceGate(c,member);
+  const gate=await conferenceGate(c,member??null);
   if(gate.role==="blocked"){res.sendStatus(403);return;}
   const r=await c.query(
    "INSERT INTO public.gavhah_unified_conference_hand_requests(member_id,state) "+
