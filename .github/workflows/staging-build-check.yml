@@ -43,6 +43,7 @@ jobs:
         run: node --experimental-strip-types --test tests/olam-signalwire-two-tries.test.mjs
       - name: Validate new Gavhah menus, BLN cases, received totals and minyan DST routing
         run: |
+          node --experimental-strip-types --test tests/gavhah-hitkabtzu-shared-conference.test.mjs
           node --experimental-strip-types --test tests/gavhah-minyan-daily-live-release.test.mjs
           node --test tests/gavhah-news-askanim-voice-parity.test.mjs
           node --test tests/gavhah-phone3-private-project-approval.test.mjs
