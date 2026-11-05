@@ -46,6 +46,15 @@ const getRow = async (): Promise<ProviderRow | null> => {
   const result = await pool.query("SELECT token_nonce, token_ciphertext, token_tag, line_number, enabled, last_verified_at, last_test_at, updated_at FROM " + table + " WHERE id = 1");
   return result.rows[0] || null;
 };
+/** Server-only credential access for add-only group conference provisioning.
+ * This does not place any calls and never returns credentials to browsers.
+ */
+export async function getYemotConferenceCredentials(): Promise<{token:string;lineNumber:string}> {
+  const row=await getRow();
+  if(!row?.enabled||!row.last_verified_at||!/^\\d{7,15}$/.test(row.line_number))
+    throw Error("The verified Yemot conference provider connection is unavailable");
+  return {token:decode(row),lineNumber:row.line_number};
+}
 const publicStatus = (row: ProviderRow | null) => ({
   configured: !!row,
   enabled: !!row?.enabled,
