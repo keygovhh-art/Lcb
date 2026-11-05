@@ -38,6 +38,7 @@ import {UnitedTeamDashboard} from "@/components/admin/united-team-dashboard";
 import {CauseChannelsTeamSettings} from "@/components/admin/cause-channels-team-settings";
 import {MinyanTeamWorkspace} from "@/components/admin/minyan-team-workspace";
 import {DailyCauseTeamDashboard} from "@/components/admin/daily-cause-team-dashboard";
+import {UnifiedConferenceAdmin} from "@/components/admin/unified-conference-admin";
 import { EngagementManagement } from "@/components/admin/engagement-management";
 import { PinnedAnnouncementManagement } from "@/components/admin/pinned-announcement-management";
 import { YemotCentralManagement } from "@/components/admin/yemot-central-management";
@@ -424,6 +425,7 @@ export default function FounderDashboard() {
               <TabsTrigger value="united-settings" className="gap-2"><Heart className="h-4 w-4" /> מתאחדים סעטינגס</TabsTrigger>
               <TabsTrigger value="daily-cause-settings" className="gap-2"><Star className="h-4 w-4" /> היינטיגע צוועק סעטינגס</TabsTrigger>
               <TabsTrigger value="daily-cause-team" className="gap-2"><Star className="h-4 w-4" /> היינטיגע צוועק — טיעם</TabsTrigger>
+              <TabsTrigger value="gavhah-conference">התקבצו — קאנפרענץ</TabsTrigger>
             <TabsTrigger value="submissions" className="gap-2">
               <Star className="h-4 w-4" /> Cause Reviews
               {causeSubmissions.filter(c => c.status === "pending").length > 0 && (
@@ -963,6 +965,7 @@ export default function FounderDashboard() {
            <TabsContent value="united-settings" className="space-y-4"><CauseChannelsTeamSettings which="united"/></TabsContent>
            <TabsContent value="daily-cause-settings" className="space-y-4"><CauseChannelsTeamSettings which="daily"/></TabsContent>
             <TabsContent value="daily-cause-team" className="space-y-4"><DailyCauseTeamDashboard/></TabsContent>
+            <TabsContent value="gavhah-conference" className="space-y-4"><UnifiedConferenceAdmin/></TabsContent>
 
            <TabsContent value="causes" className="space-y-4">
             <div>
