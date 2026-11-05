@@ -79,5 +79,9 @@ jobs:
       - name: Commit tested merge to isolated release branch
         if: github.event_name == 'push'
         run: |
-          git commit -m "Integrate verified Gavhah phone, Group Center and My Askanus source"
-          git push origin HEAD:refs/heads/release/gavhah-20261105-all-fixes-cloudflare
+          if git diff --cached --quiet && ! git rev-parse -q --verify MERGE_HEAD; then
+            echo "Release branch already contains all reviewed commits; no push needed"
+          else
+            git commit -m "Integrate verified Gavhah phone, Group Center and My Askanus source"
+            git push origin HEAD:refs/heads/release/gavhah-20261105-all-fixes-cloudflare
+          fi
