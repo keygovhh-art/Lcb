@@ -9,6 +9,7 @@ import {readForumVoiceDraft} from "./yemot-forum-voice";
 import {nextPhone3State,phone3WantsRecording,phone3Speech} from "./gavhah-phone3-community-flow";
 import {nextUnitedPhone4,speakUnitedPhone4,phone4InputKind,dailyBeforeNewsSegments} from "./gavhah-phone4-united-flow";
 import {nextMinyan7,minyan7Speech,minyan7Input} from "./gavhah-phone7-minyan-flow";
+import {conferenceGate} from "./gavhah-unified-conference";
 import {nextDailyPhone6,speakDailyPhone6,phone6InputKind} from "./gavhah-phone6-daily-flow";
 import type { Request, Response } from "express";
 import { phoneNewsVote, saveVoiceNewsReply, phoneNewsSave, phoneNewsReport } from "./yemot-news-engagement";
@@ -373,7 +374,7 @@ async function tryFastYemotRoot(req:Request,res:Response,tree:Record<string,Tree
  if(!req.path.endsWith("/yemot/ivr"))return false;
  const digit=req.body?.iv0??req.query.iv0;
  const input=digit==null?null:String(digit);
- if(["2","3","4","6","7"].includes(String(input)))return false; // Virtual app-owned IVR menus.
+ if(["2","3","4","6","7","8"].includes(String(input)))return false; // Virtual app-owned IVR menus.
   if(input!==null&&!/^[1-9]$/.test(input))return false;
  const call=sourceCallId(req);
  const supplied=String(req.body?.entryKey??req.query.entryKey??"");
@@ -475,13 +476,16 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
   let goToProviderManagement=false;
+   let conferenceTransfer:string|null=null;
   let goToCampaignExtension=false;
   if(raw!==undefined&&raw!==null){
    const digit=String(raw).trim();
    // Existing Yemot management is usually extension /0 (admin_login).
    // Preserve it on root 0, and keep nested 0 returning to the API root.
    // Moving to /0 DOES NOT bypass the provider admin password.
-   if((digit==="0"||digit==="*")&&path.startsWith("9706")&&!fromShared){
+   if((digit==="0"||digit==="*")&&path.startsWith("9708")&&!fromShared){
+     path=path==="9708"?"":"9708";page=0;manualFlash="";feedback="";
+    }else if((digit==="0"||digit==="*")&&path.startsWith("9706")&&!fromShared){
     path=path==="9706"?"":path==="97061"||path==="97062"?"9706":"97061";
     manualFlash="";page=0;position=0;chunk=0;confirmId=null;feedback="";
    }else if((digit==="0"||digit==="*")&&path.startsWith("9707")&&!fromShared){
@@ -523,7 +527,42 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     }else feedback="Press 1 to request Olam Chesed SignalWire access. ";
    }else if(!from4444 && !fromNext && ready4444 && path==="" && digit==="4444"){
     goToCampaignExtension=true;
-   }else if(!from4444 && directGavhah && path==="" && digit==="6"){
+   }else if(!from4444 && directGavhah && path==="" && digit==="8"){
+     path="9708";page=0;manualFlash="";
+    }else if(path==="9708"){
+     const choices:Record<string,string>={"1":"161","2":"167","3":"164","4":"162","5":"97085","6":"97086"};
+     if(choices[digit])path=choices[digit];
+    }else if(path==="97085"||path==="97086"){
+     const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+     const gate=await conferenceGate(client,verified?userId:null);
+     const mod=path==="97086";
+     if(digit==="1"){
+      if(mod&&gate.role!=="moderator")feedback="Only a verified conference moderator can open the lecturer entrance. ";
+      else if(gate.allowed&&gate.providerPath){
+       conferenceTransfer=gate.providerPath;feedback=" ";
+      }else feedback=gate.reason+" ";
+     }else if(digit==="2"&&!mod){
+      if(!verified||gate.role==="blocked")feedback="Securely sign in to request speaking permission. ";
+      else{
+       await client.query("INSERT INTO public.gavhah_unified_conference_hand_requests(member_id,state) "+
+       "VALUES($1,'raised') ON CONFLICT(member_id) DO UPDATE SET state='raised',created_at=now(),decided_by=NULL,decided_at=NULL",[userId]);
+       feedback="Your request to speak was sent to the Gavhah moderation team. ";
+      }
+     }else if(["2","3","4"].includes(digit)&&mod){
+      if(!verified||gate.role!=="moderator")feedback="Only the approved conference moderator can change the room schedule. ";
+      else{
+       const action=digit==="2"?"force_open":digit==="3"?"force_closed":"schedule";
+       await client.query("UPDATE public.gavhah_unified_conference SET override_state=$1,updated_at=now(),updated_by=$2 "+
+       "WHERE id=1",[action,userId]);
+       await client.query("INSERT INTO public.gavhah_unified_conference_events(actor_member_id,event_type,details) "+
+       "VALUES($1,'phone_override',$2::jsonb)",[userId,JSON.stringify({override:action})]);
+       feedback="Conference entry override is "+action.replace("_"," ")+". "+
+        (action==="force_closed"?"Existing participants are not disconnected by this action. ":"");
+      }
+     }else if(digit==="3"&&!mod){
+      feedback=gate.reason+" ";
+     }
+    }else if(!from4444 && directGavhah && path==="" && digit==="6"){
     path="9706";page=0;manualFlash="";
    }else if(path.startsWith("9706")){
     const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
@@ -819,6 +858,23 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     const daily=await speakDailyPhone6(client,path,manualFlash,feedback);
     daily6Active=true;daily6Segments=daily.segments;daily6Kind=daily.kind;
     mode=daily6Kind==="record"?"record":daily6Kind==="listen"?"news":"menu";
+   }else if(path==="9708"){
+    spoken="Group Center. For public groups press 1. To create a group press 2. "+
+     "Your saved or joined groups press 3. More group options press 4. "+
+     "For the single Hitkabtzu live conference press 5. "+
+     "For the lecturer and moderator entrance to the same conference room press 6. "+
+     "Press zero to return.";
+   }else if(path==="97085"||path==="97086"){
+    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    const gate=await conferenceGate(client,verified?userId:null);
+    const moderator=path==="97086";
+    spoken=feedback+(
+     moderator?"Hitkabtzu, lecturer and moderator controls. "+
+      "Press 1 to enter the verified shared room as moderator. Press 2 to open entry now. "+
+      "Press 3 to block new entrants immediately. Press 4 to return to the scheduled entrance policy. ":
+      "Hitkabtzu, the shared Gavhah conference room. Press 1 to enter the live meeting. "+
+      "Press 2 to ask for speaking permission. Press 3 to hear current access status. "
+    )+gate.reason+". Press zero to return to Group Center.";
    }else if(path.startsWith("9707")){
     const x=await minyan7Speech(client,path,manualFlash,feedback);
     minyan7Active=true;minyan7Mode=x.input;spoken=x.text;
@@ -959,6 +1015,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/0");
   }else if(goToCampaignExtension){
    res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder=/4444");
+  }else if(conferenceTransfer){
+   // Only trusted, provider-verified Yemot absolute numeric paths are allowed.
+   if(!/^\/[0-9]+(?:\/[0-9]+)*$/.test(conferenceTransfer))throw Error("Invalid conference provider extension");
+   res.type("text/plain; charset=utf-8").set("Cache-Control","no-store").send("go_to_folder="+conferenceTransfer);
   }else{
    if(daily6Active)sendUnitedRead(res,step,daily6Segments,daily6Kind);
     else if(minyan7Active)sendMinyan7Read(res,step,spoken,minyan7Mode);
