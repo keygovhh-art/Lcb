@@ -239,7 +239,7 @@ async function notificationDigit(c:PoolClient,s:MyState,digit:string):Promise<My
    return {path:"127",page:0,flash:"",feedback:"Marked "+(changed.rowCount||0)+" notifications as read in the official Gavhah center and here. "};
  }
  if(s.path==="1275"){
-   if(!/^\\d{1,8}$/.test(digit)||Number(digit)<=0)return {feedback:"Enter an official notification number, then pound. "};
+   if(!/^\d{1,8}$/.test(digit)||Number(digit)<=0)return {feedback:"Enter an official notification number, then pound. "};
    const r=await c.query<PhoneNotif>(
      "SELECT id,message,type,is_read,created_at,link_url FROM public.notifications WHERE id=$1 AND user_id=$2",[Number(digit),uid]);
    const row=r.rows[0];
