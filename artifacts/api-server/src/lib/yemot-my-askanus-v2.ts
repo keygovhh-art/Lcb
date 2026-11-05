@@ -12,7 +12,7 @@ export type MyResult = Partial<MyState> & {feedback?:string; signedInUntil?:Date
 const prefix="12";
 export const isMyAskanusPath=(p:string)=>p===prefix||p.startsWith(prefix);
 export const isMyAskanusNumericEntry=(p:string)=>(
-  ["1231","1234","123531","123532","123533","12356","1241","1244","1253","1261","1262","127"].includes(p)
+  ["1231","1234","123531","123532","123533","12356","1241","1244","1253","1261","1262","1275","128"].includes(p)
 );
 const say=(value:unknown,max=170)=>{
  const v=String(value??"").replace(/<[^>]*>/g," ").replace(/https?:\/\/\S+/gi," ");
@@ -89,17 +89,18 @@ function formatRecord(r:any,n:number,kind:"case"|"task"|"note"|"history"){
  if(kind==="note")return "Number "+n+". "+title+". "+(r.crossed_out?"Crossed out. ":"")+(r.completed?"Completed. ":"");
  return "Number "+n+". "+title+". Action "+say(r.action,50)+". ";
 }
-const menu="My Askanus. Press 1 for all-time accomplishments. Press 2 for what was accomplished today. Press 3 for cases. Press 4 for tasks. Press 5 for history. Press 6 for private notes. Press 7 to sign in using your Gavhah ID and personal PIN. Press 8 to sign out. ";
+const menu="My Askanus. Press 1 for all-time accomplishments. Press 2 for what was accomplished today. Press 3 for cases. Press 4 for tasks. Press 5 for history. Press 6 for private notes. Press 7 for notifications from the official Gavhah center. Press 8 for secure sign in with your Gavhah ID and personal PIN. Press 9 to sign out. ";
 export async function myAskanusPrompt(client:PoolClient,s:MyState):Promise<string>{
- if(s.path==="127")return s.flash.startsWith("ma:id:")?"Enter your personal six to twelve digit PIN and press pound. ":"Enter your four digit Gavhah member ID and press pound. ";
- if(s.path==="128")return "To sign out, press 1. Press zero to cancel. ";
- if(!s.memberId)return "Your personal records are private. Press 7 to sign in using your Gavhah member ID and private PIN. ";
+ if(s.path==="128")return s.flash.startsWith("ma:id:")?"Enter your personal six to twelve digit PIN and press pound. ":"Enter your four digit Gavhah member ID and press pound. ";
+ if(s.path==="129")return "To sign out, press 1. Press zero to cancel. ";
+ if(!s.memberId)return "Your personal records are private. Press 8 to sign in using your Gavhah member ID and private PIN. ";
  if(s.path==="12")return menu;
  if(s.path==="121"||s.path==="122")return stats(await totals(client,s.memberId,s.path==="122"),s.path==="122");
  if(s.path==="123")return "Cases. Press 1 to open a new case, 2 to hear newest to oldest, 3 oldest to newest, or 4 to search by case number. ";
  if(s.path==="124")return "Tasks. Press 1 to add a task, 2 newest to oldest, 3 oldest to newest, or 4 search by task number. ";
  if(s.path==="125")return "My activity history. Press 1 newest to oldest, 2 oldest to newest, or 3 to search by event number. ";
  if(s.path==="126")return "Private notes. Press 1 for a new note, 2 search by number, or 3 to hear all notes. ";
+ if(s.path.startsWith("127"))return await notificationPrompt(client,s);
  if(["1231","1241","1261"].includes(s.path))return s.path==="1231"?"Enter a numeric case reference and press pound. The case will be created in your account and its details can be edited later. ":s.path==="1241"?"Enter a numeric task reference and press pound to add it. ":"Enter a numeric note reference and press pound to add it. ";
  if(["1234","1244","1253","1262"].includes(s.path))return "Enter the record number and press pound. ";
  if(s.path==="1235"){
@@ -153,6 +154,115 @@ async function historyPrompt(c:PoolClient,s:MyState){
   " Press 8 next page, 9 previous page. Use history search by record number from the previous menu. ":
   "No more history. Press 9 for previous. ";
 }
+
+/**
+ * A second doorway to the EXACT official Gavhah notifications.
+ * We do not copy, move, regenerate, or filter out records in public.notifications.
+ * Both areas read/write the same is_read flag, and queries are restricted by
+ * the verified member_id rather than caller ID or a user supplied account ID.
+ */
+type PhoneNotif={id:number;message:string;type:string;is_read:boolean;created_at:Date;link_url:string|null};
+const notificationTypeGroups:Record<string,string[]>={
+  "12741":["comment","reply"],
+  "12742":["cause_support","charity_update"],
+  "12743":["group_activity","project_join","volunteer_match"],
+  "12744":["announcement"],
+  "12745":["help_response"],
+};
+const notificationListPath=(p:string)=>p==="1271"||p==="1272"||Object.hasOwn(notificationTypeGroups,p);
+const notificationFilter=(p:string,uid:number,page:number)=>{
+  let extra="";
+  const params:unknown[]=[uid,pos(page)];
+  if(p==="1271")extra=" AND is_read=false";
+  if(notificationTypeGroups[p]){params.push(notificationTypeGroups[p]);extra=" AND type=ANY($3::text[])";}
+  return {extra,params};
+};
+async function notificationAt(c:PoolClient,s:MyState):Promise<PhoneNotif|null>{
+  if(!s.memberId||!notificationListPath(s.path))return null;
+  const {extra,params}=notificationFilter(s.path,s.memberId,s.page);
+  const r=await c.query<PhoneNotif>(
+    "SELECT id,message,type,is_read,created_at,link_url FROM public.notifications WHERE user_id=$1"+
+    extra+" ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $2",params
+  );
+  return r.rows[0]||null;
+}
+async function notificationPrompt(c:PoolClient,s:MyState):Promise<string>{
+  const uid=s.memberId;
+  if(!uid)return "To hear private notifications, sign in first. Press zero to return.";
+  if(s.path==="127"){
+    const r=await c.query<{total:number;unread:number}>(
+      "SELECT count(*)::int total,count(*) FILTER(WHERE is_read=false)::int unread FROM public.notifications WHERE user_id=$1",[uid]);
+    const count=r.rows[0]||{total:0,unread:0};
+    return "The same official Gavhah notifications are available here in My Askanus and in the original notifications center. "+
+      count.unread+" unread, "+count.total+" total. Press 1 for unread. Press 2 for all. "+
+      "Press 3 to mark all read. Press 4 for notification categories. Press 5 to find a notification by number. Press zero to return. ";
+  }
+  if(s.path==="1273"){
+    const r=await c.query<{n:number}>("SELECT count(*)::int n FROM public.notifications WHERE user_id=$1 AND is_read=false",[uid]);
+    return (r.rows[0]?.n||0)+" unread official notifications. "+
+      (s.flash==="ma:notifications:all-confirm"?"To confirm, press 1 again. ":"Press 1 twice to confirm marking every notification as read. ")+
+      "Press zero to cancel. ";
+  }
+  if(s.path==="1274"){
+    return "Notification categories. Press 1 comments and replies. Press 2 charity and causes. "+
+      "Press 3 groups and volunteers. Press 4 announcements. Press 5 help responses. "+
+      "All other types also remain in All notifications under option 2. Press zero to return. ";
+  }
+  if(s.path==="1275")return "Enter the official notification number and press pound. ";
+  if(!notificationListPath(s.path))return "Press zero to return to notifications. ";
+  const row=await notificationAt(c,s);
+  if(!row)return "No more notifications in this list. Press 2 for previous, or zero to return. ";
+  const dt=row.created_at?new Date(row.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",timeZone:"America/New_York"}):"";
+  const text=say(row.message,290)||"The content of this notification needs a recorded audio version.";
+  const isSelected=s.flash==="ma:notifications:read:"+row.id;
+  const hasLink=typeof row.link_url==="string"&&row.link_url.startsWith("/")&&!row.link_url.startsWith("//");
+  return "Notification "+(pos(s.page)+1)+". "+(row.is_read?"Already read. ":"Unread. ")+
+    (dt?"Date "+dt+". ":"")+
+    (row.type?"Type "+say(row.type,55)+". ":"")+text+". "+
+    (hasLink?"This has a related item in your Gavhah account. ":"")+
+    (isSelected?"Press 5 again to confirm marking this notice read. ":"")+
+    "Press 1 for next, 2 for previous, 5 twice to mark this read, 9 for notifications menu, or zero to go back. ";
+}
+async function notificationDigit(c:PoolClient,s:MyState,digit:string):Promise<MyResult>{
+ const uid=s.memberId;
+ if(!uid)return {path:"128",flash:"",feedback:"Please sign in with your own Gavhah account. "};
+ if(s.path==="127"){
+   return /^[1-5]$/.test(digit)?{path:"127"+digit,page:0,flash:""}:{feedback:"Choose option 1 through 5. "};
+ }
+ if(s.path==="1274"){
+   return /^[1-5]$/.test(digit)?{path:"1274"+digit,page:0,flash:""}:{feedback:"Choose a notification category. "};
+ }
+ if(s.path==="1273"){
+   if(digit!=="1")return {feedback:"Press 1 twice to confirm, or zero to cancel. "};
+   if(s.flash!=="ma:notifications:all-confirm")return {flash:"ma:notifications:all-confirm",feedback:"Press 1 again to confirm. "};
+   const changed=await c.query("UPDATE public.notifications SET is_read=true WHERE user_id=$1 AND is_read=false RETURNING id",[uid]);
+   return {path:"127",page:0,flash:"",feedback:"Marked "+(changed.rowCount||0)+" notifications as read in the official Gavhah center and here. "};
+ }
+ if(s.path==="1275"){
+   if(!/^\\d{1,8}$/.test(digit)||Number(digit)<=0)return {feedback:"Enter an official notification number, then pound. "};
+   const r=await c.query<PhoneNotif>(
+     "SELECT id,message,type,is_read,created_at,link_url FROM public.notifications WHERE id=$1 AND user_id=$2",[Number(digit),uid]);
+   const row=r.rows[0];
+   return {feedback:row?"Notification "+row.id+". "+(row.is_read?"Already read. ":"Unread. ")+say(row.message,300)+". ":
+      "This notification was not found in your Gavhah account. "};
+ }
+ if(notificationListPath(s.path)){
+   if(digit==="9")return {path:"127",page:0,flash:""};
+   if(digit==="1")return {page:pos(s.page+1),flash:""};
+   if(digit==="2")return {page:Math.max(0,pos(s.page)-1),flash:""};
+   if(digit==="5"){
+     const row=await notificationAt(c,s);
+     if(!row)return {flash:"",feedback:"No notification at this position. "};
+     if(row.is_read)return {flash:"",feedback:"This notification is already marked read in both places. "};
+     if(s.flash!=="ma:notifications:read:"+row.id)return {flash:"ma:notifications:read:"+row.id,feedback:"Press 5 again to confirm marking this notification read. "};
+     const result=await c.query(
+       "UPDATE public.notifications SET is_read=true WHERE id=$1 AND user_id=$2 AND is_read=false RETURNING id",[row.id,uid]);
+     return {flash:"",feedback:result.rowCount?"Notification marked read in both places. ":"Already marked read. "};
+   }
+ }
+ return {feedback:"Choose one of the available notification options. "};
+}
+
 async function login(c:PoolClient,s:MyState,digit:string):Promise<MyResult>{
  const pinStage=s.flash.startsWith("ma:id:");
  if(!pinStage){
@@ -180,18 +290,19 @@ async function login(c:PoolClient,s:MyState,digit:string):Promise<MyResult>{
 }
 export async function myAskanusDigit(c:PoolClient,s:MyState,digit:string):Promise<MyResult>{
  if(digit==="0")return {path:myBack(s.path),page:0,flash:"",focusId:s.path.startsWith("1235")||s.path==="12357"?s.focusId:null};
- if(s.path==="127")return login(c,s,digit);
- if(s.path==="128"){
+ if(s.path==="128")return login(c,s,digit);
+ if(s.path==="129"){
   return digit==="1"?{path:"12",memberId:null,signedInUntil:null,flash:"",focusId:null,feedback:"Signed out."}:{path:"12"};
  }
- if(!s.memberId)return {path:"127",flash:"",feedback:"Sign in before opening your private information."};
+ if(!s.memberId)return {path:"128",flash:"",feedback:"Sign in before opening your private information."};
  const uid=s.memberId;
- if(s.path==="12"&&/^[1-8]$/.test(digit))return {path:"12"+digit,page:0,focusId:null,flash:""};
+ if(s.path==="12"&&/^[1-9]$/.test(digit))return {path:"12"+digit,page:0,focusId:null,flash:""};
  if(["121","122"].includes(s.path))return {path:"12"};
  if(s.path==="123"&&/^[1-4]$/.test(digit))return {path:"123"+digit,page:0,focusId:null,flash:""};
  if(s.path==="124"&&/^[1-4]$/.test(digit))return {path:"124"+digit,page:0,focusId:null,flash:""};
  if(s.path==="125"&&/^[1-3]$/.test(digit))return {path:"125"+digit,page:0,focusId:null,flash:""};
  if(s.path==="126"&&/^[1-3]$/.test(digit))return {path:"126"+digit,page:0,focusId:null,flash:""};
+ if(s.path.startsWith("127"))return await notificationDigit(c,s,digit);
  if(s.path==="1231"&&/^\d{1,8}$/.test(digit)){
   const title="Phone case "+digit;
   const a=await c.query("INSERT INTO public.askanus_cases(user_id,title,description,category) VALUES($1,$2,$3,'General') RETURNING id",[uid,title,"Created on Gavhah keypad. Please add full details in My Askanus."]);
