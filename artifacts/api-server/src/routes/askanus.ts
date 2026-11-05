@@ -758,21 +758,40 @@ router.post("/askanus/notes", requireAuth, async (req, res) => {
 });
 
 router.patch("/askanus/notes/:id", requireAuth, async (req, res) => {
-  const id = Number(req.params.id);
-  const title = String(req.body?.title || "").trim();
-  const content = String(req.body?.content || "").trim();
-  if (!title || !content) {
-    res.status(400).json({ error: "title and content are required" });
-    return;
+  const id=Number(req.params.id),userId=getSessionUserId(req)!;
+  if(!Number.isSafeInteger(id)||id<=0){res.status(400).json({error:"Invalid note ID"});return;}
+  const updates:Partial<typeof askanusnotes.$inferInsert>={};
+  const hasTitle=req.body?.title!==undefined,hasContent=req.body?.content!==undefined;
+  if(hasTitle||hasContent){
+    const title=String(req.body?.title??"").trim(),content=String(req.body?.content??"").trim();
+    if(!title||!content){res.status(400).json({error:"title and content are required together"});return;}
+    updates.title=title.slice(0,240);updates.content=content.slice(0,10000);
   }
-  const [updated] = await db.update(askanusnotes).set({
-    title: title.slice(0, 240),
-    content: content.slice(0, 10000),
-  }).where(
-    and(eq(askanusnotes.id, id), eq(askanusnotes.userId, getSessionUserId(req)!))
-  ).returning();
-  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
-  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+  if(req.body?.crossedOut!==undefined){
+    if(typeof req.body.crossedOut!=="boolean"){res.status(400).json({error:"crossedOut must be boolean"});return;}
+    updates.crossedOut=req.body.crossedOut;
+  }
+  if(req.body?.completed!==undefined){
+    if(typeof req.body.completed!=="boolean"){res.status(400).json({error:"completed must be boolean"});return;}
+    updates.completed=req.body.completed;
+  }
+  if(!Object.keys(updates).length){res.status(400).json({error:"Nothing to update"});return;}
+  const updated=await db.transaction(async tx=>{
+    const [before]=await tx.select().from(askanusnotes).where(and(eq(askanusnotes.id,id),eq(askanusnotes.userId,userId))).for("update");
+    if(!before)return null;
+    const [after]=await tx.update(askanusnotes).set(updates).where(and(eq(askanusnotes.id,id),eq(askanusnotes.userId,userId))).returning();
+    if(!after)return null;
+    const changed=Object.keys(updates).some(key=>after[key as keyof typeof after]!==before[key as keyof typeof before]);
+    if(changed)await tx.insert(maxHistoryEvents).values({
+      userId,caseId:null,entityType:"note",entityId:id,
+      action:req.body?.completed!==undefined?"note_completion_changed":req.body?.crossedOut!==undefined?"note_crossed_out_changed":"note_edited",
+      title:after.title,details:JSON.stringify({crossedOut:after.crossedOut,completed:after.completed}),
+    });
+    return after;
+  });
+  if(!updated){res.status(404).json({error:"Not found"});return;}
+  res.setHeader("Cache-Control","private, no-store");
+  res.json({...updated,createdAt:updated.createdAt.toISOString()});
 });
 
 router.delete("/askanus/notes/:id", requireAuth, async (req, res) => {
