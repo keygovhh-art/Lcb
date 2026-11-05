@@ -45,6 +45,28 @@ const endpoint=(fn:(req:any,res:any)=>Promise<void>)=>{
   }
  };
 };
+// Authenticated and read-only: prove the CC server, shared secret and DB
+// understand the same bridge protocol. This is NOT proof of account linking.
+router.get("/askanus/connect/diagnostics",requireAuth,endpoint(async(_req,res)=>{
+ const configured=Boolean(setup());
+ res.setHeader("Cache-Control","private, no-store");
+ if(!configured){res.json({configured:false,remoteReachable:false,protocolCompatible:false});return;}
+ try{
+  const data=await remote("/capabilities","GET");
+  const compatible=data.service==="campaign_center"&&
+    data.protocol==="gavhah-connect-v1"&&data.connectedBackend===true;
+  res.json({configured:true,remoteReachable:true,protocolCompatible:compatible,
+   features:compatible?{
+    ownAssignments:data.ownAssignments===true,
+    manualFinanceShare:data.manualFinanceShare===true,
+    scopedSharedFollowups:data.scopedSharedFollowups===true,
+    scopedLiveRooms:data.scopedLiveRooms===true
+   }:{}});
+ }catch{
+  // No upstream stack, secret, URL, or private data leaks to browser.
+  res.json({configured:true,remoteReachable:false,protocolCompatible:false});
+ }
+}));
 router.get("/askanus/connect/status",requireAuth,endpoint(async(req,res)=>{
  const uid=getSessionUserId(req)!;
  if(!setup()){res.json({configured:false,linked:false,campaigns:[]});return;}

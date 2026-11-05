@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=(path)=>readFileSync(path,'utf8');
+test('Gavhah connects to actual Campaign Center server, not a shadow database',()=>{
+ const route=read('artifacts/api-server/src/routes/communications-connect.ts');
+ assert.match(route,/GAVHAH_CONNECT_BASE_URL/);
+ assert.match(route,/GAVHAH_CONNECT_SHARED_SECRET/);
+ assert.match(route,/secret\.length<32/);
+ assert.match(route,/url\.protocol!=="https:"/);
+ assert.match(route,/x-gavhah-connect-secret/);
+ assert.match(route,/\/api\/connect\/service/);
+ assert.match(route,/remote\("\/capabilities","GET"\)/);
+ assert.match(route,/data\.protocol==="gavhah-connect-v1"/);
+ assert.match(route,/router\.get\("\/askanus\/connect\/diagnostics",requireAuth/);
+ assert.match(route,/getSessionUserId\(req\)/);
+ assert.match(route,/router\.post\("\/askanus\/connect\/redeem",requireAuth/);
+ assert.match(route,/router\.post\("\/askanus\/connect\/unlink",requireAuth/);
+ assert.match(route,/router\.get\("\/askanus\/connect\/assignments",requireAuth/);
+ assert.match(route,/router\.get\("\/askanus\/connect\/rooms",requireAuth/);
+ assert.match(route,/confirmShare/);
+});
+test('Personal MAX interface distinguishes connection diagnostics, membership, and consent',()=>{
+ const ui=read('artifacts/gavhah/src/components/communications/gavhah-connect-panel.tsx');
+ assert.match(ui,/\/api\/askanus\/connect\/diagnostics/);
+ assert.match(ui,/diagnostics\.protocolCompatible/);
+ assert.match(ui,/אקאונט־לינקינג דארף נאך א באזונדערע באשטעטיגונג/);
+ assert.match(ui,/\/api\/askanus\/connect\/status/);
+ assert.match(ui,/confirmShare:true/);
+ assert.match(ui,/rel="noopener noreferrer"/);
+ assert.ok(!ui.includes('GAVHAH_CONNECT_SHARED_SECRET'));
+});
