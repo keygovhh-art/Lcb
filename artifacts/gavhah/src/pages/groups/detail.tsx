@@ -377,7 +377,7 @@ export default function GroupDetail() {
               </DialogContent>
             </Dialog>
 
-            <GroupPhoneSettings groupId={numId} canManage={canManageGroup} />
+            <GroupPhoneSettings groupId={numId} canManage={isOwner || user?.role==="super_admin"} />
             <Tabs defaultValue="posts" className="space-y-6">
               <TabsList className="bg-muted/50">
                 <TabsTrigger value="posts">Posts</TabsTrigger>
