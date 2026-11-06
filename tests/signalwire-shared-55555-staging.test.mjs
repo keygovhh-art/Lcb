@@ -64,3 +64,20 @@ test('Admin only describes staged route and warns real calls and signing key unv
  assert.match(page,/livePhoneTestPassed/);
  assert.match(page,/55555־פארבינדונג/);
 });
+
+test('Shared SignalWire hotline records sanitized per-call failure diagnostics',()=>{
+ assert.match(shared,/OLAM_CALL_DIAGNOSTIC/);
+ assert.match(shared,/X-Olam-Diagnostic-Id/);
+ assert.match(shared,/signatureFailureReason/);
+ assert.match(shared,/provider_signature_mismatch_key_url_or_form/);
+ assert.match(shared,/provider_signature_missing/);
+ assert.match(shared,/invalid_call_identifier_number_or_digits/);
+ assert.match(shared,/saved_route_not_ready_or_signing_key_short/);
+ assert.match(shared,/phone_engine_rejected/);
+ assert.match(shared,/internal_error_/);
+ assert.match(shared,/callRef/);
+ assert.match(shared,/createHmac\("sha256",signingKey\)/);
+ // The persisted event includes a keyed call reference, not any caller
+ // telephone number, form payload, raw provider signature, or project secret.
+ assert.match(shared,/id:diagId,callRef,stage,reason,status,elapsedMs:/);
+});
