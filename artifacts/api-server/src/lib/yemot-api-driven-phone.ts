@@ -526,12 +526,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     const next=await profilePhoneDigit(client,
      {path,page,focusId:confirmId,flash:manualFlash,feedback},digit,verified?userId:null);
     path=next.path;page=next.page;confirmId=next.focusId;manualFlash=next.flash;feedback=next.feedback;
-   }else if(profilePhonePath(path)&&!fromShared){
-    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
-    const profile=await profilePhonePrompt(client,
-      {path,page,focusId:confirmId,flash:manualFlash,feedback},verified?userId:null);
-    spoken=profile.text;mode=profile.mode;
-  }else if(isMyAskanusPath(path)){
+   }else if(isMyAskanusPath(path)){
     const active=!!userId && await memberAllowed(client,{...s,member_id:userId});
     const next=await myAskanusDigit(client,{path,page,focusId:confirmId,flash:manualFlash,memberId:active?userId:null,callHash,failures:s.login_failures},digit);
     if(next.path!==undefined)path=next.path;
@@ -989,6 +984,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     spoken="This Olam Chesed function belongs to the separate SignalWire communication service. "+
      "This Yemot menu cannot originate SignalWire calls. Open the Olam Chesed Communication website. Press zero to go back.";
    }
+  }else if(profilePhonePath(path)&&!fromShared){
+    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    const profile=await profilePhonePrompt(client,
+      {path,page,focusId:confirmId,flash:manualFlash,feedback},verified?userId:null);
+    spoken=profile.text;mode=profile.mode;
   }else if(isMyAskanusPath(path)){
    const active=!!userId && await memberAllowed(client,{...s,member_id:userId});
    mode=path==="128"?"pin":isMyAskanusNumericEntry(path)?"article":"menu";
