@@ -41,3 +41,17 @@ test("Conference credentials protected and provider failures never self-certify"
  assert(route.includes('g.privacy!=="public"&&accessMode==="public"'));
  assert(migration.includes("CHECK (NOT enabled OR (provider_state = 'provider_accepted'"));
 });
+
+test("One-time Cloudflare Cron accepts only queued group rooms and cannot place outbound calls",()=>{
+ const route=read("artifacts/api-server/src/routes/group-conferences.ts");
+ const worker=read("cloudflare/gavhah/worker.ts");
+ const schema=read("lib/db/migrations/20261105_group_yemot_conference_rooms.sql");
+ assert(schema.includes("group_conference_provision_queue"));
+ assert(route.includes("SELECT pg_try_advisory_lock"));
+ assert(route.includes("WHERE state='queued'"));
+ assert(route.includes("state='failed'"));
+ assert(route.includes("providerStarted"));
+ assert(worker.includes('controller.cron!=="* * * * *"'));
+ assert(worker.includes("provisionNextQueuedGroupConference"));
+ assert(!/CallExtensionBridging|RunCampaign|dialOutbound/.test(route));
+});
