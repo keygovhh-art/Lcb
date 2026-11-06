@@ -6,6 +6,7 @@
  */
 import {httpServerHandler} from "cloudflare:node";
 import app from "../../artifacts/api-server/src/app-cloudflare";
+import {provisionNextQueuedGroupConference} from "../../artifacts/api-server/src/routes/group-conferences";
 import {inlineAssets} from "./generated-static-assets";
 
 app.listen(8787);
@@ -41,6 +42,13 @@ function paused(message:string,status=503){
  return Response.json({status:"staging",message},{status,headers:{"Cache-Control":"no-store"}});
 }
 export default {
+ // One-time Cloudflare-account-owned setup of queued conference rooms.
+ // Separate from HTTP traffic; only the explicitly configured temporary Cron runs it.
+ async scheduled(controller:{cron:string},_env:unknown,_ctx:unknown):Promise<void>{
+  if(controller.cron!=="* * * * *")return;
+  const outcome=await provisionNextQueuedGroupConference();
+  console.log("Gavhah conference provider setup",outcome.status,outcome.groupId??"none");
+ },
  async fetch(request:Request,env:unknown,ctx:unknown):Promise<Response>{
   const url=new URL(request.url);
   const values=env as Record<string,unknown>;
