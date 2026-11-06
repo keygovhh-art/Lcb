@@ -26,7 +26,7 @@ export function validateAvailabilitySchedule(input:unknown):VolunteerAvailabilit
  const result:VolunteerAvailabilitySchedule={mode:mode as VolunteerAvailabilityMode,startTime,endTime,timeZone:tz};
  const validDate=(value:unknown)=>{
   const date=String(value||"");
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||new Date(date+"T00:00:00.000Z").toISOString().slice(0,10)!==date)
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date+"T00:00:00.000Z"))||new Date(date+"T00:00:00.000Z").toISOString().slice(0,10)!==date)
    throw Error("Enter a valid calendar date");
   return date;
  };
