@@ -36,6 +36,8 @@ jobs:
         run: node --experimental-strip-types --test tests/gavhah-volunteer-availability-parity.test.mjs
       - name: TypeScript integration check
         run: pnpm run typecheck
+      - name: Verify Gavhah connections and private intake now work via Yemot, not SignalWire
+        run: node --test tests/gavhah-yemot-connection-provider-boundary.test.mjs
       - name: Verify signed SignalWire private My Connections phone flow
         run: node --test tests/gavhah-signalwire-my-connections.test.mjs
       - name: Build frontend static assets
