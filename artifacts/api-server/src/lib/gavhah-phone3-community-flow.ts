@@ -174,7 +174,7 @@ export async function phone3Speech(client:PoolClient,path:string,page:number,fla
  if(path==="9703"){
   const override=await phonePromptOverride(path);
   const clip=voicePointer(override.audioPath||"");if(clip)audio.push(clip);
-  const message=clip?"":(override.ttsText||"For community projects and campaigns, stay on the line. For options press one. ");
+  const message=clip?"":(override.ttsText||"For community projects and campaigns, stay on the line. For options press one. For your private Gavhah connections press nine. ");
   const rows=await client.query<{title:string;description:string}>(
    "SELECT title,description FROM public.community_projects "+
    "WHERE status='active' ORDER BY created_at DESC,id DESC LIMIT 1 OFFSET $1",
