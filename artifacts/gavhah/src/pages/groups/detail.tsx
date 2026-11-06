@@ -26,6 +26,7 @@ import { UpvoteButton } from "@/components/shared/upvote-button";
 import { useUpvoteStates } from "@/hooks/use-upvote-states";
 import { GroupManagement } from "@/components/groups/group-management";
 import { GroupPhoneSettings } from "@/components/groups/group-phone-settings";
+import { GroupConferencePanel } from "@/components/groups/group-conference-panel";
 import { GroupPostExtras } from "@/components/groups/group-post-extras";
 import { Pin, Clock3 } from "lucide-react";
 
@@ -378,6 +379,7 @@ export default function GroupDetail() {
             </Dialog>
 
             <GroupPhoneSettings groupId={numId} canManage={isOwner || user?.role==="super_admin"} />
+            <GroupConferencePanel groupId={numId} isSuperAdmin={user?.role==="super_admin"} />
             <Tabs defaultValue="posts" className="space-y-6">
               <TabsList className="bg-muted/50">
                 <TabsTrigger value="posts">Posts</TabsTrigger>

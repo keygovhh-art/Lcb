@@ -28,6 +28,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Verify independent Yemot and SignalWire webhook gates
         run: node --test tests/yemot-cloudflare-independent-gate.test.mjs
+      - name: Verify group conferences use Yemot only and calling remains SignalWire
+        run: node --test tests/gavhah-group-conference-provider-split.test.mjs
       - name: Build frontend static assets
         run: pnpm --filter @workspace/gavhah run build
       - name: Embed original Vite website assets in the independent Worker
