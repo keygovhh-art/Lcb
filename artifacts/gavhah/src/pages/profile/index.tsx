@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import { Link } from "wouter";
 import {
   useListFollows, useDeleteFollow, useListSavedItems, useDeleteSavedItem,
@@ -51,6 +51,18 @@ export default function ProfilePage() {
   const { lang } = useLanguage();
   const yi = lang === "yi";
   const [editOpen, setEditOpen] = useState(false);
+  const [recentActivity,setRecentActivity]=useState<Array<{id:number;type:string;action:string;title:string;createdAt:string}>>([]);
+  const [recentLoading,setRecentLoading]=useState(true);
+  useEffect(()=>{
+   if(!isAuthenticated){setRecentActivity([]);setRecentLoading(false);return;}
+   let active=true;
+   fetch("/api/stats/my-activity",{credentials:"include",cache:"no-store"})
+    .then(r=>r.ok?r.json():Promise.reject(new Error("Activity unavailable")))
+    .then(data=>{if(active)setRecentActivity(Array.isArray(data)?data:[]);})
+    .catch(()=>{if(active)setRecentActivity([]);})
+    .finally(()=>{if(active)setRecentLoading(false);});
+   return()=>{active=false;};
+  },[isAuthenticated,user?.id]);
   const [savingProfile, setSavingProfile] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -277,6 +289,23 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      <section className="container mx-auto px-4 max-w-4xl mb-8" dir={yi?"rtl":"ltr"}>
+        <h2 className="font-serif text-xl font-semibold text-primary mb-3">{yi?"מיינע נייע אקטיוויטעטן":"My Recent Activity"}</h2>
+        <div className="rounded-xl border bg-card divide-y">
+          {recentLoading&&<p className="p-4 text-sm text-muted-foreground">{yi?"עס ווערט געלאדן":"Loading"}</p>}
+          {!recentLoading&&recentActivity.length===0&&<p className="p-4 text-sm text-muted-foreground">{yi?"דערווייל איז נישטא קיין פערזענליכע אקטיוויטעט":"No personal activity recorded yet"}</p>}
+          {recentActivity.map(item=><div key={item.id} className="p-4 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium break-words">{item.title||item.action}</p>
+              <p className="text-xs text-muted-foreground">{item.action}</p>
+            </div>
+            <time className="text-xs text-muted-foreground shrink-0" dateTime={item.createdAt}>
+              {formatGregorianDate(new Date(item.createdAt),"MMM d, yyyy")}
+            </time>
+          </div>)}
+        </div>
+      </section>
 
       <div className="container mx-auto px-4 max-w-4xl mb-6">
         <MemberContactProfile />
