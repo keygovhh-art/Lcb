@@ -104,7 +104,7 @@ export const phoneTree: Record<string,Item> = {
       "7":leaf("Terms and conditions","/terms"),"8":leaf("Gavhah welcome homepage","/")
     }),
     "9":group("Management and reports",{
-      "1":leaf("Personal overview","/dashboard"),"2":leaf("System center","/system"),
+      "1":group("Platform statistics — totals only",{"1":group("Statistics options",{"1":leaf("Member count","/dashboard"),"2":leaf("Discussion count","/dashboard"),"3":leaf("Group count","/dashboard"),"4":leaf("News update count","/dashboard"),"5":leaf("Total member-recorded donations without personal details","/dashboard")})}),"2":leaf("System center","/system"),
       "3":leaf("Super administrator","/founder"),
       "4":leaf("Group and staff settings","/group-team"),
       "5":leaf("SignalWire provider connection, WEBSITE ONLY","/founder/signalwire","API tokens and provider credentials must NEVER be spoken over the phone. This protected administration setting requires secure website authentication.")
