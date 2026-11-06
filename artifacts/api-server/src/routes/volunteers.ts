@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
 import { CONNECTION_META_TYPE, parseConnectionState, clearConsentForNewReview } from "../lib/member-connections";
 import { notifyUser } from "../lib/notify";
+import {validateAvailabilitySchedule,shortAvailabilityDescription} from "../lib/volunteer-availability";
 import { db, volunteerProfilesTable, helpRequestsTable, notificationsTable, supportMessagesTable, memberContactMethodsTable } from "@workspace/db";
 import { requireAuth, requireAdmin, getSessionUserId, getSessionUserRole, getCurrentSessionUser } from "../middlewares/auth";
 import { getMemberIdentity, resolveMemberDisplayName } from "../lib/user-display";
@@ -70,15 +71,15 @@ router.get("/volunteers", requireAdmin, async (req, res): Promise<void> => {
 
 router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   const userId = getSessionUserId(req)!;
-  const { userName, skills, availability, location, bio, areasOfInterest } = req.body;
+  const { userName, skills, availabilitySchedule, bio, areasOfInterest } = req.body;
   const contact = parseContactSelection(req.body?.contactMethods);
   if (!contact.value) { res.status(400).json({ error: contact.error || "Contact method required" }); return; }
-  const cleanAvailability = "anytime"; // Only current signup choice; legacy values remain stored safely.
-  const cleanLocation = String(location || "").trim();
-  if (!cleanLocation) {
-    res.status(400).json({ error: "valid availability and location required" });
-    return;
-  }
+  let schedule;
+  try { schedule=validateAvailabilitySchedule(availabilitySchedule??{mode:"anytime"}); }
+  catch(e){res.status(400).json({error:e instanceof Error?e.message:"Invalid availability schedule"});return;}
+  const cleanAvailability = schedule.mode;
+  // Location is intentionally not requested for volunteers; old values are preserved.
+  const cleanLocation = "";
 
   const [existing] = await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.userId, userId));
   if (existing) {
@@ -93,6 +94,7 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
     userName: safeUserName,
     skills: Array.isArray(skills) ? skills.slice(0, 30).map(v => String(v).slice(0, 100)) : [],
     availability: cleanAvailability,
+    availabilitySchedule:schedule,
     bio: bio ? String(bio).trim().slice(0, 3000) : null,
     location: cleanLocation.slice(0, 200),
     areasOfInterest: Array.isArray(areasOfInterest) ? areasOfInterest.slice(0, 30).map(v => String(v).slice(0, 100)) : [],
@@ -117,7 +119,7 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
     subject: `New volunteer registration: ${safeUserName}`,
     message: [
       `Location: ${cleanLocation}`,
-      `Availability: ${cleanAvailability}`,
+      `Availability: ${shortAvailabilityDescription(schedule)}`,
       Array.isArray(skills) && skills.length ? `Skills: ${skills.join(", ")}` : "",
       Array.isArray(areasOfInterest) && areasOfInterest.length ? `Areas: ${areasOfInterest.join(", ")}` : "",
       bio ? `Bio: ${String(bio).trim()}` : "",
@@ -130,6 +132,29 @@ router.post("/volunteers", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json(vol);
 });
 
+// Only the signed-in volunteer may inspect and update their own schedule.
+router.get("/volunteers/mine",requireAuth,async(req,res,next):Promise<void>=>{
+ try{
+  const id=getSessionUserId(req)!;
+  const [profile]=await db.select().from(volunteerProfilesTable).where(eq(volunteerProfilesTable.userId,id));
+  res.setHeader("Cache-Control","private,no-store");
+  if(!profile){res.status(404).json({error:"Volunteer registration not found"});return;}
+  res.json(profile);
+ }catch(e){next(e);}
+});
+router.patch("/volunteers/mine/availability",requireAuth,async(req,res,next):Promise<void>=>{
+ try{
+  const userId=getSessionUserId(req)!;
+  let schedule;
+  try{schedule=validateAvailabilitySchedule(req.body?.availabilitySchedule);}
+  catch(e){res.status(400).json({error:e instanceof Error?e.message:"Invalid availability schedule"});return;}
+  const [updated]=await db.update(volunteerProfilesTable)
+   .set({availability:schedule.mode,availabilitySchedule:schedule})
+   .where(eq(volunteerProfilesTable.userId,userId)).returning();
+  if(!updated){res.status(404).json({error:"Volunteer registration not found"});return;}
+  res.setHeader("Cache-Control","private,no-store").json(updated);
+ }catch(e){next(e);}
+});
 router.get("/volunteers/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
@@ -155,7 +180,13 @@ router.patch("/volunteers/:id", requireAuth, async (req, res): Promise<void> => 
   const updates: Record<string, unknown> = {};
   if (userName !== undefined) updates.userName = await resolveMemberDisplayName(existing.userId, userName);
   if (Array.isArray(skills)) updates.skills = skills;
-  if (availability !== undefined) updates.availability = String(availability);
+  if (availability !== undefined || req.body?.availabilitySchedule !== undefined) {
+    try{
+      const schedule=validateAvailabilitySchedule(req.body?.availabilitySchedule??{mode:"anytime"});
+      updates.availability=schedule.mode;
+      updates.availabilitySchedule=schedule;
+    }catch(e){res.status(400).json({error:e instanceof Error?e.message:"Invalid availability schedule"});return;}
+  }
   if (location !== undefined) {
     if (!String(location).trim()) { res.status(400).json({ error: "location required" }); return; }
     updates.location = String(location).trim();
