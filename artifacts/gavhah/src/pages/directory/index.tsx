@@ -479,7 +479,7 @@ function ProjectCard({ project }: { project: any }) {
   const typeBadge = TYPE_BADGE[project.type] ?? TYPE_BADGE.project;
 
   return (
-    <div className={`border-2 rounded-xl overflow-hidden ${typeColor} hover:shadow-md transition-shadow`}>
+    <div id={"project-"+project.id} className={`border-2 rounded-xl overflow-hidden scroll-mt-24 ${typeColor} hover:shadow-md transition-shadow`}>
       <div className="p-6 space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
@@ -642,6 +642,13 @@ function CommunityProjectsContent() {
   const {data:projects,isLoading}=useListCommunityProjects(projParams,{
     query:{queryKey:getListCommunityProjectsQueryKey(projParams)},
   });
+  useEffect(()=>{
+    if(isLoading||!projects?.length)return;
+    const id=new URLSearchParams(window.location.search).get("project");
+    if(!id||!/^[0-9]{1,9}$/.test(id))return;
+    const target=document.getElementById("project-"+id);
+    if(target)window.requestAnimationFrame(()=>target.scrollIntoView({behavior:"smooth",block:"start"}));
+  },[isLoading,projects]);
   return <section id="community-projects" className="space-y-6 scroll-mt-20">
     <div className="rounded-xl border bg-muted/20 p-5 space-y-2">
       <div className="flex items-center gap-2">

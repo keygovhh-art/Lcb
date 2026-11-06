@@ -29,7 +29,7 @@ const PRIMARY_DEPTS = [
 const MORE_DEPTS = [
   { label: "Communications", fullLabel: "Olam Hachesed Communications", href: "/communications", icon: <Radio className="h-4 w-4" /> },
   { label: "Reservations", fullLabel: "Gavhah Office Reservations", href: "/reservations", icon: <CalendarDays className="h-4 w-4" /> },
-  { label: "My Connections", fullLabel: "Volunteer Connections", href: "/connections", icon: <Handshake className="h-4 w-4" /> },
+  { label: "Volunteer Connections", fullLabel: "Volunteer Connections", href: "/connections", icon: <Handshake className="h-4 w-4" /> },
   { label: "Koach Harabim", fullLabel: "Koach Harabim Dashboard", href: "/dashboard", icon: <BarChart3 className="h-4 w-4" /> },
 ];
 
@@ -215,7 +215,6 @@ export function Layout({ children }: { children: ReactNode }) {
                     {[
                       { label: "My Profile", href: "/profile" },
                       { label: "My Askanus", href: "/my" },
-                      { label: "My Connections", href: "/connections" },
                       { label: "Notifications", href: "/notifications" },
                       { label: "Help & Support", href: "/system" },
                     ].map(item => (
@@ -379,15 +378,6 @@ export function Layout({ children }: { children: ReactNode }) {
                     )}
                   </div>
                 </Link>
-                <Link href="/connections">
-                  <div onClick={() => setMobileOpen(false)} className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${isActive("/connections") ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-foreground"}`}>
-                    <div className="flex items-center gap-3">
-                      <Handshake className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium text-sm">My Connections</span>
-                    </div>
-                    <ChevronRight className="h-4 w-4 opacity-40" />
-                  </div>
-                </Link>
                 <Link href="/profile">
                   <div onClick={() => setMobileOpen(false)} className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${isActive("/profile") ? "bg-primary text-primary-foreground" : "hover:bg-muted/60 text-foreground"}`}>
                     <div className="flex items-center gap-3">
@@ -464,7 +454,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <div>
               <p className="font-semibold text-primary-foreground/80 mb-3 uppercase tracking-wider text-xs">Platform</p>
               <nav className="space-y-1.5">
-                {[["My Askanus", "/my"], ["My Connections", "/connections"], ["Koach Harabim", "/dashboard"], ["Notifications", "/notifications"], ["My Profile", "/profile"]].map(([l, h]) => (
+                {[["My Askanus", "/my"], ["Koach Harabim", "/dashboard"], ["Notifications", "/notifications"], ["My Profile", "/profile"]].map(([l, h]) => (
                   <Link key={h} href={h} className="block text-primary-foreground/60 hover:text-accent transition-colors text-xs">{l}</Link>
                 ))}
               </nav>

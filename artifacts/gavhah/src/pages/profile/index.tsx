@@ -22,6 +22,7 @@ import { MemberContactProfile } from "@/components/shared/member-contact-profile
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/context/language-context";
 import { MyCreatedContent } from "@/components/profile/my-created-content";
+import { MemberApplicationsPanel } from "@/components/profile/member-applications-panel";
 import { FolderOpen } from "lucide-react";
 
 const ENTITY_TYPE_LABEL: Record<string, string> = {
@@ -270,7 +271,8 @@ export default function ProfilePage() {
               <Button variant="outline" className="gap-2" onClick={openProfileEdit}>
                 <Pencil className="h-4 w-4" /> Edit Profile
               </Button>
-              <a href="/api/me/security-center" className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium"><LockKeyhole className="h-4 w-4" /> {yi ? "פעסווארד און צוגעלייגטע זיכערהייט" : "Login Security"}</a>\n              <Button variant="outline" className="gap-2" onClick={() => setPasswordOpen(true)}>
+              <Button variant="outline" className="gap-2" onClick={() => setPasswordOpen(true)}><LockKeyhole className="h-4 w-4" />{yi ? "פעסווארד־איינשטעלונגען" : "Password Security"}</Button>
+              <Button variant="outline" className="gap-2" onClick={() => setPasswordOpen(true)}>
                 <LockKeyhole className="h-4 w-4" /> Change Password
               </Button>
             </div>
@@ -283,6 +285,8 @@ export default function ProfilePage() {
         <div className="h-5" />
         <MemberMailingProfile />
       </div>
+
+      <MemberApplicationsPanel />
 
       <div className="container mx-auto px-4 py-10">
         <Tabs defaultValue="created" className="space-y-6">

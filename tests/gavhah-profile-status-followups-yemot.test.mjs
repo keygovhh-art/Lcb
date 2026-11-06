@@ -1,0 +1,51 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const read=p=>fs.readFileSync(p,"utf8");
+test("Personal application follow-ups are ownership-scoped and never public",()=>{
+ const core=read("artifacts/api-server/src/lib/member-application-status.ts");
+ const route=read("artifacts/api-server/src/routes/me-applications.ts");
+ assert(core.includes("v.user_id=$1"));
+ assert(core.includes("WHERE user_id=$1 ORDER BY created_at DESC"));
+ assert(core.includes("WHERE id=$1 AND user_id=$2"));
+ assert(core.includes("profile_application_followup"));
+ assert(core.includes("client.query"));
+ assert(route.includes('requireAuth,sameOrigin'));
+ assert(route.includes("getSessionUserId(req)"));
+ assert(route.includes('res.setHeader("Cache-Control","private,no-store")'));
+ assert(!core.includes("UPDATE public.help_requests SET status="));
+});
+test("Gavhah Profile PIN is verified again for every telephone security session",()=>{
+ const phone=read("artifacts/api-server/src/lib/gavhah-yemot-profile.ts");
+ const keypad=read("artifacts/api-server/src/lib/yemot-api-driven-phone.ts");
+ assert(phone.includes("verifyPassword(digit,account.rows[0].password_hash)"));
+ assert(phone.includes("failures>=3"));
+ assert(phone.includes("verifiedUntil:Date.now()+5*60*1000"));
+ assert(phone.includes('validRecordedPath(digit)'));
+ assert(phone.includes("saveMemberApplicationFollowup(client,userId"));
+ assert(keypad.includes('profilePhoneRequiresPin(path)'));
+ assert(keypad.includes('profilePhoneRecording(path)'));
+ assert(keypad.includes('"9":"182"'));
+ assert(keypad.includes("await profilePhoneDigit(client"));
+ assert(keypad.includes("await profilePhonePrompt(client"));
+});
+test("My Profile shows actual status and the broken security API hyperlink is gone",()=>{
+ const profile=read("artifacts/gavhah/src/pages/profile/index.tsx");
+ const panel=read("artifacts/gavhah/src/components/profile/member-applications-panel.tsx");
+ const layout=read("artifacts/gavhah/src/components/layout/layout.tsx");
+ const owned=read("artifacts/api-server/src/routes/me-created-content.ts");
+ assert(profile.includes("<MemberApplicationsPanel />"));
+ assert(!profile.includes('href="/api/me/security-center"'));
+ assert(panel.includes('/api/me/applications'));
+ assert(panel.includes('followups'));
+ assert(layout.includes("Volunteer Connections"));
+ assert(!layout.includes('My Connections'));
+ assert(owned.includes('"/community-projects?project="+p.id'));
+ assert(owned.includes('"/my?case="+c.id'));
+});
+test("Phone provider boundary remains Yemot for Gavhah, SignalWire only Olam",()=>{
+ const phone=read("artifacts/api-server/src/lib/yemot-api-driven-phone.ts");
+ assert(phone.includes('from "./gavhah-yemot-profile"'));
+ assert(phone.includes("isGavhahConnectionsPath(path)&&!fromShared"));
+ assert(!read("artifacts/api-server/src/lib/gavhah-yemot-profile.ts").includes("signalwire/"));
+});
