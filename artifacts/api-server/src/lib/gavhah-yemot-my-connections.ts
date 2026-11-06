@@ -96,7 +96,11 @@ export async function speakGavhahConnections(client:PoolClient,
   if(!item)return intro+"The connection is no longer in your account. Press zero to return.";
   const partner=await client.query<{nickname:string|null;name:string|null;status:string}>(
    "SELECT nickname,name,status FROM public.users WHERE id=$1",[item.partnerId]);
-  const name=voiceSafe(partner.rows[0]?.nickname||partner.rows[0]?.name);
+  // Do not disclose the partner's name until both participants have
+  // personally consented AND staff issued final release authorization.
+  const partnerCanBeNamed=["accepted","connected"].includes(item.state.stage)&&
+   hasReleaseAuthorization(item.state)&&partner.rows[0]?.status==="active";
+  const name=partnerCanBeNamed?voiceSafe(partner.rows[0]?.nickname||partner.rows[0]?.name):"a Gavhah member";
   const participant=item.state.requesterUserId===verifiedUserId?"person offering help":"person requesting help";
   const stage=stageWords[item.state.stage]||"Review pending";
   if(state.path==="970392")return intro+"Connection with "+name+
