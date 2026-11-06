@@ -80,7 +80,7 @@ router.get("/me/created-content", requireAuth, async (req, res): Promise<void> =
   groups.forEach(g=>add("group",g.id,g.name,g.privacy,`/groups/${g.id}`,g.createdAt));
   projects.forEach(p=>add(
     p.type==="campaign"?"campaign":"community_project",p.id,p.title,p.status,
-    "/community-projects",p.createdAt,
+    "/community-projects?project="+p.id,p.createdAt,
   ));
   submittedCauses.forEach(c=>add("cause_submission",c.id,c.title,c.status,
     "/united",c.createdAt,true));
@@ -93,11 +93,11 @@ router.get("/me/created-content", requireAuth, async (req, res): Promise<void> =
   posts.forEach(p=>add("group_post",p.id,p.content.slice(0,90),p.moderationStatus,
     `/groups/${p.groupId}`,p.createdAt));
   cases.forEach(c=>add("case",c.id,c.title,c.status,
-    "/my",c.createdAt,true));
+    "/my?case="+c.id,c.createdAt,true));
   volunteerProfiles.forEach(v=>add("volunteer_registration",v.id,
-    "איך וויל העלפן — מיין אנמעלדונג","registered","/directory#help-center",v.createdAt,true));
+    "איך וויל העלפן — מיין אנמעלדונג","registered","/profile#application-volunteer-"+v.id,v.createdAt,true));
   helpRequests.forEach(r=>add("help_request",r.id,
-    `פריוואטע בקשה: ${r.needType}`,r.status,"/directory#help-center",r.createdAt,true));
+    `פריוואטע בקשה: ${r.needType}`,r.status,"/profile#application-help-"+r.id,r.createdAt,true));
 
   items.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.id-a.id);
   res.setHeader("Cache-Control","private, no-store");
