@@ -2,36 +2,20 @@ import { Router, type IRouter } from "express";
 import { db, usersTable, discussionsTable, volunteerProfilesTable, helpRequestsTable, groupsTable, donationsTable, activityLogTable, newsTable, pool } from "@workspace/db";
 import { desc, count, sum, sql, eq, notInArray } from "drizzle-orm";
 
+import {readPlatformTotals} from "../lib/platform-stats-totals";
 const router: IRouter = Router();
 import {requireAuth,getSessionUserId} from "../middlewares/auth";
 
-router.get("/stats/community", async (_req, res): Promise<void> => {
-  const [userCount] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.status, "active"));
-  const [discCount] = await db.select({ count: count() }).from(discussionsTable);
-  const [groupCount] = await db.select({ count: count() }).from(groupsTable);
-  const [donationSum] = await db.select({ total: sum(donationsTable.amount) }).from(donationsTable);
-  const [newsCount] = await db.select({ count: count() }).from(newsTable);
-  // Exact cash recorded by signed-in Gavhah members, not pledges or payment
-  // intents. Refunds are subtracted to avoid inflating totals. Publish only
-  // this one number: no receipt IDs, staff/member identity or donor details.
-  const recorded = await pool.query<{total:string}>(
-    "SELECT COALESCE(SUM(GREATEST(amount-COALESCE(refunded_amount,0),0)),0)::text AS total "+
-    "FROM public.max_receipts WHERE user_id IS NOT NULL"
-  );
-
-  res.json({
-    // Confidential internal figures belong in /admin/stats, never public APIs.
-    totalPeopleHelped: 0,
-    volunteerRequests: 0,
-    donationsRaised: Number(donationSum?.total ?? 0),
-    memberRecordedDonations: Number(recorded.rows[0]?.total || 0),
-    callsHandled: 0,
-    activeVolunteers: 0,
-    activeGroups: groupCount?.count ?? 0,
-    totalDiscussions: discCount?.count ?? 0,
-    totalMembers: userCount?.count ?? 0,
-    totalNewsArticles: newsCount?.count ?? 0,
+router.get("/stats/community", async (_req, res, next): Promise<void> => {
+ const client=await pool.connect();
+ try{
+  const totals=await readPlatformTotals(client);
+  res.setHeader("Cache-Control","public,max-age=20").json({
+   ...totals,
+   // Confidential staff data is never included in public stats.
+   totalPeopleHelped:0,volunteerRequests:0,callsHandled:0,activeVolunteers:0,
   });
+ }catch(e){next(e);}finally{client.release();}
 });
 
 router.get("/stats/activity", async (req, res): Promise<void> => {
