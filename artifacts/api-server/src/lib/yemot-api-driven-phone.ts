@@ -626,11 +626,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      const next=await nextGavhahConnections(client,{path,page,focusId:confirmId,feedback},digit,verified?userId:null);
      path=next.path;page=next.page;confirmId=next.focusId;feedback=next.feedback;
     }
-   }else if(isGavhahConnectionsPath(path)&&!fromShared){
-    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
-    spoken+=await speakGavhahConnections(client,{path,page,focusId:confirmId,feedback},verified?userId:null);
-    mode="menu";
-  }else if(fromGavhahSignalWire&&isSignalWireConnectionsPath(path)){
+   }else if(fromGavhahSignalWire&&isSignalWireConnectionsPath(path)){
     const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
     const next=await nextSignalWireConnections(client,
      {path,page,focusId:confirmId,feedback},digit,verified?userId:null);
@@ -938,6 +934,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    const united=await speakUnitedPhone4(client,path,manualFlash,feedback);
    unitedActive=true;unitedSegments=united.segments;unitedKind=united.kind;
    mode=unitedKind==="record"?"record":unitedKind==="listen"?"news":"menu";
+  }else if(isGavhahConnectionsPath(path)&&!fromShared){
+    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    spoken+=await speakGavhahConnections(client,{path,page,focusId:confirmId,feedback},verified?userId:null);
+    mode="menu";
   }else if(fromGavhahSignalWire&&isSignalWireConnectionsPath(path)){
     const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
     spoken+=await speakSignalWireConnections(client,{path,page,focusId:confirmId,feedback},verified?userId:null);
