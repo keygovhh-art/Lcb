@@ -1,33 +1,16 @@
-import { useGetCommunityStats, useGetRecentActivity, useGetActivityStats, getGetCommunityStatsQueryKey, getGetRecentActivityQueryKey, getGetActivityStatsQueryKey } from "@workspace/api-client-react";
+import { useGetCommunityStats, useGetActivityStats, getGetCommunityStatsQueryKey, getGetActivityStatsQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout/layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "wouter";
 import { Users, MessageSquare, HandHeart, Heart, Globe, BarChart3, Activity, Clock, Newspaper, FolderKanban, Star } from "lucide-react";
-import { formatGregorianDate } from "@/lib/gregorian-date";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useAuth } from "@/context/auth-context";
-
-const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
-  volunteer: <Users className="h-4 w-4 text-secondary" />,
-  help_request: <HandHeart className="h-4 w-4 text-destructive" />,
-  discussion: <MessageSquare className="h-4 w-4 text-primary" />,
-  group: <Globe className="h-4 w-4 text-accent" />,
-  donation: <Heart className="h-4 w-4 text-secondary" />,
-  minyan: <Clock className="h-4 w-4 text-muted-foreground" />,
-  announcement: <Activity className="h-4 w-4 text-primary" />,
-  news: <Newspaper className="h-4 w-4 text-primary" />,
-  project: <FolderKanban className="h-4 w-4 text-secondary" />,
-  cause: <Star className="h-4 w-4 text-accent" />,
-};
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
   const { data: stats, isLoading: statsLoading } = useGetCommunityStats({
     query: { queryKey: getGetCommunityStatsQueryKey() },
-  });
-  const { data: activity, isLoading: actLoading } = useGetRecentActivity({
-    query: { queryKey: getGetRecentActivityQueryKey() },
   });
   const { data: chartData } = useGetActivityStats({}, {
     query: { queryKey: getGetActivityStatsQueryKey({}) },
@@ -36,10 +19,9 @@ export default function Dashboard() {
   const statCards = [
     { label: "Total Members", value: stats?.totalMembers ?? 0, icon: <Users className="h-6 w-6" />, link: "/directory", color: "text-primary bg-primary/10" },
     { label: "Active Discussions", value: stats?.totalDiscussions ?? 0, icon: <MessageSquare className="h-6 w-6" />, link: "/forum", color: "text-secondary bg-secondary/10" },
-    { label: "Public News Updates", value: (stats as {totalNewsArticles?: number} | undefined)?.totalNewsArticles ?? 0, icon: <HandHeart className="h-6 w-6" />, link: "/news", color: "text-accent bg-accent/10" },
     { label: "Community Groups", value: stats?.activeGroups ?? 0, icon: <Globe className="h-6 w-6" />, link: "/groups", color: "text-primary bg-primary/10" },
-    { label: "Confidential Assistance", value: "Handled privately", icon: <Heart className="h-6 w-6" />, link: "/directory", color: "text-secondary bg-secondary/10" },
-    { label: "Recorded Donations", value: `$${Number(stats?.donationsRaised ?? 0).toLocaleString()}`, icon: <Activity className="h-6 w-6" />, link: "/charity", color: "text-accent bg-accent/10" },
+    { label: "Public News Updates", value: (stats as {totalNewsArticles?: number} | undefined)?.totalNewsArticles ?? 0, icon: <Newspaper className="h-6 w-6" />, link: "/news", color: "text-accent bg-accent/10" },
+    { label: "Member-Recorded Donations", value: "$" + Number((stats as {memberRecordedDonations?:number}|undefined)?.memberRecordedDonations ?? 0).toLocaleString(), icon: <Heart className="h-6 w-6" />, link: "/my", color: "text-accent bg-accent/10" },
   ];
 
   return (
@@ -62,7 +44,7 @@ export default function Dashboard() {
           <h2 className="font-serif text-2xl font-bold text-primary mb-6">Platform Statistics</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {statsLoading
-              ? [...Array(6)].map((_, i) => (
+              ? [...Array(5)].map((_, i) => (
                   <div key={i} className="bg-card border rounded-xl p-5 space-y-3">
                     <Skeleton className="h-10 w-10 rounded-full" />
                     <Skeleton className="h-8 w-1/2" />
@@ -136,42 +118,7 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Recent Activity */}
-        <section>
-          <h2 className="font-serif text-2xl font-bold text-primary mb-6">Recent Activity</h2>
-          <div className="bg-card border rounded-xl divide-y">
-            {actLoading ? (
-              [...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4 p-4">
-                  <Skeleton className="w-8 h-8 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-3 w-1/3" />
-                  </div>
-                </div>
-              ))
-            ) : (
-              activity?.map((item: any) => (
-                <div key={item.id} className="flex items-start gap-4 p-4 hover:bg-muted/20 transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                    {ACTIVITY_ICONS[item.type] ?? <Activity className="h-4 w-4 text-muted-foreground" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground leading-snug">{item.description}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {item.actorName} · {formatGregorianDate(new Date(item.createdAt), "MMM d, yyyy 'at' h:mm a")}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-            {!actLoading && (!activity || activity.length === 0) && (
-              <div className="text-center py-12 text-muted-foreground font-serif italic">
-                No recent activity.
-              </div>
-            )}
-          </div>
-        </section>
+
       </div>
     </Layout>
   );
