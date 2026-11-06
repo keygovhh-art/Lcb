@@ -73,6 +73,71 @@ export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,s
   return responseXml(speak(reply.slice("id_list_message=t-".length))+"<Hangup/>");
  return responseXml(speak("This telephone action is not available through the new provider yet.")+"<Hangup/>");
 }
+async function savePrivateSignalWireFormRecording(res:Response,form:SimpleForm,callHash:string):Promise<void>{
+ const urlText=String(form.RecordingUrl||""),sid=String(form.RecordingSid||"");
+ const duration=Number(form.RecordingDuration||"0");
+ let safe=false;
+ try{
+  const u=new URL(urlText);
+  safe=u.protocol==="https:"&&!u.username&&!u.password&&!u.hash&&urlText.length<=1600&&
+   (u.hostname==="signalwire.com"||u.hostname.endsWith(".signalwire.com")||
+    u.hostname==="signalwire.cloud"||u.hostname.endsWith(".signalwire.cloud"));
+ }catch{}
+ if(!safe||!/^[A-Za-z0-9_-]{8,128}$/.test(sid)||
+   !Number.isSafeInteger(duration)||duration<1||duration>180){
+  res.status(400).type("text/plain").send("Invalid SignalWire recording input");return;
+ }
+ const client=await pool.connect();
+ try{
+  await client.query("BEGIN");
+  const duplicate=await client.query(
+   "SELECT id FROM public.gavhah_signalwire_form_intake WHERE recording_sid=$1 AND call_hash=$2",
+   [sid,callHash]);
+  if(duplicate.rows.length){
+   await client.query("COMMIT");
+   res.type("application/xml; charset=utf-8")
+    .send(responseXml(speak("This private application was already saved for Gavhah staff review.")+"<Hangup/>"));
+   return;
+  }
+  const state=await client.query<{path:string;member_id:number;status:string}>(
+   "SELECT c.path,c.member_id,u.status FROM public.gavhah_yemot_call_states c "+
+   "JOIN public.users u ON u.id=c.member_id "+
+   "WHERE c.call_hash=$1 AND c.linked_until>now() FOR UPDATE OF c",[callHash]);
+  const row=state.rows[0];
+  if(!row||!["970393","970394"].includes(row.path)||row.status!=="active"){
+   await client.query("ROLLBACK");
+   res.status(403).type("text/plain").send("Member verification required for private intake");return;
+  }
+  const kind=row.path==="970393"?"volunteer":"help";
+  const inserted=await client.query<{id:number}>(
+   "INSERT INTO public.gavhah_signalwire_form_intake "+
+   "(member_id,kind,call_hash,recording_sid,recording_url,recording_duration_seconds) "+
+   "VALUES($1,$2,$3,$4,$5,$6) RETURNING id",
+   [row.member_id,kind,callHash,sid,urlText,duration]);
+  const ref=inserted.rows[0].id;
+  await client.query("INSERT INTO public.support_messages "+
+   "(user_id,name,email,type,subject,message,status) "+
+   "VALUES($1,$2,$3,'signalwire_private_intake',$4,$5,'open')",[
+    row.member_id,"Verified Gavhah phone member","signalwire@internal.invalid",
+    "Private "+kind+" phone application #"+ref,
+    "Staff-only recorded application. Member authenticated by Gavhah pairing code. "+
+    "Recording URL: "+urlText+". Transcribe and verify the detailed site form fields. "+
+    "Check contact-sharing preferences and obtain consent before any introductions. "+
+    "Nothing becomes public automatically."
+   ]);
+  await client.query("UPDATE public.gavhah_yemot_call_states "+
+   "SET path='9703',phone_page=0,selected_item_id=NULL,updated_at=now() WHERE call_hash=$1",[callHash]);
+  await client.query("COMMIT");
+  res.status(200).type("application/xml; charset=utf-8")
+   .set("Cache-Control","no-store")
+   .send(responseXml(speak("Your private "+kind+" application was saved for Gavhah staff review. "+
+    "It will not appear publicly. Your reference number is "+ref+". Thank you.")+"<Hangup/>"));
+ }catch{
+  await client.query("ROLLBACK").catch(()=>{});
+  res.status(503).type("text/plain").send("Private voice intake could not be saved");
+ }finally{client.release();}
+}
+
 // Normalization and protected number list are shared with admin preflight.
 export async function signalWireNextHotline(req:Request,res:Response){
  const signingKey=String(process.env.SIGNALWIRE_SIGNING_KEY||"");
