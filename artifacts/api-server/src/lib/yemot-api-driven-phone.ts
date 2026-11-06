@@ -6,6 +6,7 @@ import { logger } from "./logger";
 import {isMyAskanusPath,isMyAskanusNumericEntry,myAskanusDigit,myAskanusPrompt} from "./yemot-my-askanus-v2";
 import {noteYemotReturnCalls} from "./signalwire-max-return-calls";
 import {isCommunityPhonePath,groupPhoneDigit,groupPhonePrompt} from "./yemot-community-groups";
+import {isSignalWireConnectionsPath,nextSignalWireConnections,speakSignalWireConnections} from "./gavhah-signalwire-my-connections";
 import {nextAskanimPhoneState,askanimPhoneSpeech} from "./gavhah-askanim-phone-flow";
 import {readForumVoiceDraft} from "./yemot-forum-voice";
 import {nextPhone3State,phone3WantsRecording,phone3Speech} from "./gavhah-phone3-community-flow";
@@ -440,6 +441,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
  const from4444=req.path.endsWith("/4444");
  const fromShared=req.path.endsWith("/shared-ivr");
  const fromNext=req.path.endsWith("/next-ivr")||fromShared;
+ const fromGavhahSignalWire=fromNext&&!fromShared&&req.body?.signalwireProvider==="gavhah";
  const secret=await exactSecret(req);
  if(!secret){res.status(403).type("text/plain").send("Access denied");return;}
  if(!fromNext){
@@ -487,7 +489,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    // Existing Yemot management is usually extension /0 (admin_login).
    // Preserve it on root 0, and keep nested 0 returning to the API root.
    // Moving to /0 DOES NOT bypass the provider admin password.
-   if((digit==="0"||digit==="*")&&path.startsWith("9708")&&!fromShared){
+   if((digit==="0"||digit==="*")&&fromGavhahSignalWire&&isSignalWireConnectionsPath(path)){
+    path=path==="970395"?"970392":path==="970392"?"970391":path==="9703"?"":"9703";
+    page=0;confirmId=null;manualFlash="";feedback="";
+   }else if((digit==="0"||digit==="*")&&path.startsWith("9708")&&!fromShared){
      path=path==="9708"?"":"9708";page=0;manualFlash="";feedback="";
     }else if((digit==="0"||digit==="*")&&path.startsWith("9706")&&!fromShared){
     path=path==="9706"?"":path==="97061"||path==="97062"?"9706":"97061";
@@ -603,6 +608,11 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     path=next.path;page=next.page;manualFlash=next.flash;feedback=next.feedback;
    }else if(!from4444 && directGavhah && path==="" && digit==="3"){
     path="9703";page=0;manualFlash="";
+   }else if(fromGavhahSignalWire&&isSignalWireConnectionsPath(path)){
+    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    const next=await nextSignalWireConnections(client,
+     {path,page,focusId:confirmId,feedback},digit,verified?userId:null);
+    path=next.path;page=next.page;confirmId=next.focusId;feedback=next.feedback;
    }else if(path.startsWith("9703")){
     const next=await nextPhone3State(client,{path,page,flash:manualFlash,feedback},digit,userId,
        !!userId&&await memberAllowed(client,{...s,member_id:userId}),callHash);
@@ -906,6 +916,10 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    const united=await speakUnitedPhone4(client,path,manualFlash,feedback);
    unitedActive=true;unitedSegments=united.segments;unitedKind=united.kind;
    mode=unitedKind==="record"?"record":unitedKind==="listen"?"news":"menu";
+  }else if(fromGavhahSignalWire&&isSignalWireConnectionsPath(path)){
+    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    spoken+=await speakSignalWireConnections(client,{path,page,focusId:confirmId,feedback},verified?userId:null);
+    mode=(path==="970393"||path==="970394")&&verified?"record":"menu";
   }else if(path.startsWith("9703")){
    const projectMenu=await phone3Speech(client,path,page,manualFlash,feedback);
    projectMenuActive=true;projectMenuMedia=projectMenu.audio;spoken=projectMenu.spoken;
