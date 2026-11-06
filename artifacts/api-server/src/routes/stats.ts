@@ -1,28 +1,21 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, discussionsTable, volunteerProfilesTable, helpRequestsTable, groupsTable, donationsTable, activityLogTable, newsTable } from "@workspace/db";
+import { db, usersTable, discussionsTable, volunteerProfilesTable, helpRequestsTable, groupsTable, donationsTable, activityLogTable, newsTable, pool } from "@workspace/db";
 import { desc, count, sum, sql, eq, notInArray } from "drizzle-orm";
 
+import {readPlatformTotals} from "../lib/platform-stats-totals";
 const router: IRouter = Router();
+import {requireAuth,getSessionUserId} from "../middlewares/auth";
 
-router.get("/stats/community", async (_req, res): Promise<void> => {
-  const [userCount] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.status, "active"));
-  const [discCount] = await db.select({ count: count() }).from(discussionsTable);
-  const [groupCount] = await db.select({ count: count() }).from(groupsTable);
-  const [donationSum] = await db.select({ total: sum(donationsTable.amount) }).from(donationsTable);
-  const [newsCount] = await db.select({ count: count() }).from(newsTable);
-
-  res.json({
-    // Confidential internal figures belong in /admin/stats, never public APIs.
-    totalPeopleHelped: 0,
-    volunteerRequests: 0,
-    donationsRaised: Number(donationSum?.total ?? 0),
-    callsHandled: 0,
-    activeVolunteers: 0,
-    activeGroups: groupCount?.count ?? 0,
-    totalDiscussions: discCount?.count ?? 0,
-    totalMembers: userCount?.count ?? 0,
-    totalNewsArticles: newsCount?.count ?? 0,
+router.get("/stats/community", async (_req, res, next): Promise<void> => {
+ const client=await pool.connect();
+ try{
+  const totals=await readPlatformTotals(client);
+  res.setHeader("Cache-Control","public,max-age=20").json({
+   ...totals,
+   // Confidential staff data is never included in public stats.
+   totalPeopleHelped:0,volunteerRequests:0,callsHandled:0,activeVolunteers:0,
   });
+ }catch(e){next(e);}finally{client.release();}
 });
 
 router.get("/stats/activity", async (req, res): Promise<void> => {
@@ -116,6 +109,21 @@ router.get("/stats/activity", async (req, res): Promise<void> => {
   }));
 
   res.json(data);
+});
+
+// A member's actual private activity, scoped by authenticated account ID.
+// Never expose platform member history in the public platform-wide statistics.
+router.get("/stats/my-activity",requireAuth,async(req,res,next):Promise<void>=>{
+ try{
+  const userId=getSessionUserId(req);
+  if(!userId){res.status(401).json({error:"Member account required"});return;}
+  const r=await pool.query<{id:number;entity_type:string;action:string;title:string;happened_at:string}>(
+   "SELECT id,entity_type,action,title,happened_at FROM public.max_history_events "+
+   "WHERE user_id=$1 ORDER BY happened_at DESC,id DESC LIMIT 25",[userId]);
+  res.setHeader("Cache-Control","private,no-store").json(r.rows.map(x=>({
+   id:x.id,type:x.entity_type,action:x.action,title:x.title,createdAt:x.happened_at
+  })));
+ }catch(e){next(e);}
 });
 
 router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
