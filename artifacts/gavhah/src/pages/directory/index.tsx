@@ -31,6 +31,7 @@ import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { useLanguage } from "@/context/language-context";
 import { ContactMethodPicker, initialContactMethods, type ContactMethodsForm } from "@/components/shared/contact-method-picker";
 import { AvailabilityFields, defaultAvailability, type VolunteerAvailabilitySchedule } from "@/components/volunteers/availability-fields";
+import { EditMyVolunteerAvailability } from "@/components/volunteers/edit-my-volunteer-availability";
 
 // ---- Constants ----
   const contactReady = (contact: ContactMethodsForm) =>
@@ -722,6 +723,7 @@ export default function Directory() {
           </p>
           {isLoaded && (isAuthenticated ? <RegisterVolunteerDialog/> :
             <MemberGate gate="volunteer" action="register as a volunteer"/>)}
+          {isAuthenticated && <EditMyVolunteerAvailability/>}
         </section>
       </div>
       <div className="rounded-xl border p-4 text-sm text-muted-foreground space-y-2 bg-muted/10">
