@@ -74,7 +74,7 @@ function unseal(groupId:number,purpose:"member"|"moderator",blob:string):string{
  d.setAuthTag(data.subarray(12,28));
  return Buffer.concat([d.update(data.subarray(28)),d.final()]).toString("utf8");
 }
-async function event(groupId:number,actorId:number,action:string,details:Record<string,unknown>={}){
+async function event(groupId:number,actorId:number|null,action:string,details:Record<string,unknown>={}){
  await pool.query("INSERT INTO public.group_conference_events(group_id,actor_member_id,action,details) VALUES($1,$2,$3,$4::jsonb)",
   [groupId,actorId,action,JSON.stringify(details)]);
 }
@@ -271,4 +271,81 @@ router.post("/admin/groups/:id/conference/verify",requireAuth,superadmin,mutatin
  await event(id,user.id,"provider_rechecked",{providerAccepted:ok});
  res.setHeader("Cache-Control","private,no-store").json({providerAccepted:ok,physicalCallTested:false});
 }));
+
+/** Cloudflare scheduled, account-owner-controlled one-time conference installer.
+ * No public endpoint, no member impersonation, no call origination. The owner
+ * authorized existing Gavhah groups, each is explicitly queued in Neon.
+ * Add-only provider writes; one group per run, fail closed and never auto-retry
+ * an ambiguous provider write or reuse an occupied root extension.
+ */
+export async function provisionNextQueuedGroupConference():Promise<{status:string;groupId:number|null}>{
+ const client=await pool.connect();
+ let locked=false;let id:number|null=null;let providerStarted=false;
+ try{
+  const advisory=await client.query<{locked:boolean}>("SELECT pg_try_advisory_lock(56181,54171) AS locked");
+  locked=!!advisory.rows[0]?.locked;
+  if(!locked)return {status:"other_installation_active",groupId:null};
+  const claim=await client.query<{group_id:number;mode:string}>(
+    "UPDATE public.group_conference_provision_queue SET state='working',updated_at=now() "+
+    "WHERE group_id=(SELECT group_id FROM public.group_conference_provision_queue "+
+    "WHERE state='queued' ORDER BY requested_at,group_id LIMIT 1 FOR UPDATE SKIP LOCKED) "+
+    "RETURNING group_id,mode");
+  if(!claim.rowCount)return{status:"queue_empty",groupId:null};
+  id=claim.rows[0].group_id;
+  const mode=claim.rows[0].mode;
+  try{
+   const existing=await roomFor(id);
+   if(existing?.provider_state==="provider_accepted"){
+    await client.query("UPDATE public.group_conference_provision_queue SET state='done',updated_at=now(),last_error=NULL WHERE group_id=$1",[id]);
+    return{status:"already_configured",groupId:id};
+   }
+   if(existing){throw Error("A room already exists; manual review is required. No provider changes made.");}
+   const conn=await getYemotConferenceCredentials();
+   const used=await checkRoot(conn.token);
+   const reserved=await client.query<{extension:string}>(
+    "SELECT listener_extension AS extension FROM public.group_conference_rooms WHERE listener_extension IS NOT NULL "+
+    "UNION SELECT moderator_extension FROM public.group_conference_rooms WHERE moderator_extension IS NOT NULL");
+   for(const row of reserved.rows)used.add(row.extension.replace(/^\//,""));
+   const selected:string[]=[];
+   for(let n=700;n<=899&&selected.length<2;n++){
+    const ext=String(n);if(used.has(ext))continue;
+    const chk=await provider(conn.token,"CheckIfFileExists",{path:"ivr2:/"+ext+"/ext.ini"});
+    if(chk.fileExists===false)selected.push(ext);
+   }
+   if(selected.length!==2)throw Error("No pair of confirmed unused conference extensions found");
+   const listener="/"+selected[0],moderator="/"+selected[1];
+   const memberPin=String(randomInt(10000000,100000000));
+   const moderatorPin=String(randomInt(10000000,100000000));
+   await client.query(
+    "INSERT INTO public.group_conference_rooms(group_id,provider_state,provider_line,listener_extension,moderator_extension,member_pin_sealed,moderator_pin_sealed,mode) "+
+    "VALUES($1,'provisioning',$2,$3,$4,$5,$6,$7)",
+    [id,conn.lineNumber,listener,moderator,seal(id,"member",memberPin),seal(id,"moderator",moderatorPin),mode]);
+   providerStarted=true;
+   await provider(conn.token,"UpdateExtension",{
+    path:"ivr2:"+listener,type:"confbridge",title:"Gavhah Group "+id+" Meeting",
+    conf_bridge_type:mode,password:memberPin,conf_bridge_record:"no"
+   });
+   await provider(conn.token,"UpdateExtension",{
+    path:"ivr2:"+moderator,type:"confbridge",title:"Gavhah Group "+id+" Moderator",
+    conf_bridge_type:"admin",conf_bridge_folder_to_play:listener,
+    conf_bridge_admin_no_ask:"yes",password:moderatorPin,conf_bridge_record:"no"
+   });
+   const stored=await roomFor(id);
+   if(!stored||!await accepted(conn.token,stored))throw Error("Provider read-back did not confirm conference settings");
+   await client.query("UPDATE public.group_conference_rooms SET provider_state='provider_accepted',provider_checked_at=now(),last_error=NULL,updated_at=now() WHERE group_id=$1",[id]);
+   await client.query("UPDATE public.group_conference_provision_queue SET state='done',last_error=NULL,updated_at=now() WHERE group_id=$1",[id]);
+   await event(id,null,"cloudflare_provider_accepted",{rootUntouched:true,callingProvider:"SignalWire",conferenceProvider:"Yemot",physicalCallTested:false});
+   return{status:"provider_accepted",groupId:id};
+  }catch(e){
+   const message=e instanceof Error?e.message.slice(0,150):"Conference provider setup failed";
+   await client.query("UPDATE public.group_conference_provision_queue SET state='failed',last_error=$2,updated_at=now() WHERE group_id=$1",[id,message]).catch(()=>{});
+   if(providerStarted)await client.query("UPDATE public.group_conference_rooms SET provider_state='needs_review',enabled=false,last_error=$2,updated_at=now() WHERE group_id=$1",[id,"Manual provider read-back required; do not retry blindly"]).catch(()=>{});
+   return{status:"failed_requires_review",groupId:id};
+  }
+ }finally{
+  if(locked)await client.query("SELECT pg_advisory_unlock(56181,54171)").catch(()=>{});
+  client.release();
+ }
+}
+
 export default router;
