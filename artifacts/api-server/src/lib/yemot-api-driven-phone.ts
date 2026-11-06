@@ -8,6 +8,7 @@ import {noteYemotReturnCalls} from "./signalwire-max-return-calls";
 import {isCommunityPhonePath,groupPhoneDigit,groupPhonePrompt} from "./yemot-community-groups";
 import {isSignalWireConnectionsPath,nextSignalWireConnections,speakSignalWireConnections} from "./gavhah-signalwire-my-connections";
 import {isGavhahConnectionsPath,nextGavhahConnections,speakGavhahConnections} from "./gavhah-yemot-my-connections";
+import {profilePhonePath,profilePhoneDigit,profilePhonePrompt,profilePhoneRecording,profilePhoneRequiresPin} from "./gavhah-yemot-profile";
 import {nextAskanimPhoneState,askanimPhoneSpeech} from "./gavhah-askanim-phone-flow";
 import {readForumVoiceDraft} from "./yemot-forum-voice";
 import {nextPhone3State,phone3WantsRecording,phone3Speech} from "./gavhah-phone3-community-flow";
@@ -479,7 +480,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   let actionsOpen=s.news_actions_open,replyMode=s.news_reply_mode,replyTarget=s.news_reply_target,reportMode=s.news_report_mode;
   let manualFlash=s.action_flash||"";
   if(step>9000){step=0;path="";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;replyTarget=null;reportMode=false;manualFlash="";}
-  const inputName=(replyMode||path==="970211"&&readForumVoiceDraft(manualFlash)?.stage==="record"||phone3WantsRecording(path,manualFlash)||phone4InputKind(path,manualFlash)==="record"||phone6InputKind(path,manualFlash)==="record"||minyan7Input(path,manualFlash)==="record"?"rr":phone4InputKind(path,manualFlash)==="amount"||phone4InputKind(path,manualFlash)==="date"||phone6InputKind(path,manualFlash)==="amount"||phone6InputKind(path,manualFlash)==="date"||minyan7Input(path,manualFlash)==="digits"||minyan7Input(path,manualFlash)==="text"?"pn":path==="128"?"ln":path==="185"?"rg":(path==="115"||path==="161"||isMyAskanusNumericEntry(path)||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
+  const inputName=(profilePhoneRecording(path)||replyMode||path==="970211"&&readForumVoiceDraft(manualFlash)?.stage==="record"||phone3WantsRecording(path,manualFlash)||phone4InputKind(path,manualFlash)==="record"||phone6InputKind(path,manualFlash)==="record"||minyan7Input(path,manualFlash)==="record"?"rr":phone4InputKind(path,manualFlash)==="amount"||phone4InputKind(path,manualFlash)==="date"||phone6InputKind(path,manualFlash)==="amount"||phone6InputKind(path,manualFlash)==="date"||minyan7Input(path,manualFlash)==="digits"||minyan7Input(path,manualFlash)==="text"?"pn":(path==="128"||profilePhoneRequiresPin(path))?"ln":path==="185"?"rg":(path==="115"||path==="161"||isMyAskanusNumericEntry(path)||publicIdSections.has(path))&&!confirmId&&!actionsOpen?"ar":"iv")+step;
   const raw=req.body?.[inputName]??req.query[inputName]??(fromNext?req.body?.signalwireDigits:undefined);
   let feedback="";
   let goToProviderManagement=false;
@@ -520,7 +521,17 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
     goToProviderManagement=true;
    }else if(from4444 && digit==="0"){
     path="2";position=0;chunk=0;page=0;confirmId=null;actionsOpen=false;replyMode=false;reportMode=false;
-}else if(isMyAskanusPath(path)){
+}else if(profilePhonePath(path)&&!fromShared){
+    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    const next=await profilePhoneDigit(client,
+     {path,page,focusId:confirmId,flash:manualFlash,feedback},digit,verified?userId:null);
+    path=next.path;page=next.page;confirmId=next.focusId;manualFlash=next.flash;feedback=next.feedback;
+   }else if(profilePhonePath(path)&&!fromShared){
+    const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
+    const profile=await profilePhonePrompt(client,
+      {path,page,focusId:confirmId,flash:manualFlash,feedback},verified?userId:null);
+    spoken=profile.text;mode=profile.mode;
+  }else if(isMyAskanusPath(path)){
     const active=!!userId && await memberAllowed(client,{...s,member_id:userId});
     const next=await myAskanusDigit(client,{path,page,focusId:confirmId,flash:manualFlash,memberId:active?userId:null,callHash,failures:s.login_failures},digit);
     if(next.path!==undefined)path=next.path;
