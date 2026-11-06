@@ -1,4 +1,4 @@
-import {createHmac} from "node:crypto";
+import {createHmac,randomUUID} from "node:crypto";
 import type {Request,Response} from "express";
 import {pool} from "@workspace/db";
 import {handleYemotApp} from "./yemot-api-driven-phone";
@@ -56,13 +56,43 @@ export function sharedRouteReady(r:SharedRoute|null):boolean{
    !target.username&&!target.password&&!target.hash&&target.href.length<=1800;
  }catch{return false;}
 }
+type OlamDiagnosticStage="received"|"authentication"|"input"|"routing"|"callback"|"phone_engine"|"completed"|"exception";
+function signatureFailureReason(method:string,path:string,key:string,signature:string,body:unknown):string{
+ if(method!=="POST")return "invalid_http_method";
+ if(path!=="/api/signalwire/shared-ivr")return "unexpected_callback_path";
+ if(key.length<24)return "signing_key_missing_or_short";
+ if(!signature)return "provider_signature_missing";
+ if(!/^[A-Za-z0-9+/]{27}=$/.test(signature))return "provider_signature_malformed";
+ if(!body||typeof body!=="object"||Array.isArray(body))return "provider_form_missing_or_invalid";
+ const values=Object.values(body as Record<string,unknown>);
+ if(values.length>80||values.some(v=>typeof v!=="string"||v.length>4000))return "provider_form_invalid_values";
+ // The HMAC proves a mismatch, but not which side has the wrong key or URL.
+ return "provider_signature_mismatch_key_url_or_form";
+}
 export async function signalWireSharedHotline(req:Request,res:Response):Promise<void>{
  const signingKey=String(process.env.SIGNALWIRE_SIGNING_KEY||"");
  const signature=String(req.get("x-signalwire-signature")||
    req.get("x-twilio-signature")||"");
  const form=req.body as Record<string,string>;
+ const diagId=randomUUID();
+ const started=Date.now();
+ // This HMAC reference joins multiple keypad callbacks without logging caller
+ // numbers, CallSid, the project secret, or provider signatures.
+ const callRef=typeof form?.CallSid==="string"&&signingKey.length>=24
+  ?createHmac("sha256",signingKey).update(form.CallSid).digest("hex").slice(0,16)
+  :null;
+ const diagnostic=(stage:OlamDiagnosticStage,reason:string,status:number|null)=>{
+  console.info("OLAM_CALL_DIAGNOSTIC",JSON.stringify({
+   id:diagId,callRef,stage,reason,status,elapsedMs:Date.now()-started,
+   endpoint:"/api/signalwire/shared-ivr"
+  }));
+ };
+ res.set("X-Olam-Diagnostic-Id",diagId);
+ diagnostic("received","provider_callback_received",null);
+ try{
  if(req.method!=="POST"||req.originalUrl!=="/api/signalwire/shared-ivr"||
   !checkSignalWireSignature(signingKey,signature,SHARED_SIGNALWIRE_URL,form)){
+  diagnostic("authentication",signatureFailureReason(req.method,req.originalUrl,signingKey,signature,form),403);
   res.status(403).type("text/plain").send("Invalid SignalWire callback signature");
   return;
  }
@@ -72,18 +102,24 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  if(!/^[A-Za-z0-9_.:-]{8,160}$/.test(callId)||
   normalizedSignalWireNumber(called)!=="6056558080"||
   (digits!==undefined&&!/^\d{0,16}$/.test(digits))){
+  diagnostic("input","invalid_call_identifier_number_or_digits",400);
   res.status(400).type("text/plain").send("Invalid SignalWire call or keypad input");
   return;
  }
  // Only when explicitly enabled and a signed provider inbound CallSid matches
  // a previously PLACED MAX outbound call. Other shared-number calls stay in
  // the existing hotline with unchanged menus and 55555 legacy redirection.
- if(await maybeHandleOlamReturnCall(req,res))return;
+ diagnostic("authentication","provider_signature_accepted",200);
+ if(await maybeHandleOlamReturnCall(req,res)){
+  diagnostic("completed","outbound_return_call_handled",res.statusCode);
+  return;
+ }
  const route=(await pool.query<SharedRoute>(
   "SELECT requested_number,old_extension,audit_state,original_voice_url,"+
   "original_voice_method,original_call_handler,route_fingerprint,cutover_enabled "+
   "FROM public.gavhah_signalwire_shared_route WHERE id=1")).rows[0];
  if(!sharedRouteReady(route)||signingKey.length<24){
+  diagnostic("routing","saved_route_not_ready_or_signing_key_short",503);
   res.status(503).type("text/plain").send("Shared SignalWire IVR is not prepared");
   return;
  }
@@ -105,7 +141,9 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
     res.status(200).type("application/xml; charset=utf-8")
      .set("Cache-Control","no-store")
      .send(originalSystemRedirectXml(route.original_voice_url!,method));
+   diagnostic("completed","legacy_extension_redirected",200);
    }catch{
+    diagnostic("routing","legacy_redirect_url_rejected",503);
     res.status(503).type("text/plain").send("Saved original system route is unsafe");
    }
    return;
@@ -127,6 +165,7 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  } as unknown as Request;
  await handleYemotApp(proxy,capture,phoneTree);
  if(status!==200){
+  diagnostic("phone_engine","phone_engine_rejected",status);
   res.status(status).type("text/plain").send("Gavhah phone engine unavailable");
   return;
  }
@@ -134,4 +173,12 @@ export async function signalWireSharedHotline(req:Request,res:Response):Promise<
  res.status(200).type("application/xml; charset=utf-8")
   .set("Cache-Control","no-store")
   .send(convertGavhahReplyToCxml(reply,SHARED_SIGNALWIRE_URL,root,await olamMenuAudioUrl((await pool.query<{path:string}>("SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",[callHash])).rows[0]?.path||"root"),true,await olamMenuAudioUrl("retry")));
+ diagnostic("completed","ivr_response_sent",200);
+ }catch(error){
+  // Avoid logging secret-bearing database or provider exception messages.
+  const errName=error instanceof Error?error.name:"UnknownError";
+  const safeName=/^[A-Za-z]{1,45}$/.test(errName)?errName:"UnknownError";
+  diagnostic("exception","internal_error_"+safeName,500);
+  throw error;
+ }
 }
