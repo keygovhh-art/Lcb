@@ -37,7 +37,7 @@ function responseXml(body:string){
 }
 const speak=(text:string)=>'<Say voice="man" language="en-US">'+
  xml(text.replace(/[\u0590-\u05ff\u0600-\u06ff]/g," ").slice(0,3200))+'</Say>';
-export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,sharedRootMode=false,menuAudioUrl:string|null=null,olamFourSecondRetries=false,retryAudioUrl:string|null=null):string{
+export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,sharedRootMode=false,menuAudioUrl:string|null=null,olamFourSecondRetries=false,retryAudioUrl:string|null=null,allowPrivateFormRecording=false):string{
  const found=/^read=t-([\s\S]*)=(iv|ln|ar|rg)(\d+),no,(\d+),(\d+),(\d+),No,no(?:,.*)?$/.exec(reply);
  if(found){
   const [,prompt,mode,,maxDigits,,timeout]=found;
@@ -61,15 +61,83 @@ export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,s
     'numDigits="'+digits+'" finishOnKey="#" timeout="'+seconds+'">'+first+'</Gather>';
   return responseXml(gathering+speak("No selection received. Please call again.")+"<Hangup/>");
  }
- if(/^read=t-[\s\S]*=rr\d+,,record$/.test(reply)){
-  // Refuse to claim audio recording is saved: provider-specific webhook/media
-  // import is a separate release gate; no fake recording links or caller data.
-  return responseXml(speak("This audio recording option needs the new provider recording integration. Please use the website until it is tested.")+"<Hangup/>");
+ const recording=/^read=t-([\s\S]*)=rr\d+,,record$/.exec(reply);
+ if(recording){
+  if(!allowPrivateFormRecording){
+   return responseXml(speak("This recording option is not connected to the signed SignalWire private intake. Please use your Gavhah account.")+"<Hangup/>");
+  }
+  return responseXml(speak(recording[1])+
+    '<Record action="'+xml(actionUrl)+'" method="POST" maxLength="180" finishOnKey="#" playBeep="true"/>');
  }
  if(reply.startsWith("id_list_message=t-"))
   return responseXml(speak(reply.slice("id_list_message=t-".length))+"<Hangup/>");
  return responseXml(speak("This telephone action is not available through the new provider yet.")+"<Hangup/>");
 }
+async function savePrivateSignalWireFormRecording(res:Response,form:SimpleForm,callHash:string):Promise<void>{
+ const urlText=String(form.RecordingUrl||""),sid=String(form.RecordingSid||"");
+ const duration=Number(form.RecordingDuration||"0");
+ let safe=false;
+ try{
+  const u=new URL(urlText);
+  safe=u.protocol==="https:"&&!u.username&&!u.password&&!u.hash&&urlText.length<=1600&&
+   (u.hostname==="signalwire.com"||u.hostname.endsWith(".signalwire.com")||
+    u.hostname==="signalwire.cloud"||u.hostname.endsWith(".signalwire.cloud"));
+ }catch{}
+ if(!safe||!/^[A-Za-z0-9_-]{8,128}$/.test(sid)||
+   !Number.isSafeInteger(duration)||duration<1||duration>180){
+  res.status(400).type("text/plain").send("Invalid SignalWire recording input");return;
+ }
+ const client=await pool.connect();
+ try{
+  await client.query("BEGIN");
+  const duplicate=await client.query(
+   "SELECT id FROM public.gavhah_signalwire_form_intake WHERE recording_sid=$1 AND call_hash=$2",
+   [sid,callHash]);
+  if(duplicate.rows.length){
+   await client.query("COMMIT");
+   res.type("application/xml; charset=utf-8")
+    .send(responseXml(speak("This private application was already saved for Gavhah staff review.")+"<Hangup/>"));
+   return;
+  }
+  const state=await client.query<{path:string;member_id:number;status:string}>(
+   "SELECT c.path,c.member_id,u.status FROM public.gavhah_yemot_call_states c "+
+   "JOIN public.users u ON u.id=c.member_id "+
+   "WHERE c.call_hash=$1 AND c.linked_until>now() FOR UPDATE OF c",[callHash]);
+  const row=state.rows[0];
+  if(!row||!["970393","970394"].includes(row.path)||row.status!=="active"){
+   await client.query("ROLLBACK");
+   res.status(403).type("text/plain").send("Member verification required for private intake");return;
+  }
+  const kind=row.path==="970393"?"volunteer":"help";
+  const inserted=await client.query<{id:number}>(
+   "INSERT INTO public.gavhah_signalwire_form_intake "+
+   "(member_id,kind,call_hash,recording_sid,recording_url,recording_duration_seconds) "+
+   "VALUES($1,$2,$3,$4,$5,$6) RETURNING id",
+   [row.member_id,kind,callHash,sid,urlText,duration]);
+  const ref=inserted.rows[0].id;
+  await client.query("INSERT INTO public.support_messages "+
+   "(user_id,name,email,type,subject,message,status) "+
+   "VALUES($1,$2,$3,'signalwire_private_intake',$4,$5,'open')",[
+    row.member_id,"Verified Gavhah phone member","signalwire@internal.invalid",
+    "Private "+kind+" phone application #"+ref,
+    "Staff-only recorded application. Member authenticated by Gavhah pairing code. "+
+    "Recording URL: "+urlText+". Transcribe and verify the detailed site form fields. "+
+    "Check contact-sharing preferences and obtain consent before any introductions. "+
+    "Nothing becomes public automatically."
+   ]);
+  await client.query("UPDATE public.gavhah_yemot_call_states "+
+   "SET path='9703',phone_page=0,selected_item_id=NULL,updated_at=now() WHERE call_hash=$1",[callHash]);
+  await client.query("COMMIT");
+  res.status(200).type("application/xml; charset=utf-8")
+   .set("Cache-Control","no-store")
+   .send(responseXml(speak("Your private "+kind+" application was saved for Gavhah staff review. "+
+    "It will not appear publicly. Your reference number is "+ref+". Thank you.")+"<Hangup/>"));
+ }catch{
+  await client.query("ROLLBACK").catch(()=>{});
+  res.status(503).type("text/plain").send("Private voice intake could not be saved");
+ }finally{client.release();}
+}
+
 // Normalization and protected number list are shared with admin preflight.
 export async function signalWireNextHotline(req:Request,res:Response){
  const signingKey=String(process.env.SIGNALWIRE_SIGNING_KEY||"");
@@ -84,6 +152,7 @@ export async function signalWireNextHotline(req:Request,res:Response){
  const callId=String(form.CallSid||"");
  const called=String(form.To||"");
  const digit=typeof form.Digits==="string"?form.Digits:undefined;
+ const privateRecording=typeof form.RecordingUrl==="string"&&form.RecordingUrl.length>0;
  if(isProtectedSignalWireNumber(called)){
   // Defense in depth: even a stale or corrupted staging row must not answer
   // calls belonging to the owner's separate SignalWire application.
@@ -92,7 +161,7 @@ export async function signalWireNextHotline(req:Request,res:Response){
  }
  if(!/^[A-Za-z0-9_.:-]{8,160}$/.test(callId)||
     !/^\+?[0-9]{7,15}$/.test(called)||
-    (digit!==undefined&&!/^[0-9]{0,16}$/.test(digit))){
+    (digit!==undefined&&!/^[0-9]{0,16}$/.test(digit)&&!(privateRecording&&digit==="#"))){
   res.status(400).type("text/plain").send("Invalid telephone call input");
   return;
  }
@@ -114,6 +183,11 @@ export async function signalWireNextHotline(req:Request,res:Response){
   res.status(503).type("text/plain").send("New hotline signing key has changed. Prepare a new test.");
   return;
  }
+ if(privateRecording){
+  await savePrivateSignalWireFormRecording(res,form,
+   createHmac("sha256",entryKey).update(callId).digest("hex"));
+  return;
+ }
  // Adapt SignalWire DTMF into existing Gavhah IVR engine instead of creating a
  // second copy of tasks, menus, database actions, membership and donor logic.
  let status=200,providerReply="";
@@ -125,7 +199,7 @@ export async function signalWireNextHotline(req:Request,res:Response){
  } as unknown as Response;
  const proxyRequest={
   path:"/yemot/next-ivr",
-  body:{ApiCallId:callId,entryKey,...(digit===undefined?{}:{signalwireDigits:digit})},
+  body:{ApiCallId:callId,entryKey,signalwireProvider:"gavhah",...(digit===undefined?{}:{signalwireDigits:digit})},
   query:{}
  } as unknown as Request;
  await handleYemotApp(proxyRequest,capture,phoneTree);
@@ -133,6 +207,10 @@ export async function signalWireNextHotline(req:Request,res:Response){
   res.status(status).type("text/plain").send("Gavhah phone access unavailable");
   return;
  }
+ const current=await pool.query<{path:string}>(
+  "SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",
+  [createHmac("sha256",entryKey).update(callId).digest("hex")]);
+ const allowRecording=/^97039[34]$/.test(current.rows[0]?.path||"");
  res.status(200).type("application/xml; charset=utf-8")
-  .set("Cache-Control","no-store").send(convertGavhahReplyToCxml(providerReply));
+  .set("Cache-Control","no-store").send(convertGavhahReplyToCxml(providerReply,SIGNALWIRE_URL,false,null,false,null,allowRecording));
 }

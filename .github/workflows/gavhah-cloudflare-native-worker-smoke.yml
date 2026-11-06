@@ -36,6 +36,8 @@ jobs:
         run: node --experimental-strip-types --test tests/gavhah-volunteer-availability-parity.test.mjs
       - name: TypeScript integration check
         run: pnpm run typecheck
+      - name: Verify signed SignalWire private My Connections phone flow
+        run: node --test tests/gavhah-signalwire-my-connections.test.mjs
       - name: Build frontend static assets
         run: pnpm --filter @workspace/gavhah run build
       - name: Embed original Vite website assets in the independent Worker
