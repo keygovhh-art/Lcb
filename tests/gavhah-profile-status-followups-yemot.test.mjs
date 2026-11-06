@@ -45,7 +45,7 @@ test("My Profile shows actual status and the broken security API hyperlink is go
 });
 test("Phone provider boundary remains Yemot for Gavhah, SignalWire only Olam",()=>{
  const phone=read("artifacts/api-server/src/lib/yemot-api-driven-phone.ts");
- assert(phone.includes("from \\"./gavhah-yemot-profile\\""));
+ assert(phone.includes('from "./gavhah-yemot-profile"'));
  assert(phone.includes("isGavhahConnectionsPath(path)&&!fromShared"));
  assert(!read("artifacts/api-server/src/lib/gavhah-yemot-profile.ts").includes("signalwire/"));
 });
