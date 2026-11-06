@@ -570,7 +570,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
    }else if(!from4444 && directGavhah && path==="" && digit==="8"){
      path="9708";page=0;manualFlash="";
     }else if(path==="9708"){
-     const choices:Record<string,string>={"1":"161","2":"167","3":"164","4":"162","5":"97085","6":"97086"};
+     const choices:Record<string,string>={"1":"161","2":"167","3":"164","4":"162","5":"97085","6":"97086","9":"182"};
      if(choices[digit])path=choices[digit];
     }else if(path==="97085"||path==="97086"){
      const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
@@ -922,7 +922,7 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      "Your saved or joined groups press 3. More group options press 4. "+
      "For the single Hitkabtzu live conference press 5. "+
      "For the lecturer and moderator entrance to the same conference room press 6. "+
-     "Press zero to return.";
+     "For your private My Profile and application statuses press 9. Press zero to return.";
    }else if(path==="97085"||path==="97086"){
     const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
     const gate=await conferenceGate(client,verified?userId:null);
