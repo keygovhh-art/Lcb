@@ -37,7 +37,7 @@ function responseXml(body:string){
 }
 const speak=(text:string)=>'<Say voice="man" language="en-US">'+
  xml(text.replace(/[\u0590-\u05ff\u0600-\u06ff]/g," ").slice(0,3200))+'</Say>';
-export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,sharedRootMode=false,menuAudioUrl:string|null=null,olamFourSecondRetries=false,retryAudioUrl:string|null=null):string{
+export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,sharedRootMode=false,menuAudioUrl:string|null=null,olamFourSecondRetries=false,retryAudioUrl:string|null=null,allowPrivateFormRecording=false):string{
  const found=/^read=t-([\s\S]*)=(iv|ln|ar|rg)(\d+),no,(\d+),(\d+),(\d+),No,no(?:,.*)?$/.exec(reply);
  if(found){
   const [,prompt,mode,,maxDigits,,timeout]=found;
@@ -61,10 +61,13 @@ export function convertGavhahReplyToCxml(reply:string,actionUrl=SIGNALWIRE_URL,s
     'numDigits="'+digits+'" finishOnKey="#" timeout="'+seconds+'">'+first+'</Gather>';
   return responseXml(gathering+speak("No selection received. Please call again.")+"<Hangup/>");
  }
- if(/^read=t-[\s\S]*=rr\d+,,record$/.test(reply)){
-  // Refuse to claim audio recording is saved: provider-specific webhook/media
-  // import is a separate release gate; no fake recording links or caller data.
-  return responseXml(speak("This audio recording option needs the new provider recording integration. Please use the website until it is tested.")+"<Hangup/>");
+ const recording=/^read=t-([\s\S]*)=rr\d+,,record$/.exec(reply);
+ if(recording){
+  if(!allowPrivateFormRecording){
+   return responseXml(speak("This recording option is not connected to the signed SignalWire private intake. Please use your Gavhah account.")+"<Hangup/>");
+  }
+  return responseXml(speak(recording[1])+
+    '<Record action="'+xml(actionUrl)+'" method="POST" maxLength="180" finishOnKey="#" playBeep="true"/>');
  }
  if(reply.startsWith("id_list_message=t-"))
   return responseXml(speak(reply.slice("id_list_message=t-".length))+"<Hangup/>");
@@ -84,6 +87,7 @@ export async function signalWireNextHotline(req:Request,res:Response){
  const callId=String(form.CallSid||"");
  const called=String(form.To||"");
  const digit=typeof form.Digits==="string"?form.Digits:undefined;
+ const privateRecording=typeof form.RecordingUrl==="string"&&form.RecordingUrl.length>0;
  if(isProtectedSignalWireNumber(called)){
   // Defense in depth: even a stale or corrupted staging row must not answer
   // calls belonging to the owner's separate SignalWire application.
@@ -92,7 +96,7 @@ export async function signalWireNextHotline(req:Request,res:Response){
  }
  if(!/^[A-Za-z0-9_.:-]{8,160}$/.test(callId)||
     !/^\+?[0-9]{7,15}$/.test(called)||
-    (digit!==undefined&&!/^[0-9]{0,16}$/.test(digit))){
+    (digit!==undefined&&!/^[0-9]{0,16}$/.test(digit)&&!(privateRecording&&digit==="#"))){
   res.status(400).type("text/plain").send("Invalid telephone call input");
   return;
  }
@@ -114,6 +118,11 @@ export async function signalWireNextHotline(req:Request,res:Response){
   res.status(503).type("text/plain").send("New hotline signing key has changed. Prepare a new test.");
   return;
  }
+ if(privateRecording){
+  await savePrivateSignalWireFormRecording(res,form,
+   createHmac("sha256",entryKey).update(callId).digest("hex"));
+  return;
+ }
  // Adapt SignalWire DTMF into existing Gavhah IVR engine instead of creating a
  // second copy of tasks, menus, database actions, membership and donor logic.
  let status=200,providerReply="";
@@ -125,7 +134,7 @@ export async function signalWireNextHotline(req:Request,res:Response){
  } as unknown as Response;
  const proxyRequest={
   path:"/yemot/next-ivr",
-  body:{ApiCallId:callId,entryKey,...(digit===undefined?{}:{signalwireDigits:digit})},
+  body:{ApiCallId:callId,entryKey,signalwireProvider:"gavhah",...(digit===undefined?{}:{signalwireDigits:digit})},
   query:{}
  } as unknown as Request;
  await handleYemotApp(proxyRequest,capture,phoneTree);
@@ -133,6 +142,10 @@ export async function signalWireNextHotline(req:Request,res:Response){
   res.status(status).type("text/plain").send("Gavhah phone access unavailable");
   return;
  }
+ const current=await pool.query<{path:string}>(
+  "SELECT path FROM public.gavhah_yemot_call_states WHERE call_hash=$1",
+  [createHmac("sha256",entryKey).update(callId).digest("hex")]);
+ const allowRecording=/^97039[34]$/.test(current.rows[0]?.path||"");
  res.status(200).type("application/xml; charset=utf-8")
-  .set("Cache-Control","no-store").send(convertGavhahReplyToCxml(providerReply));
+  .set("Cache-Control","no-store").send(convertGavhahReplyToCxml(providerReply,SIGNALWIRE_URL,false,null,false,null,allowRecording));
 }
