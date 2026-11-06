@@ -78,7 +78,7 @@ export default function ConnectionsPage(){
       <header className="flex flex-wrap gap-3 items-start justify-between">
         <div>
           <h1 className="font-serif text-3xl font-bold text-primary flex items-center gap-2">
-            <Handshake className="h-7 w-7"/>{yi?"מיינע פארבינדונגען":"My Connections"}
+            <Handshake className="h-7 w-7"/>{yi?"עסקנים־פארבינדונגען":"Volunteer Connections"}
           </h1>
           <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
             {yi?"די מערכת קען פארשלאגן א פארבינדונג, אבער קען נישט געבן רשות אנשטאט א מענטש. ביידע מוזן אליין מסכים זיין, און דערנאך מוז די מערכת נאך באזונדער ערלויבן דאס איבערגעבן.":
