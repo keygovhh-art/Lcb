@@ -585,25 +585,12 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      }
     }else if(!from4444 && directGavhah && path==="" && digit==="6"){
     path="9706";page=0;manualFlash="";
-   }else if(path==="191"||path==="1911"||/^1911[1-5]$/.test(path)){
-   const totals=await readPlatformTotals(client);
-   const donation=Math.max(0,totals.memberRecordedDonations).toLocaleString("en-US",{maximumFractionDigits:2});
-   const choices:Record<string,string>={
-    "1":"Members "+totals.totalMembers.toLocaleString("en-US"),
-    "2":"Discussions "+totals.totalDiscussions.toLocaleString("en-US"),
-    "3":"Groups "+totals.activeGroups.toLocaleString("en-US"),
-    "4":"News updates "+totals.totalNewsArticles.toLocaleString("en-US"),
-    "5":"Member recorded donations "+donation+" dollars"
-   };
-   if(path==="191"){
-    spoken="Platform statistics. For options press one. To hear every total remain on the line. "+
-     Object.values(choices).join(". ")+". These are overall totals only. Press zero to return.";
-   }else if(path==="1911"){
-    spoken="For member count press one. Discussions press two. Groups press three. "+
-     "News updates press four. Total donations recorded by members press five. Press zero to return.";
-   }else{
-    spoken=choices[path.slice(-1)]+". Press one for all options or zero to return.";
-   }
+   }else if(path==="191"&&digit==="1"){
+    path="1911";
+   }else if(path==="1911"&&/^[1-5]$/.test(digit)){
+    path="1911"+digit;
+   }else if(/^1911[1-5]$/.test(path)&&digit==="1"){
+    path="1911";
   }else if(path.startsWith("9706")){
     const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
     const next=await nextDailyPhone6(client,{path,page,flash:manualFlash,feedback},digit,
@@ -900,6 +887,19 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
   }else if(actionsOpen){
    const articleId=await currentNewsId(path,position,confirmId);
    spoken+=await actionsMenu(client,articleId,userId,await memberAllowed(client,{...s,member_id:userId}));
+  }else if(path==="191"||path==="1911"||/^1911[1-5]$/.test(path)){
+   const totals=await readPlatformTotals(client);
+   const donation=Math.max(0,totals.memberRecordedDonations).toLocaleString("en-US",{maximumFractionDigits:2});
+   const choices:Record<string,string>={
+    "1":"Members "+totals.totalMembers.toLocaleString("en-US"),
+    "2":"Discussions "+totals.totalDiscussions.toLocaleString("en-US"),
+    "3":"Groups "+totals.activeGroups.toLocaleString("en-US"),
+    "4":"News updates "+totals.totalNewsArticles.toLocaleString("en-US"),
+    "5":"Member recorded donations "+donation+" dollars"
+   };
+   if(path==="191")spoken="Platform statistics. For options press one. To hear every total remain on the line. "+Object.values(choices).join(". ")+". These are overall totals only. Press zero to return.";
+   else if(path==="1911")spoken="For member count press one. Discussions press two. Groups press three. News updates press four. Total donations recorded by members press five. Press zero to return.";
+   else spoken=choices[path.slice(-1)]+". Press one for all options or zero to return.";
   }else if(path.startsWith("9706")){
     const daily=await speakDailyPhone6(client,path,manualFlash,feedback);
     daily6Active=true;daily6Segments=daily.segments;daily6Kind=daily.kind;
