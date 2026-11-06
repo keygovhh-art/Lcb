@@ -26,6 +26,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Verify private application statuses, profile follow-ups and Yemot re-PIN
+        run: node --test tests/gavhah-profile-status-followups-yemot.test.mjs
       - name: Verify Cloudflare request-isolated PostgreSQL lifecycle
         run: node --test tests/gavhah-cloudflare-request-db-scope.test.mjs
       - name: Verify independent Yemot and SignalWire webhook gates
