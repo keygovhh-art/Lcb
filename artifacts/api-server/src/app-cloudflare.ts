@@ -12,12 +12,26 @@ import express,{type Express,type ErrorRequestHandler} from "express";
 import cors from "cors";
 import session from "express-session";
 import router from "./routes";
-import {pool} from "@workspace/db";
+import {pool, runWithRequestDatabase, closeRequestDatabase} from "@workspace/db";
 import {PostgresSessionStore} from "./lib/postgres-session-store";
 import {sessionOptions,usesPostgresSessions} from "./lib/session-options";
 
 const app:Express=express();
 app.set("trust proxy",1);
+
+// Cloudflare Worker HTTP requests must not reuse PostgreSQL socket objects
+// across separate request contexts. Scope the entire Express chain, including
+// authentication, session reads/writes, and Drizzle queries, to one request.
+// Otherwise the shared global pg Pool causes "I/O from a different request"
+// and 1101 hung-Worker errors, even while Neon itself is healthy.
+app.use((_req,res,next)=>{
+ if(process.env.CF_WORKER_RUNTIME!=="1"){next();return;}
+ runWithRequestDatabase(()=>{
+  res.once("finish",closeRequestDatabase);
+  res.once("close",closeRequestDatabase);
+  next();
+ });
+});
 
 // A Cloudflare-native, non-pino request logger avoids CJS pino-http startup
 // defects while keeping req.log.error usable in our current error middleware.

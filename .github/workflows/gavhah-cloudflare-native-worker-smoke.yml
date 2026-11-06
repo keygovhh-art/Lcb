@@ -26,8 +26,12 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Verify Cloudflare request-isolated PostgreSQL lifecycle
+        run: node --test tests/gavhah-cloudflare-request-db-scope.test.mjs
       - name: Verify independent Yemot and SignalWire webhook gates
         run: node --test tests/yemot-cloudflare-independent-gate.test.mjs
+      - name: Verify group conferences use Yemot only and calling remains SignalWire
+        run: node --test tests/gavhah-group-conference-provider-split.test.mjs
       - name: Build frontend static assets
         run: pnpm --filter @workspace/gavhah run build
       - name: Embed original Vite website assets in the independent Worker
