@@ -585,12 +585,6 @@ export async function handleYemotApp(req:Request,res:Response,tree:Record<string
      }
     }else if(!from4444 && directGavhah && path==="" && digit==="6"){
     path="9706";page=0;manualFlash="";
-   }else if(path==="191"&&digit==="1"){
-    path="1911";
-   }else if(path==="1911"&&/^[1-5]$/.test(digit)){
-    path="1911"+digit;
-   }else if(/^1911[1-5]$/.test(path)&&digit==="1"){
-    path="1911";
   }else if(path.startsWith("9706")){
     const verified=!!userId&&await memberAllowed(client,{...s,member_id:userId});
     const next=await nextDailyPhone6(client,{path,page,flash:manualFlash,feedback},digit,
