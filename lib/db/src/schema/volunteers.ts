@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -8,6 +8,7 @@ export const volunteerProfilesTable = pgTable("volunteer_profiles", {
   userName: text("user_name").notNull(),
   skills: text("skills").array().notNull().default([]),
   availability: text("availability").notNull(),
+  availabilitySchedule: jsonb("availability_schedule").$type<{mode?:string;startTime?:string;endTime?:string;date?:string;fromDate?:string;untilDate?:string;timeZone?:string}>().notNull().default({}),
   bio: text("bio"),
   location: text("location").notNull(),
   areasOfInterest: text("areas_of_interest").array().notNull().default([]),
