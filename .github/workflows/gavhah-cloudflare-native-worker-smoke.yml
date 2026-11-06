@@ -32,6 +32,10 @@ jobs:
         run: node --test tests/yemot-cloudflare-independent-gate.test.mjs
       - name: Verify group conferences use Yemot only and calling remains SignalWire
         run: node --test tests/gavhah-group-conference-provider-split.test.mjs
+      - name: Validate actual volunteer scheduling and help case form
+        run: node --experimental-strip-types --test tests/gavhah-volunteer-availability-parity.test.mjs
+      - name: TypeScript integration check
+        run: pnpm run typecheck
       - name: Build frontend static assets
         run: pnpm --filter @workspace/gavhah run build
       - name: Embed original Vite website assets in the independent Worker
