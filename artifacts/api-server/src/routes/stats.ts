@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, discussionsTable, volunteerProfilesTable, helpRequestsTable, groupsTable, donationsTable, activityLogTable, newsTable } from "@workspace/db";
+import { db, usersTable, discussionsTable, volunteerProfilesTable, helpRequestsTable, groupsTable, donationsTable, activityLogTable, newsTable, pool } from "@workspace/db";
 import { desc, count, sum, sql, eq, notInArray } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -10,12 +10,20 @@ router.get("/stats/community", async (_req, res): Promise<void> => {
   const [groupCount] = await db.select({ count: count() }).from(groupsTable);
   const [donationSum] = await db.select({ total: sum(donationsTable.amount) }).from(donationsTable);
   const [newsCount] = await db.select({ count: count() }).from(newsTable);
+  // Exact cash recorded by signed-in Gavhah members, not pledges or payment
+  // intents. Refunds are subtracted to avoid inflating totals. Publish only
+  // this one number: no receipt IDs, staff/member identity or donor details.
+  const recorded = await pool.query<{total:string}>(
+    "SELECT COALESCE(SUM(GREATEST(amount-COALESCE(refunded_amount,0),0)),0)::text AS total "+
+    "FROM public.max_receipts WHERE user_id IS NOT NULL"
+  );
 
   res.json({
     // Confidential internal figures belong in /admin/stats, never public APIs.
     totalPeopleHelped: 0,
     volunteerRequests: 0,
     donationsRaised: Number(donationSum?.total ?? 0),
+    memberRecordedDonations: Number(recorded.rows[0]?.total || 0),
     callsHandled: 0,
     activeVolunteers: 0,
     activeGroups: groupCount?.count ?? 0,
