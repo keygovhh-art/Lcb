@@ -3,6 +3,7 @@ import { db, usersTable, discussionsTable, volunteerProfilesTable, helpRequestsT
 import { desc, count, sum, sql, eq, notInArray } from "drizzle-orm";
 
 const router: IRouter = Router();
+import {requireAuth,getSessionUserId} from "../middlewares/auth";
 
 router.get("/stats/community", async (_req, res): Promise<void> => {
   const [userCount] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.status, "active"));
@@ -124,6 +125,21 @@ router.get("/stats/activity", async (req, res): Promise<void> => {
   }));
 
   res.json(data);
+});
+
+// A member's actual private activity, scoped by authenticated account ID.
+// Never expose platform member history in the public platform-wide statistics.
+router.get("/stats/my-activity",requireAuth,async(req,res,next):Promise<void>=>{
+ try{
+  const userId=getSessionUserId(req);
+  if(!userId){res.status(401).json({error:"Member account required"});return;}
+  const r=await pool.query<{id:number;entity_type:string;action:string;title:string;happened_at:string}>(
+   "SELECT id,entity_type,action,title,happened_at FROM public.max_history_events "+
+   "WHERE user_id=$1 ORDER BY happened_at DESC,id DESC LIMIT 25",[userId]);
+  res.setHeader("Cache-Control","private,no-store").json(r.rows.map(x=>({
+   id:x.id,type:x.entity_type,action:x.action,title:x.title,createdAt:x.happened_at
+  })));
+ }catch(e){next(e);}
 });
 
 router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
