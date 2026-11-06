@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useListVolunteers, useListHelpRequests, useGetFeaturedVolunteers, useGetFeaturedRequests,
   useCreateVolunteer, useCreateHelpRequest,
@@ -30,6 +30,7 @@ import { MemberGate } from "@/components/shared/member-gate";
 import { ActiveAccountIdentity } from "@/components/shared/account-switcher";
 import { useLanguage } from "@/context/language-context";
 import { ContactMethodPicker, initialContactMethods, type ContactMethodsForm } from "@/components/shared/contact-method-picker";
+import { AvailabilityFields, defaultAvailability, type VolunteerAvailabilitySchedule } from "@/components/volunteers/availability-fields";
 
 // ---- Constants ----
   const contactReady = (contact: ContactMethodsForm) =>
@@ -77,7 +78,8 @@ function RegisterVolunteerDialog() {
 
   const nickname = (user as any)?.nickname || user?.name || "";
   const { lang } = useLanguage(), yi = lang === "yi";
-  const [form, setForm] = useState({ location: "", availability: "anytime", bio: "" });
+  const [form, setForm] = useState({ bio: "" });
+  const [availabilitySchedule,setAvailabilitySchedule]=useState<VolunteerAvailabilitySchedule>(defaultAvailability);
   const [skillsText, setSkillsText] = useState("");
   const [contactMethods, setContactMethods] = useState<ContactMethodsForm>(initialContactMethods);
   const createVol = useCreateVolunteer();
@@ -92,20 +94,21 @@ function RegisterVolunteerDialog() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const skills = skillsText.split(/[,;\n]+/).map(v=>v.trim()).filter(Boolean).slice(0,30);
-    if (!nickname.trim() || !form.location.trim() || skills.length === 0) {
-      toast({ title: "Please complete the required fields", description: yi ? "נאמען, געגנט און אן אייגענע קאטאגאריע זענען פארלאנגט." : "Name, location, and your custom area of help are required.", variant: "destructive" });
+    if (!nickname.trim() || skills.length === 0) {
+      toast({ title: "Please complete the required fields", description: yi ? "נאמען און אן אייגענע קאטאגאריע זענען פארלאנגט." : "Name and your custom area of help are required.", variant: "destructive" });
       return;
     }
     if (!contactReady(contactMethods)) {
       toast({ title: "Enter the main contact method and any selected backup", variant: "destructive" });return;
     }
     createVol.mutate(
-      { data: { userName: nickname, location: form.location, availability: "anytime", bio: form.bio || undefined, skills, contactMethods } as any },
+      { data: { userName: nickname, availability: availabilitySchedule.mode, availabilitySchedule, bio: form.bio || undefined, skills, contactMethods } as any },
       {
         onSuccess: (volunteer) => {
           // The volunteer registry is private to administration. Never populate a public cache.
           setOpen(false);
-          setForm({ location: "", availability: "anytime", bio: "" });
+          setForm({ bio: "" });
+          setAvailabilitySchedule(defaultAvailability());
           setSkillsText("");
           setContactMethods(initialContactMethods());
           toast({ title: "Application received", description: "Your private volunteer registration is available to Gavhah staff only." });
@@ -134,16 +137,7 @@ function RegisterVolunteerDialog() {
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
             <ActiveAccountIdentity label={yi?"עסקן־אקאונט":"Volunteer account"} />
             <p className="text-xs text-muted-foreground">{yi?"דאס איז א פריוואטע אנמעלדונג. נאר די מערכת זעט דיינע פרטים.":"Private application, visible only to Gavhah staff."}</p>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">City / Community *</Label>
-              <Input value={form.location} onChange={set("location")} placeholder="Brooklyn, NY" className="h-11" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="font-semibold">{yi ? "ווען קענסטו העלפן?" : "Availability"}</Label>
-              <div className="border rounded-md bg-muted/20 p-3 text-sm font-medium">
-                {yi ? "אין יעדע צייט" : "Anytime"}
-              </div>
-            </div>
+            <AvailabilityFields value={availabilitySchedule} onChange={setAvailabilitySchedule} yi={yi} />
             <div className="space-y-1.5">
               <Label className="font-semibold">{yi ? "אין וועלכע זאכן קענסטו העלפן? *" : "Your own areas of help *"}</Label>
               <Textarea value={skillsText} onChange={e=>setSkillsText(e.target.value)} maxLength={1800}
@@ -156,7 +150,7 @@ function RegisterVolunteerDialog() {
               <Textarea value={form.bio} onChange={set("bio")} placeholder="A few words about your background or how you like to help..." className="resize-none min-h-20" />
             </div>
             <ContactMethodPicker value={contactMethods} onChange={setContactMethods} />
-            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createVol.isPending || !skillsText.trim() || !form.location.trim() || !contactReady(contactMethods)}>
+            <Button type="submit" className="w-full bg-secondary hover:bg-secondary/90 text-white h-12 font-semibold" disabled={createVol.isPending || !skillsText.trim() || !contactReady(contactMethods)}>
               {createVol.isPending ? "Registering..." : "Register as Volunteer"}
             </Button>
           </form>
@@ -221,8 +215,8 @@ function SubmitRequestDialog() {
             <p className="text-sm text-muted-foreground">Your request will be reviewed by Gavhah staff. All information is handled with full discretion.</p>
             <ActiveAccountIdentity label={yi?"ווער שיקט אריין די בקשה?":"Requesting account"} />
             <div className="space-y-1.5">
-              <Label className="font-semibold">{yi?"נאמען אדער רעפערענץ פון דעם וואס דארף הילף *":"Person or family needing help — reference *"}</Label>
-              <Input value={form.name} onChange={set("name")} placeholder="First name or family name only" className="h-11" required />
+              <Label className="font-semibold">{yi?"צוועק *":"Case *"}</Label>
+              <Input value={form.name} onChange={set("name")} placeholder={yi?"שרייב דעם צוועק":"Enter the case title"} className="h-11" required />
             </div>
             <div className="space-y-1.5">
               <Label className="font-semibold">{yi ? "וואס פאר הילף דארפסטו? — אייגענע קאטאגאריע *" : "Kind of help — write your own category *"}</Label>
