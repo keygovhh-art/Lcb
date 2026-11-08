@@ -240,7 +240,7 @@ async function exactSecret(req:Request){
   const key=String(process.env.SIGNALWIRE_SIGNING_KEY||"");
   if(key.length<24)return null;
   const row=(await pool.query("SELECT route_fingerprint,audit_state FROM public.gavhah_signalwire_shared_route "+
-   "WHERE id=1 AND requested_number='6056558080' AND old_extension='55555' AND cutover_enabled=false")).rows[0];
+   "WHERE id=1 AND requested_number='6056558080' AND old_extension='55555' AND cutover_enabled=true")).rows[0];
   if(row?.audit_state!=="verified_compatibility_voice_url"||
      !/^[a-f0-9]{64}$/.test(String(row?.route_fingerprint||"")))return null;
   const expected=createHmac("sha256",key).update("gavhah-shared-55555-v1:"+row.route_fingerprint).digest("hex");
