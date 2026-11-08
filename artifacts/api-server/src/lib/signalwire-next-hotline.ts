@@ -121,6 +121,9 @@ export async function signalWireNextHotline(req:Request,res:Response){
   status(code:number){status=code;return this;},
   type(_kind:string){return this;},
   set(_key:string,_value:string){return this;},
+  // The shared phone engine may observe the real HTTP finish event; this
+  // synthetic response must not throw when a timing observer is installed.
+  once(_event:string,_listener:(...args:unknown[])=>void){return this;},
   send(value:unknown){providerReply=String(value??"");return this;}
  } as unknown as Response;
  const proxyRequest={
