@@ -81,3 +81,13 @@ test('Shared SignalWire hotline records sanitized per-call failure diagnostics',
  // telephone number, form payload, raw provider signature, or project secret.
  assert.match(shared,/id:diagId,callRef,stage,reason,status,elapsedMs:/);
 });
+
+test('Shared route HMAC must agree with live cutover and accept timing probes safely',()=>{
+ assert.match(shared,/cutover_enabled!==true/);
+ assert.match(engine,/cutover_enabled=true/);
+ assert.doesNotMatch(engine,/cutover_enabled=false/);
+ // SignalWire's synthetic Express capture must be safe if the phone engine
+ // registers response-finish observers on real provider HTTP responses.
+ assert.match(shared,/once\(_event:string,_listener:/);
+ assert.match(existing,/once\(_event:string,_listener:/);
+});
