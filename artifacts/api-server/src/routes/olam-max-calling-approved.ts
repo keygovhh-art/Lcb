@@ -88,17 +88,25 @@ router.post("/askanus/max/calling/approved/manual",async(req,res,next)=>{
 
 router.patch("/askanus/max/calling/approved/history/:id",async(req,res,next)=>{
  try{
-  const uid=getSessionUserId(req)!,id=Number(req.params.id),report=normalizeDetails(req.body);
-  if(!validId(id)||!report){res.sendStatus(400);return;}
-  const owned=(await pool.query("SELECT case_id FROM public.max_call_sessions WHERE id=$1 AND user_id=$2 AND history_hidden_at IS NULL",[id,uid])).rows[0];
+  const uid=getSessionUserId(req)!,id=Number(req.params.id);
+  if(!validId(id)){res.sendStatus(400);return;}
+  const owned=(await pool.query("SELECT case_id,contact_id,number_e164,outcome,mood,note,report_details FROM public.max_call_sessions WHERE id=$1 AND user_id=$2 AND history_hidden_at IS NULL",[id,uid])).rows[0];
   if(!owned){res.sendStatus(404);return;}
+  // Editing a single field must not clear any other already-saved statistics.
+  const prior=owned.report_details||{};
+  const merged={...prior,outcome:owned.outcome,mood:owned.mood,note:owned.note,...req.body};
+  const edited=normalizeDetails(merged);
+  if(!edited){res.status(400).json({error:"Invalid statistics field"});return;}
   const caseId=req.body.caseId===undefined?owned.case_id:req.body.caseId===null?null:Number(req.body.caseId);
   if(caseId!==null&&(!validId(caseId)||!await ownedCase(uid,caseId))){res.sendStatus(404);return;}
   const q=await pool.query(
    "UPDATE public.max_call_sessions SET case_id=$1,purpose_type=$2,purpose_key=$3,outcome=$4,mood=$5,note=$6,report_details=$7::jsonb,updated_at=now() "+
    "WHERE id=$8 AND user_id=$9 AND history_hidden_at IS NULL RETURNING id",
-   [caseId,caseId===null?"none":"case",caseId===null?null:String(caseId),report.outcome,report.mood,report.note,JSON.stringify(report.details),id,uid]);
-  res.json({saved:!!q.rowCount,financialTotalsNotModified:true,needsFinanceReconciliation:report.details.moneyKind!=="none"});
+   [caseId,caseId===null?"none":"case",caseId===null?null:String(caseId),edited.outcome,edited.mood,edited.note,JSON.stringify(edited.details),id,uid]);
+  if(edited.outcome==="do_not_call"&&owned.contact_id){
+   await pool.query("UPDATE public.communication_contacts SET do_not_call=true,opt_out_reason=$1,updated_at=now() WHERE id=$2 AND user_id=$3",[edited.note||"Do Not Call request",owned.contact_id,uid]);
+  }
+  res.json({saved:!!q.rowCount,financialTotalsNotModified:true,needsFinanceReconciliation:edited.details.moneyKind!=="none"});
  }catch(e){next(e);}
 });
 
