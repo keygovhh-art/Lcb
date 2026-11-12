@@ -39,9 +39,13 @@ BEGIN
     RETURNING id INTO saved;
   END IF;
  END IF;
+ IF saved IS NOT NULL THEN
+  UPDATE public.communication_contacts SET archived_at=NULL,updated_at=now()
+   WHERE id=saved AND user_id=NEW.user_id AND archived_at IS NOT NULL;
+ END IF;
  NEW.contact_id:=saved;
  RETURN NEW;
-END; $$;
+END; $;
 
 CREATE OR REPLACE TRIGGER olam_max_call_auto_contact
  BEFORE INSERT OR UPDATE OF status,outcome ON public.max_call_sessions
@@ -78,3 +82,29 @@ CREATE OR REPLACE TRIGGER olam_max_call_status_append
  AFTER INSERT OR UPDATE OF status,outcome,note,mood,report_details,case_id
  ON public.max_call_sessions
  FOR EACH ROW EXECUTE FUNCTION public.olam_max_append_call_event();
+
+
+-- A new completed conversation advances a person's cadence without modifying
+-- earlier call outcomes, manual/verified donor money or their historic notes.
+CREATE OR REPLACE FUNCTION public.olam_max_advance_contact_cadence()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF NEW.contact_id IS NULL OR NEW.status='prepared'
+   OR COALESCE(NEW.outcome,'') NOT IN ('donation','pledge','spoke') THEN RETURN NEW; END IF;
+ IF TG_OP='UPDATE' THEN
+  IF OLD.outcome IS NOT DISTINCT FROM NEW.outcome AND
+    OLD.contact_id IS NOT DISTINCT FROM NEW.contact_id THEN RETURN NEW; END IF;
+ END IF;
+ UPDATE public.max_contact_recontact_plans p
+ SET next_allowed_at=GREATEST(p.next_allowed_at,
+   COALESCE(NEW.answered_at,NEW.ended_at,now())+make_interval(months=>p.interval_months)),
+   updated_at=now()
+ WHERE p.user_id=NEW.user_id AND p.contact_id=NEW.contact_id
+ AND (p.scope='person' OR
+  (p.purpose_type=COALESCE(NEW.purpose_type,'none') AND p.purpose_key=COALESCE(NEW.purpose_key,'')));
+ RETURN NEW;
+END; $$;
+
+CREATE OR REPLACE TRIGGER olam_max_call_cadence
+ AFTER INSERT OR UPDATE OF outcome,status,contact_id ON public.max_call_sessions
+ FOR EACH ROW EXECUTE FUNCTION public.olam_max_advance_contact_cadence();
