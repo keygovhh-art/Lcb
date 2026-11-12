@@ -47,6 +47,18 @@ test("repeat/inbound call prompts cannot invent a purpose or a no-answer result"
  assert.match(caller,/useState\(""\),\[moneyKind,setMoneyKind\]=useState\("none"\)/);
  assert.match(caller,/postCallName/);
 });
+test("missed incoming calls include signed SignalWire return-alert history",()=>{
+ const inbound=read("migrations/20261112_olam_contacts_inbound_calls.sql");
+ assert.match(inbound,/olam_max_return_call_contact_created/);
+ assert.match(inbound,/RETURN NEW/);
+ assert.match(inbound,/olam_max_return_call_contact/);
+ assert.match(inbound,/\x27return-call:\x27\|\|NEW\.id/);
+ assert.match(inbound,/\x27inbound\x27,\x27signalwire\x27,\x27\x27/);
+ for(const script of [api,phone]){
+  assert.match(script,/max_return_calls rc JOIN public\.max_return_alerts a/);
+  assert.match(script,/a\.kind IN \(\x27missed\x27,\x27voicemail\x27,\x27busy\x27,\x27yemot\x27\)/);
+ }
+});
 test("recontact never becomes an automatic call; reports remain append-only",()=>{
  assert.match(db,/max_contact_recontact_plans/);
  assert.match(triggers,/olam_max_advance_contact_cadence/);
