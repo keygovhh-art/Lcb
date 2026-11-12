@@ -1,6 +1,7 @@
 -- Olam MAX "קאנטאקט'ס" — add-only, reuse the SAME Neon contacts and call records.
 -- Apply on isolated Neon staging first. No provider switching, no deletion, no autodynamics.
 ALTER TABLE public.communication_contacts ADD COLUMN IF NOT EXISTS contact_ref integer;
+ALTER TABLE public.communication_contacts ADD COLUMN IF NOT EXISTS archived_at timestamptz;
 CREATE UNIQUE INDEX IF NOT EXISTS communication_contacts_owner_ref_unique
  ON public.communication_contacts(user_id,contact_ref) WHERE contact_ref IS NOT NULL;
 CREATE TABLE IF NOT EXISTS public.max_contact_id_sequence(
