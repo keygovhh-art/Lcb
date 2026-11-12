@@ -54,6 +54,13 @@ export async function reconcileOlamCallFinance(userId:number,callId:number){
     "WHERE id=$3 AND user_id=$4 AND funds_received+$1::numeric>=0 AND funds_promised+$2::numeric>=0 RETURNING id",
     [v.received.toFixed(2),v.pledged.toFixed(2),id,userId]);
    if(!updated.rowCount)throw Object.assign(Error("Case totals changed; reconcile before retry"),{status:409});
+   for(const [kind,delta] of [["received",v.received],["pledged",v.pledged]] as const){
+    if(!delta)continue;
+    await client.query("INSERT INTO public.case_activity_log(case_id,date,type,note,amount) "+
+     "VALUES($1,to_char((now() AT TIME ZONE 'America/New_York')::date,'YYYY-MM-DD'),$2,$3,$4)",
+     [id,delta>0?(kind==="received"?"funds_received":"funds_promised"):"update",
+      "Olam call #"+callId+" "+(delta>0?"addition":"correction")+" "+kind,delta]);
+   }
   }
   const contact=call.contact_id?(await client.query(
     "SELECT name FROM public.communication_contacts WHERE id=$1 AND user_id=$2",[call.contact_id,userId])).rows[0]:null;
@@ -73,9 +80,7 @@ export async function reconcileOlamCallFinance(userId:number,callId:number){
     await client.query("INSERT INTO public.max_history_events(user_id,case_id,entity_type,entity_id,action,title,details) "+
      "VALUES($1,$2,'call_report',$3,'finance_corrected',$4,$5)",
      [userId,oldCase,existing.report_id,"Correction from call #"+callId,details]);
-    await client.query("INSERT INTO public.case_activity_log(case_id,date,type,note,amount) "+
-      "VALUES($1,to_char((now() AT TIME ZONE 'America/New_York')::date,'YYYY-MM-DD'),'update',$2,$3)",
-      [oldCase,"Cancelled previously reported "+oldKind+" from call #"+callId,-oldAmount]);
+
    }
    await client.query("COMMIT");
    return {financialRecorded:false,reversed:!!existing,officialCaseUpdated:!!existing};
@@ -96,7 +101,10 @@ export async function reconcileOlamCallFinance(userId:number,callId:number){
     "INSERT INTO public.fundraising_call_reports "+
     "(user_id,case_id,contact_id,contact_name,outcome,money_kind,amount,note,request_id,observed_mood) "+
     "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) "+
-    "ON CONFLICT(user_id,request_id) DO UPDATE SET id=fundraising_call_reports.id RETURNING id",
+    "ON CONFLICT(user_id,request_id) DO UPDATE SET case_id=EXCLUDED.case_id,"+
+    "contact_id=EXCLUDED.contact_id,contact_name=EXCLUDED.contact_name,outcome=EXCLUDED.outcome,"+
+    "money_kind=EXCLUDED.money_kind,amount=EXCLUDED.amount,note=EXCLUDED.note,"+
+    "observed_mood=EXCLUDED.observed_mood RETURNING id",
     [userId,newCase,call.contact_id,contactName,String(call.outcome||"other"),
      newKind,newAmount,String(call.note||""),"olam-call-session-"+callId,String(call.mood||"neutral")||"neutral"]);
    reportId=Number(inserted.rows[0].id);
@@ -109,11 +117,7 @@ export async function reconcileOlamCallFinance(userId:number,callId:number){
     "INSERT INTO public.max_history_events(user_id,case_id,entity_type,entity_id,action,title,details) "+
     "VALUES($1,$2,'call_report',$3,$4,$5,$6)",[userId,newCase,reportId,
      existing?"finance_corrected":"finance_entered","Olam call #"+callId,details]);
-   await client.query(
-    "INSERT INTO public.case_activity_log(case_id,date,type,note,amount) "+
-    "VALUES($1,to_char((now() AT TIME ZONE 'America/New_York')::date,'YYYY-MM-DD'),$2,$3,$4)",
-    [newCase,newKind==="received"?"funds_received":"funds_promised",
-     (existing?"Corrected":"Reported")+" call #"+callId+" "+newKind,newAmount-oldAmount]);
+
   }
   await client.query("COMMIT");
   return {financialRecorded:true,reportId,officialCaseUpdated:true,
