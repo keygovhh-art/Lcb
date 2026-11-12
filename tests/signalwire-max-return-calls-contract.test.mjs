@@ -14,7 +14,7 @@ test('Personal callback is off by default and never hijacks unrelated shared lin
  assert.match(migration,/enabled boolean NOT NULL DEFAULT false/);
  assert.match(callback,/OLAM_RETURN_CALL_ROUTING_ENABLED/);
  assert.match(callback,/maybeHandleOlamReturnCall/);
- assert.match(shared,/if\(await maybeHandleOlamReturnCall\(req,res\)\)return/);
+ assert.match(shared,/if\(await maybeHandleOlamReturnCall\(req,res\)\)\{\s*diagnostic\("completed","outbound_return_call_handled",res\.statusCode\);\s*return;\s*\}/);
  assert.match(callback,/provider_call_id IS NOT NULL/);
  assert.match(callback,/s\.direction='outbound'/);
  assert.match(callback,/p\.enabled=true/);
