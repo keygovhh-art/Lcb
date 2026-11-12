@@ -45,7 +45,7 @@ BEGIN
  END IF;
  NEW.contact_id:=saved;
  RETURN NEW;
-END; $;
+END; $$;
 
 CREATE OR REPLACE TRIGGER olam_max_call_auto_contact
  BEFORE INSERT OR UPDATE OF status,outcome ON public.max_call_sessions
