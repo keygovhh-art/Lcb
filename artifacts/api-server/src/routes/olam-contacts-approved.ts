@@ -31,7 +31,10 @@ const conditions:Record<Category,string>={
  pledge_pending:"EXISTS(SELECT 1 FROM public.max_pledges p WHERE p.user_id=c.user_id AND p.contact_id=c.id AND p.amount>p.paid_amount AND p.status NOT IN ('cancelled','paid'))",
  warm:"EXISTS(SELECT 1 FROM public.max_contact_call_events e WHERE e.user_id=c.user_id AND e.contact_id=c.id AND (e.details->>'mood'='friendly' OR e.details->'report'->>'donationWarmth' IN ('very_warm','very_generous','warm','generous')))",
  do_not_call:"c.do_not_call=true",
- missed:"EXISTS(SELECT 1 FROM public.max_call_sessions s WHERE s.user_id=c.user_id AND s.contact_id=c.id AND s.direction='inbound' AND s.status='no_answer')",
+ missed:"(EXISTS(SELECT 1 FROM public.max_call_sessions s WHERE s.user_id=c.user_id AND s.contact_id=c.id AND s.direction='inbound' AND s.status='no_answer') OR "+
+ "EXISTS(SELECT 1 FROM public.max_return_calls rc JOIN public.max_return_alerts a ON a.return_call_id=rc.id AND a.owner_user_id=rc.owner_user_id "+
+ "WHERE rc.owner_user_id=c.user_id AND RIGHT(regexp_replace(rc.incoming_from,'[^0-9]','','g'),10)=RIGHT(regexp_replace(c.phone,'[^0-9]','','g'),10) "+
+ "AND a.kind IN ('missed','voicemail','busy','yemot')))",
  donations:"EXISTS(SELECT 1 FROM public.max_contact_call_events e WHERE e.user_id=c.user_id AND e.contact_id=c.id AND e.outcome='donation')",
  no_answer:"EXISTS(SELECT 1 FROM public.max_contact_call_events e WHERE e.user_id=c.user_id AND e.contact_id=c.id AND e.outcome='no_answer')",
  not_interested:"EXISTS(SELECT 1 FROM public.max_contact_call_events e WHERE e.user_id=c.user_id AND e.contact_id=c.id AND e.outcome='not_interested')",
