@@ -44,8 +44,8 @@ const normalizeDetails=(b:any,allowPastCallback=false)=>{
  return {outcome,mood,note,details};
 };
 const dncCheck=async(uid:number,p:string)=>!!(await pool.query(
- "SELECT 1 FROM public.communication_contacts WHERE user_id=$1 AND do_not_call=true AND RIGHT(regexp_replace(phone,'[^0-9]','','g'),10)=$2 LIMIT 1",
- [uid,p.slice(-10)])).rowCount;
+ "SELECT 1 FROM public.communication_contacts WHERE user_id=$1 AND do_not_call=true AND public.olam_max_phone_equal(phone,$2) LIMIT 1",
+ [uid,p])).rowCount;
 
 router.get("/askanus/max/calling/approved/context",async(req,res,next)=>{
  try{
@@ -133,7 +133,7 @@ router.post("/askanus/max/calling/approved/contact",async(req,res,next)=>{
   const uid=getSessionUserId(req)!,p=phone(req.body?.number),name=toText(req.body?.name,150),address=toText(req.body?.address,550);
   if(!p||!name){res.status(400).json({error:"Phone number and name required; address may be skipped"});return;}
   const x=await pool.query(
-   "SELECT id FROM public.communication_contacts WHERE user_id=$1 AND RIGHT(regexp_replace(phone,'[^0-9]','','g'),10)=$2 ORDER BY id LIMIT 1",[uid,p.slice(-10)]);
+   "SELECT id FROM public.communication_contacts WHERE user_id=$1 AND public.olam_max_phone_equal(phone,$2) ORDER BY id LIMIT 1",[uid,p]);
   if(x.rowCount){res.status(409).json({error:"Contact already saved",id:x.rows[0].id});return;}
   const q=await pool.query("INSERT INTO public.communication_contacts(user_id,name,phone,postal_address) VALUES($1,$2,$3,$4) RETURNING id",[uid,name,p,address]);
   res.status(201).json({saved:true,id:q.rows[0].id,donor360Linked:true});
@@ -235,7 +235,7 @@ router.post("/askanus/max/calling/approved/history/:id/contact",async(req,res,ne
   if(!r.rowCount){res.sendStatus(404);return;}
   const p=phone(r.rows[0].number_e164)!;
   const existing=await pool.query(
-   "SELECT id FROM public.communication_contacts WHERE user_id=$1 AND RIGHT(regexp_replace(phone,'[^0-9]','','g'),10)=$2 LIMIT 1",[uid,p.slice(-10)]);
+   "SELECT id FROM public.communication_contacts WHERE user_id=$1 AND public.olam_max_phone_equal(phone,$2) LIMIT 1",[uid,p]);
   if(existing.rowCount){res.status(409).json({error:"Contact already exists",id:existing.rows[0].id});return;}
   const q=await pool.query("INSERT INTO public.communication_contacts(user_id,name,phone,postal_address) VALUES($1,$2,$3,$4) RETURNING id",[uid,name,p,address]);
   await pool.query("UPDATE public.max_call_sessions SET contact_id=$1 WHERE id=$2 AND user_id=$3",[q.rows[0].id,id,uid]);
