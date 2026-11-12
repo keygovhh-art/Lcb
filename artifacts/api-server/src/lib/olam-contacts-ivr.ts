@@ -23,7 +23,7 @@ const filter:Record<Category,string>={
  do_not_call:"c.do_not_call=true",
  missed:"(EXISTS(SELECT 1 FROM public.max_call_sessions s WHERE s.user_id=$1 AND s.contact_id=c.id AND s.direction='inbound' AND s.status='no_answer') OR "+
  "EXISTS(SELECT 1 FROM public.max_return_calls rc JOIN public.max_return_alerts a ON a.return_call_id=rc.id AND a.owner_user_id=rc.owner_user_id "+
- "WHERE rc.owner_user_id=$1 AND RIGHT(regexp_replace(rc.incoming_from,'[^0-9]','','g'),10)=RIGHT(regexp_replace(c.phone,'[^0-9]','','g'),10) "+
+ "WHERE rc.owner_user_id=$1 AND public.olam_max_phone_equal(rc.incoming_from,c.phone) "+
  "AND a.kind IN ('missed','voicemail','busy','yemot')))",
  donations:"EXISTS(SELECT 1 FROM public.max_contact_call_events e WHERE e.user_id=$1 AND e.contact_id=c.id AND e.outcome='donation')",
  no_answer:"EXISTS(SELECT 1 FROM public.max_contact_call_events e WHERE e.user_id=$1 AND e.contact_id=c.id AND e.outcome='no_answer')",
@@ -145,7 +145,7 @@ export async function olamContactsPhoneStep(uid:number,callHash:string,provider:
     const p=phone(digit);if(!p){s.message="לייג אריין צען ציפערן."; }
     else{
      const row=(await db.query(
-      "SELECT id,contact_ref FROM public.communication_contacts WHERE user_id=$1 AND right(regexp_replace(phone,'[^0-9]','','g'),10)=$2 LIMIT 1",[uid,p.slice(-10)])).rows[0];
+      "SELECT id,contact_ref FROM public.communication_contacts WHERE user_id=$1 AND public.olam_max_phone_equal(phone,$2) LIMIT 1",[uid,p])).rows[0];
      const c=row||(await db.query("INSERT INTO public.communication_contacts(user_id,name,phone) VALUES($1,'',$2) RETURNING id,contact_ref",[uid,p])).rows[0];
      s.ref=Number(c.contact_ref);s.phone=p;go("create_name");
     }
