@@ -52,12 +52,14 @@ RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE event_source text;
 BEGIN
  IF NEW.contact_id IS NULL THEN RETURN NEW; END IF;
- IF TG_OP='UPDATE' AND OLD.outcome IS NOT DISTINCT FROM NEW.outcome
+ IF TG_OP='UPDATE' THEN
+  IF OLD.outcome IS NOT DISTINCT FROM NEW.outcome
    AND OLD.note IS NOT DISTINCT FROM NEW.note
    AND OLD.mood IS NOT DISTINCT FROM NEW.mood
    AND OLD.report_details IS NOT DISTINCT FROM NEW.report_details
    AND OLD.case_id IS NOT DISTINCT FROM NEW.case_id
    AND OLD.status IS NOT DISTINCT FROM NEW.status THEN RETURN NEW; END IF;
+ END IF;
  IF NEW.status='prepared' AND NEW.outcome='' THEN RETURN NEW; END IF;
  event_source:=CASE WHEN NEW.provider='manual' THEN 'manual'
    WHEN NEW.provider='yemot' THEN 'yemot'
