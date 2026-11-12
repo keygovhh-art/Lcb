@@ -101,7 +101,7 @@ export default function Communications() {
             <h1 className="font-serif text-4xl font-bold text-primary">עולם החסד — קאמוניקאציע MAX</h1>
           </div>
           <p className="text-muted-foreground font-serif italic ml-11 max-w-xl">
-            דער פערזענליכער נדבן־און־רופן־ארבעטס־צענטער איז גרייט פאר מאנועלע באריכטן. אמת׳ע טעלעפאן־רופן, טעקסט־מעלדונגען און קאנפערענצן דארפן נאך א טעלעפאן־סערוויס.
+            דער פערזענליכער נדבן־און־רופן־צענטער נוצט איין מערכת פאר מיין עסקנות, ימות, SignalWire און וועבסייט. ארויסרופן איז נאר פאר באשטעטיגטע SignalWire־באנוצער.
           </p>
           <div className="ml-11 mt-4 flex flex-wrap gap-2">
             <Badge className="bg-green-100 text-green-800 border border-green-200 gap-1.5">
