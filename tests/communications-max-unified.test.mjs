@@ -36,5 +36,8 @@ test("MAX and My Askanus share case API, never claim calls are provider verified
   assert.match(max,/CaseFollowups/);
   assert.match(max,/tel:/);
   assert.match(my,/href="\/communications"/);
-  assert.match(max,/קיין טעלעפאן־פארבינדונג איז נאכנישט אקטיוו/);
+  assert.match(max,/ארויסרופן קען מען נאר דורך באשטעטיגטן SignalWire־צוטריט/);
+  const approved = read("artifacts/api-server/src/routes/olam-max-calling-approved.ts");
+  assert.match(approved,/providerVerified:false/);
+  assert.match(approved,/reconcileOlamCallFinance/);
 });

@@ -5,6 +5,7 @@ import {Input} from "@/components/ui/input";
 import {Textarea} from "@/components/ui/textarea";
 import {MaxCampaignAssignments,type PreparedCampaignCall} from "@/components/communications/max-campaign-assignments";
 import {MaxReturnCallsPanel} from "@/components/communications/max-return-calls-panel";
+import {OlamApprovedCallingPanel} from "@/components/communications/olam-approved-calling-panel";
 
 type Project={id:number;title:string};
 type Person={id:number;name:string;phone:string;doNotCall:boolean};
@@ -187,6 +188,7 @@ export function MaxVoiceCalling({cases,selectedContact}:{
   {message&&<p role="status" className="text-sm font-semibold">{message}</p>}
   <MaxCampaignAssignments onPrepared={p=>{void selectAssignedCall(p)}}/>
   <MaxReturnCallsPanel/>
+  <OlamApprovedCallingPanel cases={cases} providerReady={!!prefs?.providerReady}/>
   {callingMode&&<div className="rounded-lg border p-3 space-y-2">
    <strong>Calling Mode — {callingMode.campaignTitle}</strong>
    <p>{callingMode.lead.displayName}: <span dir="ltr">{callingMode.lead.phone}</span></p>
@@ -224,7 +226,7 @@ export function MaxVoiceCalling({cases,selectedContact}:{
     <p className="text-xs">די קנעפלעך זענען נאך נישט טעלעפאניש אקטיוו; די שטארקייט פונעם פיזישן טעלעפאן דארף מען אויפן טעלעפאן אליין טוישן.</p>
    </div>}
   </div>
-  <div className="rounded-xl border p-3 space-y-3">
+  <div id="max-prepare-existing-call" className="rounded-xl border p-3 space-y-3 scroll-mt-24">
    <p className="font-semibold">טעלעפאן־נומער צוגרייטן</p>
    <div className="grid grid-cols-3 gap-2">
     <select value={country} onChange={e=>setCountry(e.target.value as "US"|"CA")}
