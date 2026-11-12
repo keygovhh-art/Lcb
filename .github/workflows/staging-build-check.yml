@@ -39,6 +39,8 @@ jobs:
         run: node --test tests/olam-max-calling-approved.test.mjs
       - name: Verify Contacts status history, Hebrew dates and no inferred outcomes
         run: node --test tests/olam-max-contacts-approved.test.mjs
+      - name: Parse actual Cloudflare v304 Contacts mobile client JavaScript
+        run: node --check tests/olam-contacts-live-ui.js
       - name: Verify Olam outbound provider signatures, no-recording and one-agent call safety
         run: node --test tests/signalwire-olam-max-outbound-contract.test.mjs
       - name: Verify isolated temporary 123456 member login is never admin or permanent
