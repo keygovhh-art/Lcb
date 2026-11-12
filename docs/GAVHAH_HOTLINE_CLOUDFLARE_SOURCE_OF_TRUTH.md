@@ -1,6 +1,30 @@
 # גבהה — ריכטיגער Cloudflare האטליין (Source of truth)
 
-Updated: 2026-11-02. This is the project handoff for future ChatGPT conversations.
+Updated: 2026-11-11. This is the project handoff for future ChatGPT conversations.
+
+## 2026-11-11 — LIVE Cloudflare v281 (supersedes v117 and all intervening releases)
+
+**Directly verified:** Cloudflare account `keygovhh@gmail.com`, Worker `gavhah-cloudflare-native`, **version 281** (`ceab7101-57c2-4de5-b51c-6f94fe9708e5`) at **100% production traffic**, deployment `63228703-f92c-4707-be26-0e18d346e2d2`, November 12 00:14 UTC. Do not rebuild from the older GitHub `main` source: it is not a complete mirror of this 4.95 MB deployed Worker bundle.
+
+**Binding and route boundaries (owner requirement):**
+- `/api/yemot/ivr` remains the existing **Gavhah** phone callback. Gavhah accounts, News, Groups, My Askanus, campaigns and the ordinary Olam Hachesed entrance/menu use **Yemot**. The Yemot line is **605-562-1286**.
+- `/api/signalwire/shared-ivr` is exclusively the **Olam Hachesed communication and calling subsystem**; the SignalWire number is **605-655-8080**. Both paths may share the one Worker and Neon database, but never share provider-specific menus, session state or keypad routing. No migration to an independent Worker is authorized.
+- Cloudflare Workers + Neon/Hyperdrive only. **No Render hosting, build deployment, cutover or fallback** for new work.
+- `*` goes back; `#` advances to next message; **do not repurpose `0` as Back**. Main-menu `0` remains for signup, where applicable.
+
+**Last deployed fixes:** v277 Olam central member desk web controls; v279 authenticated SignalWire keypad desk and opt-in outbound Dial with bounded timeLimit, consent/DNC conditions; v280 failure-safe signed IVR XML fallback and auth-stage fix; v281 enforces Olam Askan PIN plus approved minute quota even before legacy `55555` return path. All are release claims from deployment metadata and source inspection, not proof of end-to-end physical-call success.
+
+**Database verified:** Neon project `falling-wildflower-17519958`, primary production branch. Constraint `gavhah_olam_auth_stage_chk` includes `awaiting_input` alongside `primary`, `second`, `member`, `granted`, `closed`; Askan auth attempts constrained to 0–2. Tables for metered calls, allowances and 15/5 minute warning flags exist. Do not modify credential records or public numbers during a source reconciliation.
+
+**Do next, in order:**
+1. Keep Gavhah + Olam Hachesed menus functional on Yemot; test active IVR `*`, `#`, PIN until hangup, and the option `159` boundary.
+2. Verify real SignalWire incoming calls: correct Askan PIN (two tries), no generic "Announcement 1", option 1 central My Desk, approved-minute warning at 15 and 5, cutoff after minutes expire, safe call-end ledger, consent guard for outgoing calls.
+3. Reconcile the production v281 Worker source to GitHub in a staging branch, using lossless bindings and no production changes until tests. Existing main branch is dated November 8 and is stale.
+4. Finish existing Gavhah groups/discussions/news, profile, personal cases, admin-by-section and recordings on the established Yemot and web interfaces. Finish Olam communications first; defer new Campaign Center feature work until that is complete.
+
+**2026-11-11 staging PR #89:** Correct source admin keypad map label so `159` describes Yemot menus / SignalWire calling-only, and correct `*` back, `#` next, `0` main-menu signup. Includes source regression tests and repair for an outdated return-call test assertion. **Not yet applied to live Worker v281.** Actual phone verification is still pending.
+
+
 
 ## Correct project / cloud account
 
