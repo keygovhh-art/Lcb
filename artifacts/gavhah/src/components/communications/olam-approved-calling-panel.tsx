@@ -5,7 +5,7 @@ import {Textarea} from "@/components/ui/textarea";
 
 type Purpose={id:number;title:string};
 type CallRow={
- id:number;number_e164:string;provider:string;status:string;reporting_source?:string;
+ id:string;number_e164:string;provider:string;status:string;reporting_source?:string;
  outcome:string;mood:string;note:string;case_id:number|null;contact_id:number|null;
  report_details?:{moneyKind?:string;amount?:number|null;donationWarmth?:string;callbackAt?:string|null};
  created_at:string;duration_seconds?:number|null
@@ -52,7 +52,7 @@ function Details({call}:{call:CallRow}){
 export function OlamApprovedCallingPanel({cases,providerReady}:{cases:Purpose[];providerReady:boolean}){
  const [section,setSection]=useState<string>("1"),[busy,setBusy]=useState(false);
  const [message,setMessage]=useState(""),[error,setError]=useState("");
- const [history,setHistory]=useState<CallRow[]>([]),[selected,setSelected]=useState<number|null>(null);
+ const [history,setHistory]=useState<CallRow[]>([]),[selected,setSelected]=useState<string|null>(null);
  const [number,setNumber]=useState(""),[contactName,setContactName]=useState(""),[address,setAddress]=useState("");
  const [when,setWhen]=useState(""),[scheduled,setScheduled]=useState<Array<{id:number;title:string;phone_e164:string;due_at:string}>>([]);
  const [country,setCountry]=useState<"US"|"CA">("US");
@@ -84,7 +84,7 @@ export function OlamApprovedCallingPanel({cases,providerReady}:{cases:Purpose[];
   finally{setBusy(false);}
  };
  const select=(n:string)=>{setSection(n);setError("");setMessage("");setSelected(null);setShowStats(false);};
- const call=history.find(x=>x.id===selected);
+ const call=history.find(x=>String(x.id)===selected);
  const resultBody=()=>({
   caseId,country,number,outcome,moneyKind,amount:amount===""?null:Number(amount),
   donationWarmth:warmth,mood,note,
@@ -192,7 +192,7 @@ export function OlamApprovedCallingPanel({cases,providerReady}:{cases:Purpose[];
     <p className="text-sm">קאל־היסטאריע — ניי צו אלט. אויף טעלעפאן דרוקט מען 1 בשעת'ן הערן דעם נומער אדער ביז 2 סעקונדעס דערנאך.</p>
     {!history.length&&<p className="text-muted-foreground text-sm">דערווייל קיין קאלס.</p>}
     <div className="max-h-72 overflow-y-auto space-y-1">
-     {history.map(c=><button type="button" key={c.id} onClick={()=>{setSelected(c.id);setShowStats(false)}} className={"w-full text-right border rounded-lg p-2 text-sm "+(selected===c.id?"bg-muted":"")}>
+     {history.map(c=><button type="button" key={c.id} onClick={()=>{setSelected(String(c.id));setShowStats(false)}} className={"w-full text-right border rounded-lg p-2 text-sm "+(selected===c.id?"bg-muted":"")}>
       <span dir="ltr">{c.number_e164}</span> · {new Date(c.created_at).toLocaleString()} · {c.status==="prepared"?"נישט גערופן":statuses[c.outcome]||"נישט אריינגעלייגט"}
      </button>)}
     </div>
