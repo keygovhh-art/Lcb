@@ -57,9 +57,9 @@ export function OlamApprovedCallingPanel({cases,providerReady}:{cases:Purpose[];
  const [when,setWhen]=useState(""),[scheduled,setScheduled]=useState<Array<{id:number;title:string;phone_e164:string;due_at:string}>>([]);
  const [country,setCountry]=useState<"US"|"CA">("US");
  const [caseId,setCaseId]=useState<number|null>(null);
- const [outcome,setOutcome]=useState("no_answer"),[moneyKind,setMoneyKind]=useState("none");
+ const [outcome,setOutcome]=useState(""),[moneyKind,setMoneyKind]=useState("none");
  const [amount,setAmount]=useState(""),[warmth,setWarmth]=useState(""),[note,setNote]=useState("");
- const [mood,setMood]=useState("neutral"),[callbackAt,setCallbackAt]=useState("");
+ const [mood,setMood]=useState(""),[callbackAt,setCallbackAt]=useState("");
  const [requestId,setRequestId]=useState(()=>crypto.randomUUID());
  const [editField,setEditField]=useState("outcome"),[editValue,setEditValue]=useState("");
  const [showStats,setShowStats]=useState(false);
@@ -180,7 +180,7 @@ export function OlamApprovedCallingPanel({cases,providerReady}:{cases:Purpose[];
     {Object.entries(warmthLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}
    </select></label>}
    <label className="block text-sm">שטימונג<select className="w-full h-10 border rounded-lg bg-background" value={mood} onChange={e=>setMood(e.target.value)}>
-     <option value="neutral">נייטראל</option><option value="friendly">פריינטליך</option>
+     <option value="">נישט אריינגעלייגט</option><option value="neutral">נייטראל</option><option value="friendly">פריינטליך</option>
      <option value="busy">פארנומען</option><option value="uninterested">נישט אינטערעסירט</option>
      <option value="uncomfortable">אומבאקוועם</option>
    </select></label>
