@@ -66,3 +66,16 @@ test("recontact never becomes an automatic call; reports remain append-only",()=
  assert.match(db,/CREATE TABLE IF NOT EXISTS public\.max_contact_call_events/);
  assert.doesNotMatch(phone,/placeOlamMaxOutboundCall/);
 });
+
+
+test("country-aware E.164 matching never merges different countries with same last ten digits",()=>{
+ const sql=read("migrations/20261112_olam_contacts_canonical_numbers.sql");
+ assert.match(sql,/CREATE OR REPLACE FUNCTION public\.olam_max_normalized_number/);
+ assert.match(sql,/CREATE OR REPLACE FUNCTION public\.olam_max_phone_equal/);
+ assert.match(sql,/public\.olam_max_phone_equal\(phone,NEW\.number_e164\)/);
+ assert.match(sql,/public\.olam_max_phone_equal\(phone,NEW\.incoming_from\)/);
+ assert.match(api,/public\.olam_max_phone_equal\(rc\.incoming_from,c\.phone\)/);
+ assert.match(phone,/public\.olam_max_phone_equal\(rc\.incoming_from,c\.phone\)/);
+ const calling=read("artifacts/api-server/src/routes/olam-max-calling-approved.ts");
+ assert.match(calling,/public\.olam_max_phone_equal\(phone,\$2\)/);
+});
