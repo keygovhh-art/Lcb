@@ -1,6 +1,9 @@
 import {Router} from "express";
 import {pool} from "@workspace/db";
 import {getSessionUserId, requireAuth} from "../middlewares/auth";
+import {reconcileOlamCallFinance} from "../lib/olam-max-call-finance";
+import {placeOlamMaxOutboundCall} from "../lib/signalwire-max-outbound";
+import {verifyMaxCampaignDialClaim} from "./communications-connect";
 
 /**
  * Approved Olam MAX calling desk.
@@ -81,8 +84,9 @@ router.post("/askanus/max/calling/approved/manual",async(req,res,next)=>{
   if(caseId!==null&&q.rowCount)await pool.query(
    "INSERT INTO public.max_call_preferences(user_id,last_case_id) VALUES($1,$2) ON CONFLICT(user_id) DO UPDATE SET last_case_id=EXCLUDED.last_case_id,updated_at=now()",[uid,caseId]);
   const old=q.rows[0]|| (await pool.query("SELECT id FROM public.max_call_sessions WHERE user_id=$1 AND manual_request_id=$2::uuid",[uid,key])).rows[0];
+  const financial=await reconcileOlamCallFinance(uid,Number(old.id));
   res.status(q.rowCount?201:200).json({id:old?.id,duplicate:!q.rowCount,providerVerified:false,
-   statisticsSaved:true,financialTotalsNotModified:true,needsFinanceReconciliation:report.details.moneyKind!=="none"});
+   statisticsSaved:true,finance:financial});
  }catch(e){next(e);}
 });
 
@@ -106,7 +110,8 @@ router.patch("/askanus/max/calling/approved/history/:id",async(req,res,next)=>{
   if(edited.outcome==="do_not_call"&&owned.contact_id){
    await pool.query("UPDATE public.communication_contacts SET do_not_call=true,opt_out_reason=$1,updated_at=now() WHERE id=$2 AND user_id=$3",[edited.note||"Do Not Call request",owned.contact_id,uid]);
   }
-  res.json({saved:!!q.rowCount,financialTotalsNotModified:true,needsFinanceReconciliation:edited.details.moneyKind!=="none"});
+  const finance=await reconcileOlamCallFinance(uid,id);
+  res.json({saved:!!q.rowCount,finance});
  }catch(e){next(e);}
 });
 
