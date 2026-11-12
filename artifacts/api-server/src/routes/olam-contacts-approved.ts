@@ -50,14 +50,14 @@ function westernDateFromHebrewYearMonthDay(y:number,m:number,d:number):string|nu
  if(!Number.isSafeInteger(y)||y<5000||y>7000||!Number.isSafeInteger(m)||m<1||m>13||!Number.isSafeInteger(d)||d<1||d>30)return null;
  // Months are numbered from Tishrei; the leap-year Adar II adds month 7.
  const fmt=new Intl.DateTimeFormat("en-u-ca-hebrew",{timeZone:"America/New_York",year:"numeric",month:"long",day:"numeric"});
- const leap=[0,3,6,8,11,14,17].includes(((7*y)+1)%19);
+ const leap=[0,3,6,8,11,14,17].includes(y%19);
  const norm=(v:string)=>v.toLowerCase().replace(/[^a-z0-9]/g,"");
  const names=leap
   ? ["tishri","heshvan","kislev","tevet","shevat","adar i","adar ii","nisan","iyar","sivan","tamuz","av","elul"]
   : ["tishri","heshvan","kislev","tevet","shevat","adar","nisan","iyar","sivan","tamuz","av","elul"];
  const target=names[m-1];if(!target)return null;
  // A Hebrew year normally starts Sep/Oct in civil year y-3761.
- const start=Date.UTC(y-3761,7,15),end=Date.UTC(y-3760,11,31);
+ const start=Date.UTC(y-3761,7,15,12),end=Date.UTC(y-3760,11,31,12);
  for(let ms=start;ms<=end;ms+=86400000){
   const date=new Date(ms);
   const parts=Object.fromEntries(fmt.formatToParts(date).map(z=>[z.type,z.value]));
