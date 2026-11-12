@@ -17,3 +17,8 @@ ALTER TABLE public.communication_contacts
 CREATE INDEX IF NOT EXISTS olam_desk_due_25m
   ON public.gavhah_olam_desk_direct(user_id,due_at)
   WHERE kind='call_later' AND status='open';
+
+-- A call's callback must create at most one canonical My Tishl reminder.
+CREATE UNIQUE INDEX IF NOT EXISTS max_call_callback_once_per_member
+ ON public.gavhah_olam_desk_direct(user_id,source_entity,source_id)
+ WHERE source_entity='max_call_session' AND kind='call_later';
