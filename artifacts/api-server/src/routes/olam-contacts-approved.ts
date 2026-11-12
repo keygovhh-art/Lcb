@@ -1,6 +1,7 @@
 import {Router} from "express";
 import {pool} from "@workspace/db";
 import {requireAuth,getSessionUserId} from "../middlewares/auth";
+import {olamHebrewToCivil,olamCivilToHebrew,olamParshaForCivilDay} from "../lib/olam-contact-calendar";
 
 /**
  * Approved "קאנטאקט'ס" voice/web data API.
@@ -46,37 +47,9 @@ function isoDay(value:unknown){
  const d=new Date(x+"T12:00:00Z");
  return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===x?x:null;
 }
-function westernDateFromHebrewYearMonthDay(y:number,m:number,d:number):string|null{
- if(!Number.isSafeInteger(y)||y<5000||y>7000||!Number.isSafeInteger(m)||m<1||m>13||!Number.isSafeInteger(d)||d<1||d>30)return null;
- // Months are numbered from Tishrei; the leap-year Adar II adds month 7.
- const fmt=new Intl.DateTimeFormat("en-u-ca-hebrew",{timeZone:"America/New_York",year:"numeric",month:"long",day:"numeric"});
- const leap=[0,3,6,8,11,14,17].includes(y%19);
- const norm=(v:string)=>v.toLowerCase().replace(/[^a-z0-9]/g,"");
- const names=leap
-  ? ["tishri","heshvan","kislev","tevet","shevat","adar i","adar ii","nisan","iyar","sivan","tamuz","av","elul"]
-  : ["tishri","heshvan","kislev","tevet","shevat","adar","nisan","iyar","sivan","tamuz","av","elul"];
- const target=names[m-1];if(!target)return null;
- // A Hebrew year normally starts Sep/Oct in civil year y-3761.
- const start=Date.UTC(y-3761,7,15,12),end=Date.UTC(y-3760,11,31,12);
- for(let ms=start;ms<=end;ms+=86400000){
-  const date=new Date(ms);
-  const parts=Object.fromEntries(fmt.formatToParts(date).map(z=>[z.type,z.value]));
-  let name=norm(String(parts.month||""));
-  if(name==="adar1")name="adari";
-  if(name==="adar2")name="adarii";
-  const expected=norm(target);
-  // Some Intl editions use Adar for Adar II, or Tishrei / Cheshvan variants.
-  const match=name===expected||(expected==="tishri"&&name==="tishrei")||
-   (expected==="heshvan"&&["cheshvan","marcheshvan"].includes(name))||
-   (expected==="adarii"&&name==="adar")||
-   (expected==="tamuz"&&name==="tammuz");
-  if(Number(parts.year)===y&&Number(parts.day)===d&&match)return date.toISOString().slice(0,10);
- }
- return null;
-}
 function searchDate(query:any):string|null{
  if(query.dateSystem==="hebrew"){
-  const day=westernDateFromHebrewYearMonthDay(Number(query.hebrewYear),Number(query.hebrewMonth),Number(query.hebrewDay));
+  const day=olamHebrewToCivil(Number(query.hebrewYear),Number(query.hebrewMonth),Number(query.hebrewDay));
   return day;
  }
  return query.dateSystem==="gregorian"?isoDay(query.callDate):null;
@@ -86,6 +59,17 @@ const queryContact=async(uid:number,ref:number)=> {
  return r.rows[0]||null;
 };
 const ownedContact=async(uid:number,id:number)=>!!(await pool.query("SELECT 1 FROM public.communication_contacts WHERE id=$1 AND user_id=$2 AND archived_at IS NULL",[id,uid])).rowCount;
+router.get("/askanus/max/contacts/approved/calendar",async(req,res,next)=>{
+ try{
+  const date=isoDay(req.query.date);
+  if(!date){res.status(400).json({error:"Valid Gregorian YYYY-MM-DD date required"});return;}
+  const hebrew=olamCivilToHebrew(date);
+  let parsha:null|{name:string;shabbatDate:string}=null;
+  try{parsha=await olamParshaForCivilDay(date);}catch{/* calendar service may be temporarily unavailable */}
+  res.set("Cache-Control","private,max-age=3600").json({date,hebrew,parsha,
+   parshaVerified:!!parsha,source:"Hebrew Intl calendar; same Gavhah Hebcal parsha schedule"});
+ }catch(e){next(e);}
+});
 router.get("/askanus/max/contacts/approved/menu",(_req,res)=>{
  res.set("Cache-Control","private,no-store").json({
   title:"קאנטאקט'ס",
