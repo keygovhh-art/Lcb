@@ -54,6 +54,7 @@ export function OlamApprovedCallingPanel({cases,providerReady}:{cases:Purpose[];
  const [message,setMessage]=useState(""),[error,setError]=useState("");
  const [history,setHistory]=useState<CallRow[]>([]),[selected,setSelected]=useState<string|null>(null);
  const [number,setNumber]=useState(""),[contactName,setContactName]=useState(""),[address,setAddress]=useState("");
+ const [postCallName,setPostCallName]=useState("");
  const [when,setWhen]=useState(""),[scheduled,setScheduled]=useState<Array<{id:number;title:string;phone_e164:string;due_at:string}>>([]);
  const [country,setCountry]=useState<"US"|"CA">("US");
  const [caseId,setCaseId]=useState<number|null>(null);
@@ -91,8 +92,12 @@ export function OlamApprovedCallingPanel({cases,providerReady}:{cases:Purpose[];
   callbackAt:callbackAt?new Date(callbackAt).toISOString():null
  });
  const saveManual=()=>act(async()=>{
-  const r=await callApi<{duplicate:boolean;finance?:{financialRecorded:boolean;requiresPurpose?:boolean}}>(
+  const r=await callApi<{id:number;duplicate:boolean;finance?:{financialRecorded:boolean;requiresPurpose?:boolean}}>(
    base+"/manual","POST",{...resultBody(),requestId});
+  if(postCallName.trim()&&r.id){
+   await callApi(base+"/postcall/"+encodeURIComponent(String(r.id))+"/name","POST",{name:postCallName.trim()});
+  }
+  setPostCallName("");
   setRequestId(crypto.randomUUID());setMessage(r.duplicate
    ?"דער באריכט איז שוין אפגעהיטן; נישט דאפלט געציילט."
    :r.finance?.requiresPurpose?"באריכט אפגעהיטן. דער נדבה־סכום ווארט אויף א באשטעטיגטן צוועק."
@@ -100,7 +105,7 @@ export function OlamApprovedCallingPanel({cases,providerReady}:{cases:Purpose[];
  });
  const saveContact=()=>act(async()=>{
   await callApi(base+"/contact","POST",{number,name:contactName,address});
-  setContactName("");setAddress("");setMessage("קאנטאקט אפגעהיטן אין נדבן 360.");
+  setContactName("");setAddress("");setMessage("קאנטאקט אפגעהיטן אין קאנטאקט׳ס.");
  });
  const schedule=()=>act(async()=>{
   if(!when)throw Error("קלויב אויס א דאטום און צייט");
@@ -161,6 +166,7 @@ export function OlamApprovedCallingPanel({cases,providerReady}:{cases:Purpose[];
   {section==="2"&&<form className="space-y-3" onSubmit={e=>{e.preventDefault();void saveManual();}}>
    <p className="text-sm">א רוף פון דיין אייגענעם טעלעפאן — נישט א באשטעטיגטער SignalWire־קאל.</p>
    <label className="block text-sm">טעלעפאן־נומער<Input type="tel" required value={number} onChange={e=>setNumber(e.target.value)}/></label>
+   <label className="block text-sm">ביטע לייג אריין דעם נאמען — אדער לאז ליידיג צו סקיפן<Input value={postCallName} onChange={e=>setPostCallName(e.target.value)} placeholder="נאמען (אפטיאנאל)" maxLength={180}/></label>
    <label className="block text-sm">לאנד<select className="w-full h-10 border rounded-lg bg-background" value={country}
      onChange={e=>setCountry(e.target.value as "US"|"CA")}><option value="US">USA</option><option value="CA">Canada</option></select></label>
    <label className="block text-sm">צוועק — מיין עסקנות<select className="w-full h-10 border rounded-lg bg-background" value={caseId??""}
