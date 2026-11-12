@@ -17,8 +17,7 @@ BEGIN
   RETURN NEW;
 END; $$;
 
-DROP TRIGGER IF EXISTS olam_max_contact_ref_insert ON public.communication_contacts;
-CREATE TRIGGER olam_max_contact_ref_insert BEFORE INSERT ON public.communication_contacts
+CREATE OR REPLACE TRIGGER olam_max_contact_ref_insert BEFORE INSERT ON public.communication_contacts
 FOR EACH ROW EXECUTE FUNCTION public.olam_max_contact_ref_before_insert();
 
 CREATE OR REPLACE FUNCTION public.olam_max_attach_contact_before_call()
@@ -44,8 +43,7 @@ BEGIN
  RETURN NEW;
 END; $$;
 
-DROP TRIGGER IF EXISTS olam_max_call_auto_contact ON public.max_call_sessions;
-CREATE TRIGGER olam_max_call_auto_contact
+CREATE OR REPLACE TRIGGER olam_max_call_auto_contact
  BEFORE INSERT OR UPDATE OF status,outcome ON public.max_call_sessions
  FOR EACH ROW EXECUTE FUNCTION public.olam_max_attach_contact_before_call();
 
@@ -74,8 +72,7 @@ BEGIN
  RETURN NEW;
 END; $$;
 
-DROP TRIGGER IF EXISTS olam_max_call_status_append ON public.max_call_sessions;
-CREATE TRIGGER olam_max_call_status_append
+CREATE OR REPLACE TRIGGER olam_max_call_status_append
  AFTER INSERT OR UPDATE OF status,outcome,note,mood,report_details,case_id
  ON public.max_call_sessions
  FOR EACH ROW EXECUTE FUNCTION public.olam_max_append_call_event();
