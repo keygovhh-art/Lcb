@@ -2,6 +2,7 @@ import { formatGregorianDateTime } from "@/lib/gregorian-date";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { MaxCallDesk } from "@/components/communications/max-call-desk";
+import { OlamContactsPanel } from "@/components/communications/olam-contacts-panel";
 import { useToast } from "@/hooks/use-toast";
 import { MemberGate } from "@/components/shared/member-gate";
 import { Layout } from "@/components/layout/layout";
@@ -152,12 +153,14 @@ export default function Communications() {
         <Tabs defaultValue="calls" className="space-y-8">
           <TabsList className="bg-muted/50 h-auto p-1 flex flex-wrap gap-1">
             <TabsTrigger value="calls" className="gap-2"><Phone className="h-4 w-4" /> מיין MAX רופן־צענטער</TabsTrigger>
+            <TabsTrigger value="contacts" className="gap-2"><Users className="h-4 w-4"/> קאנטאקט׳ס</TabsTrigger>
             <TabsTrigger value="broadcast" className="gap-2">
               <Megaphone className="h-4 w-4" /> Website Broadcast
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="calls" className="space-y-6"><MaxCallDesk /></TabsContent>
+          <TabsContent value="contacts" className="space-y-6"><OlamContactsPanel /></TabsContent>
 
           {/* Broadcast */}
           <TabsContent value="broadcast" className="space-y-6">
