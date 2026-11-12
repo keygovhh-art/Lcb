@@ -205,7 +205,7 @@ export function MaxCallDesk() {
       <h2 className="text-xl font-semibold text-primary flex items-center gap-2"><PhoneCall className="h-5 w-5"/> עולם החסד MAX — מיין רופן־צענטער</h2>
       <p className="text-sm text-muted-foreground">
         א פערזענליכער ארבעטס־צענטער פאר נדבנים, רוף־באריכטן, התחייבויות און נאכפאלגן.
-        דערווייל ווערן רופן־רעזולטאטן אריינגעשריבן דורך דיר; קיין טעלעפאן־פארבינדונג איז נאכנישט אקטיוו.
+        די זעלבע קאל־רעזולטאטן ווערן באנוצט דורך מיין עסקנות, די וועבסייט און ביידע האטליין־וועגן. ארויסרופן קען מען נאר דורך באשטעטיגטן SignalWire־צוטריט.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onClick={()=>void load()} disabled={loading}>
