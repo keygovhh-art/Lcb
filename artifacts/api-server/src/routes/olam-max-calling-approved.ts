@@ -28,7 +28,7 @@ const phone=(x:unknown)=>{
 };
 const ownedCase=async(uid:number,id:number)=>!!(await pool.query(
  "SELECT 1 FROM public.askanus_cases WHERE id=$1 AND user_id=$2",[id,uid])).rowCount;
-const normalizeDetails=(b:any)=>{
+const normalizeDetails=(b:any,allowPastCallback=false)=>{
  const outcome=toText(b?.outcome,32),mood=toText(b?.mood,32),note=toText(b?.note,2500);
  if(!results.has(outcome)||!moodValues.has(mood))return null;
  const warmth=b?.donationWarmth===undefined?"":toText(b.donationWarmth,32);
@@ -38,7 +38,8 @@ const normalizeDetails=(b:any)=>{
  const amount=b?.amount===undefined||b?.amount===null?null:Number(b.amount);
  if(amount!==null&&(!Number.isFinite(amount)||amount<0||amount>100000000||Math.round(amount*100)!==amount*100))return null;
  const callbackAt=b?.callbackAt==null?null:new Date(b.callbackAt);
- if(callbackAt&&(!Number.isFinite(callbackAt.getTime())||callbackAt.getTime()<=Date.now()))return null;
+ if(callbackAt&&(!Number.isFinite(callbackAt.getTime())||
+   (!allowPastCallback&&callbackAt.getTime()<=Date.now())||callbackAt.getTime()>Date.now()+366*86400000))return null;
  const details={moneyKind,amount,donationWarmth:warmth,callbackAt:callbackAt?.toISOString()??null};
  return {outcome,mood,note,details};
 };
@@ -101,7 +102,7 @@ router.patch("/askanus/max/calling/approved/history/:id",async(req,res,next)=>{
   // Editing a single field must not clear any other already-saved statistics.
   const prior=owned.report_details||{};
   const merged={...prior,outcome:owned.outcome,mood:owned.mood,note:owned.note,...req.body};
-  const edited=normalizeDetails(merged);
+  const edited=normalizeDetails(merged,req.body?.callbackAt===undefined);
   if(!edited){res.status(400).json({error:"Invalid statistics field"});return;}
   const caseId=req.body.caseId===undefined?owned.case_id:req.body.caseId===null?null:Number(req.body.caseId);
   if(caseId!==null&&(!validId(caseId)||!await ownedCase(uid,caseId))){res.sendStatus(404);return;}
