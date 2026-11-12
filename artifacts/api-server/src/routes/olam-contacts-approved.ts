@@ -33,7 +33,7 @@ const conditions:Record<Category,string>={
  do_not_call:"c.do_not_call=true",
  missed:"(EXISTS(SELECT 1 FROM public.max_call_sessions s WHERE s.user_id=c.user_id AND s.contact_id=c.id AND s.direction='inbound' AND s.status='no_answer') OR "+
  "EXISTS(SELECT 1 FROM public.max_return_calls rc JOIN public.max_return_alerts a ON a.return_call_id=rc.id AND a.owner_user_id=rc.owner_user_id "+
- "WHERE rc.owner_user_id=c.user_id AND RIGHT(regexp_replace(rc.incoming_from,'[^0-9]','','g'),10)=RIGHT(regexp_replace(c.phone,'[^0-9]','','g'),10) "+
+ "WHERE rc.owner_user_id=c.user_id AND public.olam_max_phone_equal(rc.incoming_from,c.phone) "+
  "AND a.kind IN ('missed','voicemail','busy','yemot')))",
  donations:"EXISTS(SELECT 1 FROM public.max_contact_call_events e WHERE e.user_id=c.user_id AND e.contact_id=c.id AND e.outcome='donation')",
  no_answer:"EXISTS(SELECT 1 FROM public.max_contact_call_events e WHERE e.user_id=c.user_id AND e.contact_id=c.id AND e.outcome='no_answer')",
@@ -147,7 +147,7 @@ router.post("/askanus/max/contacts/approved",async(req,res,next)=>{
  try{
   const uid=getSessionUserId(req)!,p=num(req.body?.phone),name=clean(req.body?.name,180),address=clean(req.body?.address,550);
   if(!p){res.status(400).json({error:"Valid phone required; name and address can be skipped"});return;}
-  const old=(await pool.query("SELECT id,contact_ref,name,archived_at FROM public.communication_contacts WHERE user_id=$1 AND right(regexp_replace(phone,'[^0-9]','','g'),10)=$2 ORDER BY id LIMIT 1",[uid,p.slice(-10)])).rows[0];
+  const old=(await pool.query("SELECT id,contact_ref,name,archived_at FROM public.communication_contacts WHERE user_id=$1 AND public.olam_max_phone_equal(phone,$2) ORDER BY id LIMIT 1",[uid,p])).rows[0];
   if(old){
    const r=await pool.query("UPDATE public.communication_contacts SET name=CASE WHEN name='' THEN $1 ELSE name END, postal_address=CASE WHEN postal_address='' THEN $2 ELSE postal_address END,archived_at=NULL,updated_at=now() WHERE id=$3 AND user_id=$4 RETURNING id,contact_ref,name,phone",[name,address,old.id,uid]);
    res.json({saved:true,existing:true,contact:r.rows[0]});return;
